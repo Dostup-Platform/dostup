@@ -1,26 +1,41 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { demoProduct } from "@/lib/demo-data";
+import { useProduct } from "@/hooks/useProducts";
+import { Loader2 } from "lucide-react";
 import heroBackground from "@/assets/hero-background.jpg";
 
-const formatPrice = (price: number, currency: string) => {
+const formatPrice = (price: number) => {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: currency,
+    currency: "USD",
     minimumFractionDigits: 0,
-  }).format(price / 100);
+  }).format(price);
 };
 
 const ProductPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
-  
-  // In production, fetch product by ID
-  const product = demoProduct;
+  const { data: product, isLoading } = useProduct(productId);
   
   const handleBuy = () => {
-    // Navigate to checkout
-    navigate(`/checkout/${productId || product.id}`);
+    navigate(`/checkout/${productId || "demo"}`);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Use demo product if no real product found
+  const displayProduct = product || {
+    title: "Master Course: Digital Skills",
+    headline: "Learn everything you need to succeed online",
+    description: "This comprehensive course covers all the essential skills you need to build your digital presence. From basics to advanced techniques, you'll learn from industry experts with years of experience.",
+    price: 4900,
+    image_url: heroBackground,
   };
 
   return (
@@ -28,8 +43,8 @@ const ProductPage = () => {
       {/* Hero Image */}
       <div className="relative w-full aspect-[4/3] md:aspect-[16/9] max-h-[50vh]">
         <img
-          src={product.image_url || heroBackground}
-          alt={product.title}
+          src={displayProduct.image_url || heroBackground}
+          alt={displayProduct.title}
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
@@ -40,23 +55,23 @@ const ProductPage = () => {
         <div className="bg-card rounded-2xl p-6 shadow-lg animate-fade-in">
           {/* Title */}
           <h1 className="text-2xl md:text-3xl font-bold text-foreground text-balance leading-tight">
-            {product.title}
+            {displayProduct.title}
           </h1>
 
           {/* Headline */}
           <p className="mt-3 text-lg text-primary font-medium">
-            {product.headline}
+            {displayProduct.headline}
           </p>
 
           {/* Description */}
           <p className="mt-4 text-muted-foreground leading-relaxed">
-            {product.description}
+            {displayProduct.description}
           </p>
 
           {/* Price */}
           <div className="mt-6 flex items-baseline gap-2">
             <span className="text-3xl font-bold text-foreground">
-              {formatPrice(product.price, product.currency)}
+              {formatPrice(Number(displayProduct.price))}
             </span>
             <span className="text-muted-foreground">one-time</span>
           </div>
@@ -72,7 +87,7 @@ const ProductPage = () => {
             className="w-full"
             onClick={handleBuy}
           >
-            Get Access — {formatPrice(product.price, product.currency)}
+            Get Access — {formatPrice(Number(displayProduct.price))}
           </Button>
         </div>
       </div>
