@@ -1,13 +1,15 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useProduct } from "@/hooks/useProducts";
+import { useLanguage } from "@/contexts/LanguageContext";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Loader2 } from "lucide-react";
 import heroBackground from "@/assets/hero-background.jpg";
 
 const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("ru-RU", {
     style: "currency",
-    currency: "USD",
+    currency: "KZT",
     minimumFractionDigits: 0,
   }).format(price);
 };
@@ -15,6 +17,7 @@ const formatPrice = (price: number) => {
 const ProductPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { data: product, isLoading } = useProduct(productId);
   
   const handleBuy = () => {
@@ -31,15 +34,20 @@ const ProductPage = () => {
 
   // Use demo product if no real product found
   const displayProduct = product || {
-    title: "Master Course: Digital Skills",
-    headline: "Learn everything you need to succeed online",
-    description: "This comprehensive course covers all the essential skills you need to build your digital presence. From basics to advanced techniques, you'll learn from industry experts with years of experience.",
-    price: 4900,
+    title: "Мастер-курс: Цифровые навыки",
+    headline: "Научитесь всему необходимому для успеха в интернете",
+    description: "Этот комплексный курс охватывает все необходимые навыки для создания вашего цифрового присутствия. От основ до продвинутых техник — вы научитесь у экспертов с многолетним опытом.",
+    price: 49000,
     image_url: heroBackground,
   };
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Language Switcher */}
+      <div className="absolute top-4 right-4 z-20">
+        <LanguageSwitcher />
+      </div>
+
       {/* Hero Image */}
       <div className="relative w-full aspect-[4/3] md:aspect-[16/9] max-h-[50vh]">
         <img
@@ -73,7 +81,7 @@ const ProductPage = () => {
             <span className="text-3xl font-bold text-foreground">
               {formatPrice(Number(displayProduct.price))}
             </span>
-            <span className="text-muted-foreground">one-time</span>
+            <span className="text-muted-foreground">{t("oneTime")}</span>
           </div>
         </div>
       </div>
@@ -87,7 +95,7 @@ const ProductPage = () => {
             className="w-full"
             onClick={handleBuy}
           >
-            Get Access — {formatPrice(Number(displayProduct.price))}
+            {t("getAccess")} — {formatPrice(Number(displayProduct.price))}
           </Button>
         </div>
       </div>

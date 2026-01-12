@@ -5,13 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProduct } from "@/hooks/useProducts";
+import { useLanguage } from "@/contexts/LanguageContext";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { ArrowLeft, Lock, CreditCard, Loader2 } from "lucide-react";
 import heroBackground from "@/assets/hero-background.jpg";
 
 const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("ru-RU", {
     style: "currency",
-    currency: "USD",
+    currency: "KZT",
     minimumFractionDigits: 0,
   }).format(price);
 };
@@ -19,6 +21,7 @@ const formatPrice = (price: number) => {
 const CheckoutPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { data: product, isLoading } = useProduct(productId);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -29,9 +32,7 @@ const CheckoutPage = () => {
     setIsProcessing(true);
 
     // Simulate payment processing
-    // In production, this would integrate with Stripe
     setTimeout(() => {
-      // After successful payment, redirect to password setup
       navigate("/setup-password", { 
         state: { 
           email, 
@@ -50,30 +51,32 @@ const CheckoutPage = () => {
     );
   }
 
-  // Use demo product if no real product found
   const displayProduct = product || {
-    title: "Digital Product",
-    headline: "Get access to premium content",
-    price: 4900,
+    title: "Цифровой продукт",
+    headline: "Получите доступ к премиум-контенту",
+    price: 49000,
     image_url: heroBackground,
   };
 
   return (
     <div className="min-h-screen bg-muted/30 py-6 px-4">
       <div className="max-w-lg mx-auto">
-        {/* Back button */}
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 touch-manipulation"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span>Back</span>
-        </button>
+        {/* Header with back and language */}
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground touch-manipulation"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>{t("back")}</span>
+          </button>
+          <LanguageSwitcher />
+        </div>
 
         {/* Order Summary */}
         <Card className="mb-6 animate-fade-in">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Order Summary</CardTitle>
+            <CardTitle className="text-lg">{t("orderSummary")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-start">
@@ -86,7 +89,7 @@ const CheckoutPage = () => {
               </span>
             </div>
             <div className="mt-4 pt-4 border-t border-border flex justify-between">
-              <span className="font-semibold">Total</span>
+              <span className="font-semibold">{t("orderSummary")}</span>
               <span className="text-xl font-bold text-primary">
                 {formatPrice(Number(displayProduct.price))}
               </span>
@@ -99,17 +102,17 @@ const CheckoutPage = () => {
           <CardHeader className="pb-4">
             <CardTitle className="text-lg flex items-center gap-2">
               <Lock className="w-4 h-4 text-success" />
-              Secure Checkout
+              {t("secureCheckout")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handlePayment} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("email")}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t("emailPlaceholder")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -118,11 +121,11 @@ const CheckoutPage = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name">{t("fullName")}</Label>
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Your name"
+                  placeholder={t("namePlaceholder")}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -132,14 +135,14 @@ const CheckoutPage = () => {
 
               {/* Card details placeholder */}
               <div className="space-y-2">
-                <Label>Card Details</Label>
+                <Label>{t("cardDetails")}</Label>
                 <div className="border border-input rounded-lg p-4 bg-muted/50">
                   <div className="flex items-center gap-3 text-muted-foreground">
                     <CreditCard className="w-5 h-5" />
-                    <span className="text-sm">Stripe payment integration</span>
+                    <span className="text-sm">{t("stripeIntegration")}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Demo mode — Click pay to simulate successful payment
+                    {t("demoMode")}
                   </p>
                 </div>
               </div>
@@ -154,15 +157,15 @@ const CheckoutPage = () => {
                 {isProcessing ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Processing...
+                    {t("processing")}
                   </span>
                 ) : (
-                  `Pay ${formatPrice(Number(displayProduct.price))}`
+                  `${t("pay")} ${formatPrice(Number(displayProduct.price))}`
                 )}
               </Button>
 
               <p className="text-xs text-center text-muted-foreground mt-4">
-                By completing this purchase, you agree to our terms of service.
+                {t("termsAgreement")}
               </p>
             </form>
           </CardContent>

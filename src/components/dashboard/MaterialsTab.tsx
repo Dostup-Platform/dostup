@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { useUserMaterials } from "@/hooks/useMaterials";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -20,6 +21,7 @@ const getIcon = (type: string) => {
 
 const MaterialsTab = () => {
   const { data: materials, isLoading } = useUserMaterials();
+  const { t } = useLanguage();
 
   if (isLoading) {
     return (
@@ -30,7 +32,7 @@ const MaterialsTab = () => {
   }
 
   const groupedMaterials = materials?.reduce((acc, material) => {
-    const productTitle = (material as any).products?.title || "Unknown Product";
+    const productTitle = (material as any).products?.title || "Продукт";
     if (!acc[productTitle]) {
       acc[productTitle] = [];
     }
@@ -42,14 +44,14 @@ const MaterialsTab = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-foreground">My Materials</h2>
+      <h2 className="text-lg font-semibold text-foreground">{t("myMaterials")}</h2>
 
       {hasNoMaterials ? (
         <div className="text-center py-12">
           <FileText className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-          <p className="text-muted-foreground">No materials available yet</p>
+          <p className="text-muted-foreground">{t("noMaterials")}</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Purchase a product to access materials
+            {t("purchaseToAccess")}
           </p>
         </div>
       ) : (

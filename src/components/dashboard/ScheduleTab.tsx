@@ -1,36 +1,33 @@
 import { useState, useMemo } from "react";
 import { useUserPurchases } from "@/hooks/usePurchases";
 import { useSchedules, useTimeSlots, useUserBookings, useCreateBooking } from "@/hooks/useSchedules";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Calendar, Clock, Users, User, Check, Loader2 } from "lucide-react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
+import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 
 const ScheduleTab = () => {
   const { data: purchases, isLoading: purchasesLoading } = useUserPurchases();
   const { data: bookings, isLoading: bookingsLoading } = useUserBookings();
+  const { t, language } = useLanguage();
   const createBooking = useCreateBooking();
   
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(addDays(new Date(), 1));
 
-  // Get product IDs from purchases
   const productIds = useMemo(() => 
     purchases?.map(p => p.product_id).filter(Boolean) as string[] || [],
     [purchases]
   );
 
-  // Get schedules for the first purchased product (or selected one)
   const activeProductId = selectedProductId || productIds[0];
   const { data: schedules, isLoading: schedulesLoading } = useSchedules(activeProductId);
-  
-  // Get time slots for selected schedule
   const { data: timeSlots, isLoading: timeSlotsLoading } = useTimeSlots(selectedScheduleId || undefined);
 
-  // Get next 7 days
   const days = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i + 1));
 
-  // Filter slots for selected date
   const filteredSlots = useMemo(() => {
     if (!timeSlots) return [];
     return timeSlots.filter((slot) => 
@@ -46,9 +43,9 @@ const ScheduleTab = () => {
         timeSlotId: slotId,
         scheduleId: selectedScheduleId,
       });
-      toast.success("Booking confirmed!");
+      toast.success(t("bookingConfirmed"));
     } catch (error) {
-      toast.error("Failed to book slot");
+      toast.error(t("bookingFailed"));
     }
   };
 
@@ -70,9 +67,9 @@ const ScheduleTab = () => {
     return (
       <div className="text-center py-12">
         <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-        <p className="text-muted-foreground">No purchased products with schedules</p>
+        <p className="text-muted-foreground">{t("noPurchasedProducts")}</p>
         <p className="text-sm text-muted-foreground mt-1">
-          Purchase a product to access scheduling
+          {t("purchaseForSchedule")}
         </p>
       </div>
     );
@@ -82,9 +79,9 @@ const ScheduleTab = () => {
     return (
       <div className="text-center py-12">
         <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-        <p className="text-muted-foreground">No schedules available</p>
+        <p className="text-muted-foreground">{t("noSchedules")}</p>
         <p className="text-sm text-muted-foreground mt-1">
-          This product doesn't have scheduling enabled
+          {t("noSchedulesEnabled")}
         </p>
       </div>
     );
@@ -92,7 +89,7 @@ const ScheduleTab = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-foreground">Schedule Sessions</h2>
+      <h2 className="text-lg font-semibold text-foreground">{t("scheduleSessions")}</h2>
 
       {/* Schedule Type Selection */}
       <div className="grid grid-cols-2 gap-3">
@@ -113,13 +110,13 @@ const ScheduleTab = () => {
                 <User className="w-5 h-5 text-primary" />
               )}
               <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                {schedule.event_type}
+                {schedule.event_type === "group" ? t("group") : t("individual")}
               </span>
             </div>
             <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
             {schedule.max_participants && (
               <p className="text-xs text-muted-foreground mt-1">
-                Up to {schedule.max_participants} participants
+                {t("upToParticipants", { count: schedule.max_participants })}
               </p>
             )}
           </button>
@@ -130,7 +127,7 @@ const ScheduleTab = () => {
         <>
           {/* Date Selection */}
           <div className="space-y-3">
-            <h3 className="font-medium text-foreground">Select Date</h3>
+            <h3 className="font-medium text-foreground">{t("selectDate")}</h3>
             <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
               {days.map((day) => (
                 <button
@@ -142,9 +139,9 @@ const ScheduleTab = () => {
                       : "bg-card border border-border hover:border-primary/50"
                   }`}
                 >
-                  <div className="text-xs opacity-80">{format(day, "EEE")}</div>
+                  <div className="text-xs opacity-80">{format(day, "EEE", { locale: ru })}</div>
                   <div className="text-lg font-bold">{format(day, "d")}</div>
-                  <div className="text-xs opacity-80">{format(day, "MMM")}</div>
+                  <div className="text-xs opacity-80">{format(day, "MMM", { locale: ru })}</div>
                 </button>
               ))}
             </div>
@@ -152,7 +149,7 @@ const ScheduleTab = () => {
 
           {/* Time Slots */}
           <div className="space-y-3">
-            <h3 className="font-medium text-foreground">Available Times</h3>
+            <h3 className="font-medium text-foreground">{t("availableTimes")}</h3>
             {timeSlotsLoading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -189,7 +186,7 @@ const ScheduleTab = () => {
               </div>
             ) : (
               <p className="text-center text-muted-foreground py-8">
-                No slots available for this date
+                {t("noSlotsAvailable")}
               </p>
             )}
           </div>
@@ -199,7 +196,7 @@ const ScheduleTab = () => {
       {!selectedScheduleId && (
         <div className="text-center py-12">
           <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-          <p className="text-muted-foreground">Select a session type to view available times</p>
+          <p className="text-muted-foreground">{t("selectSessionType")}</p>
         </div>
       )}
     </div>

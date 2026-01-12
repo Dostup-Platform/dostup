@@ -6,10 +6,13 @@ import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
 import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const CreatorDashboard = () => {
   const [activeTab, setActiveTab] = useState("products");
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,12 +30,14 @@ const CreatorDashboard = () => {
   }
 
   if (!user) return null;
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">Creator Dashboard</h1>
+          <h1 className="text-xl font-bold text-foreground">{t("creatorDashboard")}</h1>
+          <LanguageSwitcher />
         </div>
       </header>
 
@@ -42,15 +47,15 @@ const CreatorDashboard = () => {
           <TabsList className="w-full grid grid-cols-3 mb-6">
             <TabsTrigger value="products" className="gap-2">
               <Package className="w-4 h-4" />
-              <span className="hidden sm:inline">Products</span>
+              <span className="hidden sm:inline">{t("products")}</span>
             </TabsTrigger>
             <TabsTrigger value="users" className="gap-2">
               <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Users</span>
+              <span className="hidden sm:inline">{t("users")}</span>
             </TabsTrigger>
             <TabsTrigger value="schedule" className="gap-2">
               <Calendar className="w-4 h-4" />
-              <span className="hidden sm:inline">Schedule</span>
+              <span className="hidden sm:inline">{t("schedule")}</span>
             </TabsTrigger>
           </TabsList>
 
