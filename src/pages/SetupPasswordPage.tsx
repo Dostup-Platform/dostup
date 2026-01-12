@@ -6,12 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CheckCircle, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { toast } from "sonner";
 
 const SetupPasswordPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { signUp, user, loading } = useAuth();
+  const { t } = useLanguage();
   const { email, name, productId } = location.state || {};
   
   const [password, setPassword] = useState("");
@@ -21,14 +24,12 @@ const SetupPasswordPage = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // If no email in state, redirect to home
     if (!email && !loading) {
       navigate("/");
     }
   }, [email, loading, navigate]);
 
   useEffect(() => {
-    // If user is already logged in, redirect to dashboard
     if (user && !loading) {
       navigate("/dashboard");
     }
@@ -39,12 +40,12 @@ const SetupPasswordPage = () => {
     setError("");
 
     if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError(t("passwordMinLength"));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError(t("passwordsNotMatch"));
       return;
     }
 
@@ -53,53 +54,57 @@ const SetupPasswordPage = () => {
     const { error: signUpError } = await signUp(email, password, name);
 
     if (signUpError) {
-      setError(signUpError.message || "Failed to create account");
+      setError(signUpError.message || "Не удалось создать аккаунт");
       setIsCreating(false);
       return;
     }
 
-    toast.success("Account created successfully!");
+    toast.success("Аккаунт успешно создан!");
     navigate("/dashboard");
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <div className="animate-pulse text-muted-foreground">{t("loading")}</div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+      <div className="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
+      
       <div className="max-w-md w-full">
         {/* Success message */}
         <div className="text-center mb-8 animate-fade-in">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-success/10 mb-4">
             <CheckCircle className="w-8 h-8 text-success" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Payment Successful!</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("paymentSuccessful")}</h1>
           <p className="text-muted-foreground mt-2">
-            Set up your password to access your purchase
+            {t("setupPassword")}
           </p>
         </div>
 
         <Card className="animate-fade-in" style={{ animationDelay: "100ms" }}>
           <CardHeader>
-            <CardTitle className="text-lg">Create Your Account</CardTitle>
+            <CardTitle className="text-lg">{t("createAccount")}</CardTitle>
             <CardDescription>
-              {email && `Logged in as ${email}`}
+              {email && `${t("loggedInAs")} ${email}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreateAccount} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("password")}</Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Create a password"
+                    placeholder={t("createPassword")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -116,11 +121,11 @@ const SetupPasswordPage = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">{t("confirmPassword")}</Label>
                 <Input
                   id="confirmPassword"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Confirm your password"
+                  placeholder={t("confirmPasswordPlaceholder")}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
@@ -139,7 +144,7 @@ const SetupPasswordPage = () => {
                 className="w-full mt-6"
                 disabled={isCreating}
               >
-                {isCreating ? "Creating Account..." : "Access My Purchase"}
+                {isCreating ? t("creatingAccount") : t("accessPurchase")}
               </Button>
             </form>
           </CardContent>

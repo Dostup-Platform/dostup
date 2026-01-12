@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Calendar, User, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import MaterialsTab from "@/components/dashboard/MaterialsTab";
 import ScheduleTab from "@/components/dashboard/ScheduleTab";
 import AccountTab from "@/components/dashboard/AccountTab";
@@ -10,6 +12,7 @@ import AccountTab from "@/components/dashboard/AccountTab";
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("materials");
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,8 +37,9 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-xl font-bold text-foreground">My Dashboard</h1>
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
+          <h1 className="text-xl font-bold text-foreground">{t("myDashboard")}</h1>
+          <LanguageSwitcher />
         </div>
       </header>
 
@@ -64,21 +68,21 @@ const Dashboard = () => {
                 className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
               >
                 <FileText className="w-5 h-5" />
-                <span className="text-xs">Materials</span>
+                <span className="text-xs">{t("materials")}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="schedule" 
                 className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
               >
                 <Calendar className="w-5 h-5" />
-                <span className="text-xs">Schedule</span>
+                <span className="text-xs">{t("schedule")}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="account" 
                 className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
               >
                 <User className="w-5 h-5" />
-                <span className="text-xs">Account</span>
+                <span className="text-xs">{t("account")}</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>

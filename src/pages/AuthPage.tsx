@@ -6,11 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { toast } from "sonner";
 
 const AuthPage = () => {
   const navigate = useNavigate();
   const { user, signIn, loading } = useAuth();
+  const { t } = useLanguage();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,49 +33,53 @@ const AuthPage = () => {
     const { error } = await signIn(email, password);
 
     if (error) {
-      toast.error(error.message || "Failed to sign in");
+      toast.error(error.message || "Не удалось войти");
       setIsSubmitting(false);
       return;
     }
 
-    toast.success("Signed in successfully");
+    toast.success("Вход выполнен успешно");
     navigate("/dashboard");
   };
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <div className="animate-pulse text-muted-foreground">{t("loading")}</div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+      <div className="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
+      
       <div className="max-w-md w-full">
         <button
           onClick={() => navigate("/")}
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 touch-manipulation"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Back</span>
+          <span>{t("back")}</span>
         </button>
 
         <Card className="animate-fade-in">
           <CardHeader>
-            <CardTitle className="text-xl">Sign In</CardTitle>
+            <CardTitle className="text-xl">{t("signInTitle")}</CardTitle>
             <CardDescription>
-              Access your purchased products
+              {t("signInDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("email")}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t("emailPlaceholder")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -81,12 +88,12 @@ const AuthPage = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{t("password")}</Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Your password"
+                    placeholder={t("yourPassword")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -109,11 +116,11 @@ const AuthPage = () => {
                 className="w-full mt-6"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Signing in..." : "Sign In"}
+                {isSubmitting ? t("signingIn") : t("signIn")}
               </Button>
 
               <p className="text-sm text-center text-muted-foreground mt-4">
-                Don't have an account? Purchase a product to get access.
+                {t("noAccount")}
               </p>
             </form>
           </CardContent>

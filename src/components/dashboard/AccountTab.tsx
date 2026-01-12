@@ -3,14 +3,16 @@ import { Button } from "@/components/ui/button";
 import { useProfile } from "@/hooks/useProfile";
 import { useUserPurchases } from "@/hooks/usePurchases";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { User, Mail, Phone, Package, LogOut, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { ru } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 
 const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("ru-RU", {
     style: "currency",
-    currency: "USD",
+    currency: "KZT",
     minimumFractionDigits: 0,
   }).format(price);
 };
@@ -18,6 +20,7 @@ const formatPrice = (price: number) => {
 const AccountTab = () => {
   const navigate = useNavigate();
   const { signOut, user } = useAuth();
+  const { t } = useLanguage();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const { data: purchases, isLoading: purchasesLoading } = useUserPurchases();
 
@@ -41,7 +44,7 @@ const AccountTab = () => {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <User className="w-5 h-5" />
-            Profile
+            {t("profile")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -52,9 +55,9 @@ const AccountTab = () => {
               </span>
             </div>
             <div>
-              <p className="font-medium text-foreground">{profile?.name || "User"}</p>
+              <p className="font-medium text-foreground">{profile?.name || "Пользователь"}</p>
               <p className="text-sm text-muted-foreground">
-                Member since {profile?.created_at ? format(parseISO(profile.created_at), "MMM yyyy") : "Recently"}
+                {t("memberSince")} {profile?.created_at ? format(parseISO(profile.created_at), "LLLL yyyy", { locale: ru }) : "недавно"}
               </p>
             </div>
           </div>
@@ -79,7 +82,7 @@ const AccountTab = () => {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Package className="w-5 h-5" />
-            My Purchases
+            {t("myPurchases")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -97,10 +100,10 @@ const AccountTab = () => {
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-medium text-foreground">
-                        {purchase.products?.title || "Product"}
+                        {purchase.products?.title || "Продукт"}
                       </h3>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Purchased {format(parseISO(purchase.created_at), "MMM d, yyyy")}
+                        {t("purchased")} {format(parseISO(purchase.created_at), "d MMMM yyyy", { locale: ru })}
                       </p>
                     </div>
                     <span className="text-sm font-medium text-foreground">
@@ -112,7 +115,7 @@ const AccountTab = () => {
             </div>
           ) : (
             <p className="text-center text-muted-foreground py-4">
-              No purchases yet
+              {t("noPurchases")}
             </p>
           )}
         </CardContent>
@@ -125,7 +128,7 @@ const AccountTab = () => {
         onClick={handleLogout}
       >
         <LogOut className="w-4 h-4 mr-2" />
-        Sign Out
+        {t("signOut")}
       </Button>
     </div>
   );
