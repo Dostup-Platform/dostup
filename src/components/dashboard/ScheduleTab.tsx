@@ -1,42 +1,94 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { demoSchedules, generateDemoTimeSlots, demoBookings } from "@/lib/demo-data";
-import { Calendar, Clock, Users, User, ChevronLeft, ChevronRight, Check } from "lucide-react";
-import { format, addDays, isSameDay, parseISO, startOfDay } from "date-fns";
+import { useUserPurchases } from "@/hooks/usePurchases";
+import { useSchedules, useTimeSlots, useUserBookings, useCreateBooking } from "@/hooks/useSchedules";
+import { Calendar, Clock, Users, User, Check, Loader2 } from "lucide-react";
+import { format, addDays, isSameDay, parseISO } from "date-fns";
+import { toast } from "sonner";
 
 const ScheduleTab = () => {
-  const schedules = demoSchedules;
-  const timeSlots = useMemo(() => generateDemoTimeSlots(), []);
-  const [bookings, setBookings] = useState(demoBookings);
+  const { data: purchases, isLoading: purchasesLoading } = useUserPurchases();
+  const { data: bookings, isLoading: bookingsLoading } = useUserBookings();
+  const createBooking = useCreateBooking();
+  
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(addDays(new Date(), 1));
-  const [selectedSchedule, setSelectedSchedule] = useState<string | null>(null);
+
+  // Get product IDs from purchases
+  const productIds = useMemo(() => 
+    purchases?.map(p => p.product_id).filter(Boolean) as string[] || [],
+    [purchases]
+  );
+
+  // Get schedules for the first purchased product (or selected one)
+  const activeProductId = selectedProductId || productIds[0];
+  const { data: schedules, isLoading: schedulesLoading } = useSchedules(activeProductId);
+  
+  // Get time slots for selected schedule
+  const { data: timeSlots, isLoading: timeSlotsLoading } = useTimeSlots(selectedScheduleId || undefined);
 
   // Get next 7 days
   const days = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i + 1));
 
-  // Filter slots for selected schedule and date
-  const filteredSlots = timeSlots.filter(
-    (slot) =>
-      slot.schedule_id === selectedSchedule &&
-      isSameDay(parseISO(slot.start_time), selectedDate)
-  );
+  // Filter slots for selected date
+  const filteredSlots = useMemo(() => {
+    if (!timeSlots) return [];
+    return timeSlots.filter((slot) => 
+      isSameDay(parseISO(slot.date), selectedDate)
+    );
+  }, [timeSlots, selectedDate]);
 
-  const handleBookSlot = (slotId: string) => {
-    const newBooking = {
-      id: `booking-${Date.now()}`,
-      user_id: "user-1",
-      time_slot_id: slotId,
-      schedule_id: selectedSchedule!,
-      status: "confirmed" as const,
-      created_at: new Date().toISOString(),
-    };
-    setBookings([...bookings, newBooking]);
+  const handleBookSlot = async (slotId: string) => {
+    if (!selectedScheduleId) return;
+    
+    try {
+      await createBooking.mutateAsync({
+        timeSlotId: slotId,
+        scheduleId: selectedScheduleId,
+      });
+      toast.success("Booking confirmed!");
+    } catch (error) {
+      toast.error("Failed to book slot");
+    }
   };
 
   const isSlotBooked = (slotId: string) => {
-    return bookings.some((b) => b.time_slot_id === slotId && b.status === "confirmed");
+    return bookings?.some((b) => b.time_slot_id === slotId && b.status === "confirmed");
   };
+
+  const isLoading = purchasesLoading || schedulesLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!purchases || purchases.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+        <p className="text-muted-foreground">No purchased products with schedules</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Purchase a product to access scheduling
+        </p>
+      </div>
+    );
+  }
+
+  if (!schedules || schedules.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+        <p className="text-muted-foreground">No schedules available</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          This product doesn't have scheduling enabled
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -47,34 +99,34 @@ const ScheduleTab = () => {
         {schedules.map((schedule) => (
           <button
             key={schedule.id}
-            onClick={() => setSelectedSchedule(schedule.id)}
+            onClick={() => setSelectedScheduleId(schedule.id)}
             className={`p-4 rounded-xl border-2 text-left transition-all ${
-              selectedSchedule === schedule.id
+              selectedScheduleId === schedule.id
                 ? "border-primary bg-primary/5"
                 : "border-border hover:border-primary/50"
             }`}
           >
             <div className="flex items-center gap-2 mb-2">
-              {schedule.type === "group" ? (
+              {schedule.event_type === "group" ? (
                 <Users className="w-5 h-5 text-primary" />
               ) : (
                 <User className="w-5 h-5 text-primary" />
               )}
               <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                {schedule.type}
+                {schedule.event_type}
               </span>
             </div>
             <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
-            {schedule.capacity && (
+            {schedule.max_participants && (
               <p className="text-xs text-muted-foreground mt-1">
-                Up to {schedule.capacity} participants
+                Up to {schedule.max_participants} participants
               </p>
             )}
           </button>
         ))}
       </div>
 
-      {selectedSchedule && (
+      {selectedScheduleId && (
         <>
           {/* Date Selection */}
           <div className="space-y-3">
@@ -101,37 +153,41 @@ const ScheduleTab = () => {
           {/* Time Slots */}
           <div className="space-y-3">
             <h3 className="font-medium text-foreground">Available Times</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {filteredSlots.map((slot) => {
-                const booked = isSlotBooked(slot.id);
-                const available = slot.is_available && !booked;
-                
-                return (
-                  <button
-                    key={slot.id}
-                    onClick={() => available && handleBookSlot(slot.id)}
-                    disabled={!available}
-                    className={`p-4 rounded-xl border text-left transition-all ${
-                      booked
-                        ? "bg-success/10 border-success text-success"
-                        : available
-                        ? "border-border hover:border-primary bg-card"
-                        : "border-border bg-muted/50 text-muted-foreground opacity-50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      <span className="font-medium">
-                        {format(parseISO(slot.start_time), "h:mm a")}
-                      </span>
-                      {booked && <Check className="w-4 h-4 ml-auto" />}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {filteredSlots.length === 0 && (
+            {timeSlotsLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : filteredSlots.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {filteredSlots.map((slot) => {
+                  const booked = isSlotBooked(slot.id);
+                  const available = slot.is_available && !booked;
+                  
+                  return (
+                    <button
+                      key={slot.id}
+                      onClick={() => available && handleBookSlot(slot.id)}
+                      disabled={!available || createBooking.isPending}
+                      className={`p-4 rounded-xl border text-left transition-all ${
+                        booked
+                          ? "bg-success/10 border-success text-success"
+                          : available
+                          ? "border-border hover:border-primary bg-card"
+                          : "border-border bg-muted/50 text-muted-foreground opacity-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        <span className="font-medium">
+                          {slot.start_time.slice(0, 5)}
+                        </span>
+                        {booked && <Check className="w-4 h-4 ml-auto" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
               <p className="text-center text-muted-foreground py-8">
                 No slots available for this date
               </p>
@@ -140,7 +196,7 @@ const ScheduleTab = () => {
         </>
       )}
 
-      {!selectedSchedule && (
+      {!selectedScheduleId && (
         <div className="text-center py-12">
           <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
           <p className="text-muted-foreground">Select a session type to view available times</p>

@@ -4,25 +4,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { demoProduct } from "@/lib/demo-data";
-import { ArrowLeft, Lock, CreditCard } from "lucide-react";
+import { useProduct } from "@/hooks/useProducts";
+import { ArrowLeft, Lock, CreditCard, Loader2 } from "lucide-react";
+import heroBackground from "@/assets/hero-background.jpg";
 
-const formatPrice = (price: number, currency: string) => {
+const formatPrice = (price: number) => {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: currency,
+    currency: "USD",
     minimumFractionDigits: 0,
-  }).format(price / 100);
+  }).format(price);
 };
 
 const CheckoutPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
+  const { data: product, isLoading } = useProduct(productId);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-
-  const product = demoProduct;
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,10 +36,26 @@ const CheckoutPage = () => {
         state: { 
           email, 
           name,
-          productId: productId || product.id 
+          productId: productId || product?.id 
         } 
       });
     }, 2000);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Use demo product if no real product found
+  const displayProduct = product || {
+    title: "Digital Product",
+    headline: "Get access to premium content",
+    price: 4900,
+    image_url: heroBackground,
   };
 
   return (
@@ -62,17 +78,17 @@ const CheckoutPage = () => {
           <CardContent>
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="font-semibold text-foreground">{product.title}</h3>
-                <p className="text-sm text-muted-foreground mt-1">{product.headline}</p>
+                <h3 className="font-semibold text-foreground">{displayProduct.title}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{displayProduct.headline}</p>
               </div>
               <span className="text-lg font-bold text-foreground">
-                {formatPrice(product.price, product.currency)}
+                {formatPrice(Number(displayProduct.price))}
               </span>
             </div>
             <div className="mt-4 pt-4 border-t border-border flex justify-between">
               <span className="font-semibold">Total</span>
               <span className="text-xl font-bold text-primary">
-                {formatPrice(product.price, product.currency)}
+                {formatPrice(Number(displayProduct.price))}
               </span>
             </div>
           </CardContent>
@@ -137,10 +153,11 @@ const CheckoutPage = () => {
               >
                 {isProcessing ? (
                   <span className="flex items-center gap-2">
-                    <span className="animate-pulse-soft">Processing...</span>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Processing...
                   </span>
                 ) : (
-                  `Pay ${formatPrice(product.price, product.currency)}`
+                  `Pay ${formatPrice(Number(displayProduct.price))}`
                 )}
               </Button>
 
