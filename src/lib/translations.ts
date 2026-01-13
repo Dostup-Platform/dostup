@@ -166,6 +166,11 @@ export const translations = {
     enterPassword: "Введите пароль",
     welcomeCreator: "Добро пожаловать, создатель!",
     wrongPassword: "Неверный пароль",
+    invalidPassword: "Неверный пароль",
+    login: "Войти",
+    forCourseCreators: "Для создателей курсов",
+    creatorNameLabel: "Ваше название",
+    creatorNamePlaceholder: "Введите название",
     
     // Purchase flow
     waitingForConfirmation: "Ожидание подтверждения",
@@ -349,6 +354,11 @@ export const translations = {
     enterPassword: "Құпия сөзді енгізіңіз",
     welcomeCreator: "Қош келдіңіз, автор!",
     wrongPassword: "Құпия сөз қате",
+    invalidPassword: "Құпия сөз қате",
+    login: "Кіру",
+    forCourseCreators: "Курс авторлары үшін",
+    creatorNameLabel: "Сіздің атауыңыз",
+    creatorNamePlaceholder: "Атауды енгізіңіз",
     
     // Purchase flow
     waitingForConfirmation: "Растауды күту",
