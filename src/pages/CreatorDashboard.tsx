@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Users, Calendar, Loader2, Bell } from "lucide-react";
+import { Package, Users, Calendar, Loader2, Bell, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
 import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
@@ -39,10 +40,16 @@ const CreatorDashboard = () => {
   useRealtimeBookingNotifications(productIds, productIds.length > 0);
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
+    const creatorName = localStorage.getItem("creator_name");
+    if (!creatorName) {
+      navigate("/");
     }
-  }, [user, loading, navigate]);
+  }, [navigate]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("creator_name");
+    navigate("/");
+  };
 
   if (loading) {
     return (
@@ -60,7 +67,12 @@ const CreatorDashboard = () => {
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold text-foreground">{t("creatorDashboard")}</h1>
-          <LanguageSwitcher />
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            <Button variant="ghost" size="icon" onClick={handleLogout}>
+              <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </header>
 
