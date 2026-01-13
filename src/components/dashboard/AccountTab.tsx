@@ -1,10 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useProfile } from "@/hooks/useProfile";
-import { useUserPurchases } from "@/hooks/usePurchases";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { useSimplePurchases } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { User, Mail, Phone, Package, LogOut, Loader2 } from "lucide-react";
+import { User, Phone, Package, LogOut, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
@@ -19,17 +18,16 @@ const formatPrice = (price: number) => {
 
 const AccountTab = () => {
   const navigate = useNavigate();
-  const { signOut, user } = useAuth();
+  const { user, logout } = useSimpleAuth();
   const { t } = useLanguage();
-  const { data: profile, isLoading: profileLoading } = useProfile();
-  const { data: purchases, isLoading: purchasesLoading } = useUserPurchases();
+  const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
 
-  const handleLogout = async () => {
-    await signOut();
+  const handleLogout = () => {
+    logout();
     navigate("/");
   };
 
-  if (profileLoading) {
+  if (!user) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -51,28 +49,22 @@ const AccountTab = () => {
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
               <span className="text-lg font-bold text-primary">
-                {(profile?.name || user?.email || "U").charAt(0).toUpperCase()}
+                {user.name.charAt(0).toUpperCase()}
               </span>
             </div>
             <div>
-              <p className="font-medium text-foreground">{profile?.name || "Пользователь"}</p>
+              <p className="font-medium text-foreground">{user.name}</p>
               <p className="text-sm text-muted-foreground">
-                {t("memberSince")} {profile?.created_at ? format(parseISO(profile.created_at), "LLLL yyyy", { locale: ru }) : "недавно"}
+                {t("memberSince")} {format(parseISO(user.created_at), "LLLL yyyy", { locale: ru })}
               </p>
             </div>
           </div>
 
           <div className="space-y-3 pt-4 border-t border-border">
             <div className="flex items-center gap-3 text-sm">
-              <Mail className="w-4 h-4 text-muted-foreground" />
-              <span className="text-foreground">{profile?.email || user?.email}</span>
+              <Phone className="w-4 h-4 text-muted-foreground" />
+              <span className="text-foreground">{user.phone}</span>
             </div>
-            {profile?.phone && (
-              <div className="flex items-center gap-3 text-sm">
-                <Phone className="w-4 h-4 text-muted-foreground" />
-                <span className="text-foreground">{profile.phone}</span>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -100,7 +92,7 @@ const AccountTab = () => {
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-medium text-foreground">
-                        {purchase.products?.title || "Продукт"}
+                        {purchase.product?.title || "Продукт"}
                       </h3>
                       <p className="text-sm text-muted-foreground mt-1">
                         {t("purchased")} {format(parseISO(purchase.created_at), "d MMMM yyyy", { locale: ru })}

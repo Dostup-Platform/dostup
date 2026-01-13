@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Calendar, User, Loader2 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import MaterialsTab from "@/components/dashboard/MaterialsTab";
@@ -11,13 +11,13 @@ import AccountTab from "@/components/dashboard/AccountTab";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("materials");
-  const { user, loading } = useAuth();
+  const { user, loading } = useSimpleAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate("/auth");
+      navigate("/");
     }
   }, [user, loading, navigate]);
 

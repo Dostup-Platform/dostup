@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
-import { useUserPurchases } from "@/hooks/usePurchases";
-import { useSchedules, useTimeSlots, useUserBookings, useCreateBooking } from "@/hooks/useSchedules";
+import { useSimplePurchases, useSimpleSchedules } from "@/hooks/useSimplePurchases";
+import { useTimeSlots, useUserBookings, useCreateBooking } from "@/hooks/useSchedules";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Calendar, Clock, Users, User, Check, Loader2 } from "lucide-react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
@@ -8,22 +8,15 @@ import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 
 const ScheduleTab = () => {
-  const { data: purchases, isLoading: purchasesLoading } = useUserPurchases();
+  const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
+  const { data: schedules, isLoading: schedulesLoading } = useSimpleSchedules();
   const { data: bookings, isLoading: bookingsLoading } = useUserBookings();
   const { t, language } = useLanguage();
   const createBooking = useCreateBooking();
   
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(addDays(new Date(), 1));
 
-  const productIds = useMemo(() => 
-    purchases?.map(p => p.product_id).filter(Boolean) as string[] || [],
-    [purchases]
-  );
-
-  const activeProductId = selectedProductId || productIds[0];
-  const { data: schedules, isLoading: schedulesLoading } = useSchedules(activeProductId);
   const { data: timeSlots, isLoading: timeSlotsLoading } = useTimeSlots(selectedScheduleId || undefined);
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i + 1));
@@ -116,7 +109,7 @@ const ScheduleTab = () => {
             <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
             {schedule.max_participants && (
               <p className="text-xs text-muted-foreground mt-1">
-                {t("upToParticipants", { count: schedule.max_participants })}
+                {t("upToParticipants").replace("{count}", String(schedule.max_participants))}
               </p>
             )}
           </button>
