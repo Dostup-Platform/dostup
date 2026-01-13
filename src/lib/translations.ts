@@ -88,6 +88,11 @@ export const translations = {
     noSchedulesEnabled: "Для этого продукта запись не включена",
     bookingConfirmed: "Запись подтверждена!",
     bookingFailed: "Не удалось записаться",
+    myBookings: "Мои записи",
+    noBookingsStudent: "У вас пока нет записей",
+    cancelBooking: "Отменить запись",
+    bookingCancelled: "Запись отменена",
+    cancelFailed: "Не удалось отменить запись",
     
     // Account Tab
     profile: "Профиль",
@@ -246,6 +251,11 @@ export const translations = {
     noSchedulesEnabled: "Бұл өнім үшін жазылу қосылмаған",
     bookingConfirmed: "Жазылу расталды!",
     bookingFailed: "Жазылу сәтсіз аяқталды",
+    myBookings: "Менің жазылуларым",
+    noBookingsStudent: "Сізде әзірге жазылулар жоқ",
+    cancelBooking: "Жазылуды болдырмау",
+    bookingCancelled: "Жазылу болдырмалды",
+    cancelFailed: "Жазылуды болдырмау сәтсіз",
     
     // Account Tab
     profile: "Профиль",
