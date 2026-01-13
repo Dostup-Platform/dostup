@@ -316,3 +316,22 @@ export const useCreateMultipleTimeSlots = () => {
     },
   });
 };
+
+export const useDeleteMultipleTimeSlots = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ slotIds, scheduleId }: { slotIds: string[]; scheduleId: string }) => {
+      const { error } = await supabase
+        .from("time_slots")
+        .delete()
+        .in("id", slotIds);
+      
+      if (error) throw error;
+      return { scheduleId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["time-slots", data.scheduleId] });
+    },
+  });
+};

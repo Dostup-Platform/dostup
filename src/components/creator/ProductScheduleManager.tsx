@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,8 @@ import {
   useCreateSchedule, 
   useDeleteSchedule,
   useCreateMultipleTimeSlots,
-  useDeleteTimeSlot 
+  useDeleteTimeSlot,
+  useDeleteMultipleTimeSlots
 } from "@/hooks/useSchedules";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Plus, Calendar, Trash2, Loader2, Users, User, Clock } from "lucide-react";
@@ -56,11 +58,14 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
   const deleteSchedule = useDeleteSchedule();
   const createTimeSlots = useCreateMultipleTimeSlots();
   const deleteTimeSlot = useDeleteTimeSlot();
+  const deleteMultipleTimeSlots = useDeleteMultipleTimeSlots();
   
   const [isAddingSchedule, setIsAddingSchedule] = useState(false);
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [deletingSchedule, setDeletingSchedule] = useState<{ id: string; title: string } | null>(null);
   const [isAddingSlots, setIsAddingSlots] = useState(false);
+  const [isDeletingSlots, setIsDeletingSlots] = useState(false);
+  const [selectedDatesForDeletion, setSelectedDatesForDeletion] = useState<string[]>([]);
   
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -74,6 +79,7 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
     startTime: "09:00",
     endTime: "18:00",
     slotDuration: "60", // minutes
+    breakDuration: "0", // minutes between slots
   });
 
   const selectedSchedule = schedules.find(s => s.id === selectedScheduleId);
@@ -122,6 +128,7 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
     const startDate = new Date(slotsForm.startDate);
     const endDate = new Date(slotsForm.endDate);
     const duration = Number(slotsForm.slotDuration);
+    const breakTime = Number(slotsForm.breakDuration);
     
     const slots: { schedule_id: string; date: string; start_time: string; end_time: string; is_available: boolean }[] = [];
     
@@ -144,6 +151,11 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
           end_time: slotEnd,
           is_available: true,
         });
+        
+        // Add break time between slots
+        if (breakTime > 0) {
+          currentTime = new Date(currentTime.getTime() + breakTime * 60000);
+        }
       }
       
       currentDate = addDays(currentDate, 1);
@@ -173,6 +185,56 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
     }
   };
 
+  const handleDeleteSlotsByDates = async () => {
+    if (!selectedScheduleId || selectedDatesForDeletion.length === 0) return;
+    
+    const slotsToDelete = timeSlots
+      .filter(slot => selectedDatesForDeletion.includes(slot.date))
+      .map(slot => slot.id);
+    
+    if (slotsToDelete.length === 0) {
+      toast.error("Нет слотов для удаления");
+      return;
+    }
+
+    try {
+      await deleteMultipleTimeSlots.mutateAsync({ 
+        slotIds: slotsToDelete, 
+        scheduleId: selectedScheduleId 
+      });
+      toast.success(`Удалено ${slotsToDelete.length} слотов!`);
+      setIsDeletingSlots(false);
+      setSelectedDatesForDeletion([]);
+    } catch (error) {
+      toast.error("Ошибка при удалении слотов");
+    }
+  };
+
+  const handleDeleteAllSlots = async () => {
+    if (!selectedScheduleId || timeSlots.length === 0) return;
+    
+    const allSlotIds = timeSlots.map(slot => slot.id);
+
+    try {
+      await deleteMultipleTimeSlots.mutateAsync({ 
+        slotIds: allSlotIds, 
+        scheduleId: selectedScheduleId 
+      });
+      toast.success(`Удалено ${allSlotIds.length} слотов!`);
+      setIsDeletingSlots(false);
+    } catch (error) {
+      toast.error("Ошибка при удалении слотов");
+    }
+  };
+
+  const toggleDateForDeletion = (date: string) => {
+    setSelectedDatesForDeletion(prev => 
+      prev.includes(date) 
+        ? prev.filter(d => d !== date)
+        : [...prev, date]
+    );
+  };
+
   // Group slots by date
   const slotsByDate = timeSlots.reduce((acc, slot) => {
     const date = slot.date;
@@ -180,6 +242,8 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
     acc[date].push(slot);
     return acc;
   }, {} as Record<string, typeof timeSlots>);
+
+  const availableDates = useMemo(() => Object.keys(slotsByDate).sort(), [slotsByDate]);
 
   return (
     <>
@@ -311,18 +375,107 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
                   ← Назад к расписаниям
                 </Button>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <h3 className="font-semibold">{selectedSchedule?.title}</h3>
                     <p className="text-sm text-muted-foreground">
                       {selectedSchedule?.event_type === "group" ? "Групповой" : "Индивидуальный"}
                     </p>
                   </div>
-                  <Button onClick={() => setIsAddingSlots(true)} size="sm">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Добавить слоты
-                  </Button>
+                  <div className="flex gap-2">
+                    {Object.keys(slotsByDate).length > 0 && !isAddingSlots && (
+                      <Button 
+                        onClick={() => setIsDeletingSlots(!isDeletingSlots)} 
+                        size="sm" 
+                        variant={isDeletingSlots ? "secondary" : "outline"}
+                        className={isDeletingSlots ? "" : "text-destructive border-destructive hover:bg-destructive/10"}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {isDeletingSlots ? "Отменить" : "Удалить слоты"}
+                      </Button>
+                    )}
+                    {!isDeletingSlots && (
+                      <Button onClick={() => setIsAddingSlots(true)} size="sm">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Добавить слоты
+                      </Button>
+                    )}
+                  </div>
                 </div>
+
+                {isDeletingSlots && (
+                  <Card className="border-destructive">
+                    <CardContent className="pt-4 space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Выберите даты для удаления слотов или удалите все сразу:
+                      </p>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {availableDates.map((date) => (
+                          <label 
+                            key={date}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                              selectedDatesForDeletion.includes(date) 
+                                ? "bg-destructive/10 border-destructive" 
+                                : "hover:bg-muted"
+                            }`}
+                          >
+                            <Checkbox
+                              checked={selectedDatesForDeletion.includes(date)}
+                              onCheckedChange={() => toggleDateForDeletion(date)}
+                            />
+                            <span className="text-sm">
+                              {format(new Date(date), "d MMM", { locale: ru })}
+                              <span className="text-muted-foreground ml-1">
+                                ({slotsByDate[date]?.length || 0} слотов)
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setIsDeletingSlots(false);
+                            setSelectedDatesForDeletion([]);
+                          }}
+                        >
+                          Отмена
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={handleDeleteSlotsByDates}
+                          disabled={selectedDatesForDeletion.length === 0 || deleteMultipleTimeSlots.isPending}
+                        >
+                          {deleteMultipleTimeSlots.isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            `Удалить выбранные (${selectedDatesForDeletion.length})`
+                          )}
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={handleDeleteAllSlots}
+                          disabled={deleteMultipleTimeSlots.isPending}
+                        >
+                          {deleteMultipleTimeSlots.isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            "Удалить все"
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {isAddingSlots && (
                   <Card>
@@ -346,7 +499,7 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>Начало дня</Label>
                             <Input
@@ -363,8 +516,10 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
                               onChange={(e) => setSlotsForm({ ...slotsForm, endTime: e.target.value })}
                             />
                           </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label>Длит. (мин)</Label>
+                            <Label>Длительность урока</Label>
                             <Select
                               value={slotsForm.slotDuration}
                               onValueChange={(value) => setSlotsForm({ ...slotsForm, slotDuration: value })}
@@ -376,8 +531,28 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
                                 <SelectItem value="30">30 мин</SelectItem>
                                 <SelectItem value="45">45 мин</SelectItem>
                                 <SelectItem value="60">1 час</SelectItem>
-                                <SelectItem value="90">1.5 часа</SelectItem>
+                                <SelectItem value="75">1 ч 15 мин</SelectItem>
+                                <SelectItem value="90">1 ч 30 мин</SelectItem>
+                                <SelectItem value="105">1 ч 45 мин</SelectItem>
                                 <SelectItem value="120">2 часа</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Перерыв между уроками</Label>
+                            <Select
+                              value={slotsForm.breakDuration}
+                              onValueChange={(value) => setSlotsForm({ ...slotsForm, breakDuration: value })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">Без перерыва</SelectItem>
+                                <SelectItem value="5">5 мин</SelectItem>
+                                <SelectItem value="10">10 мин</SelectItem>
+                                <SelectItem value="15">15 мин</SelectItem>
+                                <SelectItem value="30">30 мин</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
