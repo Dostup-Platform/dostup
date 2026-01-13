@@ -15,6 +15,7 @@ interface Product {
   slug: string | null;
   created_at: string;
   updated_at: string;
+  kaspi_link: string | null;
 }
 
 export const useProduct = (productId: string | undefined) => {
