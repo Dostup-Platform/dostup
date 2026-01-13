@@ -28,8 +28,7 @@ const ProductPurchasePage = () => {
   const { user, register } = useSimpleAuth();
   const { data: product, isLoading } = useProduct(productId);
   
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<"form" | "pending" | "completed">("form");
   const [purchaseId, setPurchaseId] = useState<string | null>(null);
@@ -91,7 +90,7 @@ const ProductPurchasePage = () => {
     setIsProcessing(true);
 
     // Зарегистрировать или залогинить пользователя
-    const { user: newUser, error } = await register(phone, name);
+    const { user: newUser, error } = await register(fullName);
 
     if (error || !newUser) {
       toast.error(error?.message || "Ошибка регистрации");
@@ -221,26 +220,13 @@ const ProductPurchasePage = () => {
           <CardContent>
             <form onSubmit={handleSubmitPurchase} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">{t("phone")}</Label>
+                <Label htmlFor="fullName">{t("fullName")}</Label>
                 <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+7 777 123 4567"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                  className="h-12"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("fullName")}</Label>
-                <Input
-                  id="name"
+                  id="fullName"
                   type="text"
-                  placeholder={t("namePlaceholder")}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t("fullNamePlaceholder")}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
                   required
                   className="h-12"
                 />
@@ -260,7 +246,7 @@ const ProductPurchasePage = () => {
                     type="button"
                     onClick={handleKaspiPayment}
                     className="w-full h-14 bg-[#F14635] hover:bg-[#d63d2e] text-white font-semibold text-lg"
-                    disabled={!phone || !name}
+                    disabled={!fullName.trim()}
                   >
                     <span className="flex items-center gap-2">
                       {t("payWithKaspi")}
@@ -273,7 +259,7 @@ const ProductPurchasePage = () => {
                     variant="outline" 
                     size="lg" 
                     className="w-full"
-                    disabled={isProcessing || !phone || !name}
+                    disabled={isProcessing || !fullName.trim()}
                   >
                     {isProcessing ? (
                       <span className="flex items-center gap-2">

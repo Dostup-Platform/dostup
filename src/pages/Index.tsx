@@ -15,8 +15,7 @@ const Index = () => {
   const { user, loading, register } = useSimpleAuth();
   const { t } = useLanguage();
   
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
 
@@ -35,7 +34,7 @@ const Index = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const { user: newUser, error } = await register(phone, name);
+    const { user: newUser, error } = await register(fullName);
 
     if (error) {
       toast.error(error.message);
@@ -78,26 +77,13 @@ const Index = () => {
           <CardContent>
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">{t("phone")}</Label>
+                <Label htmlFor="fullName">{t("fullName")}</Label>
                 <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+7 777 123 4567"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                  className="h-12"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="name">{t("fullName")}</Label>
-                <Input
-                  id="name"
+                  id="fullName"
                   type="text"
-                  placeholder={t("namePlaceholder")}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t("fullNamePlaceholder")}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
                   required
                   className="h-12"
                 />
@@ -108,7 +94,7 @@ const Index = () => {
                 variant="cta" 
                 size="lg" 
                 className="w-full mt-6"
-                disabled={isSubmitting || !phone || !name}
+                disabled={isSubmitting || !fullName.trim()}
               >
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
