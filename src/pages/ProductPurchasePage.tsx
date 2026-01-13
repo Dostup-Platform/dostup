@@ -28,7 +28,8 @@ const ProductPurchasePage = () => {
   const { user, register } = useSimpleAuth();
   const { data: product, isLoading } = useProduct(productId);
   
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<"form" | "pending" | "completed">("form");
   const [purchaseId, setPurchaseId] = useState<string | null>(null);
@@ -89,7 +90,8 @@ const ProductPurchasePage = () => {
     e.preventDefault();
     setIsProcessing(true);
 
-    // Зарегистрировать или залогинить пользователя
+    // Зарегистрировать пользователя с полным именем
+    const fullName = `${firstName.trim()} ${lastName.trim()}`;
     const { user: newUser, error } = await register(fullName);
 
     if (error || !newUser) {
@@ -219,22 +221,36 @@ const ProductPurchasePage = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmitPurchase} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="fullName">{t("fullName")}</Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  placeholder={t("fullNamePlaceholder")}
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                  className="h-12"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">{t("firstName")}</Label>
+                  <Input
+                    id="firstName"
+                    type="text"
+                    placeholder={t("firstNamePlaceholder")}
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                    className="h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">{t("lastName")}</Label>
+                  <Input
+                    id="lastName"
+                    type="text"
+                    placeholder={t("lastNamePlaceholder")}
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                    className="h-12"
+                  />
+                </div>
               </div>
 
               {/* Предупреждение о чеке */}
-              <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
-                <p className="text-sm text-warning-foreground">
+              <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
+                <p className="text-sm text-amber-800 font-medium">
                   {t("sendReceiptWarning")}
                 </p>
               </div>
@@ -246,7 +262,7 @@ const ProductPurchasePage = () => {
                     type="button"
                     onClick={handleKaspiPayment}
                     className="w-full h-14 bg-[#F14635] hover:bg-[#d63d2e] text-white font-semibold text-lg"
-                    disabled={!fullName.trim()}
+                    disabled={!firstName.trim() || !lastName.trim()}
                   >
                     <span className="flex items-center gap-2">
                       {t("payWithKaspi")}
@@ -259,7 +275,7 @@ const ProductPurchasePage = () => {
                     variant="outline" 
                     size="lg" 
                     className="w-full"
-                    disabled={isProcessing || !fullName.trim()}
+                    disabled={isProcessing || !firstName.trim() || !lastName.trim()}
                   >
                     {isProcessing ? (
                       <span className="flex items-center gap-2">
