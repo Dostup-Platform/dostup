@@ -171,6 +171,8 @@ export const translations = {
     forCourseCreators: "Для создателей курсов",
     creatorNameLabel: "Ваше название",
     creatorNamePlaceholder: "Введите название",
+    minNameLength: "Минимум 2 символа",
+    minPasswordLength: "Минимум 4 символа",
     
     // Purchase flow
     waitingForConfirmation: "Ожидание подтверждения",
@@ -359,6 +361,8 @@ export const translations = {
     forCourseCreators: "Курс авторлары үшін",
     creatorNameLabel: "Сіздің атауыңыз",
     creatorNamePlaceholder: "Атауды енгізіңіз",
+    minNameLength: "Кемінде 2 таңба",
+    minPasswordLength: "Кемінде 4 таңба",
     
     // Purchase flow
     waitingForConfirmation: "Растауды күту",
