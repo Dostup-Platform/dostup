@@ -68,16 +68,23 @@ const CreatorDashboard = () => {
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">{t("creatorDashboard")}</h1>
-          <div className="flex items-center gap-3">
-            <LanguageSwitcher />
-            {creatorName && (
-              <span className="text-sm text-muted-foreground hidden sm:inline">{creatorName}</span>
-            )}
-            <Button variant="ghost" size="icon" onClick={handleLogout} title={t("signOut")}>
-              <LogOut className="w-5 h-5" />
-            </Button>
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-foreground">{t("creatorDashboard")}</h1>
+              {creatorName && (
+                <p className="text-sm text-muted-foreground sm:hidden">{creatorName}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <LanguageSwitcher />
+              {creatorName && (
+                <span className="text-sm text-muted-foreground hidden sm:inline">{creatorName}</span>
+              )}
+              <Button variant="ghost" size="icon" onClick={handleLogout} title={t("signOut")}>
+                <LogOut className="w-5 h-5" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
