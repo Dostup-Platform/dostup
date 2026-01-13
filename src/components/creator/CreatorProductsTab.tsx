@@ -49,6 +49,112 @@ const formatPrice = (price: number, currency: string = "KZT") => {
   }).format(price);
 };
 
+interface FormData {
+  title: string;
+  headline: string;
+  description: string;
+  price: string;
+  kaspiLink: string;
+  hasSchedule: boolean;
+}
+
+interface ProductFormProps {
+  onSubmit: (e: React.FormEvent) => void;
+  isEdit?: boolean;
+  formData: FormData;
+  setFormData: React.Dispatch<React.SetStateAction<FormData>>;
+  isPending: boolean;
+  t: (key: string) => string;
+}
+
+const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPending, t }: ProductFormProps) => (
+  <form onSubmit={onSubmit} className="space-y-4 mt-4">
+    <div className="space-y-2">
+      <Label htmlFor="title">Название *</Label>
+      <Input 
+        id="title" 
+        placeholder="Название курса" 
+        className="h-12"
+        value={formData.title}
+        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+        required
+      />
+    </div>
+    <div className="space-y-2">
+      <Label htmlFor="headline">Краткое описание</Label>
+      <Input 
+        id="headline" 
+        placeholder="Что получит пользователь" 
+        className="h-12"
+        value={formData.headline}
+        onChange={(e) => setFormData(prev => ({ ...prev, headline: e.target.value }))}
+      />
+    </div>
+    <div className="space-y-2">
+      <Label htmlFor="description">Полное описание</Label>
+      <Textarea 
+        id="description" 
+        placeholder="Подробное описание курса" 
+        rows={4}
+        value={formData.description}
+        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+      />
+    </div>
+    <div className="space-y-2">
+      <Label htmlFor="price">Цена (тенге) *</Label>
+      <Input 
+        id="price" 
+        type="number" 
+        placeholder="49000" 
+        className="h-12"
+        value={formData.price}
+        onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+        required
+      />
+    </div>
+    <div className="space-y-2">
+      <Label htmlFor="kaspiLink">{t("kaspiLink")}</Label>
+      <Input 
+        id="kaspiLink" 
+        type="url" 
+        placeholder={t("kaspiLinkPlaceholder")} 
+        className="h-12"
+        value={formData.kaspiLink}
+        onChange={(e) => setFormData(prev => ({ ...prev, kaspiLink: e.target.value }))}
+      />
+      <p className="text-xs text-muted-foreground">
+        Ссылка на оплату через Kaspi.kz
+      </p>
+    </div>
+    <div className="flex items-center justify-between py-2">
+      <div>
+        <Label htmlFor="schedule">Включить расписание</Label>
+        <p className="text-sm text-muted-foreground">Позволит записываться на сессии</p>
+      </div>
+      <Switch 
+        id="schedule"
+        checked={formData.hasSchedule}
+        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasSchedule: checked }))}
+      />
+    </div>
+    <Button 
+      type="submit" 
+      variant="cta" 
+      className="w-full"
+      disabled={isPending}
+    >
+      {isPending ? (
+        <span className="flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          {isEdit ? "Сохранение..." : "Создание..."}
+        </span>
+      ) : (
+        isEdit ? "Сохранить изменения" : "Создать продукт"
+      )}
+    </Button>
+  </form>
+);
+
 const CreatorProductsTab = () => {
   const { user } = useSimpleAuth();
   const { t } = useLanguage();
@@ -175,93 +281,6 @@ const CreatorProductsTab = () => {
     );
   }
 
-  const ProductForm = ({ onSubmit, isEdit = false }: { onSubmit: (e: React.FormEvent) => void; isEdit?: boolean }) => (
-    <form onSubmit={onSubmit} className="space-y-4 mt-4">
-      <div className="space-y-2">
-        <Label htmlFor="title">Название *</Label>
-        <Input 
-          id="title" 
-          placeholder="Название курса" 
-          className="h-12"
-          value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="headline">Краткое описание</Label>
-        <Input 
-          id="headline" 
-          placeholder="Что получит пользователь" 
-          className="h-12"
-          value={formData.headline}
-          onChange={(e) => setFormData({ ...formData, headline: e.target.value })}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="description">Полное описание</Label>
-        <Textarea 
-          id="description" 
-          placeholder="Подробное описание курса" 
-          rows={4}
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="price">Цена (тенге) *</Label>
-        <Input 
-          id="price" 
-          type="number" 
-          placeholder="49000" 
-          className="h-12"
-          value={formData.price}
-          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="kaspiLink">{t("kaspiLink")}</Label>
-        <Input 
-          id="kaspiLink" 
-          type="url" 
-          placeholder={t("kaspiLinkPlaceholder")} 
-          className="h-12"
-          value={formData.kaspiLink}
-          onChange={(e) => setFormData({ ...formData, kaspiLink: e.target.value })}
-        />
-        <p className="text-xs text-muted-foreground">
-          Ссылка на оплату через Kaspi.kz
-        </p>
-      </div>
-      <div className="flex items-center justify-between py-2">
-        <div>
-          <Label htmlFor="schedule">Включить расписание</Label>
-          <p className="text-sm text-muted-foreground">Позволит записываться на сессии</p>
-        </div>
-        <Switch 
-          id="schedule"
-          checked={formData.hasSchedule}
-          onCheckedChange={(checked) => setFormData({ ...formData, hasSchedule: checked })}
-        />
-      </div>
-      <Button 
-        type="submit" 
-        variant="cta" 
-        className="w-full"
-        disabled={isEdit ? updateProduct.isPending : createProduct.isPending}
-      >
-        {(isEdit ? updateProduct.isPending : createProduct.isPending) ? (
-          <span className="flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            {isEdit ? "Сохранение..." : "Создание..."}
-          </span>
-        ) : (
-          isEdit ? "Сохранить изменения" : "Создать продукт"
-        )}
-      </Button>
-    </form>
-  );
 
   return (
     <div className="space-y-6">
@@ -278,7 +297,13 @@ const CreatorProductsTab = () => {
             <DialogHeader>
               <DialogTitle>Создать продукт</DialogTitle>
             </DialogHeader>
-            <ProductForm onSubmit={handleCreate} />
+            <ProductForm 
+              onSubmit={handleCreate} 
+              formData={formData}
+              setFormData={setFormData}
+              isPending={createProduct.isPending}
+              t={t}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -289,7 +314,14 @@ const CreatorProductsTab = () => {
           <DialogHeader>
             <DialogTitle>{t("edit")} продукт</DialogTitle>
           </DialogHeader>
-          <ProductForm onSubmit={handleUpdate} isEdit />
+          <ProductForm 
+            onSubmit={handleUpdate} 
+            isEdit 
+            formData={formData}
+            setFormData={setFormData}
+            isPending={updateProduct.isPending}
+            t={t}
+          />
         </DialogContent>
       </Dialog>
 
