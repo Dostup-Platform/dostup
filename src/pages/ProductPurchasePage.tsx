@@ -60,25 +60,33 @@ const ProductPurchasePage = () => {
     checkExistingPurchase();
   }, [user, productId, navigate]);
 
-  // Polling для проверки подтверждения
+  // Realtime подписка для отслеживания подтверждения покупки
   useEffect(() => {
     if (purchaseStatus !== "pending" || !purchaseId) return;
 
-    const interval = setInterval(async () => {
-      const { data } = await supabase
-        .from("simple_purchases")
-        .select("status")
-        .eq("id", purchaseId)
-        .single();
+    const channel = supabase
+      .channel(`purchase-${purchaseId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "simple_purchases",
+          filter: `id=eq.${purchaseId}`
+        },
+        (payload: any) => {
+          if (payload.new?.status === "completed") {
+            setPurchaseStatus("completed");
+            toast.success(t("accessGranted"));
+            navigate("/dashboard");
+          }
+        }
+      )
+      .subscribe();
 
-      if (data?.status === "completed") {
-        setPurchaseStatus("completed");
-        toast.success(t("accessGranted"));
-        navigate("/dashboard");
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [purchaseStatus, purchaseId, navigate, t]);
 
   const handleKaspiPayment = () => {

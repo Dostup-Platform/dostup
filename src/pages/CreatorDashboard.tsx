@@ -12,6 +12,9 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
 import { useRealtimeBookingNotifications } from "@/hooks/useRealtimeBookings";
+import { useRealtimePurchaseNotifications } from "@/hooks/useRealtimePurchases";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { differenceInHours } from "date-fns";
 
 const CreatorDashboard = () => {
@@ -26,18 +29,41 @@ const CreatorDashboard = () => {
   const productIds = useMemo(() => products?.map(p => p.id) || [], [products]);
   const { data: bookings } = useCreatorSimpleBookings(productIds);
   
-  // Подсчёт новых записей за 24 часа
-  const newBookingsCount = useMemo(() => {
-    if (!bookings) return 0;
+  // Получаем pending-покупки для подсчёта
+  const { data: pendingPurchases } = useQuery({
+    queryKey: ["creator-pending-purchases-count", productIds],
+    queryFn: async () => {
+      if (!productIds.length) return [];
+      const { data } = await supabase
+        .from("simple_purchases")
+        .select("id, created_at")
+        .in("product_id", productIds)
+        .eq("status", "pending");
+      return data || [];
+    },
+    enabled: productIds.length > 0,
+  });
+  
+  // Подсчёт новых записей и покупок за 24 часа
+  const newNotificationsCount = useMemo(() => {
     const now = new Date();
-    return bookings.filter(b => {
+    
+    const newBookings = bookings?.filter(b => {
       const createdAt = new Date(b.created_at);
       return differenceInHours(now, createdAt) <= 24;
-    }).length;
-  }, [bookings]);
+    }).length || 0;
+    
+    const newPurchases = pendingPurchases?.filter(p => {
+      const createdAt = new Date(p.created_at);
+      return differenceInHours(now, createdAt) <= 24;
+    }).length || 0;
+    
+    return newBookings + newPurchases;
+  }, [bookings, pendingPurchases]);
 
-  // Enable real-time notifications for new bookings
+  // Enable real-time notifications for new bookings and purchases
   useRealtimeBookingNotifications(productIds, productIds.length > 0);
+  useRealtimePurchaseNotifications(productIds, productIds.length > 0);
 
   useEffect(() => {
     const name = localStorage.getItem("creator_name");
@@ -108,9 +134,9 @@ const CreatorDashboard = () => {
             <TabsTrigger value="notifications" className="gap-2 relative">
               <Bell className="w-4 h-4" />
               <span className="hidden sm:inline">{t("notifications")}</span>
-              {newBookingsCount > 0 && (
+              {newNotificationsCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                  {newBookingsCount > 9 ? "9+" : newBookingsCount}
+                  {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
                 </span>
               )}
             </TabsTrigger>

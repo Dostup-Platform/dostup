@@ -2,13 +2,11 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Mail, Phone, Check, Clock, Loader2 } from "lucide-react";
+import { Search, Phone, Check, Clock, Loader2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
@@ -35,21 +33,23 @@ interface PurchaseWithUser {
 
 const CreatorUsersTab = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const { user } = useSimpleAuth();
   const { t } = useLanguage();
   const queryClient = useQueryClient();
+  
+  // Получаем имя креатора из localStorage (НЕ из useSimpleAuth)
+  const creatorName = localStorage.getItem("creator_name");
 
   // Получить все покупки продуктов этого создателя
   const { data: purchases = [], isLoading } = useQuery({
-    queryKey: ["creator-purchases", user?.id],
+    queryKey: ["creator-purchases", creatorName],
     queryFn: async () => {
-      if (!user) return [];
+      if (!creatorName) return [];
 
-      // Сначала получить продукты создателя
+      // Сначала получить продукты создателя по имени (creator_id = имя креатора)
       const { data: products } = await supabase
         .from("products")
         .select("id, title")
-        .eq("creator_id", user.id);
+        .eq("creator_id", creatorName);
 
       if (!products?.length) return [];
 
@@ -85,7 +85,7 @@ const CreatorUsersTab = () => {
         product: products.find(p => p.id === purchase.product_id) || { title: "Unknown" }
       })) as PurchaseWithUser[];
     },
-    enabled: !!user,
+    enabled: !!creatorName,
   });
 
   // Мутация для подтверждения оплаты
