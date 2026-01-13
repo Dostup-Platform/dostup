@@ -26,7 +26,7 @@ interface TimeSlot {
 
 interface Booking {
   id: string;
-  user_id: string;
+  simple_user_id: string;
   time_slot_id: string;
   schedule_id: string;
   status: string;

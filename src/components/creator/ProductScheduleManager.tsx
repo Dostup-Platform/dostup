@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,7 +49,7 @@ interface ProductScheduleManagerProps {
 
 type EventType = "group" | "individual";
 
-const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: ProductScheduleManagerProps) => {
+const ProductScheduleManager = forwardRef<HTMLDivElement, ProductScheduleManagerProps>(({ productId, productTitle, isOpen, onClose }, ref) => {
   const { t } = useLanguage();
   const { data: schedules = [], isLoading } = useSchedules(productId);
   const createSchedule = useCreateSchedule();
@@ -463,6 +463,8 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
       </AlertDialog>
     </>
   );
-};
+});
+
+ProductScheduleManager.displayName = "ProductScheduleManager";
 
 export default ProductScheduleManager;
