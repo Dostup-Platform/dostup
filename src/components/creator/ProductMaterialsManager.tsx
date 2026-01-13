@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,7 +48,7 @@ interface FormData {
   file: File | null;
 }
 
-const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: ProductMaterialsManagerProps) => {
+const ProductMaterialsManager = forwardRef<HTMLDivElement, ProductMaterialsManagerProps>(({ productId, productTitle, isOpen, onClose }, ref) => {
   const { t } = useLanguage();
   const { data: materials = [], isLoading } = useProductMaterials(productId);
   const createMaterial = useCreateMaterial();
@@ -384,6 +384,8 @@ const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: P
       </AlertDialog>
     </>
   );
-};
+});
+
+ProductMaterialsManager.displayName = "ProductMaterialsManager";
 
 export default ProductMaterialsManager;
