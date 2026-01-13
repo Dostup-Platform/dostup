@@ -125,6 +125,10 @@ export const translations = {
     allBookings: "Все записи",
     upcomingBookings: "Предстоящие записи",
     todayBookings: "Записи на сегодня",
+    newBookingNotification: "Новая запись!",
+    bookedSession: "записался на сессию",
+    onDate: "на",
+    atTime: "в",
     
     // Index page
     welcome: "Добро пожаловать",
@@ -292,6 +296,10 @@ export const translations = {
     allBookings: "Барлық жазылулар",
     upcomingBookings: "Алдағы жазылулар",
     todayBookings: "Бүгінгі жазылулар",
+    newBookingNotification: "Жаңа жазылу!",
+    bookedSession: "сессияға жазылды",
+    onDate: "күні",
+    atTime: "сағат",
     
     // Index page
     welcome: "Қош келдіңіз",

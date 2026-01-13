@@ -10,6 +10,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
+import { useRealtimeBookingNotifications } from "@/hooks/useRealtimeBookings";
 import { differenceInHours } from "date-fns";
 
 const CreatorDashboard = () => {
@@ -32,6 +33,9 @@ const CreatorDashboard = () => {
       return differenceInHours(now, createdAt) <= 24;
     }).length;
   }, [bookings]);
+
+  // Enable real-time notifications for new bookings
+  useRealtimeBookingNotifications(productIds, productIds.length > 0);
 
   useEffect(() => {
     if (!loading && !user) {
