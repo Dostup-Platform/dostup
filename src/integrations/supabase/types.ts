@@ -272,6 +272,55 @@ export type Database = {
           },
         ]
       }
+      simple_bookings: {
+        Row: {
+          created_at: string
+          id: string
+          schedule_id: string
+          simple_user_id: string
+          status: string
+          time_slot_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          schedule_id: string
+          simple_user_id: string
+          status?: string
+          time_slot_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          schedule_id?: string
+          simple_user_id?: string
+          status?: string
+          time_slot_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simple_bookings_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simple_bookings_simple_user_id_fkey"
+            columns: ["simple_user_id"]
+            isOneToOne: false
+            referencedRelation: "simple_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simple_bookings_time_slot_id_fkey"
+            columns: ["time_slot_id"]
+            isOneToOne: false
+            referencedRelation: "time_slots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       simple_purchases: {
         Row: {
           amount: number

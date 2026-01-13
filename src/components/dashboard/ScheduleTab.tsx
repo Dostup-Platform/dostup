@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
-import { useSimplePurchases, useSimpleSchedules } from "@/hooks/useSimplePurchases";
-import { useTimeSlots, useUserBookings, useCreateBooking } from "@/hooks/useSchedules";
+import { useSimplePurchases, useSimpleSchedules, useSimpleTimeSlots, useSimpleBookings, useCreateSimpleBooking } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Calendar, Clock, Users, User, Check, Loader2 } from "lucide-react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
@@ -10,14 +9,14 @@ import { toast } from "sonner";
 const ScheduleTab = () => {
   const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
   const { data: schedules, isLoading: schedulesLoading } = useSimpleSchedules();
-  const { data: bookings, isLoading: bookingsLoading } = useUserBookings();
+  const { data: bookings, isLoading: bookingsLoading } = useSimpleBookings();
   const { t, language } = useLanguage();
-  const createBooking = useCreateBooking();
+  const createBooking = useCreateSimpleBooking();
   
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(addDays(new Date(), 1));
 
-  const { data: timeSlots, isLoading: timeSlotsLoading } = useTimeSlots(selectedScheduleId || undefined);
+  const { data: timeSlots, isLoading: timeSlotsLoading } = useSimpleTimeSlots(selectedScheduleId || undefined);
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i + 1));
 
@@ -46,7 +45,7 @@ const ScheduleTab = () => {
     return bookings?.some((b) => b.time_slot_id === slotId && b.status === "confirmed");
   };
 
-  const isLoading = purchasesLoading || schedulesLoading;
+  const isLoading = purchasesLoading || schedulesLoading || bookingsLoading;
 
   if (isLoading) {
     return (
@@ -160,7 +159,7 @@ const ScheduleTab = () => {
                       disabled={!available || createBooking.isPending}
                       className={`p-4 rounded-xl border text-left transition-all ${
                         booked
-                          ? "bg-success/10 border-success text-success"
+                          ? "bg-green-500/10 border-green-500 text-green-600"
                           : available
                           ? "border-border hover:border-primary bg-card"
                           : "border-border bg-muted/50 text-muted-foreground opacity-50"
