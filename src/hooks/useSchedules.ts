@@ -238,3 +238,81 @@ export const useCreateTimeSlot = () => {
     },
   });
 };
+
+export const useUpdateSchedule = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, productId, ...updates }: Partial<Schedule> & { id: string; productId: string }) => {
+      const { data, error } = await supabase
+        .from("schedules")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return { ...data, productId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["schedules", data.productId] });
+    },
+  });
+};
+
+export const useDeleteSchedule = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, productId }: { id: string; productId: string }) => {
+      const { error } = await supabase
+        .from("schedules")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+      return { productId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["schedules", data.productId] });
+    },
+  });
+};
+
+export const useDeleteTimeSlot = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, scheduleId }: { id: string; scheduleId: string }) => {
+      const { error } = await supabase
+        .from("time_slots")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+      return { scheduleId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["time-slots", data.scheduleId] });
+    },
+  });
+};
+
+export const useCreateMultipleTimeSlots = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ slots, scheduleId }: { slots: Omit<TimeSlot, "id" | "created_at">[]; scheduleId: string }) => {
+      const { data, error } = await supabase
+        .from("time_slots")
+        .insert(slots)
+        .select();
+      
+      if (error) throw error;
+      return { data, scheduleId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["time-slots", data.scheduleId] });
+    },
+  });
+};

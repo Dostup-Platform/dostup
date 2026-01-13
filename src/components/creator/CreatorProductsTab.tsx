@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText } from "lucide-react";
+import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText, Calendar } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
+import ProductScheduleManager from "./ProductScheduleManager";
 
 interface Product {
   id: string;
@@ -60,6 +61,7 @@ const CreatorProductsTab = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
+  const [scheduleProduct, setScheduleProduct] = useState<{ id: string; title: string } | null>(null);
   
   const [formData, setFormData] = useState({
     title: "",
@@ -352,6 +354,16 @@ const CreatorProductsTab = () => {
                   >
                     <FileText className="w-4 h-4" />
                   </Button>
+                  {product.has_schedule && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setScheduleProduct({ id: product.id, title: product.title })}
+                      title={t("schedule")}
+                    >
+                      <Calendar className="w-4 h-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -400,12 +412,23 @@ const CreatorProductsTab = () => {
     )}
 
     {/* Materials Manager */}
+    {/* Materials Manager */}
     {materialsProduct && (
       <ProductMaterialsManager
         productId={materialsProduct.id}
         productTitle={materialsProduct.title}
         isOpen={!!materialsProduct}
         onClose={() => setMaterialsProduct(null)}
+      />
+    )}
+
+    {/* Schedule Manager */}
+    {scheduleProduct && (
+      <ProductScheduleManager
+        productId={scheduleProduct.id}
+        productTitle={scheduleProduct.title}
+        isOpen={!!scheduleProduct}
+        onClose={() => setScheduleProduct(null)}
       />
     )}
   </div>
