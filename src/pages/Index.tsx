@@ -25,13 +25,11 @@ const Index = () => {
   const [creatorPassword, setCreatorPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  // Если уже залогинен, перенаправить
+  // Если уже залогинен как студент, перенаправить
   useEffect(() => {
     if (!loading && user) {
       if (!user.role || user.role === "student") {
         navigate("/dashboard");
-      } else if (user.role === "creator") {
-        navigate("/creator-login");
       }
     }
   }, [user, loading, navigate]);
