@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 
@@ -118,5 +118,91 @@ export const useSimpleSchedules = () => {
       return data || [];
     },
     enabled: !!purchases?.length,
+  });
+};
+
+// Получить time slots для расписания
+export const useSimpleTimeSlots = (scheduleId: string | undefined) => {
+  return useQuery({
+    queryKey: ["simple-time-slots", scheduleId],
+    queryFn: async () => {
+      if (!scheduleId) return [];
+      
+      const { data, error } = await supabase
+        .from("time_slots")
+        .select("*")
+        .eq("schedule_id", scheduleId)
+        .gte("date", new Date().toISOString().split("T")[0])
+        .order("date", { ascending: true })
+        .order("start_time", { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!scheduleId,
+  });
+};
+
+// Получить бронирования пользователя (для simple_users через simple_bookings)
+export const useSimpleBookings = () => {
+  const { user } = useSimpleAuth();
+
+  return useQuery({
+    queryKey: ["simple-bookings", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from("simple_bookings" as any)
+        .select(`
+          id,
+          time_slot_id,
+          schedule_id,
+          status,
+          created_at
+        `)
+        .eq("simple_user_id", user.id)
+        .eq("status", "confirmed");
+      
+      if (error) throw error;
+      return (data || []) as unknown as Array<{
+        id: string;
+        time_slot_id: string;
+        schedule_id: string;
+        status: string;
+        created_at: string;
+      }>;
+    },
+    enabled: !!user,
+  });
+};
+
+// Создать бронирование
+export const useCreateSimpleBooking = () => {
+  const queryClient = useQueryClient();
+  const { user } = useSimpleAuth();
+
+  return useMutation({
+    mutationFn: async ({ timeSlotId, scheduleId }: { timeSlotId: string; scheduleId: string }) => {
+      if (!user) throw new Error("Not authenticated");
+      
+      const { data, error } = await supabase
+        .from("simple_bookings" as any)
+        .insert({
+          simple_user_id: user.id,
+          time_slot_id: timeSlotId,
+          schedule_id: scheduleId,
+          status: "confirmed",
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
+    },
   });
 };
