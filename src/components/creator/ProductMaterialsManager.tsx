@@ -179,14 +179,14 @@ const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: P
     }
   };
 
-  const MaterialForm = ({ onSubmit, isEdit = false }: { onSubmit: (e: React.FormEvent) => void; isEdit?: boolean }) => (
+  const renderForm = (onSubmit: (e: React.FormEvent) => void, isEdit: boolean = false) => (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-2">
         <Label>Название *</Label>
         <Input
           placeholder="Название материала"
           value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
           required
         />
       </div>
@@ -196,7 +196,7 @@ const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: P
           <Label>Тип материала</Label>
           <Select
             value={formData.type}
-            onValueChange={(value: MaterialType) => setFormData({ ...formData, type: value, file: null, content: "" })}
+            onValueChange={(value: MaterialType) => setFormData(prev => ({ ...prev, type: value, file: null, content: "" }))}
           >
             <SelectTrigger>
               <SelectValue />
@@ -217,7 +217,7 @@ const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: P
             placeholder="Текст материала..."
             rows={6}
             value={formData.content}
-            onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+            onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
           />
         </div>
       )}
@@ -230,7 +230,7 @@ const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: P
               ref={fileInputRef}
               type="file"
               accept={formData.type === "video" ? "video/*" : "*"}
-              onChange={(e) => setFormData({ ...formData, file: e.target.files?.[0] || null })}
+              onChange={(e) => setFormData(prev => ({ ...prev, file: e.target.files?.[0] || null }))}
               className="hidden"
               id="file-upload"
             />
@@ -297,7 +297,7 @@ const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: P
             {isAdding && (
               <Card>
                 <CardContent className="pt-4">
-                  <MaterialForm onSubmit={handleAdd} />
+                  {renderForm(handleAdd)}
                 </CardContent>
               </Card>
             )}
@@ -318,7 +318,7 @@ const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: P
                   <Card key={material.id}>
                     <CardContent className="p-3">
                       {editingId === material.id ? (
-                        <MaterialForm onSubmit={handleUpdate} isEdit />
+                        renderForm(handleUpdate, true)
                       ) : (
                         <div className="flex items-center gap-3">
                           <div className="text-muted-foreground cursor-grab">
