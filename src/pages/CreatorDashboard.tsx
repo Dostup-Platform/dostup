@@ -48,17 +48,17 @@ const CreatorDashboard = () => {
   const newNotificationsCount = useMemo(() => {
     const now = new Date();
     
-    const newBookings = bookings?.filter(b => {
+    const newBookingsCount = bookings?.filter(b => {
       const createdAt = new Date(b.created_at);
       return differenceInHours(now, createdAt) <= 24;
     }).length || 0;
     
-    const newPurchases = pendingPurchases?.filter(p => {
+    const newPurchasesCount = pendingPurchases?.filter(p => {
       const createdAt = new Date(p.created_at);
       return differenceInHours(now, createdAt) <= 24;
     }).length || 0;
     
-    return newBookings + newPurchases;
+    return newBookingsCount + newPurchasesCount;
   }, [bookings, pendingPurchases]);
 
   // Enable real-time notifications for new bookings and purchases
