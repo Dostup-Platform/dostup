@@ -62,10 +62,13 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
   }, []);
 
   const register = async (name: string) => {
+    // Генерируем уникальный идентификатор вместо телефона
+    const uniqueId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
     // Создать нового пользователя
     const { data, error } = await supabase
       .from("simple_users")
-      .insert({ name, phone: "" })
+      .insert({ name, phone: uniqueId })
       .select()
       .single();
 
