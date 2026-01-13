@@ -129,6 +129,10 @@ export const translations = {
     bookedSession: "записался на сессию",
     onDate: "на",
     atTime: "в",
+    notifications: "Уведомления",
+    noNotifications: "Уведомлений пока нет",
+    notificationsWillAppear: "Здесь будут появляться уведомления о новых записях",
+    new: "Новое",
     
     // Index page
     welcome: "Добро пожаловать",
@@ -300,6 +304,10 @@ export const translations = {
     bookedSession: "сессияға жазылды",
     onDate: "күні",
     atTime: "сағат",
+    notifications: "Хабарландырулар",
+    noNotifications: "Хабарландырулар әзірге жоқ",
+    notificationsWillAppear: "Жаңа жазылулар туралы хабарландырулар мұнда пайда болады",
+    new: "Жаңа",
     
     // Index page
     welcome: "Қош келдіңіз",
