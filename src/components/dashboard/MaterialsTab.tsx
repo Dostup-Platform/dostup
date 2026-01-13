@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { useUserMaterials } from "@/hooks/useMaterials";
+import { useSimpleMaterials } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ const getIcon = (type: string) => {
 };
 
 const MaterialsTab = () => {
-  const { data: materials, isLoading } = useUserMaterials();
+  const { data: materials, isLoading } = useSimpleMaterials();
   const { t } = useLanguage();
 
   if (isLoading) {
@@ -32,7 +32,7 @@ const MaterialsTab = () => {
   }
 
   const groupedMaterials = materials?.reduce((acc, material) => {
-    const productTitle = (material as any).products?.title || "Продукт";
+    const productTitle = material.product?.title || "Продукт";
     if (!acc[productTitle]) {
       acc[productTitle] = [];
     }
