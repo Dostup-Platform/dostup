@@ -7,7 +7,6 @@ import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
 import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
 import CreatorNotificationsTab from "@/components/creator/CreatorNotificationsTab";
-import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useCreatorProducts } from "@/hooks/useProducts";
@@ -18,7 +17,7 @@ import { differenceInHours } from "date-fns";
 const CreatorDashboard = () => {
   const [activeTab, setActiveTab] = useState("products");
   const [creatorName, setCreatorName] = useState<string | null>(null);
-  const { user, loading } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
   const { t } = useLanguage();
   const navigate = useNavigate();
   
@@ -46,6 +45,7 @@ const CreatorDashboard = () => {
       navigate("/");
     } else {
       setCreatorName(name);
+      setIsLoading(false);
     }
   }, [navigate]);
 
@@ -54,7 +54,7 @@ const CreatorDashboard = () => {
     navigate("/");
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -62,7 +62,7 @@ const CreatorDashboard = () => {
     );
   }
 
-  if (!user) return null;
+  if (!creatorName) return null;
 
   return (
     <div className="min-h-screen bg-background pb-20">
