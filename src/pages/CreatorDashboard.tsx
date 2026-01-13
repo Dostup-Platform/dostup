@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Users, Calendar, Loader2 } from "lucide-react";
@@ -8,12 +8,30 @@ import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useCreatorProducts } from "@/hooks/useProducts";
+import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
+import { differenceInHours } from "date-fns";
 
 const CreatorDashboard = () => {
   const [activeTab, setActiveTab] = useState("products");
   const { user, loading } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  
+  // Получаем продукты и бронирования для подсчёта уведомлений
+  const { data: products } = useCreatorProducts();
+  const productIds = useMemo(() => products?.map(p => p.id) || [], [products]);
+  const { data: bookings } = useCreatorSimpleBookings(productIds);
+  
+  // Подсчёт новых записей за 24 часа
+  const newBookingsCount = useMemo(() => {
+    if (!bookings) return 0;
+    const now = new Date();
+    return bookings.filter(b => {
+      const createdAt = new Date(b.created_at);
+      return differenceInHours(now, createdAt) <= 24;
+    }).length;
+  }, [bookings]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -53,9 +71,14 @@ const CreatorDashboard = () => {
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">{t("users")}</span>
             </TabsTrigger>
-            <TabsTrigger value="schedule" className="gap-2">
+            <TabsTrigger value="schedule" className="gap-2 relative">
               <Calendar className="w-4 h-4" />
               <span className="hidden sm:inline">{t("schedule")}</span>
+              {newBookingsCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+                  {newBookingsCount > 9 ? "9+" : newBookingsCount}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 

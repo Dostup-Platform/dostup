@@ -1,116 +1,175 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { demoSchedules, generateDemoTimeSlots, demoUser } from "@/lib/demo-data";
-import { Calendar, Clock, Users, User, Plus, ChevronLeft, ChevronRight } from "lucide-react";
-import { format, addDays, isSameDay, parseISO, startOfWeek, addWeeks, subWeeks } from "date-fns";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Calendar, Clock, Users, User, ChevronLeft, ChevronRight, Bell, Loader2, Phone } from "lucide-react";
+import { format, addDays, isSameDay, parseISO, startOfWeek, addWeeks, subWeeks, isToday, differenceInHours } from "date-fns";
+import { ru } from "date-fns/locale";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useCreatorProducts } from "@/hooks/useProducts";
+import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
 
 const CreatorScheduleTab = () => {
-  const schedules = demoSchedules;
-  const timeSlots = useMemo(() => generateDemoTimeSlots(), []);
+  const { t } = useLanguage();
+  const { data: products, isLoading: productsLoading } = useCreatorProducts();
+  const productIds = useMemo(() => products?.map(p => p.id) || [], [products]);
+  const { data: bookings, isLoading: bookingsLoading } = useCreatorSimpleBookings(productIds);
+  
   const [currentWeek, setCurrentWeek] = useState(new Date());
-  const [selectedView, setSelectedView] = useState<"daily" | "weekly">("weekly");
-  const [isCreatingSlot, setIsCreatingSlot] = useState(false);
+
+  const isLoading = productsLoading || bookingsLoading;
 
   // Get days for current week
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  // Get bookings for display
-  const bookedSlots = timeSlots.filter((slot) => !slot.is_available);
+  // Новые записи (за последние 24 часа)
+  const newBookings = useMemo(() => {
+    if (!bookings) return [];
+    const now = new Date();
+    return bookings.filter(b => {
+      const createdAt = new Date(b.created_at);
+      return differenceInHours(now, createdAt) <= 24;
+    });
+  }, [bookings]);
+
+  // Записи на сегодня
+  const todayBookings = useMemo(() => {
+    if (!bookings) return [];
+    return bookings.filter(b => {
+      if (!b.time_slot?.date) return false;
+      return isToday(parseISO(b.time_slot.date));
+    });
+  }, [bookings]);
+
+  // Предстоящие записи
+  const upcomingBookings = useMemo(() => {
+    if (!bookings) return [];
+    const now = new Date();
+    return bookings.filter(b => {
+      if (!b.time_slot?.date) return false;
+      return parseISO(b.time_slot.date) >= now;
+    }).sort((a, b) => {
+      const dateA = a.time_slot?.date || "";
+      const dateB = b.time_slot?.date || "";
+      return dateA.localeCompare(dateB);
+    });
+  }, [bookings]);
+
+  // Подсчёт записей по дням недели
+  const getBookingsForDay = (day: Date) => {
+    if (!bookings) return [];
+    return bookings.filter(b => {
+      if (!b.time_slot?.date) return false;
+      return isSameDay(parseISO(b.time_slot.date), day);
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Schedule Management</h2>
-        <Dialog open={isCreatingSlot} onOpenChange={setIsCreatingSlot}>
-          <DialogTrigger asChild>
-            <Button variant="default" size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Slot
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create Time Slot</DialogTitle>
-            </DialogHeader>
-            <form className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label>Schedule</Label>
-                <Select>
-                  <SelectTrigger className="h-12">
-                    <SelectValue placeholder="Select schedule" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {schedules.map((schedule) => (
-                      <SelectItem key={schedule.id} value={schedule.id}>
-                        {schedule.title} ({schedule.type})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
-                <Input id="date" type="date" className="h-12" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="start">Start Time</Label>
-                  <Input id="start" type="time" className="h-12" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="end">End Time</Label>
-                  <Input id="end" type="time" className="h-12" />
-                </div>
-              </div>
-              <Button type="submit" variant="cta" className="w-full">
-                Create Slot
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+      <h2 className="text-lg font-semibold text-foreground">{t("weeklySchedule")}</h2>
 
-      {/* Schedule Types */}
-      <div className="grid grid-cols-2 gap-3">
-        {schedules.map((schedule) => (
-          <Card key={schedule.id} className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              {schedule.type === "group" ? (
-                <Users className="w-5 h-5 text-primary" />
-              ) : (
-                <User className="w-5 h-5 text-primary" />
-              )}
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                {schedule.type}
-              </span>
+      {/* Уведомления о новых записях */}
+      {newBookings.length > 0 && (
+        <Card className="border-primary/50 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Bell className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">{t("newBookings")}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {newBookings.length} {newBookings.length === 1 ? "новая запись" : "новых записей"} за 24 часа
+                </p>
+              </div>
             </div>
-            <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
-            {schedule.capacity && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Capacity: {schedule.capacity}
-              </p>
-            )}
-          </Card>
-        ))}
-      </div>
+            <div className="space-y-2">
+              {newBookings.slice(0, 3).map((booking) => (
+                <div
+                  key={booking.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-background border border-border"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                      {booking.schedule?.event_type === "group" ? (
+                        <Users className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <User className="w-4 h-4 text-green-600" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground text-sm">{booking.user?.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {booking.product?.title} • {booking.time_slot?.date && format(parseISO(booking.time_slot.date), "d MMM", { locale: ru })} в {booking.time_slot?.start_time?.slice(0, 5)}
+                      </p>
+                    </div>
+                  </div>
+                  {booking.user?.phone && (
+                    <a
+                      href={`tel:${booking.user.phone}`}
+                      className="flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <Phone className="w-3 h-3" />
+                      {booking.user.phone}
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Записи на сегодня */}
+      {todayBookings.length > 0 && (
+        <Card className="border-green-500/30 bg-green-500/5">
+          <CardContent className="p-4">
+            <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-green-600" />
+              {t("todayBookings")} ({todayBookings.length})
+            </h3>
+            <div className="space-y-2">
+              {todayBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-background border border-border"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col items-center justify-center min-w-[50px]">
+                      <Clock className="w-4 h-4 text-muted-foreground mb-1" />
+                      <span className="text-sm font-semibold text-foreground">
+                        {booking.time_slot?.start_time?.slice(0, 5)}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground text-sm">{booking.user?.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {booking.schedule?.title}
+                      </p>
+                    </div>
+                  </div>
+                  {booking.user?.phone && (
+                    <a
+                      href={`tel:${booking.user.phone}`}
+                      className="flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <Phone className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Week Navigation */}
       <div className="flex items-center justify-between">
@@ -118,7 +177,7 @@ const CreatorScheduleTab = () => {
           <ChevronLeft className="w-5 h-5" />
         </Button>
         <span className="font-medium text-foreground">
-          {format(weekStart, "MMM d")} - {format(addDays(weekStart, 6), "MMM d, yyyy")}
+          {format(weekStart, "d MMM", { locale: ru })} - {format(addDays(weekStart, 6), "d MMM yyyy", { locale: ru })}
         </span>
         <Button variant="ghost" size="icon" onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}>
           <ChevronRight className="w-5 h-5" />
@@ -127,75 +186,80 @@ const CreatorScheduleTab = () => {
 
       {/* Weekly Calendar */}
       <div className="overflow-x-auto -mx-4 px-4">
-        <div className="grid grid-cols-7 gap-2 min-w-[600px]">
+        <div className="grid grid-cols-7 gap-2 min-w-[500px]">
           {weekDays.map((day) => {
-            const daySlots = timeSlots.filter((slot) =>
-              isSameDay(parseISO(slot.start_time), day)
-            );
-            const bookedCount = daySlots.filter((s) => !s.is_available).length;
+            const dayBookings = getBookingsForDay(day);
+            const isCurrentDay = isToday(day);
 
             return (
               <div
                 key={day.toISOString()}
-                className="text-center p-3 rounded-xl bg-card border border-border"
+                className={`text-center p-3 rounded-xl border transition-all ${
+                  isCurrentDay 
+                    ? "bg-primary/10 border-primary" 
+                    : "bg-card border-border"
+                }`}
               >
-                <div className="text-xs text-muted-foreground">{format(day, "EEE")}</div>
-                <div className="text-lg font-bold">{format(day, "d")}</div>
-                <div className="mt-2 space-y-1">
-                  <div className="text-xs text-muted-foreground">
-                    {daySlots.length} slots
-                  </div>
-                  {bookedCount > 0 && (
-                    <div className="text-xs text-success font-medium">
-                      {bookedCount} booked
-                    </div>
-                  )}
+                <div className="text-xs text-muted-foreground">{format(day, "EEE", { locale: ru })}</div>
+                <div className={`text-lg font-bold ${isCurrentDay ? "text-primary" : ""}`}>
+                  {format(day, "d")}
                 </div>
+                {dayBookings.length > 0 && (
+                  <div className="mt-2 text-xs font-medium text-green-600 bg-green-500/10 rounded-full px-2 py-0.5">
+                    {dayBookings.length}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Upcoming Bookings */}
+      {/* Предстоящие записи */}
       <div className="space-y-3">
-        <h3 className="font-medium text-foreground">Upcoming Bookings</h3>
-        {bookedSlots.slice(0, 5).map((slot) => {
-          const schedule = schedules.find((s) => s.id === slot.schedule_id);
-          return (
-            <Card key={slot.id}>
+        <h3 className="font-medium text-foreground">{t("upcomingBookings")}</h3>
+        {upcomingBookings.length > 0 ? (
+          upcomingBookings.slice(0, 10).map((booking) => (
+            <Card key={booking.id}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      {schedule?.type === "group" ? (
+                      {booking.schedule?.event_type === "group" ? (
                         <Users className="w-5 h-5 text-primary" />
                       ) : (
                         <User className="w-5 h-5 text-primary" />
                       )}
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">{schedule?.title}</p>
+                      <p className="font-medium text-foreground">{booking.user?.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {format(parseISO(slot.start_time), "EEE, MMM d")} at{" "}
-                        {format(parseISO(slot.start_time), "h:mm a")}
+                        {booking.product?.title} • {booking.schedule?.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {booking.time_slot?.date && format(parseISO(booking.time_slot.date), "EEEE, d MMMM", { locale: ru })} в {booking.time_slot?.start_time?.slice(0, 5)}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-foreground">{demoUser.name}</p>
-                    <p className="text-xs text-muted-foreground">{demoUser.email}</p>
-                  </div>
+                  {booking.user?.phone && (
+                    <a
+                      href={`tel:${booking.user.phone}`}
+                      className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                    >
+                      <Phone className="w-4 h-4" />
+                      <span className="hidden sm:inline">{booking.user.phone}</span>
+                    </a>
+                  )}
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
-
-        {bookedSlots.length === 0 && (
-          <p className="text-center text-muted-foreground py-8">
-            No bookings yet
-          </p>
+          ))
+        ) : (
+          <div className="text-center py-8">
+            <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+            <p className="text-muted-foreground">{t("noBookings")}</p>
+            <p className="text-sm text-muted-foreground mt-1">{t("noBookingsYet")}</p>
+          </div>
         )}
       </div>
     </div>
