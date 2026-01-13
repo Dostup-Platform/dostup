@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 
 interface Product {
   id: string;
@@ -52,7 +52,7 @@ export const useProduct = (productId: string | undefined) => {
 };
 
 export const useCreatorProducts = () => {
-  const { user } = useAuth();
+  const { user } = useSimpleAuth();
 
   return useQuery({
     queryKey: ["creator-products", user?.id],
@@ -68,22 +68,42 @@ export const useCreatorProducts = () => {
       if (error) throw error;
       return data as Product[];
     },
-    enabled: !!user,
+    enabled: !!user && user.role === "creator",
   });
 };
 
+interface CreateProductInput {
+  title: string;
+  headline?: string | null;
+  description?: string | null;
+  price: number;
+  kaspi_link?: string | null;
+  has_schedule?: boolean;
+  is_active?: boolean;
+  image_url?: string | null;
+  slug?: string | null;
+}
+
 export const useCreateProduct = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user } = useSimpleAuth();
 
   return useMutation({
-    mutationFn: async (product: Omit<Product, "id" | "creator_id" | "created_at" | "updated_at">) => {
+    mutationFn: async (product: CreateProductInput) => {
       if (!user) throw new Error("Not authenticated");
       
       const { data, error } = await supabase
         .from("products")
         .insert({
-          ...product,
+          title: product.title,
+          headline: product.headline || null,
+          description: product.description || null,
+          price: product.price,
+          kaspi_link: product.kaspi_link || null,
+          has_schedule: product.has_schedule || false,
+          is_active: product.is_active ?? true,
+          image_url: product.image_url || null,
+          slug: product.slug || null,
           creator_id: user.id,
         })
         .select()

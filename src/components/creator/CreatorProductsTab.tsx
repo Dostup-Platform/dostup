@@ -1,12 +1,14 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { demoProduct, demoMaterials } from "@/lib/demo-data";
-import { Plus, Edit, Trash2, Copy, ExternalLink, FileText, Video, Type, Package } from "lucide-react";
+import { useCreatorProducts, useCreateProduct } from "@/hooks/useProducts";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { Plus, Copy, ExternalLink, Package, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,66 +16,178 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
-const formatPrice = (price: number, currency: string = "USD") => {
-  return new Intl.NumberFormat("en-US", {
+const formatPrice = (price: number, currency: string = "KZT") => {
+  return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency: currency,
     minimumFractionDigits: 0,
-  }).format(price / 100);
+  }).format(price);
 };
 
 const CreatorProductsTab = () => {
-  const [products, setProducts] = useState([demoProduct]);
+  const { user } = useSimpleAuth();
+  const { t } = useLanguage();
+  const { data: products = [], isLoading } = useCreatorProducts();
+  const createProduct = useCreateProduct();
+  
   const [isCreating, setIsCreating] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    title: "",
+    headline: "",
+    description: "",
+    price: "",
+    kaspiLink: "",
+    hasSchedule: false,
+  });
 
   const copyLink = (productId: string) => {
     const link = `${window.location.origin}/product/${productId}`;
     navigator.clipboard.writeText(link);
+    toast.success(t("linkCopied"));
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.title || !formData.price) {
+      toast.error("Заполните обязательные поля");
+      return;
+    }
+
+    try {
+      await createProduct.mutateAsync({
+        title: formData.title,
+        headline: formData.headline || null,
+        description: formData.description || null,
+        price: Number(formData.price),
+        kaspi_link: formData.kaspiLink || null,
+        has_schedule: formData.hasSchedule,
+        is_active: true,
+      });
+      
+      toast.success("Продукт создан!");
+      setIsCreating(false);
+      setFormData({
+        title: "",
+        headline: "",
+        description: "",
+        price: "",
+        kaspiLink: "",
+        hasSchedule: false,
+      });
+    } catch (error) {
+      toast.error("Ошибка при создании продукта");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Your Products</h2>
+        <h2 className="text-lg font-semibold text-foreground">{t("products")}</h2>
         <Dialog open={isCreating} onOpenChange={setIsCreating}>
           <DialogTrigger asChild>
             <Button variant="default" size="sm">
               <Plus className="w-4 h-4 mr-2" />
-              New Product
+              {t("create")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create New Product</DialogTitle>
+              <DialogTitle>Создать продукт</DialogTitle>
             </DialogHeader>
-            <form className="space-y-4 mt-4">
+            <form onSubmit={handleSubmit} className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input id="title" placeholder="Product title" className="h-12" />
+                <Label htmlFor="title">Название *</Label>
+                <Input 
+                  id="title" 
+                  placeholder="Название курса" 
+                  className="h-12"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="headline">Headline</Label>
-                <Input id="headline" placeholder="What the user gets" className="h-12" />
+                <Label htmlFor="headline">Краткое описание</Label>
+                <Input 
+                  id="headline" 
+                  placeholder="Что получит пользователь" 
+                  className="h-12"
+                  value={formData.headline}
+                  onChange={(e) => setFormData({ ...formData, headline: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea id="description" placeholder="Detailed description" rows={4} />
+                <Label htmlFor="description">Полное описание</Label>
+                <Textarea 
+                  id="description" 
+                  placeholder="Подробное описание курса" 
+                  rows={4}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Price (in cents)</Label>
-                <Input id="price" type="number" placeholder="9900" className="h-12" />
+                <Label htmlFor="price">Цена (тенге) *</Label>
+                <Input 
+                  id="price" 
+                  type="number" 
+                  placeholder="49000" 
+                  className="h-12"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="kaspiLink">{t("kaspiLink")}</Label>
+                <Input 
+                  id="kaspiLink" 
+                  type="url" 
+                  placeholder={t("kaspiLinkPlaceholder")} 
+                  className="h-12"
+                  value={formData.kaspiLink}
+                  onChange={(e) => setFormData({ ...formData, kaspiLink: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ссылка на оплату через Kaspi.kz
+                </p>
               </div>
               <div className="flex items-center justify-between py-2">
                 <div>
-                  <Label htmlFor="schedule">Enable Scheduling</Label>
-                  <p className="text-sm text-muted-foreground">Allow users to book sessions</p>
+                  <Label htmlFor="schedule">Включить расписание</Label>
+                  <p className="text-sm text-muted-foreground">Позволит записываться на сессии</p>
                 </div>
-                <Switch id="schedule" />
+                <Switch 
+                  id="schedule"
+                  checked={formData.hasSchedule}
+                  onCheckedChange={(checked) => setFormData({ ...formData, hasSchedule: checked })}
+                />
               </div>
-              <Button type="submit" variant="cta" className="w-full">
-                Create Product
+              <Button 
+                type="submit" 
+                variant="cta" 
+                className="w-full"
+                disabled={createProduct.isPending}
+              >
+                {createProduct.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Создание...
+                  </span>
+                ) : (
+                  "Создать продукт"
+                )}
               </Button>
             </form>
           </DialogContent>
@@ -88,14 +202,21 @@ const CreatorProductsTab = () => {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-foreground">{product.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{product.headline}</p>
+                  {product.headline && (
+                    <p className="text-sm text-muted-foreground mt-1">{product.headline}</p>
+                  )}
                   <div className="flex items-center gap-4 mt-3">
                     <span className="text-lg font-bold text-primary">
-                      {formatPrice(product.price, product.currency)}
+                      {formatPrice(Number(product.price))}
                     </span>
                     {product.has_schedule && (
                       <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                        Scheduling enabled
+                        Расписание
+                      </span>
+                    )}
+                    {product.kaspi_link && (
+                      <span className="text-xs bg-success/10 text-success px-2 py-1 rounded-full">
+                        Kaspi
                       </span>
                     )}
                   </div>
@@ -115,30 +236,6 @@ const CreatorProductsTab = () => {
                   </Button>
                 </div>
               </div>
-
-              {/* Materials Preview */}
-              <div className="mt-4 pt-4 border-t border-border">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-medium text-foreground">Materials</h4>
-                  <Button variant="ghost" size="sm">
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {demoMaterials.slice(0, 3).map((material) => (
-                    <div
-                      key={material.id}
-                      className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 text-sm"
-                    >
-                      {material.type === "video" && <Video className="w-4 h-4 text-muted-foreground" />}
-                      {material.type === "file" && <FileText className="w-4 h-4 text-muted-foreground" />}
-                      {material.type === "text" && <Type className="w-4 h-4 text-muted-foreground" />}
-                      <span className="flex-1 truncate">{material.title}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </CardContent>
           </Card>
         ))}
@@ -147,9 +244,9 @@ const CreatorProductsTab = () => {
       {products.length === 0 && (
         <div className="text-center py-12">
           <Package className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-          <p className="text-muted-foreground">No products yet</p>
+          <p className="text-muted-foreground">{t("noProducts")}</p>
           <Button variant="default" className="mt-4" onClick={() => setIsCreating(true)}>
-            Create Your First Product
+            {t("createFirstProduct")}
           </Button>
         </div>
       )}
