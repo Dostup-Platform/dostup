@@ -51,24 +51,41 @@ export const useProduct = (productId: string | undefined) => {
   });
 };
 
-export const useCreatorProducts = () => {
+export const useCreatorId = () => {
   const { user } = useSimpleAuth();
+  const creatorName = localStorage.getItem("creator_name");
+  
+  // If logged in via SimpleAuth as creator
+  if (user && user.role === "creator") {
+    return user.id;
+  }
+  
+  // If logged in via creator_name (localStorage)
+  if (creatorName) {
+    return creatorName; // Use creator name as ID
+  }
+  
+  return null;
+};
+
+export const useCreatorProducts = () => {
+  const creatorId = useCreatorId();
 
   return useQuery({
-    queryKey: ["creator-products", user?.id],
+    queryKey: ["creator-products", creatorId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!creatorId) return [];
       
       const { data, error } = await supabase
         .from("products")
         .select("*")
-        .eq("creator_id", user.id)
+        .eq("creator_id", creatorId)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
       return data as Product[];
     },
-    enabled: !!user && user.role === "creator",
+    enabled: !!creatorId,
   });
 };
 
@@ -86,11 +103,11 @@ interface CreateProductInput {
 
 export const useCreateProduct = () => {
   const queryClient = useQueryClient();
-  const { user } = useSimpleAuth();
+  const creatorId = useCreatorId();
 
   return useMutation({
     mutationFn: async (product: CreateProductInput) => {
-      if (!user) throw new Error("Not authenticated");
+      if (!creatorId) throw new Error("Not authenticated");
       
       const { data, error } = await supabase
         .from("products")
@@ -104,7 +121,7 @@ export const useCreateProduct = () => {
           is_active: product.is_active ?? true,
           image_url: product.image_url || null,
           slug: product.slug || null,
-          creator_id: user.id,
+          creator_id: creatorId,
         })
         .select()
         .single();
