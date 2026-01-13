@@ -22,9 +22,29 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
   const [creatorPassword, setCreatorPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ name?: string; password?: string }>({});
+
+  const validateFields = () => {
+    const newErrors: { name?: string; password?: string } = {};
+    
+    if (creatorName.trim().length < 2) {
+      newErrors.name = t("minNameLength");
+    }
+    if (creatorPassword.length < 4) {
+      newErrors.password = t("minPasswordLength");
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleCreatorLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateFields()) {
+      return;
+    }
+    
     setIsSubmitting(true);
 
     // Fetch creator password from app_settings
@@ -45,6 +65,8 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
     navigate("/creator");
     setIsSubmitting(false);
   };
+
+  const isFormValid = creatorName.trim().length >= 2 && creatorPassword.length >= 4;
 
   return (
     <div className="min-h-screen bg-gradient-hero flex flex-col">
@@ -75,10 +97,16 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
                   type="text"
                   placeholder={t("creatorNamePlaceholder")}
                   value={creatorName}
-                  onChange={(e) => setCreatorName(e.target.value)}
+                  onChange={(e) => {
+                    setCreatorName(e.target.value);
+                    if (errors.name) setErrors(prev => ({ ...prev, name: undefined }));
+                  }}
                   required
-                  className="h-12"
+                  className={`h-12 ${errors.name ? "border-destructive" : ""}`}
                 />
+                {errors.name && (
+                  <p className="text-sm text-destructive">{errors.name}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -89,9 +117,12 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
                     type={showPassword ? "text" : "password"}
                     placeholder={t("enterPassword")}
                     value={creatorPassword}
-                    onChange={(e) => setCreatorPassword(e.target.value)}
+                    onChange={(e) => {
+                      setCreatorPassword(e.target.value);
+                      if (errors.password) setErrors(prev => ({ ...prev, password: undefined }));
+                    }}
                     required
-                    className="h-12 pr-10"
+                    className={`h-12 pr-10 ${errors.password ? "border-destructive" : ""}`}
                   />
                   <Button
                     type="button"
@@ -103,6 +134,9 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </Button>
                 </div>
+                {errors.password && (
+                  <p className="text-sm text-destructive">{errors.password}</p>
+                )}
               </div>
 
               <Button 
@@ -110,7 +144,7 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
                 variant="cta" 
                 size="lg" 
                 className="w-full mt-6"
-                disabled={isSubmitting || !creatorName.trim() || !creatorPassword.trim()}
+                disabled={isSubmitting || !isFormValid}
               >
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
