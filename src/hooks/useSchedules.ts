@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { useCreatorId } from "@/hooks/useProducts";
 
 type EventType = "group" | "individual";
 
@@ -71,7 +72,7 @@ export const useTimeSlots = (scheduleId: string | undefined) => {
 };
 
 export const useUserBookings = () => {
-  const { user } = useAuth();
+  const { user } = useSimpleAuth();
 
   return useQuery({
     queryKey: ["bookings", user?.id],
@@ -79,7 +80,7 @@ export const useUserBookings = () => {
       if (!user) return [];
       
       const { data, error } = await supabase
-        .from("bookings")
+        .from("simple_bookings")
         .select(`
           *,
           time_slots (
@@ -94,7 +95,7 @@ export const useUserBookings = () => {
             event_type
           )
         `)
-        .eq("user_id", user.id)
+        .eq("simple_user_id", user.id)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
@@ -105,18 +106,18 @@ export const useUserBookings = () => {
 };
 
 export const useCreatorBookings = () => {
-  const { user } = useAuth();
+  const creatorId = useCreatorId();
 
   return useQuery({
-    queryKey: ["creator-bookings", user?.id],
+    queryKey: ["creator-bookings", creatorId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!creatorId) return [];
       
       // Get creator's products first
       const { data: products, error: productsError } = await supabase
         .from("products")
         .select("id")
-        .eq("creator_id", user.id);
+        .eq("creator_id", creatorId);
       
       if (productsError) throw productsError;
       
@@ -137,7 +138,7 @@ export const useCreatorBookings = () => {
       if (scheduleIds.length === 0) return [];
       
       const { data, error } = await supabase
-        .from("bookings")
+        .from("simple_bookings")
         .select(`
           *,
           time_slots (
@@ -154,9 +155,8 @@ export const useCreatorBookings = () => {
               title
             )
           ),
-          profiles!bookings_user_id_fkey (
+          simple_users (
             name,
-            email,
             phone
           )
         `)
@@ -166,22 +166,22 @@ export const useCreatorBookings = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!creatorId,
   });
 };
 
 export const useCreateBooking = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user } = useSimpleAuth();
 
   return useMutation({
     mutationFn: async ({ timeSlotId, scheduleId }: { timeSlotId: string; scheduleId: string }) => {
       if (!user) throw new Error("Not authenticated");
       
       const { data, error } = await supabase
-        .from("bookings")
+        .from("simple_bookings")
         .insert({
-          user_id: user.id,
+          simple_user_id: user.id,
           time_slot_id: timeSlotId,
           schedule_id: scheduleId,
           status: "confirmed",
