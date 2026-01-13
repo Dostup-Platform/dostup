@@ -9,6 +9,7 @@ export interface Product {
   has_schedule: boolean;
   creator_id: string;
   created_at: string;
+  kaspi_link?: string | null;
 }
 
 export interface User {

@@ -36,10 +36,10 @@ export const translations = {
     emailPlaceholder: "вы@example.com",
     fullName: "Полное имя",
     namePlaceholder: "Ваше имя",
-    cardDetails: "Данные карты",
-    stripeIntegration: "Интеграция с платёжной системой Stripe",
-    demoMode: "Демо режим — нажмите оплатить для симуляции успешного платежа",
-    pay: "Оплатить",
+    payWithKaspi: "Оплатить через Kaspi",
+    kaspiPaymentInfo: "После оплаты в Kaspi нажмите кнопку ниже",
+    paidContinue: "Я оплатил, продолжить",
+    noPaymentMethod: "Способ оплаты не настроен",
     termsAgreement: "Оплачивая, вы соглашаетесь с нашими условиями использования.",
     
     // Password Setup
@@ -162,10 +162,10 @@ export const translations = {
     emailPlaceholder: "сіз@example.com",
     fullName: "Толық аты-жөні",
     namePlaceholder: "Сіздің атыңыз",
-    cardDetails: "Карта мәліметтері",
-    stripeIntegration: "Stripe төлем жүйесімен интеграция",
-    demoMode: "Демо режим — сәтті төлемді модельдеу үшін төлемді басыңыз",
-    pay: "Төлеу",
+    payWithKaspi: "Kaspi арқылы төлеу",
+    kaspiPaymentInfo: "Kaspi-де төлегеннен кейін төмендегі түймені басыңыз",
+    paidContinue: "Төледім, жалғастыру",
+    noPaymentMethod: "Төлем әдісі орнатылмаған",
     termsAgreement: "Төлем жасау арқылы сіз біздің қызмет шарттарымен келісесіз.",
     
     // Password Setup
