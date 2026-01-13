@@ -154,6 +154,10 @@ export const translations = {
     pendingPayments: "Ожидающие подтверждения",
     kaspiLink: "Ссылка Kaspi",
     kaspiLinkPlaceholder: "https://kaspi.kz/pay/...",
+    paymentConfirmed: "Оплата подтверждена!",
+    searchUsers: "Поиск пользователей...",
+    amount: "Сумма",
+    total: "всего",
   },
   kk: {
     // Common
@@ -308,6 +312,10 @@ export const translations = {
     pendingPayments: "Растауды күтуде",
     kaspiLink: "Kaspi сілтемесі",
     kaspiLinkPlaceholder: "https://kaspi.kz/pay/...",
+    paymentConfirmed: "Төлем расталды!",
+    searchUsers: "Пайдаланушыларды іздеу...",
+    amount: "Сома",
+    total: "барлығы",
   },
 } as const;
 
