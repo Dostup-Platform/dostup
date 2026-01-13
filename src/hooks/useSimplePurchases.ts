@@ -143,7 +143,7 @@ export const useSimpleTimeSlots = (scheduleId: string | undefined) => {
   });
 };
 
-// Получить бронирования пользователя (для simple_users через simple_bookings)
+// Получить бронирования пользователя с деталями
 export const useSimpleBookings = () => {
   const { user } = useSimpleAuth();
 
@@ -152,26 +152,51 @@ export const useSimpleBookings = () => {
     queryFn: async () => {
       if (!user) return [];
       
-      const { data, error } = await supabase
+      // Получить бронирования
+      const { data: bookingsData, error } = await supabase
         .from("simple_bookings" as any)
-        .select(`
-          id,
-          time_slot_id,
-          schedule_id,
-          status,
-          created_at
-        `)
+        .select("id, time_slot_id, schedule_id, status, created_at")
         .eq("simple_user_id", user.id)
         .eq("status", "confirmed");
       
       if (error) throw error;
-      return (data || []) as unknown as Array<{
+      if (!bookingsData?.length) return [];
+
+      const bookings = bookingsData as unknown as Array<{
         id: string;
         time_slot_id: string;
         schedule_id: string;
         status: string;
         created_at: string;
       }>;
+
+      // Получить time_slots
+      const slotIds = bookings.map(b => b.time_slot_id);
+      const { data: slots } = await supabase
+        .from("time_slots")
+        .select("id, date, start_time, end_time")
+        .in("id", slotIds);
+
+      // Получить schedules
+      const scheduleIds = bookings.map(b => b.schedule_id);
+      const { data: schedules } = await supabase
+        .from("schedules")
+        .select("id, title, event_type, product_id")
+        .in("id", scheduleIds);
+
+      // Получить products
+      const productIds = schedules?.map(s => s.product_id) || [];
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, title")
+        .in("id", productIds);
+
+      return bookings.map(booking => ({
+        ...booking,
+        time_slot: slots?.find(s => s.id === booking.time_slot_id),
+        schedule: schedules?.find(s => s.id === booking.schedule_id),
+        product: products?.find(p => p.id === schedules?.find(s => s.id === booking.schedule_id)?.product_id),
+      }));
     },
     enabled: !!user,
   });
@@ -199,6 +224,26 @@ export const useCreateSimpleBooking = () => {
       
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
+    },
+  });
+};
+
+// Отменить бронирование
+export const useCancelSimpleBooking = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { error } = await supabase
+        .from("simple_bookings" as any)
+        .delete()
+        .eq("id", bookingId);
+      
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
