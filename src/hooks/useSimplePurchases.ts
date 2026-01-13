@@ -251,3 +251,73 @@ export const useCancelSimpleBooking = () => {
     },
   });
 };
+
+// Получить все бронирования для создателя (для уведомлений)
+export const useCreatorSimpleBookings = (productIds: string[]) => {
+  return useQuery({
+    queryKey: ["creator-simple-bookings", productIds],
+    queryFn: async () => {
+      if (!productIds.length) return [];
+
+      // Получить schedules для продуктов создателя
+      const { data: schedules, error: schedulesError } = await supabase
+        .from("schedules")
+        .select("id, title, event_type, product_id")
+        .in("product_id", productIds);
+
+      if (schedulesError) throw schedulesError;
+      if (!schedules?.length) return [];
+
+      const scheduleIds = schedules.map(s => s.id);
+
+      // Получить бронирования
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from("simple_bookings" as any)
+        .select("id, simple_user_id, time_slot_id, schedule_id, status, created_at")
+        .in("schedule_id", scheduleIds)
+        .eq("status", "confirmed")
+        .order("created_at", { ascending: false });
+
+      if (bookingsError) throw bookingsError;
+      if (!bookingsData?.length) return [];
+
+      const bookings = bookingsData as unknown as Array<{
+        id: string;
+        simple_user_id: string;
+        time_slot_id: string;
+        schedule_id: string;
+        status: string;
+        created_at: string;
+      }>;
+
+      // Получить time_slots
+      const slotIds = bookings.map(b => b.time_slot_id);
+      const { data: slots } = await supabase
+        .from("time_slots")
+        .select("id, date, start_time, end_time")
+        .in("id", slotIds);
+
+      // Получить simple_users
+      const userIds = bookings.map(b => b.simple_user_id);
+      const { data: users } = await supabase
+        .from("simple_users")
+        .select("id, name, phone")
+        .in("id", userIds);
+
+      // Получить products
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, title")
+        .in("id", productIds);
+
+      return bookings.map(booking => ({
+        ...booking,
+        time_slot: slots?.find(s => s.id === booking.time_slot_id),
+        schedule: schedules?.find(s => s.id === booking.schedule_id),
+        user: users?.find(u => u.id === booking.simple_user_id),
+        product: products?.find(p => p.id === schedules?.find(s => s.id === booking.schedule_id)?.product_id),
+      }));
+    },
+    enabled: productIds.length > 0,
+  });
+};

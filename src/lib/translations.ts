@@ -121,6 +121,10 @@ export const translations = {
     noBookings: "Нет записей",
     noBookingsYet: "Записи появятся здесь",
     bookingsFor: "Записи на",
+    newBookings: "Новые записи",
+    allBookings: "Все записи",
+    upcomingBookings: "Предстоящие записи",
+    todayBookings: "Записи на сегодня",
     
     // Index page
     welcome: "Добро пожаловать",
@@ -284,6 +288,10 @@ export const translations = {
     noBookings: "Жазылулар жоқ",
     noBookingsYet: "Жазылулар мұнда пайда болады",
     bookingsFor: "Жазылулар:",
+    newBookings: "Жаңа жазылулар",
+    allBookings: "Барлық жазылулар",
+    upcomingBookings: "Алдағы жазылулар",
+    todayBookings: "Бүгінгі жазылулар",
     
     // Index page
     welcome: "Қош келдіңіз",
