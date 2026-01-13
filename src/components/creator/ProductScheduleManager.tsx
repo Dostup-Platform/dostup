@@ -66,6 +66,7 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
   const [isAddingSlots, setIsAddingSlots] = useState(false);
   const [isDeletingSlots, setIsDeletingSlots] = useState(false);
   const [selectedDatesForDeletion, setSelectedDatesForDeletion] = useState<string[]>([]);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -463,14 +464,10 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
                           type="button" 
                           variant="destructive" 
                           size="sm"
-                          onClick={handleDeleteAllSlots}
+                          onClick={() => setShowDeleteAllConfirm(true)}
                           disabled={deleteMultipleTimeSlots.isPending}
                         >
-                          {deleteMultipleTimeSlots.isPending ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            "Удалить все"
-                          )}
+                          Удалить все
                         </Button>
                       </div>
                     </CardContent>
@@ -632,6 +629,30 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteSchedule.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm delete all slots */}
+      <AlertDialog open={showDeleteAllConfirm} onOpenChange={setShowDeleteAllConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить все слоты?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите удалить все слоты ({timeSlots.length} шт.) в этом расписании? Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                handleDeleteAllSlots();
+                setShowDeleteAllConfirm(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMultipleTimeSlots.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Удалить все"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
