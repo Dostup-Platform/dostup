@@ -17,6 +17,7 @@ import { differenceInHours } from "date-fns";
 
 const CreatorDashboard = () => {
   const [activeTab, setActiveTab] = useState("products");
+  const [creatorName, setCreatorName] = useState<string | null>(null);
   const { user, loading } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -40,9 +41,11 @@ const CreatorDashboard = () => {
   useRealtimeBookingNotifications(productIds, productIds.length > 0);
 
   useEffect(() => {
-    const creatorName = localStorage.getItem("creator_name");
-    if (!creatorName) {
+    const name = localStorage.getItem("creator_name");
+    if (!name) {
       navigate("/");
+    } else {
+      setCreatorName(name);
     }
   }, [navigate]);
 
@@ -67,9 +70,12 @@ const CreatorDashboard = () => {
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold text-foreground">{t("creatorDashboard")}</h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <LanguageSwitcher />
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
+            {creatorName && (
+              <span className="text-sm text-muted-foreground hidden sm:inline">{creatorName}</span>
+            )}
+            <Button variant="ghost" size="icon" onClick={handleLogout} title={t("signOut")}>
               <LogOut className="w-5 h-5" />
             </Button>
           </div>
