@@ -18,6 +18,7 @@ export const translations = {
     close: "Закрыть",
     confirm: "Подтвердить",
     oneTime: "единоразово",
+    continue: "Продолжить",
     
     // Navigation
     materials: "Материалы",
@@ -126,6 +127,33 @@ export const translations = {
     language: "Язык",
     russian: "Русский",
     kazakh: "Қазақша",
+    
+    // New translations for role selection
+    selectRole: "Выберите роль",
+    student: "Учащийся",
+    studentDescription: "Доступ к купленным курсам и материалам",
+    courseCreator: "Создатель курса",
+    creatorDescription: "Создавайте и продавайте свои курсы",
+    
+    // Creator login
+    creatorLogin: "Вход для создателя",
+    creatorPassword: "Пароль создателя",
+    enterPassword: "Введите пароль",
+    welcomeCreator: "Добро пожаловать, создатель!",
+    wrongPassword: "Неверный пароль",
+    
+    // Purchase flow
+    waitingForConfirmation: "Ожидание подтверждения",
+    waitingDescription: "Ваш заказ обрабатывается. После подтверждения оплаты создателем курса, доступ откроется автоматически.",
+    sendReceiptWarning: "После оплаты через Kaspi, пожалуйста, отправьте чек автору курса — иначе доступ на платформу не откроется.",
+    sendReceiptInfo: "Отправьте чек об оплате автору курса для подтверждения доступа.",
+    accessGranted: "Доступ открыт!",
+    
+    // Creator actions
+    confirmPayment: "Подтвердить оплату",
+    pendingPayments: "Ожидающие подтверждения",
+    kaspiLink: "Ссылка Kaspi",
+    kaspiLinkPlaceholder: "https://kaspi.kz/pay/...",
   },
   kk: {
     // Common
@@ -144,6 +172,7 @@ export const translations = {
     close: "Жабу",
     confirm: "Растау",
     oneTime: "бір рет",
+    continue: "Жалғастыру",
     
     // Navigation
     materials: "Материалдар",
@@ -252,6 +281,33 @@ export const translations = {
     language: "Тіл",
     russian: "Русский",
     kazakh: "Қазақша",
+    
+    // New translations for role selection
+    selectRole: "Рөлді таңдаңыз",
+    student: "Оқушы",
+    studentDescription: "Сатып алынған курстар мен материалдарға қол жеткізу",
+    courseCreator: "Курс авторы",
+    creatorDescription: "Өз курстарыңызды жасаңыз және сатыңыз",
+    
+    // Creator login
+    creatorLogin: "Автор үшін кіру",
+    creatorPassword: "Автор құпия сөзі",
+    enterPassword: "Құпия сөзді енгізіңіз",
+    welcomeCreator: "Қош келдіңіз, автор!",
+    wrongPassword: "Құпия сөз қате",
+    
+    // Purchase flow
+    waitingForConfirmation: "Растауды күту",
+    waitingDescription: "Тапсырысыңыз өңделуде. Курс авторы төлемді растағаннан кейін қол жеткізу автоматты түрде ашылады.",
+    sendReceiptWarning: "Kaspi арқылы төлегеннен кейін, чекті курс авторына жіберіңіз — әйтпесе платформаға қол жеткізу ашылмайды.",
+    sendReceiptInfo: "Қол жеткізуді растау үшін төлем чегін курс авторына жіберіңіз.",
+    accessGranted: "Қол жеткізу ашылды!",
+    
+    // Creator actions
+    confirmPayment: "Төлемді растау",
+    pendingPayments: "Растауды күтуде",
+    kaspiLink: "Kaspi сілтемесі",
+    kaspiLinkPlaceholder: "https://kaspi.kz/pay/...",
   },
 } as const;
 
