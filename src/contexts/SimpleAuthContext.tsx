@@ -12,7 +12,7 @@ interface SimpleUser {
 interface SimpleAuthContextType {
   user: SimpleUser | null;
   loading: boolean;
-  register: (phone: string, name: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
+  register: (name: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
   login: (phone: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
   setRole: (role: "student" | "creator") => Promise<{ error: Error | null }>;
   logout: () => void;
@@ -61,25 +61,11 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
     loadUser();
   }, []);
 
-  const register = async (phone: string, name: string) => {
-    // Проверить существует ли пользователь с таким номером
-    const { data: existing } = await supabase
-      .from("simple_users")
-      .select("*")
-      .eq("phone", phone)
-      .single();
-
-    if (existing) {
-      // Уже есть - просто залогинить
-      setUser(existing as SimpleUser);
-      localStorage.setItem(USER_STORAGE_KEY, existing.id);
-      return { user: existing as SimpleUser, error: null };
-    }
-
+  const register = async (name: string) => {
     // Создать нового пользователя
     const { data, error } = await supabase
       .from("simple_users")
-      .insert({ phone, name })
+      .insert({ name, phone: "" })
       .select()
       .single();
 

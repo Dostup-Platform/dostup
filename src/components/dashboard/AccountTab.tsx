@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useSimplePurchases } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { User, Phone, Package, LogOut, Loader2 } from "lucide-react";
+import { User, Package, LogOut, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
@@ -57,13 +57,6 @@ const AccountTab = () => {
               <p className="text-sm text-muted-foreground">
                 {t("memberSince")} {format(parseISO(user.created_at), "LLLL yyyy", { locale: ru })}
               </p>
-            </div>
-          </div>
-
-          <div className="space-y-3 pt-4 border-t border-border">
-            <div className="flex items-center gap-3 text-sm">
-              <Phone className="w-4 h-4 text-muted-foreground" />
-              <span className="text-foreground">{user.phone}</span>
             </div>
           </div>
         </CardContent>
