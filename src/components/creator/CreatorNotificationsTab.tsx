@@ -1,20 +1,43 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Calendar, Clock, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Bell, Calendar, Clock, User, X } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCreatorProducts } from "@/hooks/useProducts";
-import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
+import { useCreatorSimpleBookings, useCreatorCancelBooking } from "@/hooks/useSimplePurchases";
 import { format, differenceInHours, differenceInMinutes } from "date-fns";
 import { ru, kk } from "date-fns/locale";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const CreatorNotificationsTab = () => {
   const { t, language } = useLanguage();
   const { data: products } = useCreatorProducts();
   const productIds = useMemo(() => products?.map(p => p.id) || [], [products]);
   const { data: bookings, isLoading } = useCreatorSimpleBookings(productIds);
+  const cancelBooking = useCreatorCancelBooking();
 
   const dateLocale = language === "kk" ? kk : ru;
+
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      await cancelBooking.mutateAsync(bookingId);
+      toast.success(t("bookingCancelledCreator"));
+    } catch (error) {
+      toast.error(t("cancelFailed"));
+    }
+  };
 
   // Sort bookings by created_at (newest first)
   const sortedBookings = useMemo(() => {
@@ -99,7 +122,7 @@ const CreatorNotificationsTab = () => {
                   className={`p-4 transition-colors ${isNew ? "bg-primary/5" : ""}`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-full ${isNew ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                    <div className={`p-2 rounded-full flex-shrink-0 ${isNew ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                       <Bell className="w-4 h-4" />
                     </div>
                     
@@ -148,8 +171,47 @@ const CreatorNotificationsTab = () => {
                       </div>
                     </div>
                     
-                    <div className="text-xs text-muted-foreground whitespace-nowrap">
-                      {getTimeAgo(booking.created_at)}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                        {getTimeAgo(booking.created_at)}
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>{t("cancelBookingCreator")}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {t("confirmCancelBooking")}
+                              <div className="mt-3 p-3 bg-muted rounded-lg">
+                                <p className="font-medium">{user?.name}</p>
+                                <p className="text-sm">{product?.title}</p>
+                                {timeSlot && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {format(new Date(timeSlot.date), "d MMMM", { locale: dateLocale })} в {timeSlot.start_time?.slice(0, 5)}
+                                  </p>
+                                )}
+                              </div>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleCancelBooking(booking.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              {t("cancelBookingCreator")}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </div>

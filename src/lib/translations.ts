@@ -133,6 +133,9 @@ export const translations = {
     noNotifications: "Уведомлений пока нет",
     notificationsWillAppear: "Здесь будут появляться уведомления о новых записях",
     new: "Новое",
+    cancelBookingCreator: "Отменить запись",
+    bookingCancelledCreator: "Запись отменена",
+    confirmCancelBooking: "Вы уверены, что хотите отменить эту запись?",
     
     // Index page
     welcome: "Добро пожаловать",
@@ -308,6 +311,9 @@ export const translations = {
     noNotifications: "Хабарландырулар әзірге жоқ",
     notificationsWillAppear: "Жаңа жазылулар туралы хабарландырулар мұнда пайда болады",
     new: "Жаңа",
+    cancelBookingCreator: "Жазылуды болдырмау",
+    bookingCancelledCreator: "Жазылу болдырмалды",
+    confirmCancelBooking: "Бұл жазылуды болдырмағыңыз келетініне сенімдісіз бе?",
     
     // Index page
     welcome: "Қош келдіңіз",

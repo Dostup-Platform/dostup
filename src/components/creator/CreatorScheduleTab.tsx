@@ -1,18 +1,31 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, Users, User, ChevronLeft, ChevronRight, Bell, Loader2, Phone } from "lucide-react";
+import { Calendar, Clock, Users, User, ChevronLeft, ChevronRight, Bell, Loader2, Phone, X } from "lucide-react";
 import { format, addDays, isSameDay, parseISO, startOfWeek, addWeeks, subWeeks, isToday, differenceInHours } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCreatorProducts } from "@/hooks/useProducts";
-import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
+import { useCreatorSimpleBookings, useCreatorCancelBooking } from "@/hooks/useSimplePurchases";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const CreatorScheduleTab = () => {
   const { t } = useLanguage();
   const { data: products, isLoading: productsLoading } = useCreatorProducts();
   const productIds = useMemo(() => products?.map(p => p.id) || [], [products]);
   const { data: bookings, isLoading: bookingsLoading } = useCreatorSimpleBookings(productIds);
+  const cancelBooking = useCreatorCancelBooking();
   
   const [currentWeek, setCurrentWeek] = useState(new Date());
 
@@ -62,6 +75,15 @@ const CreatorScheduleTab = () => {
       if (!b.time_slot?.date) return false;
       return isSameDay(parseISO(b.time_slot.date), day);
     });
+  };
+
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      await cancelBooking.mutateAsync(bookingId);
+      toast.success(t("bookingCancelledCreator"));
+    } catch (error) {
+      toast.error(t("cancelFailed"));
+    }
   };
 
   if (isLoading) {
@@ -222,18 +244,18 @@ const CreatorScheduleTab = () => {
           upcomingBookings.slice(0, 10).map((booking) => (
             <Card key={booking.id}>
               <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                       {booking.schedule?.event_type === "group" ? (
                         <Users className="w-5 h-5 text-primary" />
                       ) : (
                         <User className="w-5 h-5 text-primary" />
                       )}
                     </div>
-                    <div>
-                      <p className="font-medium text-foreground">{booking.user?.name}</p>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground truncate">{booking.user?.name}</p>
+                      <p className="text-sm text-muted-foreground truncate">
                         {booking.product?.title} • {booking.schedule?.title}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -241,15 +263,52 @@ const CreatorScheduleTab = () => {
                       </p>
                     </div>
                   </div>
-                  {booking.user?.phone && (
-                    <a
-                      href={`tel:${booking.user.phone}`}
-                      className="flex items-center gap-1.5 text-sm text-primary hover:underline"
-                    >
-                      <Phone className="w-4 h-4" />
-                      <span className="hidden sm:inline">{booking.user.phone}</span>
-                    </a>
-                  )}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {booking.user?.phone && (
+                      <a
+                        href={`tel:${booking.user.phone}`}
+                        className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                      >
+                        <Phone className="w-4 h-4" />
+                        <span className="hidden sm:inline">{booking.user.phone}</span>
+                      </a>
+                    )}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{t("cancelBookingCreator")}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {t("confirmCancelBooking")}
+                            <div className="mt-3 p-3 bg-muted rounded-lg">
+                              <p className="font-medium">{booking.user?.name}</p>
+                              <p className="text-sm">{booking.product?.title}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {booking.time_slot?.date && format(parseISO(booking.time_slot.date), "d MMMM", { locale: ru })} в {booking.time_slot?.start_time?.slice(0, 5)}
+                              </p>
+                            </div>
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleCancelBooking(booking.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            {t("cancelBookingCreator")}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               </CardContent>
             </Card>
