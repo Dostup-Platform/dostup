@@ -11,7 +11,6 @@ import ProductPage from "./pages/ProductPage";
 import ProductPurchasePage from "./pages/ProductPurchasePage";
 import Dashboard from "./pages/Dashboard";
 import CreatorDashboard from "./pages/CreatorDashboard";
-import CreatorLoginPage from "./pages/CreatorLoginPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,7 +30,6 @@ const App = () => (
                 <Route path="/checkout/:productId" element={<ProductPurchasePage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/creator" element={<CreatorDashboard />} />
-                <Route path="/creator-login" element={<CreatorLoginPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
