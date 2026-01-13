@@ -22,6 +22,14 @@ const Index = () => {
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [showCreatorLogin, setShowCreatorLogin] = useState(false);
 
+  // Если создатель уже вошёл, перенаправить
+  useEffect(() => {
+    const creatorName = localStorage.getItem("creator_name");
+    if (creatorName) {
+      navigate("/creator");
+    }
+  }, [navigate]);
+
   // Если уже залогинен как студент, перенаправить
   useEffect(() => {
     if (!loading && user) {
