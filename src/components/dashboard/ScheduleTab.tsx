@@ -110,7 +110,7 @@ const ScheduleTab = () => {
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5" />
-                      {booking.time_slot?.start_time?.slice(0, 5)}
+                      {booking.time_slot?.start_time?.slice(0, 5)}-{booking.time_slot?.end_time?.slice(0, 5)}
                     </span>
                     <span className="flex items-center gap-1">
                       {booking.schedule?.event_type === "group" ? (
@@ -232,7 +232,7 @@ const ScheduleTab = () => {
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4" />
                             <span className="font-medium">
-                              {slot.start_time.slice(0, 5)}
+                              {slot.start_time.slice(0, 5)}-{slot.end_time.slice(0, 5)}
                             </span>
                             {booked && <Check className="w-4 h-4 ml-auto" />}
                           </div>
