@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Users, Calendar, Loader2, Bell, LogOut } from "lucide-react";
@@ -15,14 +15,34 @@ import { useRealtimeBookingNotifications } from "@/hooks/useRealtimeBookings";
 import { useRealtimePurchaseNotifications } from "@/hooks/useRealtimePurchases";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { differenceInHours } from "date-fns";
+
+const LAST_VIEWED_KEY = "creator_notifications_last_viewed";
 
 const CreatorDashboard = () => {
   const [activeTab, setActiveTab] = useState("products");
   const [creatorName, setCreatorName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
   const { t } = useLanguage();
   const navigate = useNavigate();
+  
+  // Load last viewed timestamp from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(LAST_VIEWED_KEY);
+    if (stored) {
+      setLastViewedAt(new Date(stored));
+    }
+  }, []);
+
+  // Update last viewed when notifications tab is opened
+  const handleTabChange = useCallback((value: string) => {
+    setActiveTab(value);
+    if (value === "notifications") {
+      const now = new Date();
+      localStorage.setItem(LAST_VIEWED_KEY, now.toISOString());
+      setLastViewedAt(now);
+    }
+  }, []);
   
   // Получаем продукты и бронирования для подсчёта уведомлений
   const { data: products } = useCreatorProducts();
@@ -44,22 +64,23 @@ const CreatorDashboard = () => {
     enabled: productIds.length > 0,
   });
   
-  // Подсчёт новых записей и покупок за 24 часа
+  // Подсчёт новых записей и покупок после последнего просмотра
   const newNotificationsCount = useMemo(() => {
-    const now = new Date();
+    // If never viewed, count all pending purchases and bookings from last 24 hours
+    const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
     
     const newBookingsCount = bookings?.filter(b => {
       const createdAt = new Date(b.created_at);
-      return differenceInHours(now, createdAt) <= 24;
+      return createdAt > compareDate;
     }).length || 0;
     
     const newPurchasesCount = pendingPurchases?.filter(p => {
       const createdAt = new Date(p.created_at);
-      return differenceInHours(now, createdAt) <= 24;
+      return createdAt > compareDate;
     }).length || 0;
     
     return newBookingsCount + newPurchasesCount;
-  }, [bookings, pendingPurchases]);
+  }, [bookings, pendingPurchases, lastViewedAt]);
 
   // Enable real-time notifications for new bookings and purchases
   useRealtimeBookingNotifications(productIds, productIds.length > 0);
@@ -117,7 +138,7 @@ const CreatorDashboard = () => {
 
       {/* Content */}
       <main className="max-w-4xl mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="w-full grid grid-cols-4 mb-6">
             <TabsTrigger value="products" className="gap-2">
               <Package className="w-4 h-4" />
