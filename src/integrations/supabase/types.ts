@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          value?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           created_at: string
@@ -250,6 +271,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      simple_purchases: {
+        Row: {
+          amount: number
+          confirmed_at: string | null
+          created_at: string
+          id: string
+          product_id: string
+          simple_user_id: string
+          status: string
+        }
+        Insert: {
+          amount: number
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          product_id: string
+          simple_user_id: string
+          status?: string
+        }
+        Update: {
+          amount?: number
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          product_id?: string
+          simple_user_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simple_purchases_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simple_purchases_simple_user_id_fkey"
+            columns: ["simple_user_id"]
+            isOneToOne: false
+            referencedRelation: "simple_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simple_users: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          phone: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          phone: string
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       time_slots: {
         Row: {
