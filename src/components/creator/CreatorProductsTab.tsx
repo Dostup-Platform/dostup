@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2 } from "lucide-react";
+import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import ProductMaterialsManager from "./ProductMaterialsManager";
 
 interface Product {
   id: string;
@@ -58,6 +59,7 @@ const CreatorProductsTab = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+  const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
   
   const [formData, setFormData] = useState({
     title: "",
@@ -345,6 +347,14 @@ const CreatorProductsTab = () => {
                   <Button
                     variant="ghost"
                     size="icon"
+                    onClick={() => setMaterialsProduct({ id: product.id, title: product.title })}
+                    title={t("materials")}
+                  >
+                    <FileText className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleEdit(product)}
                     title={t("edit")}
                   >
@@ -384,11 +394,21 @@ const CreatorProductsTab = () => {
           <Package className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
           <p className="text-muted-foreground">{t("noProducts")}</p>
           <Button variant="default" className="mt-4" onClick={() => setIsCreating(true)}>
-            {t("createFirstProduct")}
-          </Button>
-        </div>
-      )}
-    </div>
+          {t("createFirstProduct")}
+        </Button>
+      </div>
+    )}
+
+    {/* Materials Manager */}
+    {materialsProduct && (
+      <ProductMaterialsManager
+        productId={materialsProduct.id}
+        productTitle={materialsProduct.title}
+        isOpen={!!materialsProduct}
+        onClose={() => setMaterialsProduct(null)}
+      />
+    )}
+  </div>
   );
 };
 
