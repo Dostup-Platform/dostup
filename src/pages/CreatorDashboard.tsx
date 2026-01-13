@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Users, Calendar, Loader2 } from "lucide-react";
+import { Package, Users, Calendar, Loader2, Bell } from "lucide-react";
 import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
 import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
+import CreatorNotificationsTab from "@/components/creator/CreatorNotificationsTab";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -66,7 +67,7 @@ const CreatorDashboard = () => {
       {/* Content */}
       <main className="max-w-4xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-3 mb-6">
+          <TabsList className="w-full grid grid-cols-4 mb-6">
             <TabsTrigger value="products" className="gap-2">
               <Package className="w-4 h-4" />
               <span className="hidden sm:inline">{t("products")}</span>
@@ -75,9 +76,13 @@ const CreatorDashboard = () => {
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">{t("users")}</span>
             </TabsTrigger>
-            <TabsTrigger value="schedule" className="gap-2 relative">
+            <TabsTrigger value="schedule" className="gap-2">
               <Calendar className="w-4 h-4" />
               <span className="hidden sm:inline">{t("schedule")}</span>
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="gap-2 relative">
+              <Bell className="w-4 h-4" />
+              <span className="hidden sm:inline">{t("notifications")}</span>
               {newBookingsCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
                   {newBookingsCount > 9 ? "9+" : newBookingsCount}
@@ -94,6 +99,9 @@ const CreatorDashboard = () => {
           </TabsContent>
           <TabsContent value="schedule" className="mt-0 animate-fade-in">
             <CreatorScheduleTab />
+          </TabsContent>
+          <TabsContent value="notifications" className="mt-0 animate-fade-in">
+            <CreatorNotificationsTab />
           </TabsContent>
         </Tabs>
       </main>
