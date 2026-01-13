@@ -22,6 +22,7 @@ const Index = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [showCreatorLogin, setShowCreatorLogin] = useState(false);
+  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
 
   // Если создатель уже вошёл, перенаправить
   useEffect(() => {
@@ -40,8 +41,29 @@ const Index = () => {
     }
   }, [user, loading, navigate]);
 
+  const validateFields = () => {
+    const newErrors: { firstName?: string; lastName?: string } = {};
+    
+    if (firstName.trim().length < 2) {
+      newErrors.firstName = t("minNameLength");
+    }
+    if (lastName.trim().length < 2) {
+      newErrors.lastName = t("minNameLength");
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const isFormValid = firstName.trim().length >= 2 && lastName.trim().length >= 2;
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateFields()) {
+      return;
+    }
+    
     setIsSubmitting(true);
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
@@ -99,10 +121,16 @@ const Index = () => {
                   type="text"
                   placeholder={t("firstNamePlaceholder")}
                   value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
+                  onChange={(e) => {
+                    setFirstName(e.target.value);
+                    if (errors.firstName) setErrors(prev => ({ ...prev, firstName: undefined }));
+                  }}
                   required
-                  className="h-12"
+                  className={`h-12 ${errors.firstName ? "border-destructive" : ""}`}
                 />
+                {errors.firstName && (
+                  <p className="text-sm text-destructive">{errors.firstName}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -112,10 +140,16 @@ const Index = () => {
                   type="text"
                   placeholder={t("lastNamePlaceholder")}
                   value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
+                  onChange={(e) => {
+                    setLastName(e.target.value);
+                    if (errors.lastName) setErrors(prev => ({ ...prev, lastName: undefined }));
+                  }}
                   required
-                  className="h-12"
+                  className={`h-12 ${errors.lastName ? "border-destructive" : ""}`}
                 />
+                {errors.lastName && (
+                  <p className="text-sm text-destructive">{errors.lastName}</p>
+                )}
               </div>
 
               <Button 
@@ -123,7 +157,7 @@ const Index = () => {
                 variant="cta" 
                 size="lg" 
                 className="w-full mt-6"
-                disabled={isSubmitting || !firstName.trim() || !lastName.trim()}
+                disabled={isSubmitting || !isFormValid}
               >
                 {isSubmitting ? (
                   <span className="flex items-center gap-2">
