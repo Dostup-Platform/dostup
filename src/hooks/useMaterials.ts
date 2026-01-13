@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 
 type MaterialType = "file" | "video" | "text";
 
@@ -38,19 +38,19 @@ export const useMaterials = (productId: string | undefined) => {
 export const useProductMaterials = useMaterials;
 
 export const useUserMaterials = () => {
-  const { user } = useAuth();
+  const { user } = useSimpleAuth();
 
   return useQuery({
     queryKey: ["user-materials", user?.id],
     queryFn: async () => {
       if (!user) return [];
       
-      // Get all purchased product IDs
+      // Get all purchased product IDs for simple_users
       const { data: purchases, error: purchasesError } = await supabase
-        .from("purchases")
+        .from("simple_purchases")
         .select("product_id")
-        .eq("user_id", user.id)
-        .eq("status", "completed");
+        .eq("simple_user_id", user.id)
+        .eq("status", "confirmed");
       
       if (purchasesError) throw purchasesError;
       
