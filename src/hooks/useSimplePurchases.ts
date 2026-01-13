@@ -232,7 +232,7 @@ export const useCreateSimpleBooking = () => {
   });
 };
 
-// Отменить бронирование
+// Отменить бронирование (для студента)
 export const useCancelSimpleBooking = () => {
   const queryClient = useQueryClient();
 
@@ -247,6 +247,26 @@ export const useCancelSimpleBooking = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
+    },
+  });
+};
+
+// Отменить бронирование (для создателя)
+export const useCreatorCancelBooking = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { error } = await supabase
+        .from("simple_bookings" as any)
+        .delete()
+        .eq("id", bookingId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-simple-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
     },
   });
