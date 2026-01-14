@@ -194,6 +194,18 @@ const Index = () => {
             ) : (
               // Показываем форму регистрации
               <>
+                {/* Кнопка Назад - если есть последний пользователь */}
+                {lastUserId && lastUserName && (
+                  <Button
+                    variant="ghost"
+                    className="mb-4 -ml-2"
+                    onClick={() => setShowRegistrationForm(false)}
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    {t("back")}
+                  </Button>
+                )}
+                
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">{t("firstName")}</Label>
