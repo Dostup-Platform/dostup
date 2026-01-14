@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Users, Calendar, Loader2, Bell, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Package, Users, Calendar, Loader2, Bell, User } from "lucide-react";
 import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
 import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
 import CreatorNotificationsTab from "@/components/creator/CreatorNotificationsTab";
+import CreatorAccountTab from "@/components/creator/CreatorAccountTab";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useCreatorProducts } from "@/hooks/useProducts";
@@ -97,11 +97,6 @@ const CreatorDashboard = () => {
     }
   }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("creator_name");
-    navigate("/");
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -129,9 +124,6 @@ const CreatorDashboard = () => {
               {creatorName && (
                 <span className="text-sm text-muted-foreground hidden sm:inline">{creatorName}</span>
               )}
-              <Button variant="ghost" size="icon" onClick={handleLogout} title={t("signOut")}>
-                <LogOut className="w-5 h-5" />
-              </Button>
             </div>
           </div>
         </div>
@@ -140,7 +132,7 @@ const CreatorDashboard = () => {
       {/* Content */}
       <main className="max-w-4xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="w-full grid grid-cols-4 mb-6">
+          <TabsList className="w-full grid grid-cols-5 mb-6">
             <TabsTrigger value="products" className="gap-2">
               <Package className="w-4 h-4" />
               <span className="hidden sm:inline">{t("products")}</span>
@@ -162,6 +154,10 @@ const CreatorDashboard = () => {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="account" className="gap-2">
+              <User className="w-4 h-4" />
+              <span className="hidden sm:inline">{t("account")}</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="products" className="mt-0 animate-fade-in">
@@ -175,6 +171,9 @@ const CreatorDashboard = () => {
           </TabsContent>
           <TabsContent value="notifications" className="mt-0 animate-fade-in">
             <CreatorNotificationsTab lastViewedAt={lastViewedAt} />
+          </TabsContent>
+          <TabsContent value="account" className="mt-0 animate-fade-in">
+            <CreatorAccountTab creatorName={creatorName} />
           </TabsContent>
         </Tabs>
       </main>
