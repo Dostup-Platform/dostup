@@ -18,7 +18,10 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
   
-  const [creatorName, setCreatorName] = useState("");
+  // Загружаем последнее имя как подсказку
+  const lastCreatorName = localStorage.getItem("creator_last_name") || "";
+  
+  const [creatorName, setCreatorName] = useState(lastCreatorName);
   const [creatorPassword, setCreatorPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
