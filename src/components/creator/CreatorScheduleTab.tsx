@@ -412,10 +412,12 @@ const CreatorScheduleTab = () => {
           <div className="grid grid-cols-7 gap-2">
             {weekDays.map((day) => {
               const daySlots = getSlotsForDay(day);
-              const bookedCount = daySlots.filter(slot => 
-                bookings.some(b => b.time_slot_id === slot.id)
-              ).length;
-              const freeCount = daySlots.length - bookedCount;
+              // Count unique students booked on this day
+              const studentsCount = new Set(
+                daySlots.flatMap(slot => 
+                  bookings.filter(b => b.time_slot_id === slot.id).map(b => b.user?.name)
+                ).filter(Boolean)
+              ).size;
               const isSelected = selectedDate && format(selectedDate, "yyyy-MM-dd") === format(day, "yyyy-MM-dd");
               const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
@@ -435,18 +437,11 @@ const CreatorScheduleTab = () => {
                     {format(day, "EEE", { locale: ru })}
                   </div>
                   <div className="text-lg font-bold">{format(day, "d")}</div>
-                  {daySlots.length > 0 && (
-                    <div className="flex justify-center gap-1 mt-1">
-                      {freeCount > 0 && (
-                        <span className={`text-xs ${isSelected ? "text-primary-foreground/80" : "text-green-600"}`}>
-                          {freeCount}
-                        </span>
-                      )}
-                      {bookedCount > 0 && (
-                        <span className={`text-xs ${isSelected ? "text-primary-foreground/80" : "text-orange-500"}`}>
-                          /{bookedCount}
-                        </span>
-                      )}
+                  {studentsCount > 0 && (
+                    <div className="flex justify-center mt-1">
+                      <span className={`text-xs font-medium ${isSelected ? "text-primary-foreground/80" : "text-green-600"}`}>
+                        {studentsCount}
+                      </span>
                     </div>
                   )}
                 </button>
