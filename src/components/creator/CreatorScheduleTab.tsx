@@ -412,12 +412,10 @@ const CreatorScheduleTab = () => {
           <div className="grid grid-cols-7 gap-2">
             {weekDays.map((day) => {
               const daySlots = getSlotsForDay(day);
-              // Count unique students booked on this day
-              const studentsCount = new Set(
-                daySlots.flatMap(slot => 
-                  bookings.filter(b => b.time_slot_id === slot.id).map(b => b.user?.name)
-                ).filter(Boolean)
-              ).size;
+              // Count booked sessions on this day
+              const bookedSessionsCount = daySlots.filter(slot => 
+                bookings.some(b => b.time_slot_id === slot.id)
+              ).length;
               const isSelected = selectedDate && format(selectedDate, "yyyy-MM-dd") === format(day, "yyyy-MM-dd");
               const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
@@ -437,10 +435,10 @@ const CreatorScheduleTab = () => {
                     {format(day, "EEE", { locale: ru })}
                   </div>
                   <div className="text-lg font-bold">{format(day, "d")}</div>
-                  {studentsCount > 0 && (
+                  {bookedSessionsCount > 0 && (
                     <div className="flex justify-center mt-1">
                       <span className={`text-xs font-medium ${isSelected ? "text-primary-foreground/80" : "text-green-600"}`}>
-                        {studentsCount}
+                        {bookedSessionsCount}
                       </span>
                     </div>
                   )}
@@ -476,22 +474,22 @@ const CreatorScheduleTab = () => {
                     <div
                       key={slot.id}
                       className={`flex items-center justify-between p-3 rounded-lg ${
-                        isBooked ? "bg-orange-50 border border-orange-200" : "bg-green-50 border border-green-200"
+                        isBooked ? "bg-green-50 border border-green-200" : "bg-orange-50 border border-orange-200"
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${isBooked ? "bg-orange-500" : "bg-green-500"}`} />
+                        <div className={`w-2 h-2 rounded-full ${isBooked ? "bg-green-500" : "bg-orange-500"}`} />
                         <span className="font-medium">
                           {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
                         </span>
                       </div>
                       <div className="text-sm">
                         {isBooked ? (
-                          <span className="text-orange-700">
+                          <span className="text-green-700">
                             {slotBookings.map(b => b.user?.name || "—").join(", ")}
                           </span>
                         ) : (
-                          <span className="text-green-700">
+                          <span className="text-orange-700">
                             {language === "ru" ? "Свободно" : "Бос"}
                           </span>
                         )}
