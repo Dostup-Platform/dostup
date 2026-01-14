@@ -3,13 +3,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { playBookingSound, playCancellationSound, showBrowserNotification } from "@/hooks/useNotificationPermission";
 
-interface NewBookingPayload {
+interface BookingPayload {
   id: string;
   simple_user_id: string;
   schedule_id: string;
   time_slot_id: string;
   created_at: string;
+  status?: string;
+}
+
+// Store deleted booking info before it's gone
+interface DeletedBookingInfo {
+  userName: string;
+  productTitle: string;
+  date: string;
+  time: string;
 }
 
 export const useRealtimeBookingNotifications = (
@@ -17,42 +27,17 @@ export const useRealtimeBookingNotifications = (
   enabled: boolean = true
 ) => {
   const queryClient = useQueryClient();
-  const { t } = useLanguage();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { language } = useLanguage();
   const productIdsRef = useRef<string[]>(productIds);
+  const bookingCacheRef = useRef<Map<string, DeletedBookingInfo>>(new Map());
   
   // Keep productIds ref updated
   useEffect(() => {
     productIdsRef.current = productIds;
   }, [productIds]);
 
-  const playNotificationSound = useCallback(() => {
-    try {
-      // Create a simple notification sound using Web Audio API
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
-    } catch (error) {
-      console.log("Could not play notification sound:", error);
-    }
-  }, []);
-
   const fetchBookingDetails = useCallback(async (bookingId: string) => {
     try {
-      // Fetch booking with related data
       const { data: booking, error } = await supabase
         .from("simple_bookings")
         .select(`
@@ -68,11 +53,60 @@ export const useRealtimeBookingNotifications = (
         .single();
 
       if (error || !booking) return null;
+      
+      // Cache the booking info for potential DELETE events
+      const info: DeletedBookingInfo = {
+        userName: booking.user?.name || (language === "ru" ? "Ученик" : "Оқушы"),
+        productTitle: booking.schedule?.product?.title || "",
+        date: booking.time_slot?.date || "",
+        time: booking.time_slot?.start_time || "",
+      };
+      bookingCacheRef.current.set(bookingId, info);
+      
       return booking;
     } catch {
       return null;
     }
-  }, []);
+  }, [language]);
+
+  // Pre-cache existing bookings for DELETE notifications
+  useEffect(() => {
+    if (!enabled || productIds.length === 0) return;
+    
+    const cacheExistingBookings = async () => {
+      const { data: schedules } = await supabase
+        .from("schedules")
+        .select("id")
+        .in("product_id", productIds);
+      
+      if (!schedules?.length) return;
+      
+      const scheduleIds = schedules.map(s => s.id);
+      
+      const { data: bookings } = await supabase
+        .from("simple_bookings")
+        .select(`
+          id,
+          time_slot:time_slots(date, start_time),
+          schedule:schedules(product:products(title)),
+          user:simple_users(name)
+        `)
+        .in("schedule_id", scheduleIds)
+        .eq("status", "confirmed");
+      
+      bookings?.forEach((booking: any) => {
+        const info: DeletedBookingInfo = {
+          userName: booking.user?.name || (language === "ru" ? "Ученик" : "Оқушы"),
+          productTitle: booking.schedule?.product?.title || "",
+          date: booking.time_slot?.date || "",
+          time: booking.time_slot?.start_time || "",
+        };
+        bookingCacheRef.current.set(booking.id, info);
+      });
+    };
+    
+    cacheExistingBookings();
+  }, [enabled, productIds, language]);
 
   useEffect(() => {
     if (!enabled || productIds.length === 0) return;
@@ -91,9 +125,9 @@ export const useRealtimeBookingNotifications = (
         async (payload) => {
           console.log("New booking received:", payload);
           
-          const newBooking = payload.new as NewBookingPayload;
+          const newBooking = payload.new as BookingPayload;
           
-          // Fetch full booking details to check if it's for creator's product
+          // Fetch full booking details
           const bookingDetails = await fetchBookingDetails(newBooking.id);
           
           if (!bookingDetails) return;
@@ -107,18 +141,69 @@ export const useRealtimeBookingNotifications = (
           }
 
           // Play notification sound
-          playNotificationSound();
+          playBookingSound();
 
           // Show toast notification
-          const userName = bookingDetails.user?.name || t("student");
+          const userName = bookingDetails.user?.name || (language === "ru" ? "Ученик" : "Оқушы");
           const productTitle = bookingDetails.schedule?.product?.title || "";
           const date = bookingDetails.time_slot?.date || "";
           const time = bookingDetails.time_slot?.start_time || "";
 
-          toast.success(t("newBookingNotification"), {
-            description: `${userName} ${t("bookedSession")} "${productTitle}" ${t("onDate")} ${date} ${t("atTime")} ${time}`,
+          const title = language === "ru" ? "Новая запись!" : "Жаңа жазба!";
+          const description = language === "ru" 
+            ? `${userName} записался на "${productTitle}" на ${date} в ${time}`
+            : `${userName} "${productTitle}" сабағына ${date} күні ${time} уақытына жазылды`;
+
+          toast.success(title, {
+            description,
             duration: 10000,
           });
+
+          // Browser push notification
+          showBrowserNotification(title, description);
+
+          // Invalidate bookings query to refresh data
+          queryClient.invalidateQueries({ queryKey: ["creator-simple-bookings"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "simple_bookings",
+        },
+        async (payload) => {
+          console.log("Booking cancelled:", payload);
+          
+          const deletedBooking = payload.old as BookingPayload;
+          
+          // Get cached info about the deleted booking
+          const cachedInfo = bookingCacheRef.current.get(deletedBooking.id);
+          
+          if (!cachedInfo) {
+            console.log("No cached info for deleted booking");
+            return;
+          }
+
+          // Play cancellation sound
+          playCancellationSound();
+
+          const title = language === "ru" ? "Запись отменена" : "Жазба жойылды";
+          const description = language === "ru" 
+            ? `${cachedInfo.userName} отменил запись на "${cachedInfo.productTitle}" на ${cachedInfo.date} в ${cachedInfo.time}`
+            : `${cachedInfo.userName} "${cachedInfo.productTitle}" сабағына ${cachedInfo.date} күні ${cachedInfo.time} жазбасын жойды`;
+
+          toast.warning(title, {
+            description,
+            duration: 10000,
+          });
+
+          // Browser push notification
+          showBrowserNotification(title, description);
+
+          // Remove from cache
+          bookingCacheRef.current.delete(deletedBooking.id);
 
           // Invalidate bookings query to refresh data
           queryClient.invalidateQueries({ queryKey: ["creator-simple-bookings"] });
@@ -132,6 +217,5 @@ export const useRealtimeBookingNotifications = (
       console.log("Cleaning up realtime subscription");
       supabase.removeChannel(channel);
     };
-  }, [enabled, productIds, fetchBookingDetails, playNotificationSound, queryClient, t]);
+  }, [enabled, productIds, fetchBookingDetails, queryClient, language]);
 };
-

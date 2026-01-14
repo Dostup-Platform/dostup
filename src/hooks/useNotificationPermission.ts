@@ -138,3 +138,19 @@ export const playPaymentSound = () => {
     console.log("Could not play payment sound:", error);
   }
 };
+
+// Browser notification utility
+export const showBrowserNotification = (title: string, body: string) => {
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  
+  try {
+    new Notification(title, {
+      body,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+    });
+  } catch (error) {
+    console.log("Could not show browser notification:", error);
+  }
+};
