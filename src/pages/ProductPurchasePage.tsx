@@ -153,10 +153,31 @@ const ProductPurchasePage = () => {
     kaspi_link: null,
   };
 
+  const handleBackToPayment = async () => {
+    // Удалить pending покупку чтобы можно было вернуться к оплате
+    if (purchaseId) {
+      await supabase
+        .from("simple_purchases")
+        .delete()
+        .eq("id", purchaseId);
+    }
+    setPurchaseId(null);
+    setPurchaseStatus("form");
+  };
+
   // Показать страницу ожидания
   if (purchaseStatus === "pending") {
     return (
       <div className="min-h-screen bg-gradient-hero flex flex-col">
+        <div className="absolute top-4 left-4 z-20">
+          <button
+            onClick={handleBackToPayment}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground touch-manipulation"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>{t("back")}</span>
+          </button>
+        </div>
         <div className="absolute top-4 right-4 z-20">
           <LanguageSwitcher />
         </div>
