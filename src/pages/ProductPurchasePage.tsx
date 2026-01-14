@@ -114,7 +114,28 @@ const ProductPurchasePage = () => {
       .update({ role: "student" })
       .eq("id", newUser.id);
 
-    // Создать покупку в статусе pending
+    // Проверить, есть ли уже pending покупка для этого пользователя и продукта
+    const { data: existingPurchase } = await supabase
+      .from("simple_purchases")
+      .select("id, status")
+      .eq("simple_user_id", newUser.id)
+      .eq("product_id", productId)
+      .maybeSingle();
+
+    if (existingPurchase) {
+      // Если покупка уже существует, просто показать страницу ожидания
+      setPurchaseId(existingPurchase.id);
+      if (existingPurchase.status === "completed") {
+        setPurchaseStatus("completed");
+        navigate("/dashboard");
+      } else {
+        setPurchaseStatus("pending");
+      }
+      setIsProcessing(false);
+      return;
+    }
+
+    // Создать покупку в статусе pending только если её ещё нет
     const { data: purchase, error: purchaseError } = await supabase
       .from("simple_purchases")
       .insert({
