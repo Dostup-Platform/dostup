@@ -210,6 +210,53 @@ export const useSimpleTimeSlots = (scheduleId: string | undefined) => {
   });
 };
 
+// Получить ВСЕ бронирования для слотов расписания (для проверки занятости)
+export const useAllBookingsForSchedule = (scheduleId: string | undefined) => {
+  const queryClient = useQueryClient();
+
+  // Realtime подписка для обновления при изменении бронирований
+  useEffect(() => {
+    if (!scheduleId) return;
+
+    const channel = supabase
+      .channel(`all-bookings-${scheduleId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "simple_bookings",
+          filter: `schedule_id=eq.${scheduleId}`
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["all-bookings-schedule", scheduleId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [scheduleId, queryClient]);
+
+  return useQuery({
+    queryKey: ["all-bookings-schedule", scheduleId],
+    queryFn: async () => {
+      if (!scheduleId) return [];
+      
+      const { data, error } = await supabase
+        .from("simple_bookings")
+        .select("id, time_slot_id, simple_user_id, status")
+        .eq("schedule_id", scheduleId)
+        .eq("status", "confirmed");
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!scheduleId,
+  });
+};
+
 // Получить бронирования пользователя с деталями
 export const useSimpleBookings = () => {
   const { user } = useSimpleAuth();
