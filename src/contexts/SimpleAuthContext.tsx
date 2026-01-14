@@ -14,8 +14,12 @@ interface SimpleAuthContextType {
   loading: boolean;
   register: (name: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
   login: (phone: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
+  loginById: (userId: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
   setRole: (role: "student" | "creator") => Promise<{ error: Error | null }>;
   logout: () => void;
+  lastUserId: string | null;
+  lastUserName: string | null;
+  clearLastUser: () => void;
 }
 
 const SimpleAuthContext = createContext<SimpleAuthContextType | undefined>(undefined);
@@ -33,15 +37,28 @@ interface SimpleAuthProviderProps {
 }
 
 const USER_STORAGE_KEY = "simple_user_id";
+const LAST_USER_ID_KEY = "simple_last_user_id";
+const LAST_USER_NAME_KEY = "simple_last_user_name";
 
 export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
   const [user, setUser] = useState<SimpleUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastUserId, setLastUserId] = useState<string | null>(null);
+  const [lastUserName, setLastUserName] = useState<string | null>(null);
 
   // Загрузить пользователя из localStorage при старте
   useEffect(() => {
     const loadUser = async () => {
       const storedUserId = localStorage.getItem(USER_STORAGE_KEY);
+      
+      // Загружаем данные последнего пользователя для кнопки "Войти как"
+      const storedLastUserId = localStorage.getItem(LAST_USER_ID_KEY);
+      const storedLastUserName = localStorage.getItem(LAST_USER_NAME_KEY);
+      if (storedLastUserId && storedLastUserName) {
+        setLastUserId(storedLastUserId);
+        setLastUserName(storedLastUserName);
+      }
+      
       if (storedUserId) {
         const { data, error } = await supabase
           .from("simple_users")
@@ -97,6 +114,25 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
     return { user: data as SimpleUser, error: null };
   };
 
+  const loginById = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("simple_users")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error || !data) {
+      return { user: null, error: new Error("Пользователь не найден") };
+    }
+
+    setUser(data as SimpleUser);
+    localStorage.setItem(USER_STORAGE_KEY, data.id);
+    // Очищаем "последний пользователь" после успешного входа
+    setLastUserId(null);
+    setLastUserName(null);
+    return { user: data as SimpleUser, error: null };
+  };
+
   const setRole = async (role: "student" | "creator") => {
     if (!user) {
       return { error: new Error("Пользователь не авторизован") };
@@ -116,12 +152,37 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
   };
 
   const logout = () => {
+    // Сохраняем ID и имя для возможности повторного входа
+    if (user) {
+      localStorage.setItem(LAST_USER_ID_KEY, user.id);
+      localStorage.setItem(LAST_USER_NAME_KEY, user.name);
+      setLastUserId(user.id);
+      setLastUserName(user.name);
+    }
     setUser(null);
     localStorage.removeItem(USER_STORAGE_KEY);
   };
 
+  const clearLastUser = () => {
+    localStorage.removeItem(LAST_USER_ID_KEY);
+    localStorage.removeItem(LAST_USER_NAME_KEY);
+    setLastUserId(null);
+    setLastUserName(null);
+  };
+
   return (
-    <SimpleAuthContext.Provider value={{ user, loading, register, login, setRole, logout }}>
+    <SimpleAuthContext.Provider value={{ 
+      user, 
+      loading, 
+      register, 
+      login, 
+      loginById,
+      setRole, 
+      logout,
+      lastUserId,
+      lastUserName,
+      clearLastUser
+    }}>
       {children}
     </SimpleAuthContext.Provider>
   );

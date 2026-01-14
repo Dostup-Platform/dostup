@@ -154,6 +154,9 @@ export const translations = {
     viewDemoProduct: "Посмотреть демо продукт",
     goToDashboard: "Перейти в кабинет",
     creatorPanel: "Панель создателя",
+    continueAs: "Войти как",
+    notMe: "Это не я",
+    orRegisterNew: "Или зарегистрироваться",
     
     // Language
     language: "Язык",
@@ -351,6 +354,9 @@ export const translations = {
     viewDemoProduct: "Демо өнімді қарау",
     goToDashboard: "Кабинетке өту",
     creatorPanel: "Автор панелі",
+    continueAs: "Ретінде кіру",
+    notMe: "Бұл мен емеспін",
+    orRegisterNew: "Немесе тіркелу",
     
     // Language
     language: "Тіл",
