@@ -128,18 +128,18 @@ export const useSimpleTimeSlots = (scheduleId: string | undefined) => {
     queryFn: async () => {
       if (!scheduleId) return [];
       
-      // Получить текущую дату в часовом поясе Казахстана (UTC+5)
+      // Использовать локальную дату пользователя
       const now = new Date();
-      const kazakhstanOffset = 5 * 60; // UTC+5 в минутах
-      const localOffset = now.getTimezoneOffset();
-      const kazakhstanTime = new Date(now.getTime() + (kazakhstanOffset + localOffset) * 60 * 1000);
-      const todayKZ = kazakhstanTime.toISOString().split("T")[0];
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const today = `${year}-${month}-${day}`;
       
       const { data, error } = await supabase
         .from("time_slots")
         .select("*")
         .eq("schedule_id", scheduleId)
-        .gte("date", todayKZ)
+        .gte("date", today)
         .order("date", { ascending: true })
         .order("start_time", { ascending: true });
       
