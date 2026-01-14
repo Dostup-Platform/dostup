@@ -70,7 +70,7 @@ const CreatorScheduleTab = () => {
   
   const [scheduleType, setScheduleType] = useState<EventType>("individual");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [isAddingSchedule, setIsAddingSchedule] = useState(false);
   const [isAddingSlots, setIsAddingSlots] = useState(false);
   const [selectedScheduleForSlots, setSelectedScheduleForSlots] = useState<Schedule | null>(null);
