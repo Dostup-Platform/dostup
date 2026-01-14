@@ -2,11 +2,11 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, Calendar, Clock, User, X, Check, ShoppingCart, Loader2 } from "lucide-react";
+import { Bell, Calendar, Clock, User, X, Check, ShoppingCart, Loader2, Phone } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings, useCreatorCancelBooking } from "@/hooks/useSimplePurchases";
-import { format, differenceInHours, differenceInMinutes } from "date-fns";
+import { format, differenceInMinutes, differenceInHours } from "date-fns";
 import { ru, kk } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,7 +42,11 @@ interface PendingPurchase {
   product?: { id: string; title: string };
 }
 
-const CreatorNotificationsTab = () => {
+interface CreatorNotificationsTabProps {
+  lastViewedAt?: Date | null;
+}
+
+const CreatorNotificationsTab = ({ lastViewedAt }: CreatorNotificationsTabProps) => {
   const { t, language } = useLanguage();
   const queryClient = useQueryClient();
   const { data: products } = useCreatorProducts();
@@ -105,6 +109,7 @@ const CreatorNotificationsTab = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases-count"] });
       queryClient.invalidateQueries({ queryKey: ["creator-purchases"] });
       toast.success(t("paymentConfirmed") || "Оплата подтверждена!");
     },
@@ -130,10 +135,14 @@ const CreatorNotificationsTab = () => {
     );
   }, [bookings]);
 
-  // Check if item is new (within last 24 hours)
+  // Check if item is new - use lastViewedAt if available, otherwise 24 hours
   const isNew = (createdAt: string) => {
-    const now = new Date();
     const created = new Date(createdAt);
+    if (lastViewedAt) {
+      return created > lastViewedAt;
+    }
+    // Fallback: show as new if within last 24 hours
+    const now = new Date();
     return differenceInHours(now, created) <= 24;
   };
 
@@ -236,7 +245,7 @@ const CreatorNotificationsTab = () => {
                           </span>
                           {purchase.user?.phone && (
                             <div className="flex items-center gap-1">
-                              <User className="w-3.5 h-3.5" />
+                              <Phone className="w-3.5 h-3.5" />
                               <span>{purchase.user.phone}</span>
                             </div>
                           )}
@@ -338,7 +347,7 @@ const CreatorNotificationsTab = () => {
                           )}
                           {user?.phone && (
                             <div className="flex items-center gap-1">
-                              <User className="w-3.5 h-3.5" />
+                              <Phone className="w-3.5 h-3.5" />
                               <span>{user.phone}</span>
                             </div>
                           )}

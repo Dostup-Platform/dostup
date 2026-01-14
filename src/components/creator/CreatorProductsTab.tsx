@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText, Calendar } from "lucide-react";
+import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
-import ProductScheduleManager from "./ProductScheduleManager";
 
 interface Product {
   id: string;
@@ -167,7 +166,6 @@ const CreatorProductsTab = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
-  const [scheduleProduct, setScheduleProduct] = useState<{ id: string; title: string } | null>(null);
   
   const [formData, setFormData] = useState({
     title: "",
@@ -386,16 +384,6 @@ const CreatorProductsTab = () => {
                   >
                     <FileText className="w-4 h-4" />
                   </Button>
-                  {product.has_schedule && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setScheduleProduct({ id: product.id, title: product.title })}
-                      title={t("schedule")}
-                    >
-                      <Calendar className="w-4 h-4" />
-                    </Button>
-                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -404,6 +392,11 @@ const CreatorProductsTab = () => {
                   >
                     <Edit className="w-4 h-4" />
                   </Button>
+                  <Button variant="ghost" size="icon" asChild title={t("view")}>
+                    <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -411,11 +404,6 @@ const CreatorProductsTab = () => {
                     title={t("copyLink")}
                   >
                     <Copy className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" asChild title={t("view")}>
-                    <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
                   </Button>
                   <Button
                     variant="ghost"
