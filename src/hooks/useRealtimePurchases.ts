@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { playPaymentSound, showBrowserNotification } from "@/hooks/useNotificationPermission";
 
 interface NewPurchasePayload {
   new: {
@@ -17,34 +18,12 @@ interface NewPurchasePayload {
 
 export const useRealtimePurchaseNotifications = (productIds: string[], enabled: boolean = true) => {
   const queryClient = useQueryClient();
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const productIdsRef = useRef<string[]>(productIds);
 
   useEffect(() => {
     productIdsRef.current = productIds;
   }, [productIds]);
-
-  const playNotificationSound = useCallback(() => {
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.value = 880;
-      oscillator.type = "sine";
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
-    } catch (error) {
-      console.log("Could not play notification sound");
-    }
-  }, []);
 
   const fetchPurchaseDetails = useCallback(async (purchaseId: string) => {
     const { data: purchase } = await supabase
@@ -107,17 +86,22 @@ export const useRealtimePurchaseNotifications = (productIds: string[], enabled: 
           const fullPurchase = await fetchPurchaseDetails(newPurchase.id);
           
           if (fullPurchase) {
-            playNotificationSound();
+            // Play payment sound
+            playPaymentSound();
             
-            toast.info(
-              language === "ru" 
-                ? `Новая покупка от ${fullPurchase.user?.name || "Клиент"}`
-                : `Жаңа сатып алу: ${fullPurchase.user?.name || "Клиент"}`,
-              {
-                description: fullPurchase.product?.title || "",
-                duration: 8000,
-              }
-            );
+            const title = language === "ru" 
+              ? `Новая покупка от ${fullPurchase.user?.name || "Клиент"}`
+              : `${fullPurchase.user?.name || "Клиент"} жаңа сатып алу жасады`;
+            
+            const description = fullPurchase.product?.title || "";
+            
+            toast.info(title, {
+              description,
+              duration: 8000,
+            });
+
+            // Browser push notification
+            showBrowserNotification(title, description);
           }
 
           // Refresh the purchases list
@@ -130,7 +114,7 @@ export const useRealtimePurchaseNotifications = (productIds: string[], enabled: 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [enabled, queryClient, fetchPurchaseDetails, playNotificationSound, language, t]);
+  }, [enabled, queryClient, fetchPurchaseDetails, language]);
 };
 
 // Hook to get pending purchases for creator

@@ -442,15 +442,6 @@ const CreatorProductsTab = () => {
       />
     )}
 
-    {/* Schedule Manager */}
-    {scheduleProduct && (
-      <ProductScheduleManager
-        productId={scheduleProduct.id}
-        productTitle={scheduleProduct.title}
-        isOpen={!!scheduleProduct}
-        onClose={() => setScheduleProduct(null)}
-      />
-    )}
   </div>
   );
 };
