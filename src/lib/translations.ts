@@ -98,6 +98,7 @@ export const translations = {
     cancelBooking: "Отменить запись",
     bookingCancelled: "Запись отменена",
     cancelFailed: "Не удалось отменить запись",
+    slotTaken: "Занято",
     
     // Account Tab
     profile: "Профиль",
@@ -288,6 +289,7 @@ export const translations = {
     cancelBooking: "Жазылуды болдырмау",
     bookingCancelled: "Жазылу болдырмалды",
     cancelFailed: "Жазылуды болдырмау сәтсіз",
+    slotTaken: "Бос емес",
     
     // Account Tab
     profile: "Профиль",

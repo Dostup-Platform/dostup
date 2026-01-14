@@ -255,7 +255,7 @@ const ScheduleTab = () => {
                               {slot.start_time.slice(0, 5)}-{slot.end_time.slice(0, 5)}
                             </span>
                             {bookedByMe && <Check className="w-4 h-4 ml-auto" />}
-                            {isTaken && <span className="text-xs ml-auto">Занято</span>}
+                            {isTaken && <span className="text-xs ml-auto">{t("slotTaken")}</span>}
                           </div>
                         </button>
                       );
