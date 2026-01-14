@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock } from "lucide-react";
+import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X } from "lucide-react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +60,7 @@ interface TimeSlot {
 interface Booking {
   id: string;
   time_slot_id: string;
+  simple_user_id: string;
   user?: { name: string };
 }
 
@@ -74,6 +75,7 @@ const CreatorScheduleTab = () => {
   const [isAddingSlots, setIsAddingSlots] = useState(false);
   const [selectedScheduleForSlots, setSelectedScheduleForSlots] = useState<Schedule | null>(null);
   const [deletingSchedule, setDeletingSchedule] = useState<Schedule | null>(null);
+  const [cancelingBooking, setCancelingBooking] = useState<Booking | null>(null);
   
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -257,6 +259,24 @@ const CreatorScheduleTab = () => {
       setSelectedScheduleForSlots(null);
     },
     onError: () => toast.error("Ошибка при создании слотов"),
+  });
+
+  // Cancel booking mutation
+  const cancelBooking = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { error } = await supabase
+        .from("simple_bookings")
+        .delete()
+        .eq("id", bookingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-week-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
+      toast.success("Запись отменена!");
+      setCancelingBooking(null);
+    },
+    onError: () => toast.error("Ошибка при отмене записи"),
   });
 
   // Week navigation
@@ -483,13 +503,23 @@ const CreatorScheduleTab = () => {
                           {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
                         </span>
                       </div>
-                      <div className="text-sm">
+                      <div className="flex items-center gap-2">
                         {isBooked ? (
-                          <span className="text-green-700">
-                            {slotBookings.map(b => b.user?.name || "—").join(", ")}
-                          </span>
+                          <>
+                            <span className="text-sm text-green-700">
+                              {slotBookings.map(b => b.user?.name || "—").join(", ")}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setCancelingBooking(slotBookings[0])}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </>
                         ) : (
-                          <span className="text-orange-700">
+                          <span className="text-sm text-orange-700">
                             {language === "ru" ? "Свободно" : "Бос"}
                           </span>
                         )}
@@ -648,6 +678,27 @@ const CreatorScheduleTab = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteSchedule.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Booking Confirmation */}
+      <AlertDialog open={!!cancelingBooking} onOpenChange={(open) => { if (!open) setCancelingBooking(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Отменить запись?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите отменить запись ученика "{cancelingBooking?.user?.name || "—"}"? Слот станет снова свободным.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => cancelingBooking && cancelBooking.mutate(cancelingBooking.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelBooking.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Отменить запись"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
