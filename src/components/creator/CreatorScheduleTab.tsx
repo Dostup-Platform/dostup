@@ -76,6 +76,7 @@ const CreatorScheduleTab = () => {
   const [selectedScheduleForSlots, setSelectedScheduleForSlots] = useState<Schedule | null>(null);
   const [deletingSchedule, setDeletingSchedule] = useState<Schedule | null>(null);
   const [cancelingBooking, setCancelingBooking] = useState<Booking | null>(null);
+  const [deletingSlot, setDeletingSlot] = useState<TimeSlot | null>(null);
   
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -277,6 +278,23 @@ const CreatorScheduleTab = () => {
       setCancelingBooking(null);
     },
     onError: () => toast.error("Ошибка при отмене записи"),
+  });
+
+  // Delete time slot mutation
+  const deleteTimeSlot = useMutation({
+    mutationFn: async (slotId: string) => {
+      const { error } = await supabase
+        .from("time_slots")
+        .delete()
+        .eq("id", slotId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      toast.success("Слот удалён!");
+      setDeletingSlot(null);
+    },
+    onError: () => toast.error("Ошибка при удалении слота"),
   });
 
   // Week navigation
@@ -519,9 +537,19 @@ const CreatorScheduleTab = () => {
                             </Button>
                           </>
                         ) : (
-                          <span className="text-sm text-orange-700">
-                            {language === "ru" ? "Свободно" : "Бос"}
-                          </span>
+                          <>
+                            <span className="text-sm text-orange-700">
+                              {language === "ru" ? "Свободно" : "Бос"}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setDeletingSlot(slot)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -699,6 +727,27 @@ const CreatorScheduleTab = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {cancelBooking.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Отменить запись"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Time Slot Confirmation */}
+      <AlertDialog open={!!deletingSlot} onOpenChange={(open) => { if (!open) setDeletingSlot(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить слот?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите удалить слот {deletingSlot?.start_time.slice(0, 5)} - {deletingSlot?.end_time.slice(0, 5)}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingSlot && deleteTimeSlot.mutate(deletingSlot.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteTimeSlot.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
