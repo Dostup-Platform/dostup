@@ -202,6 +202,10 @@ export const translations = {
     searchUsers: "Поиск пользователей...",
     amount: "Сумма",
     total: "всего",
+    
+    // Student notifications
+    noStudentNotifications: "Уведомлений пока нет",
+    studentNotificationsWillAppear: "Здесь будут появляться уведомления об отменённых записях",
   },
   kk: {
     // Common
@@ -404,6 +408,10 @@ export const translations = {
     searchUsers: "Пайдаланушыларды іздеу...",
     amount: "Сома",
     total: "барлығы",
+    
+    // Student notifications
+    noStudentNotifications: "Хабарландырулар әзірге жоқ",
+    studentNotificationsWillAppear: "Болдырмалған жазылулар туралы хабарландырулар мұнда пайда болады",
   },
 } as const;
 
