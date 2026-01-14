@@ -41,6 +41,8 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
   }, []);
 
   const handleLogout = () => {
+    // Сохраняем имя для подсказки при следующем входе
+    localStorage.setItem("creator_last_name", creatorName);
     localStorage.removeItem("creator_name");
     localStorage.removeItem("creator_created_at");
     navigate("/");

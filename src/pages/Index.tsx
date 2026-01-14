@@ -17,8 +17,12 @@ const Index = () => {
   const { user, loading, register } = useSimpleAuth();
   const { t } = useLanguage();
   
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  // Загружаем последние имена как подсказки
+  const lastFirstName = localStorage.getItem("student_last_first_name") || "";
+  const lastLastName = localStorage.getItem("student_last_last_name") || "";
+  
+  const [firstName, setFirstName] = useState(lastFirstName);
+  const [lastName, setLastName] = useState(lastLastName);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [showCreatorLogin, setShowCreatorLogin] = useState(false);

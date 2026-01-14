@@ -35,6 +35,16 @@ const AccountTab = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = () => {
+    // Сохраняем имя для подсказки при следующем входе
+    if (user?.name) {
+      const nameParts = user.name.split(" ");
+      if (nameParts.length >= 2) {
+        localStorage.setItem("student_last_first_name", nameParts[0]);
+        localStorage.setItem("student_last_last_name", nameParts.slice(1).join(" "));
+      } else {
+        localStorage.setItem("student_last_first_name", user.name);
+      }
+    }
     logout();
     navigate("/");
   };
