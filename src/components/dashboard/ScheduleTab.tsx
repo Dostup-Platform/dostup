@@ -45,6 +45,53 @@ const ScheduleTab = () => {
     );
   }, [timeSlots, selectedDate]);
 
+  // Получить количество бронирований для слота
+  const getBookingsCountForSlot = (slotId: string) => {
+    return allBookingsForSchedule?.filter(b => b.time_slot_id === slotId).length || 0;
+  };
+
+  // Проверить, полностью ли занят слот
+  const isSlotFullyBooked = (slotId: string) => {
+    const bookingsCount = getBookingsCountForSlot(slotId);
+    if (bookingsCount === 0) return false;
+    
+    if (!selectedSchedule) return bookingsCount > 0;
+    
+    if (selectedSchedule.event_type === "individual") {
+      return bookingsCount > 0;
+    }
+    
+    // Для групповых - проверяем достигнут ли max_participants
+    const maxParticipants = selectedSchedule.max_participants || 1;
+    return bookingsCount >= maxParticipants;
+  };
+
+  // Получить статус дня: "free" | "partial" | "full"
+  const getDayStatus = (date: Date): "free" | "partial" | "full" => {
+    if (!timeSlots) return "free";
+    
+    const daySlots = timeSlots.filter(slot => isSameDay(parseISO(slot.date), date));
+    if (daySlots.length === 0) return "free";
+    
+    const fullyBookedCount = daySlots.filter(slot => isSlotFullyBooked(slot.id)).length;
+    const partiallyBookedCount = daySlots.filter(slot => {
+      const bookingsCount = getBookingsCountForSlot(slot.id);
+      return bookingsCount > 0 && !isSlotFullyBooked(slot.id);
+    }).length;
+    
+    if (fullyBookedCount === daySlots.length) return "full";
+    if (fullyBookedCount > 0 || partiallyBookedCount > 0) return "partial";
+    return "free";
+  };
+
+  // Получить статус слота: "free" | "partial" | "full"
+  const getSlotStatus = (slotId: string): "free" | "partial" | "full" => {
+    const bookingsCount = getBookingsCountForSlot(slotId);
+    if (bookingsCount === 0) return "free";
+    if (isSlotFullyBooked(slotId)) return "full";
+    return "partial";
+  };
+
   const handleBookSlot = async (slotId: string) => {
     if (!selectedScheduleId) return;
     
@@ -219,6 +266,17 @@ const ScheduleTab = () => {
                 <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
                   {days.map((day) => {
                     const dayHasSlots = timeSlots?.some(slot => isSameDay(parseISO(slot.date), day));
+                    const dayStatus = getDayStatus(day);
+                    
+                    // Цвета точки: красный - все свободны, оранжевый - частично, зеленый - все заняты
+                    const getDotColor = () => {
+                      if (isSameDay(day, selectedDate)) return "bg-primary-foreground";
+                      switch (dayStatus) {
+                        case "full": return "bg-green-500";
+                        case "partial": return "bg-orange-500";
+                        case "free": return "bg-red-500";
+                      }
+                    };
                     
                     return (
                       <button
@@ -233,7 +291,7 @@ const ScheduleTab = () => {
                         <div className="text-xs opacity-80 flex items-center justify-center gap-1">
                           {format(day, "EEE", { locale: ru })}
                           {dayHasSlots && (
-                            <span className={`w-1.5 h-1.5 rounded-full ${isSameDay(day, selectedDate) ? "bg-primary-foreground" : "bg-primary"}`} />
+                            <span className={`w-1.5 h-1.5 rounded-full ${getDotColor()}`} />
                           )}
                         </div>
                         <div className="text-lg font-bold">{format(day, "d")}</div>
@@ -257,24 +315,36 @@ const ScheduleTab = () => {
                       const bookedByMe = isSlotBookedByMe(slot.id);
                       const takenByOther = isSlotTakenByOther(slot.id);
                       const isIndividual = selectedSchedule?.event_type === "individual";
+                      const slotStatus = getSlotStatus(slot.id);
+                      
                       // Для индивидуальных сессий - слот недоступен если занят кем-то
                       const isTaken = isIndividual && takenByOther;
-                      const available = slot.is_available && !bookedByMe && !isTaken;
+                      // Для групповых - слот недоступен только если полностью заполнен
+                      const isGroupFull = !isIndividual && slotStatus === "full" && !bookedByMe;
+                      const available = slot.is_available && !bookedByMe && !isTaken && !isGroupFull;
+                      
+                      // Цвета слота
+                      const getSlotStyles = () => {
+                        if (bookedByMe) return "bg-green-500/10 border-green-500 text-green-600";
+                        if (isTaken || isGroupFull) return "bg-red-500/10 border-red-300 text-red-500";
+                        
+                        // Для доступных групповых слотов показать оранжевый если частично заняты
+                        if (!isIndividual && slotStatus === "partial") {
+                          return "border-orange-300 bg-orange-50 hover:border-orange-400";
+                        }
+                        
+                        return "border-border hover:border-primary bg-card";
+                      };
+                      
+                      const maxParticipants = selectedSchedule?.max_participants || 1;
+                      const bookingsCount = getBookingsCountForSlot(slot.id);
                       
                       return (
                         <button
                           key={slot.id}
                           onClick={() => available && handleBookSlot(slot.id)}
                           disabled={!available || createBooking.isPending}
-                          className={`p-4 rounded-xl border text-left transition-all ${
-                            bookedByMe
-                              ? "bg-green-500/10 border-green-500 text-green-600"
-                              : isTaken
-                              ? "bg-red-500/10 border-red-300 text-red-500"
-                              : available
-                              ? "border-border hover:border-primary bg-card"
-                              : "border-border bg-muted/50 text-muted-foreground opacity-50"
-                          }`}
+                          className={`p-4 rounded-xl border text-left transition-all ${getSlotStyles()} ${!available && !bookedByMe ? 'opacity-50' : ''}`}
                         >
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4" />
@@ -283,6 +353,12 @@ const ScheduleTab = () => {
                             </span>
                             {bookedByMe && <Check className="w-4 h-4 ml-auto" />}
                             {isTaken && <span className="text-xs ml-auto">{t("slotTaken")}</span>}
+                            {isGroupFull && !bookedByMe && <span className="text-xs ml-auto">{t("slotTaken")}</span>}
+                            {!isIndividual && !bookedByMe && !isGroupFull && (
+                              <span className="text-xs ml-auto text-muted-foreground">
+                                {bookingsCount}/{maxParticipants}
+                              </span>
+                            )}
                           </div>
                         </button>
                       );
