@@ -163,14 +163,6 @@ const Index = () => {
                   </span>
                 </Button>
                 
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={handleNotMe}
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  {t("notMe")}
-                </Button>
 
                 <div className="relative my-4">
                   <div className="absolute inset-0 flex items-center">
