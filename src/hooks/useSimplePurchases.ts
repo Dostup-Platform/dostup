@@ -346,12 +346,40 @@ export const useCreateSimpleBooking = () => {
   });
 };
 
-// Отменить бронирование (для студента)
+// Отменить бронирование (для студента) с сохранением в cancellations
 export const useCancelSimpleBooking = () => {
   const queryClient = useQueryClient();
+  const { user } = useSimpleAuth();
 
   return useMutation({
     mutationFn: async (bookingId: string) => {
+      // Сначала получаем данные бронирования для сохранения в cancellations
+      const { data: booking } = await supabase
+        .from("simple_bookings")
+        .select(`
+          id,
+          time_slot:time_slots(date, start_time),
+          schedule:schedules(id, title, product_id, product:products(id, title))
+        `)
+        .eq("id", bookingId)
+        .single();
+
+      if (booking && user) {
+        // Сохраняем информацию об отмене
+        await supabase.from("booking_cancellations").insert({
+          booking_id: bookingId,
+          user_name: user.name,
+          user_phone: user.phone,
+          product_title: (booking as any).schedule?.product?.title || "",
+          product_id: (booking as any).schedule?.product_id,
+          schedule_title: (booking as any).schedule?.title || "",
+          slot_date: (booking as any).time_slot?.date,
+          slot_time: (booking as any).time_slot?.start_time,
+          cancelled_by: "student",
+        });
+      }
+
+      // Удаляем бронирование
       const { error } = await supabase
         .from("simple_bookings" as any)
         .delete()

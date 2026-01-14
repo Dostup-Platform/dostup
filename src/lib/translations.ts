@@ -148,6 +148,8 @@ export const translations = {
     cancelBookingCreator: "Отменить запись",
     bookingCancelledCreator: "Запись отменена",
     confirmCancelBooking: "Вы уверены, что хотите отменить эту запись?",
+    cancelledBookings: "Отменённые записи",
+    cancelledSession: "отменил запись",
     
     // Index page
     welcome: "Добро пожаловать",
@@ -348,6 +350,8 @@ export const translations = {
     cancelBookingCreator: "Жазылуды болдырмау",
     bookingCancelledCreator: "Жазылу болдырмалды",
     confirmCancelBooking: "Бұл жазылуды болдырмағыңыз келетініне сенімдісіз бе?",
+    cancelledBookings: "Болдырмалған жазылулар",
+    cancelledSession: "жазылуды болдырмады",
     
     // Index page
     welcome: "Қош келдіңіз",
