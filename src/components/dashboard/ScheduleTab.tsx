@@ -16,11 +16,12 @@ const ScheduleTab = () => {
   const cancelBooking = useCancelSimpleBooking();
   
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(addDays(new Date(), 1));
+  const [selectedDate, setSelectedDate] = useState(new Date()); // Начинать с сегодня
 
   const { data: timeSlots, isLoading: timeSlotsLoading } = useSimpleTimeSlots(selectedScheduleId || undefined);
 
-  const days = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i + 1));
+  // Показывать 7 дней начиная с сегодня (i начинается с 0)
+  const days = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i));
 
   const filteredSlots = useMemo(() => {
     if (!timeSlots) return [];
