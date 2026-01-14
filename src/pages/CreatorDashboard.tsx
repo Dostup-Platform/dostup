@@ -173,7 +173,7 @@ const CreatorDashboard = () => {
             <CreatorScheduleTab />
           </TabsContent>
           <TabsContent value="notifications" className="mt-0 animate-fade-in">
-            <CreatorNotificationsTab />
+            <CreatorNotificationsTab lastViewedAt={lastViewedAt} />
           </TabsContent>
         </Tabs>
       </main>
