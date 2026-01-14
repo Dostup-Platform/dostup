@@ -394,12 +394,47 @@ export const useCancelSimpleBooking = () => {
   });
 };
 
-// Отменить бронирование (для создателя)
+// Отменить бронирование (для создателя) с сохранением в cancellations
 export const useCreatorCancelBooking = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (bookingId: string) => {
+      // Сначала получаем данные бронирования для сохранения в cancellations
+      const { data: booking } = await supabase
+        .from("simple_bookings")
+        .select(`
+          id,
+          simple_user_id,
+          time_slot:time_slots(date, start_time),
+          schedule:schedules(id, title, product_id, product:products(id, title))
+        `)
+        .eq("id", bookingId)
+        .single();
+
+      if (booking) {
+        // Получить имя и телефон пользователя
+        const { data: user } = await supabase
+          .from("simple_users")
+          .select("name, phone")
+          .eq("id", (booking as any).simple_user_id)
+          .single();
+
+        // Сохраняем информацию об отмене
+        await supabase.from("booking_cancellations").insert({
+          booking_id: bookingId,
+          user_name: user?.name || "Ученик",
+          user_phone: user?.phone,
+          product_title: (booking as any).schedule?.product?.title || "",
+          product_id: (booking as any).schedule?.product_id,
+          schedule_title: (booking as any).schedule?.title || "",
+          slot_date: (booking as any).time_slot?.date,
+          slot_time: (booking as any).time_slot?.start_time,
+          cancelled_by: "creator",
+        });
+      }
+
+      // Удаляем бронирование
       const { error } = await supabase
         .from("simple_bookings" as any)
         .delete()
