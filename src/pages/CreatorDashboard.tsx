@@ -23,7 +23,6 @@ const CreatorDashboard = () => {
   const [creatorName, setCreatorName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
-  const [previousTab, setPreviousTab] = useState<string>("products");
   const { t } = useLanguage();
   const navigate = useNavigate();
   
@@ -37,15 +36,14 @@ const CreatorDashboard = () => {
 
   // Update last viewed when LEAVING notifications tab (not when entering)
   const handleTabChange = useCallback((value: string) => {
-    // If we're leaving the notifications tab, update lastViewedAt
-    if (previousTab === "notifications" && value !== "notifications") {
+    // If we're currently on notifications tab and switching away, update lastViewedAt
+    if (activeTab === "notifications" && value !== "notifications") {
       const now = new Date();
       localStorage.setItem(LAST_VIEWED_KEY, now.toISOString());
       setLastViewedAt(now);
     }
-    setPreviousTab(activeTab);
     setActiveTab(value);
-  }, [previousTab, activeTab]);
+  }, [activeTab]);
   
   // Получаем продукты и бронирования для подсчёта уведомлений
   const { data: products } = useCreatorProducts();
