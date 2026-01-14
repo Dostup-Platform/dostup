@@ -217,21 +217,30 @@ const ScheduleTab = () => {
               <div className="space-y-3">
                 <h3 className="font-medium text-foreground">{t("selectDate")}</h3>
                 <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
-                  {days.map((day) => (
-                    <button
-                      key={day.toISOString()}
-                      onClick={() => setSelectedDate(day)}
-                      className={`flex-shrink-0 p-3 rounded-xl text-center min-w-[72px] transition-all ${
-                        isSameDay(day, selectedDate)
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-card border border-border hover:border-primary/50"
-                      }`}
-                    >
-                      <div className="text-xs opacity-80">{format(day, "EEE", { locale: ru })}</div>
-                      <div className="text-lg font-bold">{format(day, "d")}</div>
-                      <div className="text-xs opacity-80">{format(day, "MMM", { locale: ru })}</div>
-                    </button>
-                  ))}
+                  {days.map((day) => {
+                    const dayHasSlots = timeSlots?.some(slot => isSameDay(parseISO(slot.date), day));
+                    
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        onClick={() => setSelectedDate(day)}
+                        className={`flex-shrink-0 p-3 rounded-xl text-center min-w-[72px] transition-all ${
+                          isSameDay(day, selectedDate)
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-card border border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <div className="text-xs opacity-80 flex items-center justify-center gap-1">
+                          {format(day, "EEE", { locale: ru })}
+                          {dayHasSlots && (
+                            <span className={`w-1.5 h-1.5 rounded-full ${isSameDay(day, selectedDate) ? "bg-primary-foreground" : "bg-primary"}`} />
+                          )}
+                        </div>
+                        <div className="text-lg font-bold">{format(day, "d")}</div>
+                        <div className="text-xs opacity-80">{format(day, "MMM", { locale: ru })}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

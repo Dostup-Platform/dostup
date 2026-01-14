@@ -457,11 +457,13 @@ const CreatorScheduleTab = () => {
               const isSelected = selectedDate && format(selectedDate, "yyyy-MM-dd") === format(day, "yyyy-MM-dd");
               const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
+              const hasSlots = daySlots.length > 0;
+
               return (
                 <button
                   key={day.toISOString()}
                   onClick={() => setSelectedDate(day)}
-                  className={`p-2 rounded-lg text-center transition-colors ${
+                  className={`p-2 rounded-lg text-center transition-colors relative ${
                     isSelected 
                       ? "bg-primary text-primary-foreground" 
                       : isToday
@@ -469,8 +471,11 @@ const CreatorScheduleTab = () => {
                         : "hover:bg-muted"
                   }`}
                 >
-                  <div className="text-xs font-medium">
+                  <div className="text-xs font-medium flex items-center justify-center gap-1">
                     {format(day, "EEE", { locale: ru })}
+                    {hasSlots && (
+                      <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-primary-foreground" : "bg-primary"}`} />
+                    )}
                   </div>
                   <div className="text-lg font-bold">{format(day, "d")}</div>
                   {bookedSessionsCount > 0 && (
