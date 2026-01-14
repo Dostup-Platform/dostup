@@ -153,8 +153,36 @@ export const useSimpleSchedules = () => {
   });
 };
 
-// Получить time slots для расписания
+// Получить time slots для расписания с realtime обновлениями
 export const useSimpleTimeSlots = (scheduleId: string | undefined) => {
+  const queryClient = useQueryClient();
+
+  // Realtime подписка для обновления слотов при изменениях
+  useEffect(() => {
+    if (!scheduleId) return;
+
+    const channel = supabase
+      .channel(`time-slots-${scheduleId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: "public",
+          table: "time_slots",
+          filter: `schedule_id=eq.${scheduleId}`
+        },
+        () => {
+          // При любом изменении слотов - обновить данные
+          queryClient.invalidateQueries({ queryKey: ["simple-time-slots", scheduleId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [scheduleId, queryClient]);
+
   return useQuery({
     queryKey: ["simple-time-slots", scheduleId],
     queryFn: async () => {
