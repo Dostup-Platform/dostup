@@ -35,6 +35,56 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_cancellations: {
+        Row: {
+          booking_id: string
+          cancelled_at: string
+          cancelled_by: string
+          id: string
+          product_id: string
+          product_title: string
+          schedule_title: string | null
+          slot_date: string
+          slot_time: string
+          user_name: string
+          user_phone: string | null
+        }
+        Insert: {
+          booking_id: string
+          cancelled_at?: string
+          cancelled_by?: string
+          id?: string
+          product_id: string
+          product_title: string
+          schedule_title?: string | null
+          slot_date: string
+          slot_time: string
+          user_name: string
+          user_phone?: string | null
+        }
+        Update: {
+          booking_id?: string
+          cancelled_at?: string
+          cancelled_by?: string
+          id?: string
+          product_id?: string
+          product_title?: string
+          schedule_title?: string | null
+          slot_date?: string
+          slot_time?: string
+          user_name?: string
+          user_phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_cancellations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           created_at: string

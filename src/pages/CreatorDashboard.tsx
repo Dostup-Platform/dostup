@@ -64,8 +64,23 @@ const CreatorDashboard = () => {
     },
     enabled: productIds.length > 0,
   });
+
+  // Получаем отменённые записи для подсчёта
+  const { data: cancellations } = useQuery({
+    queryKey: ["creator-cancellations-count", productIds],
+    queryFn: async () => {
+      if (!productIds.length) return [];
+      const { data } = await supabase
+        .from("booking_cancellations")
+        .select("id, cancelled_at")
+        .in("product_id", productIds)
+        .eq("cancelled_by", "student");
+      return data || [];
+    },
+    enabled: productIds.length > 0,
+  });
   
-  // Подсчёт новых записей и покупок после последнего просмотра
+  // Подсчёт новых записей, покупок и отменённых записей после последнего просмотра
   const newNotificationsCount = useMemo(() => {
     // If never viewed, count all pending purchases and bookings from last 24 hours
     const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -79,9 +94,14 @@ const CreatorDashboard = () => {
       const createdAt = new Date(p.created_at);
       return createdAt > compareDate;
     }).length || 0;
+
+    const newCancellationsCount = cancellations?.filter(c => {
+      const cancelledAt = new Date((c as any).cancelled_at);
+      return cancelledAt > compareDate;
+    }).length || 0;
     
-    return newBookingsCount + newPurchasesCount;
-  }, [bookings, pendingPurchases, lastViewedAt]);
+    return newBookingsCount + newPurchasesCount + newCancellationsCount;
+  }, [bookings, pendingPurchases, cancellations, lastViewedAt]);
 
   // Enable real-time notifications for new bookings and purchases
   useRealtimeBookingNotifications(productIds, productIds.length > 0);

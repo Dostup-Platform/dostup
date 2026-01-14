@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, Calendar, Clock, User, X, Check, ShoppingCart, Loader2, Phone } from "lucide-react";
+import { Bell, Calendar, Clock, User, X, Check, ShoppingCart, Loader2, Phone, XCircle } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings, useCreatorCancelBooking } from "@/hooks/useSimplePurchases";
@@ -42,6 +42,19 @@ interface PendingPurchase {
   product?: { id: string; title: string };
 }
 
+interface BookingCancellation {
+  id: string;
+  user_name: string;
+  user_phone: string | null;
+  product_title: string;
+  product_id: string;
+  schedule_title: string | null;
+  slot_date: string;
+  slot_time: string;
+  cancelled_at: string;
+  cancelled_by: string;
+}
+
 interface CreatorNotificationsTabProps {
   lastViewedAt?: Date | null;
 }
@@ -55,6 +68,49 @@ const CreatorNotificationsTab = ({ lastViewedAt }: CreatorNotificationsTabProps)
   const cancelBooking = useCreatorCancelBooking();
 
   const dateLocale = language === "kk" ? kk : ru;
+
+  // Получить отменённые записи
+  const { data: cancellations = [], isLoading: cancellationsLoading } = useQuery<BookingCancellation[]>({
+    queryKey: ["creator-cancellations", productIds],
+    queryFn: async () => {
+      if (!productIds.length) return [];
+
+      const { data } = await supabase
+        .from("booking_cancellations")
+        .select("*")
+        .in("product_id", productIds)
+        .eq("cancelled_by", "student")
+        .order("cancelled_at", { ascending: false })
+        .limit(50);
+
+      return (data || []) as BookingCancellation[];
+    },
+    enabled: productIds.length > 0,
+  });
+
+  // Realtime подписка для обновления отменённых записей
+  useEffect(() => {
+    if (!productIds.length) return;
+
+    const channel = supabase
+      .channel("creator-cancellations-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "booking_cancellations",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["creator-cancellations"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [productIds, queryClient]);
 
   // Получить ожидающие покупки
   const { data: pendingPurchases = [], isLoading: purchasesLoading } = useQuery<PendingPurchase[]>({
@@ -164,7 +220,7 @@ const CreatorNotificationsTab = ({ lastViewedAt }: CreatorNotificationsTabProps)
     return format(created, "d MMM", { locale: dateLocale });
   };
 
-  const isLoading = bookingsLoading || purchasesLoading;
+  const isLoading = bookingsLoading || purchasesLoading || cancellationsLoading;
 
   if (isLoading) {
     return (
@@ -180,7 +236,7 @@ const CreatorNotificationsTab = ({ lastViewedAt }: CreatorNotificationsTabProps)
     );
   }
 
-  const hasNotifications = sortedBookings.length > 0 || pendingPurchases.length > 0;
+  const hasNotifications = sortedBookings.length > 0 || pendingPurchases.length > 0 || cancellations.length > 0;
 
   if (!hasNotifications) {
     return (
@@ -395,6 +451,83 @@ const CreatorNotificationsTab = ({ lastViewedAt }: CreatorNotificationsTabProps)
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cancellations Section */}
+      {cancellations.length > 0 && (
+        <Card className="border-destructive/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2 text-destructive">
+              <XCircle className="w-5 h-5" />
+              {t("cancelledBookings")} ({cancellations.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {cancellations.map((cancellation) => {
+                const isNewCancellation = isNew(cancellation.cancelled_at);
+
+                return (
+                  <div 
+                    key={cancellation.id} 
+                    className={`p-4 transition-colors ${isNewCancellation ? "bg-destructive/5" : ""}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-full flex-shrink-0 bg-destructive/10 text-destructive">
+                        <XCircle className="w-4 h-4" />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-foreground">
+                            {cancellation.user_name || t("student")}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {t("cancelledSession")}
+                          </span>
+                          {isNewCancellation && (
+                            <Badge variant="destructive" className="text-xs">
+                              {t("new")}
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <p className="text-sm text-muted-foreground mt-1 truncate">
+                          {cancellation.product_title}
+                        </p>
+                        
+                        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>
+                              {format(new Date(cancellation.slot_date), "d MMM", { locale: dateLocale })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>
+                              {cancellation.slot_time?.slice(0, 5)}
+                            </span>
+                          </div>
+                          {cancellation.user_phone && (
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-3.5 h-3.5" />
+                              <span>{cancellation.user_phone}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                        {getTimeAgo(cancellation.cancelled_at)}
                       </div>
                     </div>
                   </div>
