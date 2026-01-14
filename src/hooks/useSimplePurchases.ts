@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 
@@ -18,6 +19,37 @@ interface SimplePurchase {
 // Получить подтверждённые покупки пользователя
 export const useSimplePurchases = () => {
   const { user } = useSimpleAuth();
+  const queryClient = useQueryClient();
+
+  // Realtime подписка для автоматического обновления при подтверждении покупки
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`user-purchases-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "simple_purchases",
+          filter: `simple_user_id=eq.${user.id}`
+        },
+        (payload: any) => {
+          // При обновлении статуса покупки, обновить все связанные данные
+          if (payload.new?.status === "completed") {
+            queryClient.invalidateQueries({ queryKey: ["simple-purchases"] });
+            queryClient.invalidateQueries({ queryKey: ["simple-materials"] });
+            queryClient.invalidateQueries({ queryKey: ["simple-schedules"] });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
 
   return useQuery({
     queryKey: ["simple-purchases", user?.id],
