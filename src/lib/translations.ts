@@ -110,6 +110,8 @@ export const translations = {
     myPurchases: "Мои покупки",
     purchased: "Куплено",
     noPurchases: "Покупок пока нет",
+    confirmLogout: "Выйти из аккаунта?",
+    confirmLogoutDescription: "Вы уверены, что хотите выйти из аккаунта?",
     
     // Creator Dashboard
     shareLink: "Поделиться ссылкой",
@@ -305,6 +307,8 @@ export const translations = {
     myPurchases: "Менің сатып алуларым",
     purchased: "Сатып алынды",
     noPurchases: "Сатып алулар әзірге жоқ",
+    confirmLogout: "Аккаунттан шығу керек пе?",
+    confirmLogoutDescription: "Аккаунттан шыққыңыз келетініне сенімдісіз бе?",
     
     // Creator Dashboard
     shareLink: "Сілтемемен бөлісу",

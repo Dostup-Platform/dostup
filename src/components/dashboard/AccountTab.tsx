@@ -7,6 +7,17 @@ import { User, Package, LogOut, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("ru-RU", {
@@ -21,6 +32,7 @@ const AccountTab = () => {
   const { user, logout } = useSimpleAuth();
   const { t } = useLanguage();
   const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -110,11 +122,29 @@ const AccountTab = () => {
       <Button
         variant="outline"
         className="w-full"
-        onClick={handleLogout}
+        onClick={() => setShowLogoutConfirm(true)}
       >
         <LogOut className="w-4 h-4 mr-2" />
         {t("signOut")}
       </Button>
+
+      {/* Confirm Logout Dialog */}
+      <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("confirmLogout")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("confirmLogoutDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("no")}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout}>
+              {t("yes")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
