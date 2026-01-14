@@ -311,6 +311,54 @@ const CreatorScheduleTab = () => {
     return bookings.filter(b => b.time_slot_id === slotId);
   };
 
+  // Получить schedule для слота
+  const getScheduleForSlot = (slotId: string) => {
+    const slot = timeSlots.find(s => s.id === slotId);
+    if (!slot) return null;
+    return schedules.find(s => s.id === slot.schedule_id);
+  };
+
+  // Проверить, полностью ли занят слот (учитывая max_participants для групповых)
+  const isSlotFullyBooked = (slotId: string) => {
+    const slotBookings = getBookingsForSlot(slotId);
+    if (slotBookings.length === 0) return false;
+    
+    const schedule = getScheduleForSlot(slotId);
+    if (!schedule) return slotBookings.length > 0;
+    
+    if (schedule.event_type === "individual") {
+      return slotBookings.length > 0;
+    }
+    
+    // Для групповых - проверяем достигнут ли max_participants
+    const maxParticipants = schedule.max_participants || 1;
+    return slotBookings.length >= maxParticipants;
+  };
+
+  // Получить статус дня: "free" | "partial" | "full"
+  const getDayStatus = (date: Date): "free" | "partial" | "full" => {
+    const daySlots = getSlotsForDay(date);
+    if (daySlots.length === 0) return "free";
+    
+    const fullyBookedCount = daySlots.filter(slot => isSlotFullyBooked(slot.id)).length;
+    const partiallyBookedCount = daySlots.filter(slot => {
+      const bookingsCount = getBookingsForSlot(slot.id).length;
+      return bookingsCount > 0 && !isSlotFullyBooked(slot.id);
+    }).length;
+    
+    if (fullyBookedCount === daySlots.length) return "full";
+    if (fullyBookedCount > 0 || partiallyBookedCount > 0) return "partial";
+    return "free";
+  };
+
+  // Получить статус слота: "free" | "partial" | "full"
+  const getSlotStatus = (slotId: string): "free" | "partial" | "full" => {
+    const slotBookings = getBookingsForSlot(slotId);
+    if (slotBookings.length === 0) return "free";
+    if (isSlotFullyBooked(slotId)) return "full";
+    return "partial";
+  };
+
   const selectedDateSlots = useMemo(() => {
     if (!selectedDate) return [];
     return getSlotsForDay(selectedDate).sort((a, b) => a.start_time.localeCompare(b.start_time));
@@ -458,6 +506,17 @@ const CreatorScheduleTab = () => {
               const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
               const hasSlots = daySlots.length > 0;
+              const dayStatus = getDayStatus(day);
+              
+              // Цвета точки: красный - все свободны, оранжевый - частично, зеленый - все заняты
+              const getDotColor = () => {
+                if (isSelected) return "bg-primary-foreground";
+                switch (dayStatus) {
+                  case "full": return "bg-green-500";
+                  case "partial": return "bg-orange-500";
+                  case "free": return "bg-red-500";
+                }
+              };
 
               return (
                 <button
@@ -474,7 +533,7 @@ const CreatorScheduleTab = () => {
                   <div className="text-xs font-medium flex items-center justify-center gap-1">
                     {format(day, "EEE", { locale: ru })}
                     {hasSlots && (
-                      <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-primary-foreground" : "bg-primary"}`} />
+                      <span className={`w-1.5 h-1.5 rounded-full ${getDotColor()}`} />
                     )}
                   </div>
                   <div className="text-lg font-bold">{format(day, "d")}</div>
@@ -511,25 +570,42 @@ const CreatorScheduleTab = () => {
               <div className="space-y-2">
                 {selectedDateSlots.map((slot) => {
                   const slotBookings = getBookingsForSlot(slot.id);
-                  const isBooked = slotBookings.length > 0;
+                  const slotStatus = getSlotStatus(slot.id);
+                  const schedule = getScheduleForSlot(slot.id);
+                  const maxParticipants = schedule?.max_participants || 1;
+                  const isGroup = schedule?.event_type === "group";
+                  
+                  // Цвета: красный - свободно, оранжевый - частично, зеленый - полностью занято
+                  const getSlotStyles = () => {
+                    switch (slotStatus) {
+                      case "full": return { bg: "bg-green-50 border border-green-200", dot: "bg-green-500", text: "text-green-700" };
+                      case "partial": return { bg: "bg-orange-50 border border-orange-200", dot: "bg-orange-500", text: "text-orange-700" };
+                      case "free": return { bg: "bg-red-50 border border-red-200", dot: "bg-red-500", text: "text-red-700" };
+                    }
+                  };
+                  
+                  const styles = getSlotStyles();
                   
                   return (
                     <div
                       key={slot.id}
-                      className={`flex items-center justify-between p-3 rounded-lg ${
-                        isBooked ? "bg-green-50 border border-green-200" : "bg-orange-50 border border-orange-200"
-                      }`}
+                      className={`flex items-center justify-between p-3 rounded-lg ${styles.bg}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${isBooked ? "bg-green-500" : "bg-orange-500"}`} />
+                        <div className={`w-2 h-2 rounded-full ${styles.dot}`} />
                         <span className="font-medium">
                           {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
                         </span>
+                        {isGroup && (
+                          <span className="text-xs text-muted-foreground">
+                            ({slotBookings.length}/{maxParticipants})
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
-                        {isBooked ? (
+                        {slotBookings.length > 0 ? (
                           <>
-                            <span className="text-sm text-green-700">
+                            <span className={`text-sm ${styles.text}`}>
                               {slotBookings.map(b => b.user?.name || "—").join(", ")}
                             </span>
                             <Button
@@ -543,7 +619,7 @@ const CreatorScheduleTab = () => {
                           </>
                         ) : (
                           <>
-                            <span className="text-sm text-orange-700">
+                            <span className={`text-sm ${styles.text}`}>
                               {language === "ru" ? "Свободно" : "Бос"}
                             </span>
                             <Button
