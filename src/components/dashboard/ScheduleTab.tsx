@@ -106,10 +106,14 @@ const ScheduleTab = () => {
     );
   }
 
-  // Фильтруем будущие бронирования
+  // Фильтруем будущие бронирования (включая сегодня)
   const upcomingBookings = bookings?.filter(b => {
     if (!b.time_slot?.date) return false;
-    return parseISO(b.time_slot.date) >= new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const slotDate = parseISO(b.time_slot.date);
+    slotDate.setHours(0, 0, 0, 0);
+    return slotDate >= today;
   }) || [];
 
   return (
