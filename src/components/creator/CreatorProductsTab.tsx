@@ -425,11 +425,8 @@ const CreatorProductsTab = () => {
         <div className="text-center py-12">
           <Package className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
           <p className="text-muted-foreground">{t("noProducts")}</p>
-          <Button variant="default" className="mt-4" onClick={() => setIsCreating(true)}>
-          {t("createFirstProduct")}
-        </Button>
-      </div>
-    )}
+        </div>
+      )}
 
     {/* Materials Manager */}
     {/* Materials Manager */}
