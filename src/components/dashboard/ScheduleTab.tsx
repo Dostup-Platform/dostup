@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useSimplePurchases, useSimpleSchedules, useSimpleTimeSlots, useSimpleBookings, useCreateSimpleBooking, useCancelSimpleBooking } from "@/hooks/useSimplePurchases";
+import { useSimplePurchases, useSimpleSchedules, useSimpleTimeSlots, useSimpleBookings, useCreateSimpleBooking, useCancelSimpleBooking, useAllBookingsForSchedule } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck } from "lucide-react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
@@ -19,6 +19,10 @@ const ScheduleTab = () => {
   const [selectedDate, setSelectedDate] = useState(new Date()); // Начинать с сегодня
 
   const { data: timeSlots, isLoading: timeSlotsLoading } = useSimpleTimeSlots(selectedScheduleId || undefined);
+  const { data: allBookingsForSchedule } = useAllBookingsForSchedule(selectedScheduleId || undefined);
+  
+  // Получить текущий выбранный schedule для проверки event_type
+  const selectedSchedule = schedules?.find(s => s.id === selectedScheduleId);
 
   // Показывать 7 дней начиная с сегодня (i начинается с 0)
   const days = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i));
@@ -53,8 +57,17 @@ const ScheduleTab = () => {
     }
   };
 
-  const isSlotBooked = (slotId: string) => {
+  // Проверить, забронирован ли слот текущим пользователем
+  const isSlotBookedByMe = (slotId: string) => {
     return bookings?.some((b) => b.time_slot_id === slotId && b.status === "confirmed");
+  };
+
+  // Проверить, занят ли слот другим пользователем (для индивидуальных сессий)
+  const isSlotTakenByOther = (slotId: string) => {
+    const myBooking = bookings?.find(b => b.time_slot_id === slotId);
+    const anyBooking = allBookingsForSchedule?.find(b => b.time_slot_id === slotId);
+    // Слот занят другим, если есть бронирование, но не моё
+    return !!anyBooking && !myBooking;
   };
 
   const isLoading = purchasesLoading || schedulesLoading || bookingsLoading;
@@ -214,8 +227,12 @@ const ScheduleTab = () => {
                 ) : filteredSlots.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2">
                     {filteredSlots.map((slot) => {
-                      const booked = isSlotBooked(slot.id);
-                      const available = slot.is_available && !booked;
+                      const bookedByMe = isSlotBookedByMe(slot.id);
+                      const takenByOther = isSlotTakenByOther(slot.id);
+                      const isIndividual = selectedSchedule?.event_type === "individual";
+                      // Для индивидуальных сессий - слот недоступен если занят кем-то
+                      const isTaken = isIndividual && takenByOther;
+                      const available = slot.is_available && !bookedByMe && !isTaken;
                       
                       return (
                         <button
@@ -223,8 +240,10 @@ const ScheduleTab = () => {
                           onClick={() => available && handleBookSlot(slot.id)}
                           disabled={!available || createBooking.isPending}
                           className={`p-4 rounded-xl border text-left transition-all ${
-                            booked
+                            bookedByMe
                               ? "bg-green-500/10 border-green-500 text-green-600"
+                              : isTaken
+                              ? "bg-red-500/10 border-red-300 text-red-500"
                               : available
                               ? "border-border hover:border-primary bg-card"
                               : "border-border bg-muted/50 text-muted-foreground opacity-50"
@@ -235,7 +254,8 @@ const ScheduleTab = () => {
                             <span className="font-medium">
                               {slot.start_time.slice(0, 5)}-{slot.end_time.slice(0, 5)}
                             </span>
-                            {booked && <Check className="w-4 h-4 ml-auto" />}
+                            {bookedByMe && <Check className="w-4 h-4 ml-auto" />}
+                            {isTaken && <span className="text-xs ml-auto">Занято</span>}
                           </div>
                         </button>
                       );
