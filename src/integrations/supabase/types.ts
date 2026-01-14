@@ -287,6 +287,36 @@ export type Database = {
           },
         ]
       }
+      push_tokens: {
+        Row: {
+          created_at: string
+          device_info: string | null
+          fcm_token: string
+          id: string
+          updated_at: string
+          user_phone: string
+          user_role: string
+        }
+        Insert: {
+          created_at?: string
+          device_info?: string | null
+          fcm_token: string
+          id?: string
+          updated_at?: string
+          user_phone: string
+          user_role?: string
+        }
+        Update: {
+          created_at?: string
+          device_info?: string | null
+          fcm_token?: string
+          id?: string
+          updated_at?: string
+          user_phone?: string
+          user_role?: string
+        }
+        Relationships: []
+      }
       schedules: {
         Row: {
           created_at: string
