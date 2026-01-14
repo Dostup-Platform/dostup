@@ -99,6 +99,10 @@ export const translations = {
     bookingCancelled: "Запись отменена",
     cancelFailed: "Не удалось отменить запись",
     slotTaken: "Занято",
+    confirmCancelBookingStudent: "Вы уверены, что хотите отменить запись?",
+    confirmCancelBookingStudentDescription: "Это действие нельзя отменить. Вам придется записаться заново.",
+    yes: "Да",
+    no: "Нет",
     
     // Account Tab
     profile: "Профиль",
@@ -290,6 +294,10 @@ export const translations = {
     bookingCancelled: "Жазылу болдырмалды",
     cancelFailed: "Жазылуды болдырмау сәтсіз",
     slotTaken: "Бос емес",
+    confirmCancelBookingStudent: "Жазылуды болдырмағыңыз келетініне сенімдісіз бе?",
+    confirmCancelBookingStudentDescription: "Бұл әрекетті қайтару мүмкін емес. Қайтадан жазылуға тура келеді.",
+    yes: "Иә",
+    no: "Жоқ",
     
     // Account Tab
     profile: "Профиль",

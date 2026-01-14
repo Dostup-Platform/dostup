@@ -6,6 +6,16 @@ import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const ScheduleTab = () => {
   const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
@@ -17,6 +27,7 @@ const ScheduleTab = () => {
   
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date()); // Начинать с сегодня
+  const [bookingToCancel, setBookingToCancel] = useState<string | null>(null);
 
   const { data: timeSlots, isLoading: timeSlotsLoading } = useSimpleTimeSlots(selectedScheduleId || undefined);
   const { data: allBookingsForSchedule } = useAllBookingsForSchedule(selectedScheduleId || undefined);
@@ -48,12 +59,15 @@ const ScheduleTab = () => {
     }
   };
 
-  const handleCancelBooking = async (bookingId: string) => {
+  const handleCancelBooking = async () => {
+    if (!bookingToCancel) return;
     try {
-      await cancelBooking.mutateAsync(bookingId);
+      await cancelBooking.mutateAsync(bookingToCancel);
       toast.success(t("bookingCancelled"));
     } catch (error) {
       toast.error(t("cancelFailed"));
+    } finally {
+      setBookingToCancel(null);
     }
   };
 
@@ -139,7 +153,7 @@ const ScheduleTab = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleCancelBooking(booking.id)}
+                  onClick={() => setBookingToCancel(booking.id)}
                   disabled={cancelBooking.isPending}
                   className="text-destructive hover:text-destructive hover:bg-destructive/10"
                 >
@@ -278,6 +292,27 @@ const ScheduleTab = () => {
           )}
         </>
       )}
+
+      {/* Confirm Cancel Dialog */}
+      <AlertDialog open={!!bookingToCancel} onOpenChange={(open) => !open && setBookingToCancel(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("confirmCancelBookingStudent")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("confirmCancelBookingStudentDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("no")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelBooking}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t("yes")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
