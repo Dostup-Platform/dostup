@@ -135,6 +135,20 @@ const Index = () => {
         <LanguageSwitcher />
       </div>
 
+      {/* Back Button - показывается когда форма регистрации открыта */}
+      {lastUserId && lastUserName && showRegistrationForm && (
+        <div className="absolute top-4 left-4 z-20">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowRegistrationForm(false)}
+          >
+            <X className="w-4 h-4 mr-2" />
+            {t("back")}
+          </Button>
+        </div>
+      )}
+
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center px-4 py-8">
         <Card className="w-full max-w-md animate-fade-in">
@@ -185,18 +199,6 @@ const Index = () => {
             ) : (
               // Показываем форму регистрации
               <>
-                {/* Кнопка Назад - если есть последний пользователь */}
-                {lastUserId && lastUserName && (
-                  <Button
-                    variant="ghost"
-                    className="mb-4 -ml-2"
-                    onClick={() => setShowRegistrationForm(false)}
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    {t("back")}
-                  </Button>
-                )}
-                
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">{t("firstName")}</Label>
