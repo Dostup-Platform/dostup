@@ -9,7 +9,8 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Lock, Loader2, ExternalLink, Clock } from "lucide-react";
+import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Download } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import heroBackground from "@/assets/hero-background.jpg";
 
@@ -221,6 +222,14 @@ const ProductPurchasePage = () => {
                   {t("sendReceiptInfo")}
                 </p>
               </div>
+
+              <Link 
+                to="/install" 
+                className="text-sm text-primary hover:underline flex items-center justify-center gap-1 mt-4"
+              >
+                <Download className="w-4 h-4" />
+                {t("installApp")}
+              </Link>
             </CardContent>
           </Card>
         </main>
