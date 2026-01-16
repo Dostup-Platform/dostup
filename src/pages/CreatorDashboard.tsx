@@ -13,6 +13,7 @@ import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
 import { useRealtimeBookingNotifications } from "@/hooks/useRealtimeBookings";
 import { useRealtimePurchaseNotifications } from "@/hooks/useRealtimePurchases";
+import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -106,6 +107,13 @@ const CreatorDashboard = () => {
   // Enable real-time notifications for new bookings and purchases
   useRealtimeBookingNotifications(productIds, productIds.length > 0);
   useRealtimePurchaseNotifications(productIds, productIds.length > 0);
+
+  // Register FCM token for push notifications
+  useFCMRegistration({
+    userPhone: creatorName || undefined,
+    userRole: "creator",
+    enabled: !!creatorName
+  });
 
   useEffect(() => {
     const name = localStorage.getItem("creator_name");

@@ -1,1 +1,25 @@
 project_id = "pgbgenvyjxxgdztymakp"
+
+[functions.create-signup-token]
+verify_jwt = false
+
+[functions.verify-signup-token]
+verify_jwt = false
+
+[functions.verify-creator-password]
+verify_jwt = false
+
+[functions.upload-material]
+verify_jwt = false
+
+[functions.get-material-url]
+verify_jwt = false
+
+[functions.manage-push-token]
+verify_jwt = false
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[functions.send-reminders]
+verify_jwt = false
