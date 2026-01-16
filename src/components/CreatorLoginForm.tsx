@@ -53,6 +53,32 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const verifyPasswordViaEdgeFunction = async (password: string, name: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-creator-password', {
+        body: { password, creatorName: name }
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        return false;
+      }
+
+      if (data?.success) {
+        // Store session token for future validation
+        if (data.token) {
+          localStorage.setItem("creator_token", data.token);
+        }
+        return true;
+      }
+
+      return false;
+    } catch (err) {
+      console.error('Error verifying password:', err);
+      return false;
+    }
+  };
+
   const handleCreatorLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -62,14 +88,10 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
     
     setIsSubmitting(true);
 
-    // Fetch creator password from app_settings
-    const { data: settings } = await supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", "creator_password")
-      .single();
+    // Verify password via secure edge function
+    const isValid = await verifyPasswordViaEdgeFunction(creatorPassword, creatorName.trim());
 
-    if (!settings || creatorPassword !== settings.value) {
+    if (!isValid) {
       toast.error(t("invalidPassword"));
       setIsSubmitting(false);
       return;
@@ -77,6 +99,7 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
 
     // Store creator name in localStorage
     localStorage.setItem("creator_name", creatorName.trim());
+    localStorage.setItem("creator_last_name", creatorName.trim());
     navigate("/creator");
     setIsSubmitting(false);
   };
@@ -90,14 +113,10 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
     
     setIsSubmitting(true);
 
-    // Fetch creator password from app_settings
-    const { data: settings } = await supabase
-      .from("app_settings")
-      .select("value")
-      .eq("key", "creator_password")
-      .single();
+    // Verify password via secure edge function
+    const isValid = await verifyPasswordViaEdgeFunction(creatorPassword, lastCreatorName);
 
-    if (!settings || creatorPassword !== settings.value) {
+    if (!isValid) {
       toast.error(t("invalidPassword"));
       setIsSubmitting(false);
       return;
