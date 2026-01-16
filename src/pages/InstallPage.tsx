@@ -8,6 +8,21 @@ import { useDeviceDetection, DeviceType } from "@/hooks/useDeviceDetection";
 import { ArrowLeft, Smartphone, Monitor, ChevronDown, ChevronUp, Share, MoreVertical, Download } from "lucide-react";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
+// iOS step images
+import iosStep1 from "@/assets/install/ios-step1.png";
+import iosStep2 from "@/assets/install/ios-step2.png";
+import iosStep3 from "@/assets/install/ios-step3.png";
+import iosStep4 from "@/assets/install/ios-step4.png";
+
+// Android step images
+import androidStep1 from "@/assets/install/android-step1.png";
+import androidStep2 from "@/assets/install/android-step2.png";
+import androidStep3 from "@/assets/install/android-step3.png";
+
+// Desktop step images
+import desktopStep1 from "@/assets/install/desktop-step1.png";
+import desktopStep2 from "@/assets/install/desktop-step2.png";
+
 const InstallPage = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -39,25 +54,25 @@ const InstallPage = () => {
     }
   };
 
-  const getSteps = (device: DeviceType): { icon?: React.ReactNode; text: string }[] => {
+  const getSteps = (device: DeviceType): { icon?: React.ReactNode; text: string; image: string }[] => {
     switch (device) {
       case "ios":
         return [
-          { icon: null, text: t("step1iOS") },
-          { icon: <Share className="w-4 h-4 inline-block mx-1" />, text: t("step2iOS") },
-          { text: t("step3iOS") },
-          { text: t("step4iOS") },
+          { icon: null, text: t("step1iOS"), image: iosStep1 },
+          { icon: <Share className="w-4 h-4 inline-block mx-1" />, text: t("step2iOS"), image: iosStep2 },
+          { text: t("step3iOS"), image: iosStep3 },
+          { text: t("step4iOS"), image: iosStep4 },
         ];
       case "android":
         return [
-          { text: t("step1Android") },
-          { icon: <MoreVertical className="w-4 h-4 inline-block mx-1" />, text: t("step2Android") },
-          { text: t("step3Android") },
+          { text: t("step1Android"), image: androidStep1 },
+          { icon: <MoreVertical className="w-4 h-4 inline-block mx-1" />, text: t("step2Android"), image: androidStep2 },
+          { text: t("step3Android"), image: androidStep3 },
         ];
       case "desktop":
         return [
-          { icon: <Download className="w-4 h-4 inline-block mx-1" />, text: t("step1Desktop") },
-          { text: t("step2Desktop") },
+          { icon: <Download className="w-4 h-4 inline-block mx-1" />, text: t("step1Desktop"), image: desktopStep1 },
+          { text: t("step2Desktop"), image: desktopStep2 },
         ];
     }
   };
@@ -79,16 +94,26 @@ const InstallPage = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <ol className="space-y-3">
+          <ol className="space-y-6">
             {steps.map((step, index) => (
-              <li key={index} className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm font-medium flex items-center justify-center">
-                  {index + 1}
-                </span>
-                <span className="text-sm pt-0.5 flex items-center flex-wrap">
-                  {step.icon}
-                  {step.text}
-                </span>
+              <li key={index} className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm font-medium flex items-center justify-center">
+                    {index + 1}
+                  </span>
+                  <span className="text-sm pt-0.5 flex items-center flex-wrap">
+                    {step.icon}
+                    {step.text}
+                  </span>
+                </div>
+                <div className="ml-9">
+                  <img 
+                    src={step.image} 
+                    alt={`${t("step")} ${index + 1}`}
+                    className="rounded-lg border border-border shadow-sm max-w-full h-auto"
+                    style={{ maxHeight: device === "desktop" ? "200px" : "300px" }}
+                  />
+                </div>
               </li>
             ))}
           </ol>

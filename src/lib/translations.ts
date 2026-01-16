@@ -226,6 +226,7 @@ export const translations = {
     step2Desktop: "Или откройте меню браузера и выберите «Установить приложение»",
     installAppDescription: "Установите приложение на главный экран для быстрого доступа и уведомлений",
     viewInstallInstructions: "Показать инструкции",
+    step: "Шаг",
   },
   kk: {
     // Common
@@ -452,6 +453,7 @@ export const translations = {
     step2Desktop: "Немесе браузер мәзірін ашып «Қосымшаны орнату» таңдаңыз",
     installAppDescription: "Жылдам қол жеткізу және хабарландырулар үшін қосымшаны негізгі экранға орнатыңыз",
     viewInstallInstructions: "Нұсқауларды көрсету",
+    step: "Қадам",
   },
 } as const;
 
