@@ -206,6 +206,24 @@ export const translations = {
     // Student notifications
     noStudentNotifications: "Уведомлений пока нет",
     studentNotificationsWillAppear: "Здесь будут появляться уведомления об отменённых записях",
+    
+    // Install page
+    installApp: "Установить приложение",
+    installInstructions: "Следуйте инструкциям для вашего устройства",
+    forIOS: "Для iPhone/iPad",
+    forAndroid: "Для Android",
+    forDesktop: "Для компьютера",
+    yourDevice: "Ваше устройство",
+    otherDevices: "Другие устройства",
+    step1iOS: "Откройте эту страницу в Safari",
+    step2iOS: "Нажмите кнопку «Поделиться»",
+    step3iOS: "Прокрутите вниз и выберите «На экран Домой»",
+    step4iOS: "Нажмите «Добавить»",
+    step1Android: "Откройте эту страницу в Chrome",
+    step2Android: "Нажмите на меню (три точки)",
+    step3Android: "Выберите «Установить приложение» или «Добавить на главный экран»",
+    step1Desktop: "Нажмите на значок установки в адресной строке",
+    step2Desktop: "Или откройте меню браузера и выберите «Установить приложение»",
   },
   kk: {
     // Common
@@ -412,6 +430,24 @@ export const translations = {
     // Student notifications
     noStudentNotifications: "Хабарландырулар әзірге жоқ",
     studentNotificationsWillAppear: "Болдырмалған жазылулар туралы хабарландырулар мұнда пайда болады",
+    
+    // Install page
+    installApp: "Қосымшаны орнату",
+    installInstructions: "Құрылғыңызға арналған нұсқауларды орындаңыз",
+    forIOS: "iPhone/iPad үшін",
+    forAndroid: "Android үшін",
+    forDesktop: "Компьютер үшін",
+    yourDevice: "Сіздің құрылғыңыз",
+    otherDevices: "Басқа құрылғылар",
+    step1iOS: "Бұл бетті Safari-де ашыңыз",
+    step2iOS: "«Бөлісу» түймесін басыңыз",
+    step3iOS: "Төмен жылжып «Үй экранына» таңдаңыз",
+    step4iOS: "«Қосу» басыңыз",
+    step1Android: "Бұл бетті Chrome-да ашыңыз",
+    step2Android: "Мәзірді басыңыз (үш нүкте)",
+    step3Android: "«Қосымшаны орнату» немесе «Басты экранға қосу» таңдаңыз",
+    step1Desktop: "Мекенжай жолағындағы орнату белгішесін басыңыз",
+    step2Desktop: "Немесе браузер мәзірін ашып «Қосымшаны орнату» таңдаңыз",
   },
 } as const;
 
