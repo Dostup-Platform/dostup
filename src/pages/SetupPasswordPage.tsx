@@ -1,33 +1,76 @@
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle, Eye, EyeOff } from "lucide-react";
+import { CheckCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const SetupPasswordPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signUp, user, loading } = useAuth();
   const { t } = useLanguage();
-  const { email, name, productId } = location.state || {};
   
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
+  
+  // Token-based signup data
+  const [tokenData, setTokenData] = useState<{
+    email: string;
+    name: string;
+    productId: string | null;
+  } | null>(null);
+  const [isValidating, setIsValidating] = useState(true);
+
+  // Get token from URL
+  const token = searchParams.get('token');
 
   useEffect(() => {
-    if (!email && !loading) {
-      navigate("/");
-    }
-  }, [email, loading, navigate]);
+    const validateToken = async () => {
+      if (!token) {
+        // No token provided, redirect to home
+        navigate("/");
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.functions.invoke('verify-signup-token', {
+          body: { token }
+        });
+
+        if (error || !data?.valid) {
+          console.error('Invalid token:', error || data?.error);
+          toast.error("Недействительная или истёкшая ссылка");
+          navigate("/");
+          return;
+        }
+
+        setTokenData({
+          email: data.email,
+          name: data.name,
+          productId: data.productId
+        });
+      } catch (err) {
+        console.error('Error validating token:', err);
+        toast.error("Произошла ошибка");
+        navigate("/");
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    validateToken();
+  }, [token, navigate, t]);
 
   useEffect(() => {
     if (user && !loading) {
@@ -38,6 +81,11 @@ const SetupPasswordPage = () => {
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!tokenData) {
+      setError("Недействительная или истёкшая ссылка");
+      return;
+    }
 
     if (password.length < 8) {
       setError(t("passwordMinLength"));
@@ -51,7 +99,7 @@ const SetupPasswordPage = () => {
 
     setIsCreating(true);
 
-    const { error: signUpError } = await signUp(email, password, name);
+    const { error: signUpError } = await signUp(tokenData.email, password, tokenData.name);
 
     if (signUpError) {
       setError(signUpError.message || "Не удалось создать аккаунт");
@@ -63,12 +111,19 @@ const SetupPasswordPage = () => {
     navigate("/dashboard");
   };
 
-  if (loading) {
+  if (loading || isValidating) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">{t("loading")}</div>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">{t("loading")}</p>
+        </div>
       </div>
     );
+  }
+
+  if (!tokenData) {
+    return null; // Will redirect in useEffect
   }
 
   return (
@@ -93,7 +148,7 @@ const SetupPasswordPage = () => {
           <CardHeader>
             <CardTitle className="text-lg">{t("createAccount")}</CardTitle>
             <CardDescription>
-              {email && `${t("loggedInAs")} ${email}`}
+              {tokenData.email && `${t("loggedInAs")} ${tokenData.email}`}
             </CardDescription>
           </CardHeader>
           <CardContent>

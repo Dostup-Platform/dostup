@@ -8,6 +8,8 @@ import { useProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { ArrowLeft, Lock, Loader2, ExternalLink } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import heroBackground from "@/assets/hero-background.jpg";
 
 const formatPrice = (price: number) => {
@@ -36,18 +38,45 @@ const CheckoutPage = () => {
 
   const handleContinueAfterPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!email || !name) {
+      toast.error("Заполните все поля");
+      return;
+    }
+
     setIsProcessing(true);
 
-    // Navigate to password setup after user confirms payment
-    setTimeout(() => {
-      navigate("/setup-password", { 
-        state: { 
-          email, 
-          name,
+    try {
+      // Create a secure signup token via edge function
+      const { data, error } = await supabase.functions.invoke('create-signup-token', {
+        body: { 
+          email: email.trim(), 
+          name: name.trim(),
           productId: productId || product?.id 
-        } 
+        }
       });
-    }, 1000);
+
+      if (error) {
+        console.error('Error creating signup token:', error);
+        toast.error("Произошла ошибка");
+        setIsProcessing(false);
+        return;
+      }
+
+      if (!data?.token) {
+        toast.error("Произошла ошибка");
+        setIsProcessing(false);
+        return;
+      }
+
+      // Navigate with secure token instead of raw state
+      navigate(`/setup-password?token=${data.token}`);
+    } catch (err) {
+      console.error('Error:', err);
+      toast.error("Произошла ошибка");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (isLoading) {
