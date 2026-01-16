@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useSimplePurchases } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { User, Package, LogOut, Loader2 } from "lucide-react";
+import { User, Package, LogOut, Loader2, Download } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -115,6 +115,26 @@ const AccountTab = () => {
               {t("noPurchases")}
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Install App */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Download className="w-5 h-5" />
+            {t("installApp")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">
+            {t("installAppDescription")}
+          </p>
+          <Link to="/install">
+            <Button variant="outline" className="w-full">
+              {t("viewInstallInstructions")}
+            </Button>
+          </Link>
         </CardContent>
       </Card>
 
