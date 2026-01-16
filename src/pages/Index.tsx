@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import CreatorLoginForm from "@/components/CreatorLoginForm";
 import RoleSelection from "@/components/RoleSelection";
-import { Loader2, BookOpen, User, X } from "lucide-react";
+import { Loader2, BookOpen, User, X, Download } from "lucide-react";
 import { toast } from "sonner";
 
 const Index = () => {
@@ -257,7 +257,7 @@ const Index = () => {
               </>
             )}
 
-            <div className="mt-6 pt-6 border-t">
+            <div className="mt-6 pt-6 border-t space-y-3">
               <Button
                 variant="outline"
                 className="w-full"
@@ -266,6 +266,14 @@ const Index = () => {
                 <BookOpen className="w-4 h-4 mr-2" />
                 {t("forCourseCreators")}
               </Button>
+              
+              <Link 
+                to="/install" 
+                className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+              >
+                <Download className="w-4 h-4" />
+                {t("installApp")}
+              </Link>
             </div>
           </CardContent>
         </Card>

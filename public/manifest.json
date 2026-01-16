@@ -1,7 +1,7 @@
 {
-  "name": "Digital Products Platform",
-  "short_name": "Products",
-  "description": "Access your digital products and courses",
+  "name": "Dostup",
+  "short_name": "Dostup",
+  "description": "Доступ к курсам и материалам",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
