@@ -159,6 +159,8 @@ export const translations = {
     continueAs: "Войти как",
     notMe: "Это не я",
     orRegisterNew: "Или зарегистрироваться",
+    or: "или",
+    register: "Зарегистрироваться",
     
     // Language
     language: "Язык",
@@ -386,6 +388,8 @@ export const translations = {
     continueAs: "Ретінде кіру",
     notMe: "Бұл мен емеспін",
     orRegisterNew: "Немесе тіркелу",
+    or: "немесе",
+    register: "Тіркелу",
     
     // Language
     language: "Тіл",
