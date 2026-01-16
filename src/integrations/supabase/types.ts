@@ -85,6 +85,53 @@ export type Database = {
           },
         ]
       }
+      booking_reminders: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          id: string
+          product_title: string | null
+          reminder_type: string
+          scheduled_at: string
+          sent_at: string | null
+          slot_date: string | null
+          slot_time: string | null
+          user_phone: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          product_title?: string | null
+          reminder_type: string
+          scheduled_at: string
+          sent_at?: string | null
+          slot_date?: string | null
+          slot_time?: string | null
+          user_phone: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          product_title?: string | null
+          reminder_type?: string
+          scheduled_at?: string
+          sent_at?: string | null
+          slot_date?: string | null
+          slot_time?: string | null
+          user_phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_reminders_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "simple_bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           created_at: string

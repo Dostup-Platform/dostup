@@ -1,0 +1,210 @@
+import { initializeApp, getApps, FirebaseApp } from "firebase/app";
+import { getMessaging, getToken, onMessage, Messaging, isSupported } from "firebase/messaging";
+import { supabase } from "@/integrations/supabase/client";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBU7eLriaqnhOIDrd7O4wQmCAwqEqj-kZ4",
+  authDomain: "dostup-5f5aa.firebaseapp.com",
+  projectId: "dostup-5f5aa",
+  storageBucket: "dostup-5f5aa.firebasestorage.app",
+  messagingSenderId: "201015831480",
+  appId: "1:201015831480:web:59116187a7c3375e2afd4d"
+};
+
+const VAPID_KEY = "BFPPEVA2rgBeT4WdKVfws4l1sPCFCHgXkttngeNAuVi9Br7hi7wYa1baxLQPq2l9x8PLM3SIllXN8CBWcNidmzA";
+
+let app: FirebaseApp | null = null;
+let messaging: Messaging | null = null;
+
+/**
+ * Initialize Firebase app and messaging
+ */
+export const initializeFirebaseMessaging = async (): Promise<Messaging | null> => {
+  try {
+    // Check if messaging is supported
+    const supported = await isSupported();
+    if (!supported) {
+      console.log("Firebase Messaging is not supported in this browser");
+      return null;
+    }
+
+    // Initialize Firebase app if not already initialized
+    if (!getApps().length) {
+      app = initializeApp(firebaseConfig);
+    } else {
+      app = getApps()[0];
+    }
+
+    messaging = getMessaging(app);
+    return messaging;
+  } catch (error) {
+    console.error("Error initializing Firebase Messaging:", error);
+    return null;
+  }
+};
+
+/**
+ * Get FCM token for push notifications
+ */
+export const getFCMToken = async (): Promise<string | null> => {
+  try {
+    // First check if notification permission is granted
+    if (Notification.permission !== "granted") {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        console.log("Notification permission denied");
+        return null;
+      }
+    }
+
+    // Initialize messaging if not already done
+    if (!messaging) {
+      messaging = await initializeFirebaseMessaging();
+      if (!messaging) return null;
+    }
+
+    // Register service worker
+    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+    console.log("Service Worker registered:", registration);
+
+    // Get FCM token
+    const token = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: registration
+    });
+
+    if (token) {
+      console.log("FCM Token obtained:", token.substring(0, 20) + "...");
+      return token;
+    } else {
+      console.log("No FCM token available");
+      return null;
+    }
+  } catch (error) {
+    console.error("Error getting FCM token:", error);
+    return null;
+  }
+};
+
+/**
+ * Register FCM token on the server
+ */
+export const registerPushToken = async (
+  userPhone: string,
+  userRole: "creator" | "student"
+): Promise<boolean> => {
+  try {
+    const fcmToken = await getFCMToken();
+    if (!fcmToken) {
+      console.log("No FCM token to register");
+      return false;
+    }
+
+    // Get device info
+    const deviceInfo = `${navigator.userAgent.substring(0, 100)}`;
+
+    // Call edge function to register token
+    const { data, error } = await supabase.functions.invoke("manage-push-token", {
+      body: {
+        action: "register",
+        userPhone,
+        userRole,
+        fcmToken,
+        deviceInfo
+      }
+    });
+
+    if (error) {
+      console.error("Error registering push token:", error);
+      return false;
+    }
+
+    console.log("Push token registered successfully:", data);
+    return true;
+  } catch (error) {
+    console.error("Error in registerPushToken:", error);
+    return false;
+  }
+};
+
+/**
+ * Unregister FCM token from the server
+ */
+export const unregisterPushToken = async (userPhone: string): Promise<boolean> => {
+  try {
+    const fcmToken = await getFCMToken();
+    if (!fcmToken) return false;
+
+    const { error } = await supabase.functions.invoke("manage-push-token", {
+      body: {
+        action: "unregister",
+        userPhone,
+        fcmToken
+      }
+    });
+
+    if (error) {
+      console.error("Error unregistering push token:", error);
+      return false;
+    }
+
+    console.log("Push token unregistered successfully");
+    return true;
+  } catch (error) {
+    console.error("Error in unregisterPushToken:", error);
+    return false;
+  }
+};
+
+/**
+ * Set up foreground message handler
+ */
+export const onForegroundMessage = (
+  callback: (payload: { title?: string; body?: string; data?: Record<string, string> }) => void
+) => {
+  if (!messaging) {
+    console.log("Messaging not initialized for foreground handler");
+    return () => {};
+  }
+
+  return onMessage(messaging, (payload) => {
+    console.log("Foreground message received:", payload);
+    callback({
+      title: payload.notification?.title,
+      body: payload.notification?.body,
+      data: payload.data
+    });
+  });
+};
+
+/**
+ * Send push notification via edge function
+ */
+export const sendPushNotification = async (
+  userPhone: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<boolean> => {
+  try {
+    const { error } = await supabase.functions.invoke("send-push-notification", {
+      body: {
+        userPhone,
+        title,
+        body,
+        data
+      }
+    });
+
+    if (error) {
+      console.error("Error sending push notification:", error);
+      return false;
+    }
+
+    console.log("Push notification sent successfully");
+    return true;
+  } catch (error) {
+    console.error("Error in sendPushNotification:", error);
+    return false;
+  }
+};

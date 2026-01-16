@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { playBookingSound, playCancellationSound, showBrowserNotification } from "@/hooks/useNotificationPermission";
+import { sendPushNotification } from "@/lib/firebase";
 
 interface BookingPayload {
   id: string;
@@ -162,6 +163,15 @@ export const useRealtimeBookingNotifications = (
           // Browser push notification
           showBrowserNotification(title, description);
 
+          // Send FCM push notification to creator (in case they're not in the app)
+          const creatorName = localStorage.getItem("creator_name");
+          if (creatorName) {
+            sendPushNotification(creatorName, title, description, {
+              type: "booking",
+              bookingId: newBooking.id
+            });
+          }
+
           // Invalidate bookings query to refresh data
           queryClient.invalidateQueries({ queryKey: ["creator-simple-bookings"] });
         }
@@ -201,6 +211,16 @@ export const useRealtimeBookingNotifications = (
 
           // Browser push notification
           showBrowserNotification(title, description);
+
+          // Send FCM push notification to creator
+          const creatorName = localStorage.getItem("creator_name");
+          if (creatorName) {
+            sendPushNotification(creatorName, title, description, {
+              type: "cancellation",
+              date: cachedInfo.date,
+              time: cachedInfo.time
+            });
+          }
 
           // Remove from cache
           bookingCacheRef.current.delete(deletedBooking.id);

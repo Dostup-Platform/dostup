@@ -12,6 +12,7 @@ import ScheduleTab from "@/components/dashboard/ScheduleTab";
 import AccountTab from "@/components/dashboard/AccountTab";
 import NotificationsTab from "@/components/dashboard/NotificationsTab";
 import { useRealtimeStudentNotifications } from "@/hooks/useRealtimeStudentNotifications";
+import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("materials");
@@ -31,6 +32,13 @@ const Dashboard = () => {
 
   // Realtime уведомления (звуки и push)
   useRealtimeStudentNotifications(user?.phone, !!user);
+
+  // Register FCM token for push notifications
+  useFCMRegistration({
+    userPhone: user?.phone,
+    userRole: "student",
+    enabled: !!user?.phone
+  });
 
   // Получить отменённые записи для подсчёта бейджа
   const { data: cancellations = [] } = useQuery({

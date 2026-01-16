@@ -7,6 +7,7 @@ import {
   playCancellationSound, 
   showBrowserNotification 
 } from "@/hooks/useNotificationPermission";
+import { sendPushNotification } from "@/lib/firebase";
 
 export const useRealtimeStudentNotifications = (
   userPhone: string | undefined,
@@ -47,6 +48,15 @@ export const useRealtimeStudentNotifications = (
 
           // Браузерное push-уведомление
           showBrowserNotification(title, description);
+
+          // FCM push-уведомление студенту
+          if (userPhone) {
+            sendPushNotification(userPhone, title, description, {
+              type: "creator_cancellation",
+              productTitle: cancellation.product_title,
+              date: cancellation.slot_date
+            });
+          }
 
           // Обновить данные
           queryClient.invalidateQueries({ queryKey: ["student-cancellations"] });
