@@ -267,13 +267,6 @@ const Index = () => {
                 {t("forCourseCreators")}
               </Button>
               
-              <Link 
-                to="/install" 
-                className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
-              >
-                <Download className="w-4 h-4" />
-                {t("installApp")}
-              </Link>
             </div>
           </CardContent>
         </Card>
