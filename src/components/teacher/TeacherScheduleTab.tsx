@@ -314,7 +314,10 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
       setIsAddingSlots(false);
       setSelectedScheduleForSlots(null);
     },
-    onError: () => toast.error(language === "ru" ? "Ошибка при создании слотов" : "Слоттарды жасау кезінде қате"),
+    onError: (error) => {
+      console.error("Slot creation error:", error);
+      toast.error(language === "ru" ? "Ошибка при создании слотов" : "Слоттарды жасау кезінде қате");
+    },
   });
 
   // Cancel booking mutation
