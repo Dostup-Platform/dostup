@@ -27,7 +27,7 @@ const TeacherAccountTab = ({ teacherName }: TeacherAccountTabProps) => {
 
   const handleLogout = () => {
     setIsLoggingOut(true);
-    localStorage.removeItem("teacher_name");
+    localStorage.removeItem("teacher_data");
     localStorage.removeItem("teacher_notifications_last_viewed");
     navigate("/");
   };
