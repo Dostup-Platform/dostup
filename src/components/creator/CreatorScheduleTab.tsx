@@ -94,7 +94,7 @@ const CreatorScheduleTab = () => {
   });
 
   const { data: products = [], isLoading: productsLoading } = useCreatorProducts();
-  const productsWithSchedule = useMemo(() => products.filter(p => p.has_schedule), [products]);
+  // Убрана фильтрация по has_schedule - расписание можно создать для любого продукта
   const productIds = useMemo(() => products.map(p => p.id), [products]);
 
   // Fetch all schedules for creator's products
@@ -656,7 +656,7 @@ const CreatorScheduleTab = () => {
                   <SelectValue placeholder="Выберите продукт" />
                 </SelectTrigger>
                 <SelectContent>
-                  {productsWithSchedule.map((p) => (
+                  {products.map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
                   ))}
                 </SelectContent>
