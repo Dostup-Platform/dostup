@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText } from "lucide-react";
+import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText, Users, Share2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
+import ProductTeachersManager from "./ProductTeachersManager";
+import ShareLinkDialog from "./ShareLinkDialog";
 
 interface Product {
   id: string;
@@ -144,7 +146,7 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
 
 const CreatorProductsTab = () => {
   const { user } = useSimpleAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { data: products = [], isLoading } = useCreatorProducts();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -154,6 +156,8 @@ const CreatorProductsTab = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
+  const [teachersProduct, setTeachersProduct] = useState<{ id: string; title: string } | null>(null);
+  const [shareProduct, setShareProduct] = useState<{ id: string; title: string } | null>(null);
   
   const [formData, setFormData] = useState({
     title: "",
@@ -359,7 +363,7 @@ const CreatorProductsTab = () => {
                     )}
                   </div>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1 flex-wrap">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -367,6 +371,14 @@ const CreatorProductsTab = () => {
                     title={t("materials")}
                   >
                     <FileText className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setTeachersProduct({ id: product.id, title: product.title })}
+                    title={language === "ru" ? "Учителя" : "Мұғалімдер"}
+                  >
+                    <Users className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -392,6 +404,14 @@ const CreatorProductsTab = () => {
                   <Button
                     variant="ghost"
                     size="icon"
+                    onClick={() => setShareProduct({ id: product.id, title: product.title })}
+                    title={language === "ru" ? "Поделиться с выбором учителя" : "Мұғалімді таңдау арқылы бөлісу"}
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => setDeletingProduct(product)}
                     title={t("delete")}
                     className="text-destructive hover:text-destructive"
@@ -413,13 +433,32 @@ const CreatorProductsTab = () => {
       )}
 
     {/* Materials Manager */}
-    {/* Materials Manager */}
     {materialsProduct && (
       <ProductMaterialsManager
         productId={materialsProduct.id}
         productTitle={materialsProduct.title}
         isOpen={!!materialsProduct}
         onClose={() => setMaterialsProduct(null)}
+      />
+    )}
+
+    {/* Teachers Manager */}
+    {teachersProduct && (
+      <ProductTeachersManager
+        productId={teachersProduct.id}
+        productTitle={teachersProduct.title}
+        isOpen={!!teachersProduct}
+        onClose={() => setTeachersProduct(null)}
+      />
+    )}
+
+    {/* Share Link Dialog */}
+    {shareProduct && (
+      <ShareLinkDialog
+        productId={shareProduct.id}
+        productTitle={shareProduct.title}
+        isOpen={!!shareProduct}
+        onClose={() => setShareProduct(null)}
       />
     )}
 

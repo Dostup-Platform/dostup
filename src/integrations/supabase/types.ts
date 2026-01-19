@@ -215,6 +215,35 @@ export type Database = {
           },
         ]
       }
+      product_teachers: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          teacher_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          teacher_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          teacher_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_teachers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           created_at: string
@@ -371,6 +400,7 @@ export type Database = {
           id: string
           max_participants: number | null
           product_id: string
+          teacher_id: string | null
           title: string
         }
         Insert: {
@@ -379,6 +409,7 @@ export type Database = {
           id?: string
           max_participants?: number | null
           product_id: string
+          teacher_id?: string | null
           title: string
         }
         Update: {
@@ -387,6 +418,7 @@ export type Database = {
           id?: string
           max_participants?: number | null
           product_id?: string
+          teacher_id?: string | null
           title?: string
         }
         Relationships: [
@@ -395,6 +427,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedules_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "simple_users"
             referencedColumns: ["id"]
           },
         ]
@@ -492,6 +531,8 @@ export type Database = {
       simple_purchases: {
         Row: {
           amount: number
+          assigned_teacher_id: string | null
+          can_choose_teacher: boolean | null
           confirmed_at: string | null
           created_at: string
           id: string
@@ -501,6 +542,8 @@ export type Database = {
         }
         Insert: {
           amount: number
+          assigned_teacher_id?: string | null
+          can_choose_teacher?: boolean | null
           confirmed_at?: string | null
           created_at?: string
           id?: string
@@ -510,6 +553,8 @@ export type Database = {
         }
         Update: {
           amount?: number
+          assigned_teacher_id?: string | null
+          can_choose_teacher?: boolean | null
           confirmed_at?: string | null
           created_at?: string
           id?: string
@@ -518,6 +563,13 @@ export type Database = {
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "simple_purchases_assigned_teacher_id_fkey"
+            columns: ["assigned_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "simple_users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "simple_purchases_product_id_fkey"
             columns: ["product_id"]
