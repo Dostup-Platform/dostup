@@ -1,11 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSimplePurchases, useSimpleSchedules, useSimpleTimeSlots, useSimpleBookings, useCreateSimpleBooking, useCancelSimpleBooking, useAllBookingsForSchedule } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck } from "lucide-react";
+import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck, GraduationCap } from "lucide-react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +17,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface Teacher {
+  id: string;
+  name: string;
+}
 
 const ScheduleTab = () => {
   const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
@@ -26,14 +39,76 @@ const ScheduleTab = () => {
   const cancelBooking = useCancelSimpleBooking();
   
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date()); // Начинать с сегодня
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [bookingToCancel, setBookingToCancel] = useState<string | null>(null);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
+  const [canChooseTeacher, setCanChooseTeacher] = useState(false);
 
   const { data: timeSlots, isLoading: timeSlotsLoading } = useSimpleTimeSlots(selectedScheduleId || undefined);
   const { data: allBookingsForSchedule } = useAllBookingsForSchedule(selectedScheduleId || undefined);
   
   // Получить текущий выбранный schedule для проверки event_type
   const selectedSchedule = schedules?.find(s => s.id === selectedScheduleId);
+
+  // Загрузить учителей для продуктов с can_choose_teacher
+  useEffect(() => {
+    const loadTeachers = async () => {
+      if (!purchases || purchases.length === 0) return;
+      
+      // Проверяем, есть ли покупки с can_choose_teacher
+      const purchaseWithChoice = purchases.find(p => p.can_choose_teacher);
+      setCanChooseTeacher(!!purchaseWithChoice);
+      
+      if (!purchaseWithChoice) {
+        // Если нельзя выбирать учителя, используем assigned_teacher_id
+        const assignedTeacherId = purchases.find(p => p.assigned_teacher_id)?.assigned_teacher_id;
+        if (assignedTeacherId) {
+          setSelectedTeacherId(assignedTeacherId);
+        }
+        return;
+      }
+      
+      // Загружаем всех учителей для продуктов
+      const productIds = purchases.map(p => p.product_id);
+      const { data: teacherRecords } = await supabase
+        .from("product_teachers")
+        .select("id, teacher_name, product_id")
+        .in("product_id", productIds);
+      
+      if (teacherRecords && teacherRecords.length > 0) {
+        // Ищем simple_users с ролью teacher по имени
+        const teacherNames = teacherRecords.map(t => t.teacher_name);
+        const { data: teacherUsers } = await supabase
+          .from("simple_users")
+          .select("id, name")
+          .in("name", teacherNames)
+          .eq("role", "teacher");
+        
+        if (teacherUsers) {
+          setTeachers(teacherUsers.map(u => ({ id: u.id, name: u.name })));
+        }
+      }
+    };
+    
+    loadTeachers();
+  }, [purchases]);
+
+  // Фильтруем schedules по выбранному учителю
+  const filteredSchedules = useMemo(() => {
+    if (!schedules) return [];
+    
+    if (selectedTeacherId) {
+      return schedules.filter(s => s.teacher_id === selectedTeacherId || !s.teacher_id);
+    }
+    
+    // Если не выбран учитель и нельзя выбирать - показываем только расписания автора (без teacher_id)
+    if (!canChooseTeacher) {
+      return schedules.filter(s => !s.teacher_id);
+    }
+    
+    return schedules;
+  }, [schedules, selectedTeacherId, canChooseTeacher]);
 
   // Показывать 7 дней начиная с сегодня (i начинается с 0)
   const days = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i));
@@ -218,7 +293,33 @@ const ScheduleTab = () => {
 
       <h2 className="text-lg font-semibold text-foreground">{t("scheduleSessions")}</h2>
 
-      {!schedules || schedules.length === 0 ? (
+      {/* Выбор учителя - если можно выбирать */}
+      {canChooseTeacher && teachers.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <GraduationCap className="w-4 h-4" />
+            <span>{t("selectTeacher")}</span>
+          </div>
+          <Select
+            value={selectedTeacherId || "all"}
+            onValueChange={(value) => setSelectedTeacherId(value === "all" ? null : value)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={t("selectTeacher")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("allTeachers")}</SelectItem>
+              {teachers.map((teacher) => (
+                <SelectItem key={teacher.id} value={teacher.id}>
+                  {teacher.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {!filteredSchedules || filteredSchedules.length === 0 ? (
         <div className="text-center py-8">
           <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
           <p className="text-muted-foreground">{t("noSchedules")}</p>
@@ -228,7 +329,7 @@ const ScheduleTab = () => {
         <>
           {/* Schedule Type Selection */}
           <div className="grid grid-cols-2 gap-3">
-            {schedules.map((schedule) => (
+            {filteredSchedules.map((schedule) => (
               <button
                 key={schedule.id}
                 onClick={() => setSelectedScheduleId(schedule.id)}

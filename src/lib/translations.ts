@@ -229,6 +229,18 @@ export const translations = {
     installAppDescription: "Установите приложение на главный экран для быстрого доступа и уведомлений",
     viewInstallInstructions: "Показать инструкции",
     step: "Шаг",
+    
+    // Teacher translations
+    teacherLogin: "Вход для учителей",
+    teacherDashboard: "Панель учителя",
+    forTeachers: "Для учителей",
+    enterTeacherName: "Введите ваше имя и фамилию",
+    teacherNotFound: "Учитель с таким именем не найден",
+    selectTeacher: "Выберите учителя",
+    allTeachers: "Все учителя",
+    teacherSchedule: "Расписание учителя",
+    noAccessToProducts: "У вас нет доступа к продуктам",
+    contactCreator: "Обратитесь к автору курса для получения доступа",
   },
   kk: {
     // Common
@@ -458,6 +470,18 @@ export const translations = {
     installAppDescription: "Жылдам қол жеткізу және хабарландырулар үшін қосымшаны негізгі экранға орнатыңыз",
     viewInstallInstructions: "Нұсқауларды көрсету",
     step: "Қадам",
+    
+    // Teacher translations
+    teacherLogin: "Мұғалімдер үшін кіру",
+    teacherDashboard: "Мұғалім панелі",
+    forTeachers: "Мұғалімдер үшін",
+    enterTeacherName: "Аты-жөніңізді енгізіңіз",
+    teacherNotFound: "Мұндай атаумен мұғалім табылмады",
+    selectTeacher: "Мұғалімді таңдаңыз",
+    allTeachers: "Барлық мұғалімдер",
+    teacherSchedule: "Мұғалім кестесі",
+    noAccessToProducts: "Сізде өнімдерге қол жеткізу жоқ",
+    contactCreator: "Қол жеткізу үшін курс авторына хабарласыңыз",
   },
 } as const;
 

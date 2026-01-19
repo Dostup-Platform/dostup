@@ -22,13 +22,18 @@ const TeacherDashboard = () => {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
 
-  // Load teacher name from localStorage
+  // Load teacher data from localStorage
   useEffect(() => {
-    const name = localStorage.getItem("teacher_name");
-    if (!name) {
+    const teacherDataStr = localStorage.getItem("teacher_data");
+    if (!teacherDataStr) {
       navigate("/");
     } else {
-      setTeacherName(name);
+      try {
+        const teacherData = JSON.parse(teacherDataStr);
+        setTeacherName(teacherData.name);
+      } catch {
+        navigate("/");
+      }
       setIsLoading(false);
     }
   }, [navigate]);

@@ -11,6 +11,7 @@ import ProductPage from "./pages/ProductPage";
 import ProductPurchasePage from "./pages/ProductPurchasePage";
 import Dashboard from "./pages/Dashboard";
 import CreatorDashboard from "./pages/CreatorDashboard";
+import TeacherDashboard from "./pages/TeacherDashboard";
 import InstallPage from "./pages/InstallPage";
 import NotFound from "./pages/NotFound";
 
@@ -31,6 +32,7 @@ const App = () => (
                 <Route path="/checkout/:productId" element={<ProductPurchasePage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/creator" element={<CreatorDashboard />} />
+                <Route path="/teacher" element={<TeacherDashboard />} />
                 <Route path="/install" element={<InstallPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
