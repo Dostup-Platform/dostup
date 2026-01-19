@@ -241,6 +241,10 @@ export const translations = {
     teacherSchedule: "Расписание учителя",
     noAccessToProducts: "У вас нет доступа к продуктам",
     contactCreator: "Обратитесь к автору курса для получения доступа",
+    revokeAccess: "Закрыть доступ",
+    revokeAccessTitle: "Закрыть доступ?",
+    revokeAccessDescription: "Вы уверены, что хотите закрыть доступ пользователю",
+    accessRevoked: "Доступ закрыт",
   },
   kk: {
     // Common
@@ -482,6 +486,10 @@ export const translations = {
     teacherSchedule: "Мұғалім кестесі",
     noAccessToProducts: "Сізде өнімдерге қол жеткізу жоқ",
     contactCreator: "Қол жеткізу үшін курс авторына хабарласыңыз",
+    revokeAccess: "Қол жеткізуді жабу",
+    revokeAccessTitle: "Қол жеткізуді жабу керек пе?",
+    revokeAccessDescription: "Сіз бұл пайдаланушының қол жеткізуін жабуға сенімдісіз бе",
+    accessRevoked: "Қол жеткізу жабылды",
   },
 } as const;
 
