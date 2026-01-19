@@ -510,7 +510,12 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
           </Button>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setIsAddingSchedule(true)}>
+          <Button variant="outline" size="sm" onClick={() => {
+            if (products.length === 1) {
+              setScheduleForm({ ...scheduleForm, productId: products[0].id });
+            }
+            setIsAddingSchedule(true);
+          }}>
             <Plus className="w-4 h-4 mr-2" />
             {language === "ru" ? "Расписание" : "Кесте"}
           </Button>
@@ -774,19 +779,26 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
             <DialogTitle>{language === "ru" ? "Создать расписание" : "Кесте жасау"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); createSchedule.mutate(); }} className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label>{language === "ru" ? "Продукт" : "Өнім"} *</Label>
-              <Select value={scheduleForm.productId} onValueChange={(v) => setScheduleForm({ ...scheduleForm, productId: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder={language === "ru" ? "Выберите продукт" : "Өнімді таңдаңыз"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {products.length > 1 && (
+              <div className="space-y-2">
+                <Label>{language === "ru" ? "Продукт" : "Өнім"} *</Label>
+                <Select value={scheduleForm.productId} onValueChange={(v) => setScheduleForm({ ...scheduleForm, productId: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={language === "ru" ? "Выберите продукт" : "Өнімді таңдаңыз"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {products.length === 1 && (
+              <div className="text-sm text-muted-foreground">
+                {language === "ru" ? "Продукт" : "Өнім"}: <span className="font-medium text-foreground">{products[0].title}</span>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>{language === "ru" ? "Название" : "Атауы"} *</Label>
               <Input
