@@ -2,11 +2,22 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Check, Clock, Loader2 } from "lucide-react";
+import { Search, Check, Clock, Loader2, UserX } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
@@ -33,6 +44,7 @@ interface PurchaseWithUser {
 
 const CreatorUsersTab = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [revokeDialog, setRevokeDialog] = useState<{ id: string; name: string } | null>(null);
   const { t } = useLanguage();
   const queryClient = useQueryClient();
   
@@ -107,6 +119,26 @@ const CreatorUsersTab = () => {
     },
     onError: () => {
       toast.error("Ошибка при подтверждении");
+    },
+  });
+
+  // Мутация для отзыва доступа
+  const revokeAccess = useMutation({
+    mutationFn: async (purchaseId: string) => {
+      const { error } = await supabase
+        .from("simple_purchases")
+        .update({ status: "revoked" })
+        .eq("id", purchaseId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-purchases"] });
+      toast.success(t("accessRevoked") || "Доступ закрыт");
+      setRevokeDialog(null);
+    },
+    onError: () => {
+      toast.error("Ошибка при закрытии доступа");
     },
   });
 
@@ -248,11 +280,44 @@ const CreatorUsersTab = () => {
                     </div>
                   </div>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setRevokeDialog({ id: purchase.id, name: purchase.simple_user.name })}
+                  title={t("revokeAccess") || "Закрыть доступ"}
+                >
+                  <UserX className="w-4 h-4" />
+                </Button>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Revoke Access Confirmation Dialog */}
+      <AlertDialog open={!!revokeDialog} onOpenChange={() => setRevokeDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("revokeAccessTitle") || "Закрыть доступ?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("revokeAccessDescription") || "Вы уверены, что хотите закрыть доступ пользователю"} <strong>{revokeDialog?.name}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => revokeDialog && revokeAccess.mutate(revokeDialog.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {revokeAccess.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              {t("revokeAccess") || "Закрыть доступ"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
