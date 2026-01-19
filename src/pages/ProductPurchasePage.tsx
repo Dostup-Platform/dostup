@@ -35,6 +35,7 @@ const ProductPurchasePage = () => {
   const canChoose = teacherParam === "choice";
   
   const [teacherId, setTeacherId] = useState<string | null>(null);
+  const [teacherLoading, setTeacherLoading] = useState(!!teacherParam && teacherParam !== "choice");
   
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -45,10 +46,16 @@ const ProductPurchasePage = () => {
   // Найти teacher_id по имени из URL
   useEffect(() => {
     const findTeacherId = async () => {
-      if (!teacherParam || teacherParam === "choice" || !productId) return;
+      if (!teacherParam || teacherParam === "choice" || !productId) {
+        setTeacherLoading(false);
+        return;
+      }
+      
+      setTeacherLoading(true);
       
       // teacherParam - это имя учителя (закодированное в URL)
       const teacherName = decodeURIComponent(teacherParam);
+      console.log("Looking for teacher:", teacherName);
       
       // Сначала проверяем, что такой учитель есть в product_teachers
       const { data: teacherRecord } = await supabase
@@ -58,7 +65,11 @@ const ProductPurchasePage = () => {
         .eq("teacher_name", teacherName)
         .maybeSingle();
       
-      if (!teacherRecord) return; // Учитель не привязан к этому продукту
+      if (!teacherRecord) {
+        console.log("Teacher not found in product_teachers");
+        setTeacherLoading(false);
+        return;
+      }
       
       // Найти учителя в simple_users по имени
       const { data: teacherUser } = await supabase
@@ -69,9 +80,12 @@ const ProductPurchasePage = () => {
         .maybeSingle();
       
       if (teacherUser) {
+        console.log("Found teacher in simple_users:", teacherUser.id);
         setTeacherId(teacherUser.id);
+        setTeacherLoading(false);
       } else {
         // Создать учителя в simple_users если его ещё нет
+        console.log("Creating new teacher in simple_users");
         const { data: newTeacher, error } = await supabase
           .from("simple_users")
           .insert({
@@ -83,8 +97,10 @@ const ProductPurchasePage = () => {
           .single();
         
         if (!error && newTeacher) {
+          console.log("Created teacher:", newTeacher.id);
           setTeacherId(newTeacher.id);
         }
+        setTeacherLoading(false);
       }
     };
     
@@ -153,7 +169,16 @@ const ProductPurchasePage = () => {
 
   const handleSubmitPurchase = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Подождать загрузки teacherId если ещё грузится
+    if (teacherLoading) {
+      toast.error("Подождите, идёт загрузка...");
+      return;
+    }
+    
     setIsProcessing(true);
+    
+    console.log("Creating purchase with teacherId:", teacherId, "canChoose:", canChoose);
 
     // Зарегистрировать пользователя с полным именем
     const fullName = `${firstName.trim()} ${lastName.trim()}`;
@@ -210,10 +235,14 @@ const ProductPurchasePage = () => {
     // Добавить информацию об учителе если есть
     if (teacherId) {
       insertData.assigned_teacher_id = teacherId;
+      console.log("Adding assigned_teacher_id to purchase:", teacherId);
     }
     if (canChoose) {
       insertData.can_choose_teacher = true;
+      console.log("Setting can_choose_teacher = true");
     }
+    
+    console.log("Final insertData:", insertData);
     
     const { data: purchase, error: purchaseError } = await supabase
       .from("simple_purchases")
