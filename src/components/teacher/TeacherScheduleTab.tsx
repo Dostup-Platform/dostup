@@ -520,7 +520,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
             disabled={schedules.length === 0}
           >
             <Trash2 className="w-4 h-4 mr-2" />
-            {language === "ru" ? "Расписание" : "Кесте"}
+            {language === "ru" ? "Выбрать" : "Таңдау"}
           </Button>
         </div>
       </div>
@@ -576,6 +576,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   <Button
                     variant="outline"
                     size="sm"
+                    className="text-destructive border-destructive/50 hover:bg-destructive/10"
                     onClick={() => {
                       setSelectedScheduleForDelete(schedule);
                       fetchAvailableDates(schedule.id);
@@ -583,6 +584,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                       setIsDeletingSlots(true);
                     }}
                   >
+                    <Trash2 className="w-4 h-4 mr-1" />
                     {language === "ru" ? "Выбрать слоты" : "Слоттарды таңдау"}
                   </Button>
                 </div>
