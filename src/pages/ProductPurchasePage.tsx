@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,9 +25,14 @@ const formatPrice = (price: number) => {
 const ProductPurchasePage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { t } = useLanguage();
   const { user, register } = useSimpleAuth();
   const { data: product, isLoading } = useProduct(productId);
+  
+  // Получить параметры учителя из URL
+  const teacherId = searchParams.get("teacher");
+  const canChoose = searchParams.get("choose") === "true";
   
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -137,14 +142,31 @@ const ProductPurchasePage = () => {
     }
 
     // Создать покупку в статусе pending только если её ещё нет
+    const insertData: {
+      simple_user_id: string;
+      product_id: string | undefined;
+      amount: number;
+      status: string;
+      assigned_teacher_id?: string;
+      can_choose_teacher?: boolean;
+    } = {
+      simple_user_id: newUser.id,
+      product_id: productId,
+      amount: product?.price || 0,
+      status: "pending"
+    };
+    
+    // Добавить информацию об учителе если есть
+    if (teacherId) {
+      insertData.assigned_teacher_id = teacherId;
+    }
+    if (canChoose) {
+      insertData.can_choose_teacher = true;
+    }
+    
     const { data: purchase, error: purchaseError } = await supabase
       .from("simple_purchases")
-      .insert({
-        simple_user_id: newUser.id,
-        product_id: productId,
-        amount: product?.price || 0,
-        status: "pending"
-      })
+      .insert(insertData)
       .select()
       .single();
 

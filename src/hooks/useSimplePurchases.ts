@@ -9,6 +9,8 @@ interface SimplePurchase {
   status: string;
   amount: number;
   created_at: string;
+  can_choose_teacher: boolean | null;
+  assigned_teacher_id: string | null;
   product: {
     id: string;
     title: string;
@@ -63,7 +65,9 @@ export const useSimplePurchases = () => {
           product_id,
           status,
           amount,
-          created_at
+          created_at,
+          can_choose_teacher,
+          assigned_teacher_id
         `)
         .eq("simple_user_id", user.id)
         .eq("status", "completed");
