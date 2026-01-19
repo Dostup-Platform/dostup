@@ -824,15 +824,32 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
             </div>
             <div className="space-y-2">
               <Label>{language === "ru" ? "Перерыв (мин)" : "Үзіліс (мин)"}</Label>
-              <Input
-                type="number"
-                min="0"
-                value={slotsForm.breakDuration}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/^0+(?=\d)/, "");
-                  setSlotsForm({ ...slotsForm, breakDuration: val });
-                }}
-              />
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  value={slotsForm.breakDuration}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/^0+(?=\d)/, "");
+                    setSlotsForm({ ...slotsForm, breakDuration: val });
+                  }}
+                  className="flex-1"
+                />
+                <div className="flex gap-1">
+                  {[0, 5, 10, 15].map((duration) => (
+                    <Button
+                      key={duration}
+                      type="button"
+                      variant={slotsForm.breakDuration === String(duration) ? "default" : "outline"}
+                      size="sm"
+                      className="px-2 text-xs"
+                      onClick={() => setSlotsForm({ ...slotsForm, breakDuration: String(duration) })}
+                    >
+                      {duration}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => { setIsAddingSlots(false); setSelectedScheduleForSlots(null); }}>
