@@ -485,7 +485,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
 
   return (
     <div className="space-y-6">
-      {/* Schedule Type Toggle + Create Button */}
+      {/* Schedule Type Toggle + Create/Delete Buttons */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex gap-2">
           <Button
@@ -507,10 +507,22 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
             {t("group")}
           </Button>
         </div>
-        <Button size="sm" onClick={() => setIsAddingSchedule(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          {t("create")}
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => setIsAddingSchedule(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            {t("create")}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="text-destructive border-destructive/50 hover:bg-destructive/10"
+            onClick={() => setIsDeletingSlots(true)}
+            disabled={schedules.length === 0}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            {language === "ru" ? "Расписание" : "Кесте"}
+          </Button>
+        </div>
       </div>
 
       {/* Schedules List */}
@@ -564,7 +576,6 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-destructive border-destructive/50 hover:bg-destructive/10"
                     onClick={() => {
                       setSelectedScheduleForDelete(schedule);
                       fetchAvailableDates(schedule.id);
@@ -572,16 +583,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                       setIsDeletingSlots(true);
                     }}
                   >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    {language === "ru" ? "Удалить" : "Жою"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => setDeletingSchedule(schedule)}
-                  >
-                    <Trash2 className="w-4 h-4" />
+                    {language === "ru" ? "Выбрать слоты" : "Слоттарды таңдау"}
                   </Button>
                 </div>
               </CardContent>
@@ -996,12 +998,74 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
       </AlertDialog>
 
       {/* Delete Multiple Slots Dialog */}
-      <Dialog open={isDeletingSlots} onOpenChange={(open) => { if (!open) { setIsDeletingSlots(false); setSelectedScheduleForDelete(null); setSlotsToDeleteDates([]); } }}>
+      <Dialog open={isDeletingSlots} onOpenChange={(open) => { if (!open) { setIsDeletingSlots(false); setSelectedScheduleForDelete(null); setSlotsToDeleteDates([]); setAvailableDatesForDelete([]); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{language === "ru" ? "Удалить слоты" : "Слоттарды жою"}: {selectedScheduleForDelete?.title}</DialogTitle>
+            <DialogTitle>{language === "ru" ? "Удалить слоты" : "Слоттарды жою"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
+          
+          {/* Schedule Selection (if not already selected) */}
+          {!selectedScheduleForDelete ? (
+            <div className="space-y-4 mt-4">
+              <Label>{language === "ru" ? "Выберите расписание" : "Кестені таңдаңыз"}</Label>
+              {schedules.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  {language === "ru" ? "Нет расписаний" : "Кестелер жоқ"}
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {schedules.map((schedule) => (
+                    <Button
+                      key={schedule.id}
+                      variant="outline"
+                      className="w-full justify-start gap-3 h-auto py-3"
+                      onClick={() => {
+                        setSelectedScheduleForDelete(schedule);
+                        fetchAvailableDates(schedule.id);
+                        setSlotsToDeleteDates([]);
+                      }}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        {schedule.event_type === "group" ? (
+                          <Users className="w-4 h-4 text-primary" />
+                        ) : (
+                          <User className="w-4 h-4 text-primary" />
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">{schedule.title}</p>
+                        <p className="text-xs text-muted-foreground">{schedule.product?.title}</p>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mt-2 mb-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedScheduleForDelete(null);
+                    setSlotsToDeleteDates([]);
+                    setAvailableDatesForDelete([]);
+                  }}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  {language === "ru" ? "Назад" : "Артқа"}
+                </Button>
+                <div className="flex items-center gap-2">
+                  {selectedScheduleForDelete.event_type === "group" ? (
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <User className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <span className="font-medium">{selectedScheduleForDelete.title}</span>
+                </div>
+              </div>
+          <div className="space-y-4">
             {availableDatesForDelete.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">
                 {language === "ru" ? "Нет слотов для удаления" : "Жоюға слоттар жоқ"}
@@ -1078,6 +1142,8 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
               </Button>
             </div>
           </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
