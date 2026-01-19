@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Phone, Check, Clock, Loader2 } from "lucide-react";
+import { Search, Check, Clock, Loader2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -171,12 +171,6 @@ const CreatorUsersTab = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-foreground">{purchase.simple_user.name}</h3>
-                    <div className="mt-2 space-y-1">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Phone className="w-4 h-4" />
-                        <span>{purchase.simple_user.phone}</span>
-                      </div>
-                    </div>
                     
                     <div className="mt-3 pt-3 border-t border-border">
                       <div className="flex items-center justify-between text-sm">
@@ -241,12 +235,6 @@ const CreatorUsersTab = () => {
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-foreground">{purchase.simple_user.name}</h3>
                     <Check className="w-4 h-4 text-success" />
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Phone className="w-4 h-4" />
-                      <span>{purchase.simple_user.phone}</span>
-                    </div>
                   </div>
                   
                   <div className="mt-3 pt-3 border-t border-border">
