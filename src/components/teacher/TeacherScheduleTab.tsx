@@ -82,10 +82,12 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
   const [cancelingBooking, setCancelingBooking] = useState<Booking | null>(null);
   const [deletingSlot, setDeletingSlot] = useState<TimeSlot | null>(null);
   const [isDeletingSlots, setIsDeletingSlots] = useState(false);
+  const [isDeletingSchedule, setIsDeletingSchedule] = useState(false);
   const [selectedScheduleForDelete, setSelectedScheduleForDelete] = useState<Schedule | null>(null);
   const [slotsToDeleteDates, setSlotsToDeleteDates] = useState<string[]>([]);
   const [availableDatesForDelete, setAvailableDatesForDelete] = useState<string[]>([]);
   const [confirmDeleteSlots, setConfirmDeleteSlots] = useState(false);
+  const [confirmDeleteSchedule, setConfirmDeleteSchedule] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
 
   const [scheduleForm, setScheduleForm] = useState({
@@ -510,13 +512,13 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
         <div className="flex gap-2">
           <Button size="sm" onClick={() => setIsAddingSchedule(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            {t("create")}
+            {language === "ru" ? "Расписание" : "Кесте"}
           </Button>
           <Button 
             variant="outline" 
             size="sm" 
             className="text-destructive border-destructive/50 hover:bg-destructive/10"
-            onClick={() => setIsDeletingSlots(true)}
+            onClick={() => setIsDeletingSchedule(true)}
             disabled={schedules.length === 0}
           >
             <Trash2 className="w-4 h-4 mr-2" />
@@ -585,7 +587,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                     }}
                   >
                     <Trash2 className="w-4 h-4 mr-1" />
-                    {language === "ru" ? "Выбрать слоты" : "Слоттарды таңдау"}
+                    {language === "ru" ? "Выбрать" : "Таңдау"}
                   </Button>
                 </div>
               </CardContent>
@@ -1182,6 +1184,81 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMultipleSlots.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Schedule Dialog */}
+      <Dialog open={isDeletingSchedule} onOpenChange={(open) => { if (!open) { setIsDeletingSchedule(false); setSelectedScheduleForDelete(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{language === "ru" ? "Удалить расписание" : "Кестені жою"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <Label>{language === "ru" ? "Выберите расписание для удаления" : "Жою үшін кестені таңдаңыз"}</Label>
+            {schedules.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">
+                {language === "ru" ? "Нет расписаний" : "Кестелер жоқ"}
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {schedules.map((schedule) => (
+                  <Button
+                    key={schedule.id}
+                    variant="outline"
+                    className="w-full justify-start gap-3 h-auto py-3"
+                    onClick={() => {
+                      setSelectedScheduleForDelete(schedule);
+                      setConfirmDeleteSchedule(true);
+                    }}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      {schedule.event_type === "group" ? (
+                        <Users className="w-4 h-4 text-primary" />
+                      ) : (
+                        <User className="w-4 h-4 text-primary" />
+                      )}
+                    </div>
+                    <div className="text-left">
+                      <p className="font-medium">{schedule.title}</p>
+                      <p className="text-xs text-muted-foreground">{schedule.product?.title}</p>
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Delete Schedule AlertDialog */}
+      <AlertDialog open={confirmDeleteSchedule} onOpenChange={setConfirmDeleteSchedule}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === "ru" ? "Удалить расписание?" : "Кестені жою керек пе?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {language === "ru" 
+                ? `Вы уверены, что хотите удалить расписание "${selectedScheduleForDelete?.title}"? Все слоты и записи будут удалены. Это действие нельзя отменить.`
+                : `"${selectedScheduleForDelete?.title}" кестесін жойғыңыз келетініне сенімдісіз бе? Барлық слоттар мен жазбалар жойылады. Бұл әрекетті болдырмау мүмкін емес.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedScheduleForDelete) {
+                  deleteSchedule.mutate(selectedScheduleForDelete.id);
+                  setConfirmDeleteSchedule(false);
+                  setIsDeletingSchedule(false);
+                  setSelectedScheduleForDelete(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteSchedule.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
