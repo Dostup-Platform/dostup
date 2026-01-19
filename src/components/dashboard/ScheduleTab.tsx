@@ -56,6 +56,8 @@ const ScheduleTab = () => {
     const loadTeachers = async () => {
       if (!purchases || purchases.length === 0) return;
       
+      console.log("ScheduleTab: Loading teachers for purchases:", purchases);
+      
       // Проверяем, есть ли покупки с can_choose_teacher
       const purchaseWithChoice = purchases.find(p => p.can_choose_teacher);
       setCanChooseTeacher(!!purchaseWithChoice);
@@ -63,6 +65,7 @@ const ScheduleTab = () => {
       if (!purchaseWithChoice) {
         // Если нельзя выбирать учителя, используем assigned_teacher_id
         const assignedTeacherId = purchases.find(p => p.assigned_teacher_id)?.assigned_teacher_id;
+        console.log("ScheduleTab: No choice mode, assigned_teacher_id:", assignedTeacherId);
         if (assignedTeacherId) {
           setSelectedTeacherId(assignedTeacherId);
         }
@@ -86,6 +89,7 @@ const ScheduleTab = () => {
           .eq("role", "teacher");
         
         if (teacherUsers) {
+          console.log("ScheduleTab: Found teachers:", teacherUsers);
           setTeachers(teacherUsers.map(u => ({ id: u.id, name: u.name })));
         }
       }
@@ -98,13 +102,21 @@ const ScheduleTab = () => {
   const filteredSchedules = useMemo(() => {
     if (!schedules) return [];
     
+    console.log("ScheduleTab: Filtering schedules. selectedTeacherId:", selectedTeacherId, "canChooseTeacher:", canChooseTeacher);
+    console.log("ScheduleTab: All schedules:", schedules);
+    
     if (selectedTeacherId) {
-      return schedules.filter(s => s.teacher_id === selectedTeacherId || !s.teacher_id);
+      // Показываем расписания назначенного учителя
+      const filtered = schedules.filter(s => s.teacher_id === selectedTeacherId);
+      console.log("ScheduleTab: Filtered by teacher:", filtered);
+      return filtered;
     }
     
     // Если не выбран учитель и нельзя выбирать - показываем только расписания автора (без teacher_id)
     if (!canChooseTeacher) {
-      return schedules.filter(s => !s.teacher_id);
+      const filtered = schedules.filter(s => !s.teacher_id);
+      console.log("ScheduleTab: Filtered for author (no teacher_id):", filtered);
+      return filtered;
     }
     
     return schedules;
