@@ -98,20 +98,37 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
     breakDuration: "0",
   });
 
-  // Get teacher's user ID
+  // Get or create teacher's user ID
   useEffect(() => {
-    const getTeacherId = async () => {
-      const { data } = await supabase
+    const getOrCreateTeacherId = async () => {
+      // First try to find existing user by name
+      const { data: existingUser } = await supabase
         .from("simple_users")
         .select("id")
         .eq("name", teacherName)
+        .maybeSingle();
+      
+      if (existingUser) {
+        setTeacherId(existingUser.id);
+        return;
+      }
+      
+      // If not found, create a new simple_users entry for this teacher
+      const { data: newUser, error } = await supabase
+        .from("simple_users")
+        .insert({
+          name: teacherName,
+          phone: `teacher_${Date.now()}`,
+          role: "teacher",
+        })
+        .select("id")
         .single();
       
-      if (data) {
-        setTeacherId(data.id);
+      if (!error && newUser) {
+        setTeacherId(newUser.id);
       }
     };
-    getTeacherId();
+    getOrCreateTeacherId();
   }, [teacherName]);
 
   // Fetch products info
