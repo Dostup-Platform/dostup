@@ -13,8 +13,10 @@ interface SimpleAuthContextType {
   user: SimpleUser | null;
   loading: boolean;
   register: (name: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
+  loginOrRegister: (name: string) => Promise<{ user: SimpleUser | null; error: Error | null; isNewUser: boolean }>;
   login: (phone: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
   loginById: (userId: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
+  loginByName: (name: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
   setRole: (role: "student" | "creator") => Promise<{ error: Error | null }>;
   logout: () => void;
   lastUserId: string | null;
@@ -98,6 +100,60 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
     return { user: data as SimpleUser, error: null };
   };
 
+  // Найти пользователя по имени или создать нового
+  const loginOrRegister = async (name: string) => {
+    // Сначала пробуем найти существующего пользователя по имени
+    const { data: existingUser, error: searchError } = await supabase
+      .from("simple_users")
+      .select("*")
+      .eq("name", name)
+      .maybeSingle();
+
+    if (searchError) {
+      return { user: null, error: new Error(searchError.message), isNewUser: false };
+    }
+
+    // Если пользователь найден - входим
+    if (existingUser) {
+      setUser(existingUser as SimpleUser);
+      localStorage.setItem(USER_STORAGE_KEY, existingUser.id);
+      return { user: existingUser as SimpleUser, error: null, isNewUser: false };
+    }
+
+    // Если не найден - создаём нового
+    const uniqueId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    const { data, error } = await supabase
+      .from("simple_users")
+      .insert({ name, phone: uniqueId })
+      .select()
+      .single();
+
+    if (error) {
+      return { user: null, error: new Error(error.message), isNewUser: false };
+    }
+
+    setUser(data as SimpleUser);
+    localStorage.setItem(USER_STORAGE_KEY, data.id);
+    return { user: data as SimpleUser, error: null, isNewUser: true };
+  };
+
+  const loginByName = async (name: string) => {
+    const { data, error } = await supabase
+      .from("simple_users")
+      .select("*")
+      .eq("name", name)
+      .single();
+
+    if (error || !data) {
+      return { user: null, error: new Error("Пользователь не найден") };
+    }
+
+    setUser(data as SimpleUser);
+    localStorage.setItem(USER_STORAGE_KEY, data.id);
+    return { user: data as SimpleUser, error: null };
+  };
+
   const login = async (phone: string) => {
     const { data, error } = await supabase
       .from("simple_users")
@@ -174,9 +230,11 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
     <SimpleAuthContext.Provider value={{ 
       user, 
       loading, 
-      register, 
+      register,
+      loginOrRegister,
       login, 
       loginById,
+      loginByName,
       setRole, 
       logout,
       lastUserId,

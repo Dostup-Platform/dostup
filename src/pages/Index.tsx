@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user, loading, register, loginById, lastUserId, lastUserName, clearLastUser } = useSimpleAuth();
+  const { user, loading, loginOrRegister, loginById, lastUserId, lastUserName, clearLastUser } = useSimpleAuth();
   const { t } = useLanguage();
   
   const [firstName, setFirstName] = useState("");
@@ -69,7 +69,7 @@ const Index = () => {
     setIsSubmitting(true);
 
     const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-    const { user: newUser, error } = await register(fullName);
+    const { user: foundUser, error, isNewUser } = await loginOrRegister(fullName);
 
     if (error) {
       toast.error(error.message);
@@ -77,9 +77,18 @@ const Index = () => {
       return;
     }
 
-    if (newUser) {
-      // Показать выбор роли
-      setShowRoleSelection(true);
+    if (foundUser) {
+      if (isNewUser) {
+        // Новый пользователь - показать выбор роли
+        setShowRoleSelection(true);
+      } else {
+        // Существующий пользователь - перейти в dashboard
+        if (foundUser.role === "student" || !foundUser.role) {
+          navigate("/dashboard");
+        } else if (foundUser.role === "creator") {
+          navigate("/creator");
+        }
+      }
     }
     setIsSubmitting(false);
   };
