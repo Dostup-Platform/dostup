@@ -793,27 +793,46 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{language === "ru" ? "Длительность (мин)" : "Ұзақтығы (мин)"}</Label>
+            <div className="space-y-2">
+              <Label>{language === "ru" ? "Длительность (мин)" : "Ұзақтығы (мин)"}</Label>
+              <div className="flex gap-2">
                 <Input
                   type="number"
-                  min="15"
-                  step="15"
+                  min="1"
                   value={slotsForm.slotDuration}
-                  onChange={(e) => setSlotsForm({ ...slotsForm, slotDuration: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/^0+(?=\d)/, "");
+                    setSlotsForm({ ...slotsForm, slotDuration: val });
+                  }}
+                  className="flex-1"
                 />
+                <div className="flex gap-1">
+                  {[50, 60, 90, 120].map((duration) => (
+                    <Button
+                      key={duration}
+                      type="button"
+                      variant={slotsForm.slotDuration === String(duration) ? "default" : "outline"}
+                      size="sm"
+                      className="px-2 text-xs"
+                      onClick={() => setSlotsForm({ ...slotsForm, slotDuration: String(duration) })}
+                    >
+                      {duration}
+                    </Button>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>{language === "ru" ? "Перерыв (мин)" : "Үзіліс (мин)"}</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="5"
-                  value={slotsForm.breakDuration}
-                  onChange={(e) => setSlotsForm({ ...slotsForm, breakDuration: e.target.value })}
-                />
-              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{language === "ru" ? "Перерыв (мин)" : "Үзіліс (мин)"}</Label>
+              <Input
+                type="number"
+                min="0"
+                value={slotsForm.breakDuration}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/^0+(?=\d)/, "");
+                  setSlotsForm({ ...slotsForm, breakDuration: val });
+                }}
+              />
             </div>
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => { setIsAddingSlots(false); setSelectedScheduleForSlots(null); }}>
