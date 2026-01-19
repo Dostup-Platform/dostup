@@ -379,6 +379,14 @@ const CreatorProductsTab = () => {
                   <Button
                     variant="ghost"
                     size="icon"
+                    onClick={() => setShareProduct({ id: product.id, title: product.title })}
+                    title={t("copyLink")}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleEdit(product)}
                     title={t("edit")}
                   >
@@ -388,14 +396,6 @@ const CreatorProductsTab = () => {
                     <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
                       <ExternalLink className="w-4 h-4" />
                     </a>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShareProduct({ id: product.id, title: product.title })}
-                    title={t("copyLink")}
-                  >
-                    <Copy className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
