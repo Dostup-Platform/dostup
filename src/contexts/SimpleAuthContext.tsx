@@ -81,6 +81,20 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
   }, []);
 
   const register = async (name: string) => {
+    // Сначала проверяем, существует ли уже пользователь с таким именем
+    const { data: existingUsers } = await supabase
+      .from("simple_users")
+      .select("*")
+      .eq("name", name)
+      .limit(1);
+
+    if (existingUsers && existingUsers.length > 0) {
+      const existingUser = existingUsers[0];
+      setUser(existingUser as SimpleUser);
+      localStorage.setItem(USER_STORAGE_KEY, existingUser.id);
+      return { user: existingUser as SimpleUser, error: null };
+    }
+
     // Генерируем уникальный идентификатор вместо телефона
     const uniqueId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     
@@ -92,6 +106,21 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       .single();
 
     if (error) {
+      // Обработка ошибки уникальности (race condition)
+      if (error.code === '23505') {
+        const { data: raceUser } = await supabase
+          .from("simple_users")
+          .select("*")
+          .eq("name", name)
+          .limit(1)
+          .single();
+        
+        if (raceUser) {
+          setUser(raceUser as SimpleUser);
+          localStorage.setItem(USER_STORAGE_KEY, raceUser.id);
+          return { user: raceUser as SimpleUser, error: null };
+        }
+      }
       return { user: null, error: new Error(error.message) };
     }
 
@@ -132,6 +161,21 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       .single();
 
     if (error) {
+      // Обработка ошибки уникальности (race condition - пользователь создан параллельно)
+      if (error.code === '23505') {
+        const { data: raceUser } = await supabase
+          .from("simple_users")
+          .select("*")
+          .eq("name", name)
+          .limit(1)
+          .single();
+        
+        if (raceUser) {
+          setUser(raceUser as SimpleUser);
+          localStorage.setItem(USER_STORAGE_KEY, raceUser.id);
+          return { user: raceUser as SimpleUser, error: null, isNewUser: false };
+        }
+      }
       return { user: null, error: new Error(error.message), isNewUser: false };
     }
 
