@@ -384,6 +384,11 @@ const CreatorProductsTab = () => {
                   >
                     <Copy className="w-4 h-4" />
                   </Button>
+                  <Button variant="ghost" size="icon" asChild title={t("view")}>
+                    <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -391,11 +396,6 @@ const CreatorProductsTab = () => {
                     title={t("edit")}
                   >
                     <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" asChild title={t("view")}>
-                    <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
                   </Button>
                   <Button
                     variant="ghost"
