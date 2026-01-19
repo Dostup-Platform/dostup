@@ -31,14 +31,65 @@ const ProductPurchasePage = () => {
   const { data: product, isLoading } = useProduct(productId);
   
   // Получить параметры учителя из URL
-  const teacherId = searchParams.get("teacher");
-  const canChoose = searchParams.get("choose") === "true";
+  const teacherParam = searchParams.get("teacher");
+  const canChoose = teacherParam === "choice";
+  
+  const [teacherId, setTeacherId] = useState<string | null>(null);
   
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<"form" | "pending" | "completed">("form");
   const [purchaseId, setPurchaseId] = useState<string | null>(null);
+
+  // Найти teacher_id по имени из URL
+  useEffect(() => {
+    const findTeacherId = async () => {
+      if (!teacherParam || teacherParam === "choice" || !productId) return;
+      
+      // teacherParam - это имя учителя (закодированное в URL)
+      const teacherName = decodeURIComponent(teacherParam);
+      
+      // Сначала проверяем, что такой учитель есть в product_teachers
+      const { data: teacherRecord } = await supabase
+        .from("product_teachers")
+        .select("id, teacher_name")
+        .eq("product_id", productId)
+        .eq("teacher_name", teacherName)
+        .maybeSingle();
+      
+      if (!teacherRecord) return; // Учитель не привязан к этому продукту
+      
+      // Найти учителя в simple_users по имени
+      const { data: teacherUser } = await supabase
+        .from("simple_users")
+        .select("id")
+        .eq("name", teacherName)
+        .eq("role", "teacher")
+        .maybeSingle();
+      
+      if (teacherUser) {
+        setTeacherId(teacherUser.id);
+      } else {
+        // Создать учителя в simple_users если его ещё нет
+        const { data: newTeacher, error } = await supabase
+          .from("simple_users")
+          .insert({
+            name: teacherName,
+            phone: `teacher_${Date.now()}`,
+            role: "teacher",
+          })
+          .select("id")
+          .single();
+        
+        if (!error && newTeacher) {
+          setTeacherId(newTeacher.id);
+        }
+      }
+    };
+    
+    findTeacherId();
+  }, [teacherParam, productId]);
 
   // Проверить статус покупки при загрузке
   useEffect(() => {
