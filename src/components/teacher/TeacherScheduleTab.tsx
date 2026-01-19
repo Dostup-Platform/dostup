@@ -242,7 +242,10 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
       setIsAddingSchedule(false);
       setScheduleForm({ title: "", productId: "", maxParticipants: "10" });
     },
-    onError: () => toast.error(language === "ru" ? "Ошибка при создании" : "Жасау кезінде қате"),
+    onError: (error) => {
+      console.error("Schedule creation error:", error);
+      toast.error(language === "ru" ? "Ошибка при создании" : "Жасау кезінде қате");
+    },
   });
 
   // Delete schedule mutation
