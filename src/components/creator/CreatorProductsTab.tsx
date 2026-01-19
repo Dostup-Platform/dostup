@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText, Users, Share2 } from "lucide-react";
+import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText, Users } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -177,11 +177,7 @@ const CreatorProductsTab = () => {
     });
   };
 
-  const copyLink = (productId: string) => {
-    const link = `${window.location.origin}/product/${productId}`;
-    navigator.clipboard.writeText(link);
-    toast.success(t("linkCopied"));
-  };
+  // copyLink function removed - now using ShareLinkDialog for all link copying
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -396,18 +392,10 @@ const CreatorProductsTab = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => copyLink(product.id)}
+                    onClick={() => setShareProduct({ id: product.id, title: product.title })}
                     title={t("copyLink")}
                   >
                     <Copy className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShareProduct({ id: product.id, title: product.title })}
-                    title={language === "ru" ? "Поделиться с выбором учителя" : "Мұғалімді таңдау арқылы бөлісу"}
-                  >
-                    <Share2 className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
