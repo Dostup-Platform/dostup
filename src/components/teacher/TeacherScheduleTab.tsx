@@ -81,6 +81,10 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
   const [deletingSchedule, setDeletingSchedule] = useState<Schedule | null>(null);
   const [cancelingBooking, setCancelingBooking] = useState<Booking | null>(null);
   const [deletingSlot, setDeletingSlot] = useState<TimeSlot | null>(null);
+  const [isDeletingSlots, setIsDeletingSlots] = useState(false);
+  const [selectedScheduleForDelete, setSelectedScheduleForDelete] = useState<Schedule | null>(null);
+  const [slotsToDeleteDates, setSlotsToDeleteDates] = useState<string[]>([]);
+  const [availableDatesForDelete, setAvailableDatesForDelete] = useState<string[]>([]);
   const [teacherId, setTeacherId] = useState<string | null>(null);
 
   const [scheduleForm, setScheduleForm] = useState({
@@ -354,6 +358,47 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
     onError: () => toast.error(language === "ru" ? "Ошибка при удалении" : "Жою кезінде қате"),
   });
 
+  // Delete multiple time slots mutation
+  const deleteMultipleSlots = useMutation({
+    mutationFn: async ({ scheduleId, dates }: { scheduleId: string; dates: string[] | "all" }) => {
+      if (dates === "all") {
+        const { error } = await supabase
+          .from("time_slots")
+          .delete()
+          .eq("schedule_id", scheduleId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("time_slots")
+          .delete()
+          .eq("schedule_id", scheduleId)
+          .in("date", dates);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
+      toast.success(language === "ru" ? "Слоты удалены!" : "Слоттар жойылды!");
+      setIsDeletingSlots(false);
+      setSelectedScheduleForDelete(null);
+      setSlotsToDeleteDates([]);
+    },
+    onError: () => toast.error(language === "ru" ? "Ошибка при удалении" : "Жою кезінде қате"),
+  });
+
+  // Fetch available dates for delete dialog
+  const fetchAvailableDates = async (scheduleId: string) => {
+    const { data } = await supabase
+      .from("time_slots")
+      .select("date")
+      .eq("schedule_id", scheduleId)
+      .order("date");
+    if (data) {
+      const uniqueDates = [...new Set(data.map(s => s.date))];
+      setAvailableDatesForDelete(uniqueDates);
+    }
+  };
+
   // Week navigation
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
@@ -514,6 +559,20 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   >
                     <Plus className="w-4 h-4 mr-1" />
                     {language === "ru" ? "Слоты" : "Слоттар"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                    onClick={() => {
+                      setSelectedScheduleForDelete(schedule);
+                      fetchAvailableDates(schedule.id);
+                      setSlotsToDeleteDates([]);
+                      setIsDeletingSlots(true);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    {language === "ru" ? "Удалить" : "Жою"}
                   </Button>
                   <Button
                     variant="ghost"
@@ -934,6 +993,100 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete Multiple Slots Dialog */}
+      <Dialog open={isDeletingSlots} onOpenChange={(open) => { if (!open) { setIsDeletingSlots(false); setSelectedScheduleForDelete(null); setSlotsToDeleteDates([]); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{language === "ru" ? "Удалить слоты" : "Слоттарды жою"}: {selectedScheduleForDelete?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            {availableDatesForDelete.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">
+                {language === "ru" ? "Нет слотов для удаления" : "Жоюға слоттар жоқ"}
+              </p>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>{language === "ru" ? "Выберите даты для удаления" : "Жою үшін күндерді таңдаңыз"}</Label>
+                  <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-2 border rounded-md">
+                    {availableDatesForDelete.map((date) => {
+                      const isSelected = slotsToDeleteDates.includes(date);
+                      return (
+                        <Button
+                          key={date}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSlotsToDeleteDates(slotsToDeleteDates.filter(d => d !== date));
+                            } else {
+                              setSlotsToDeleteDates([...slotsToDeleteDates, date]);
+                            }
+                          }}
+                        >
+                          {format(new Date(date), "d MMM", { locale: ru })}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {language === "ru" 
+                      ? `Выбрано: ${slotsToDeleteDates.length} из ${availableDatesForDelete.length}` 
+                      : `Таңдалды: ${slotsToDeleteDates.length} / ${availableDatesForDelete.length}`}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      if (slotsToDeleteDates.length === availableDatesForDelete.length) {
+                        setSlotsToDeleteDates([]);
+                      } else {
+                        setSlotsToDeleteDates([...availableDatesForDelete]);
+                      }
+                    }}
+                  >
+                    {slotsToDeleteDates.length === availableDatesForDelete.length 
+                      ? (language === "ru" ? "Снять всё" : "Барлығын алу") 
+                      : (language === "ru" ? "Выбрать все" : "Барлығын таңдау")}
+                  </Button>
+                </div>
+              </>
+            )}
+            <div className="flex gap-2 pt-2 border-t">
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="flex-1" 
+                onClick={() => { setIsDeletingSlots(false); setSelectedScheduleForDelete(null); setSlotsToDeleteDates([]); }}
+              >
+                {t("cancel")}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                className="flex-1"
+                disabled={slotsToDeleteDates.length === 0 || deleteMultipleSlots.isPending}
+                onClick={() => {
+                  if (selectedScheduleForDelete) {
+                    const isAll = slotsToDeleteDates.length === availableDatesForDelete.length;
+                    deleteMultipleSlots.mutate({
+                      scheduleId: selectedScheduleForDelete.id,
+                      dates: isAll ? "all" : slotsToDeleteDates,
+                    });
+                  }
+                }}
+              >
+                {deleteMultipleSlots.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
