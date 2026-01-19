@@ -102,19 +102,21 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
 
   // Найти пользователя по имени или создать нового
   const loginOrRegister = async (name: string) => {
-    // Сначала пробуем найти существующего пользователя по имени
-    const { data: existingUser, error: searchError } = await supabase
+    // Сначала пробуем найти существующих пользователей по имени (может быть несколько)
+    const { data: existingUsers, error: searchError } = await supabase
       .from("simple_users")
       .select("*")
       .eq("name", name)
-      .maybeSingle();
+      .order("created_at", { ascending: true })
+      .limit(1);
 
     if (searchError) {
       return { user: null, error: new Error(searchError.message), isNewUser: false };
     }
 
-    // Если пользователь найден - входим
-    if (existingUser) {
+    // Если пользователь найден - входим в первый (самый старый) аккаунт
+    if (existingUsers && existingUsers.length > 0) {
+      const existingUser = existingUsers[0];
       setUser(existingUser as SimpleUser);
       localStorage.setItem(USER_STORAGE_KEY, existingUser.id);
       return { user: existingUser as SimpleUser, error: null, isNewUser: false };
@@ -139,15 +141,18 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
   };
 
   const loginByName = async (name: string) => {
-    const { data, error } = await supabase
+    const { data: users, error } = await supabase
       .from("simple_users")
       .select("*")
       .eq("name", name)
-      .single();
+      .order("created_at", { ascending: true })
+      .limit(1);
 
-    if (error || !data) {
+    if (error || !users || users.length === 0) {
       return { user: null, error: new Error("Пользователь не найден") };
     }
+    
+    const data = users[0];
 
     setUser(data as SimpleUser);
     localStorage.setItem(USER_STORAGE_KEY, data.id);
