@@ -756,9 +756,16 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-2 h-2 rounded-full ${styles.dot}`} />
-                        <span className="font-medium">
-                          {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium">
+                            {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
+                          </span>
+                          {filteredSchedules.length > 1 && schedule && (
+                            <span className="text-[10px] text-muted-foreground leading-tight">
+                              {schedule.title}
+                            </span>
+                          )}
+                        </div>
                         {isGroup && (
                           <span className="text-xs text-muted-foreground">
                             ({slotBookings.length}/{maxParticipants})
