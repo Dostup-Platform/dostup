@@ -510,7 +510,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
           </Button>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" onClick={() => setIsAddingSchedule(true)}>
+          <Button variant="outline" size="sm" onClick={() => setIsAddingSchedule(true)}>
             <Plus className="w-4 h-4 mr-2" />
             {language === "ru" ? "Расписание" : "Кесте"}
           </Button>
