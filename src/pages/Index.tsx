@@ -26,10 +26,15 @@ const Index = () => {
   const [showCreatorLogin, setShowCreatorLogin] = useState(false);
   const [showTeacherLogin, setShowTeacherLogin] = useState(false);
   const [showRegistrationForm, setShowRegistrationForm] = useState(false);
+  const [showTeacherForm, setShowTeacherForm] = useState(false);
   const [teacherFirstName, setTeacherFirstName] = useState("");
   const [teacherLastName, setTeacherLastName] = useState("");
   const [isTeacherLogging, setIsTeacherLogging] = useState(false);
   const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
+  
+  // Получаем данные последнего учителя
+  const lastTeacherData = localStorage.getItem("last_teacher_data");
+  const lastTeacher = lastTeacherData ? JSON.parse(lastTeacherData) : null;
 
   // Если создатель уже вошёл, перенаправить
   useEffect(() => {
@@ -157,6 +162,8 @@ const Index = () => {
         productIds: teacherRecords.map(r => r.product_id)
       };
       localStorage.setItem("teacher_data", JSON.stringify(teacherData));
+      // Сохраняем для быстрого входа в следующий раз
+      localStorage.setItem("last_teacher_data", JSON.stringify(teacherData));
       
       toast.success(t("welcomeCreator"));
       navigate("/teacher");
@@ -166,6 +173,49 @@ const Index = () => {
     } finally {
       setIsTeacherLogging(false);
     }
+  };
+
+  const handleLoginAsLastTeacher = async () => {
+    if (!lastTeacher) return;
+    
+    setIsTeacherLogging(true);
+    
+    try {
+      // Проверяем, что учитель всё ещё существует
+      const { data: teacherRecords, error } = await supabase
+        .from("product_teachers")
+        .select("id, teacher_name, product_id")
+        .ilike("teacher_name", lastTeacher.name);
+      
+      if (error) throw error;
+      
+      if (!teacherRecords || teacherRecords.length === 0) {
+        toast.error(t("teacherNotFound"));
+        localStorage.removeItem("last_teacher_data");
+        setIsTeacherLogging(false);
+        return;
+      }
+      
+      // Обновляем данные учителя
+      const teacherData = {
+        name: lastTeacher.name,
+        productIds: teacherRecords.map(r => r.product_id)
+      };
+      localStorage.setItem("teacher_data", JSON.stringify(teacherData));
+      
+      toast.success(t("welcomeCreator"));
+      navigate("/teacher");
+    } catch (error) {
+      console.error("Teacher login error:", error);
+      toast.error(t("teacherNotFound"));
+    } finally {
+      setIsTeacherLogging(false);
+    }
+  };
+
+  const handleClearLastTeacher = () => {
+    localStorage.removeItem("last_teacher_data");
+    setShowTeacherForm(true);
   };
 
   if (loading) {
@@ -187,6 +237,8 @@ const Index = () => {
 
   // Teacher login form
   if (showTeacherLogin) {
+    const showLastTeacherOption = lastTeacher && !showTeacherForm;
+    
     return (
       <div className="min-h-screen bg-gradient-hero flex flex-col">
         <div className="absolute top-4 right-4 z-20">
@@ -196,7 +248,10 @@ const Index = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowTeacherLogin(false)}
+            onClick={() => {
+              setShowTeacherLogin(false);
+              setShowTeacherForm(false);
+            }}
           >
             <X className="w-4 h-4 mr-2" />
             {t("back")}
@@ -212,50 +267,93 @@ const Index = () => {
               <CardTitle className="text-2xl font-bold">{t("teacherLogin")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleTeacherLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="teacherFirstName">{t("firstName")}</Label>
-                  <Input
-                    id="teacherFirstName"
-                    type="text"
-                    placeholder={t("firstNamePlaceholder")}
-                    value={teacherFirstName}
-                    onChange={(e) => setTeacherFirstName(e.target.value)}
-                    required
-                    className="h-12"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="teacherLastName">{t("lastName")}</Label>
-                  <Input
-                    id="teacherLastName"
-                    type="text"
-                    placeholder={t("lastNamePlaceholder")}
-                    value={teacherLastName}
-                    onChange={(e) => setTeacherLastName(e.target.value)}
-                    required
-                    className="h-12"
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  variant="cta"
-                  size="lg"
-                  className="w-full mt-6"
-                  disabled={isTeacherLogging || !teacherFirstName.trim() || !teacherLastName.trim()}
-                >
-                  {isTeacherLogging ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {t("processing")}
+              {showLastTeacherOption ? (
+                // Быстрый вход как последний учитель
+                <div className="space-y-4">
+                  <Button
+                    variant="default"
+                    size="lg"
+                    className="w-full h-auto py-4"
+                    onClick={handleLoginAsLastTeacher}
+                    disabled={isTeacherLogging}
+                  >
+                    {isTeacherLogging ? (
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    ) : (
+                      <GraduationCap className="w-5 h-5 mr-2" />
+                    )}
+                    <span className="flex flex-col items-start">
+                      <span className="text-sm opacity-80">{t("continueAs")}</span>
+                      <span className="font-semibold">{lastTeacher.name}</span>
                     </span>
-                  ) : (
-                    t("login")
-                  )}
-                </Button>
-              </form>
+                  </Button>
+                  
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">
+                        {t("or")}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleClearLastTeacher}
+                  >
+                    {t("loginAsOther")}
+                  </Button>
+                </div>
+              ) : (
+                // Форма входа
+                <form onSubmit={handleTeacherLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="teacherFirstName">{t("firstName")}</Label>
+                    <Input
+                      id="teacherFirstName"
+                      type="text"
+                      placeholder={t("firstNamePlaceholder")}
+                      value={teacherFirstName}
+                      onChange={(e) => setTeacherFirstName(e.target.value)}
+                      required
+                      className="h-12"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="teacherLastName">{t("lastName")}</Label>
+                    <Input
+                      id="teacherLastName"
+                      type="text"
+                      placeholder={t("lastNamePlaceholder")}
+                      value={teacherLastName}
+                      onChange={(e) => setTeacherLastName(e.target.value)}
+                      required
+                      className="h-12"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    variant="cta"
+                    size="lg"
+                    className="w-full mt-6"
+                    disabled={isTeacherLogging || !teacherFirstName.trim() || !teacherLastName.trim()}
+                  >
+                    {isTeacherLogging ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {t("processing")}
+                      </span>
+                    ) : (
+                      t("login")
+                    )}
+                  </Button>
+                </form>
+              )}
             </CardContent>
           </Card>
         </main>
