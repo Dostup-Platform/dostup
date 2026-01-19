@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
+
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -54,7 +54,6 @@ interface FormData {
   description: string;
   price: string;
   kaspiLink: string;
-  hasSchedule: boolean;
 }
 
 interface ProductFormProps {
@@ -125,17 +124,6 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
         Ссылка на оплату через Kaspi.kz
       </p>
     </div>
-    <div className="flex items-center justify-between py-2">
-      <div>
-        <Label htmlFor="schedule">Включить расписание</Label>
-        <p className="text-sm text-muted-foreground">Позволит записываться на сессии</p>
-      </div>
-      <Switch 
-        id="schedule"
-        checked={formData.hasSchedule}
-        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, hasSchedule: checked }))}
-      />
-    </div>
     <Button 
       type="submit" 
       variant="cta" 
@@ -173,7 +161,6 @@ const CreatorProductsTab = () => {
     description: "",
     price: "",
     kaspiLink: "",
-    hasSchedule: false,
   });
 
   const resetForm = () => {
@@ -183,7 +170,6 @@ const CreatorProductsTab = () => {
       description: "",
       price: "",
       kaspiLink: "",
-      hasSchedule: false,
     });
   };
 
@@ -208,7 +194,7 @@ const CreatorProductsTab = () => {
         description: formData.description || null,
         price: Number(formData.price),
         kaspi_link: formData.kaspiLink || null,
-        has_schedule: formData.hasSchedule,
+        has_schedule: false,
         is_active: true,
       });
       
@@ -228,7 +214,6 @@ const CreatorProductsTab = () => {
       description: product.description || "",
       price: String(product.price),
       kaspiLink: product.kaspi_link || "",
-      hasSchedule: product.has_schedule,
     });
   };
 
@@ -248,7 +233,6 @@ const CreatorProductsTab = () => {
         description: formData.description || null,
         price: Number(formData.price),
         kaspi_link: formData.kaspiLink || null,
-        has_schedule: formData.hasSchedule,
       });
       
       toast.success("Продукт обновлён!");
