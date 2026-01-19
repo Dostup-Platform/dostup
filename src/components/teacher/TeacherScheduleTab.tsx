@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X } from "lucide-react";
+import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -89,6 +89,8 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
   const [confirmDeleteSlots, setConfirmDeleteSlots] = useState(false);
   const [confirmDeleteSchedule, setConfirmDeleteSchedule] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+  const [editScheduleTitle, setEditScheduleTitle] = useState("");
 
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -267,6 +269,24 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
       setDeletingSchedule(null);
     },
     onError: () => toast.error(language === "ru" ? "Ошибка при удалении" : "Жою кезінде қате"),
+  });
+
+  // Update schedule title mutation
+  const updateScheduleTitle = useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      const { error } = await supabase
+        .from("schedules")
+        .update({ title })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teacher-schedules-list"] });
+      toast.success(language === "ru" ? "Название обновлено!" : "Атауы жаңартылды!");
+      setEditingSchedule(null);
+      setEditScheduleTitle("");
+    },
+    onError: () => toast.error(language === "ru" ? "Ошибка при обновлении" : "Жаңарту кезінде қате"),
   });
 
   // Create time slots mutation
@@ -553,8 +573,21 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                       <User className="w-5 h-5 text-primary" />
                     )}
                   </div>
-                  <div>
-                    <p className="font-medium">{schedule.title}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium truncate">{schedule.title}</p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        onClick={() => {
+                          setEditingSchedule(schedule);
+                          setEditScheduleTitle(schedule.title);
+                        }}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {schedule.product?.title}
                       {schedule.event_type === "group" && schedule.max_participants && (
@@ -1275,8 +1308,63 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Schedule Title Dialog */}
+      <Dialog open={!!editingSchedule} onOpenChange={(open) => {
+        if (!open) {
+          setEditingSchedule(null);
+          setEditScheduleTitle("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {language === "ru" ? "Редактировать название" : "Атауын өңдеу"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>{language === "ru" ? "Название расписания" : "Кесте атауы"}</Label>
+              <Input
+                value={editScheduleTitle}
+                onChange={(e) => setEditScheduleTitle(e.target.value)}
+                placeholder={language === "ru" ? "Введите название" : "Атауын енгізіңіз"}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingSchedule(null);
+                  setEditScheduleTitle("");
+                }}
+              >
+                {t("cancel")}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (editingSchedule && editScheduleTitle.trim()) {
+                    updateScheduleTitle.mutate({
+                      id: editingSchedule.id,
+                      title: editScheduleTitle.trim(),
+                    });
+                  }
+                }}
+                disabled={!editScheduleTitle.trim() || updateScheduleTitle.isPending}
+              >
+                {updateScheduleTitle.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  t("save")
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
+
 
 export default TeacherScheduleTab;
