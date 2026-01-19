@@ -85,6 +85,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
   const [selectedScheduleForDelete, setSelectedScheduleForDelete] = useState<Schedule | null>(null);
   const [slotsToDeleteDates, setSlotsToDeleteDates] = useState<string[]>([]);
   const [availableDatesForDelete, setAvailableDatesForDelete] = useState<string[]>([]);
+  const [confirmDeleteSlots, setConfirmDeleteSlots] = useState(false);
   const [teacherId, setTeacherId] = useState<string | null>(null);
 
   const [scheduleForm, setScheduleForm] = useState({
@@ -1070,23 +1071,53 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                 type="button"
                 variant="destructive"
                 className="flex-1"
-                disabled={slotsToDeleteDates.length === 0 || deleteMultipleSlots.isPending}
-                onClick={() => {
-                  if (selectedScheduleForDelete) {
-                    const isAll = slotsToDeleteDates.length === availableDatesForDelete.length;
-                    deleteMultipleSlots.mutate({
-                      scheduleId: selectedScheduleForDelete.id,
-                      dates: isAll ? "all" : slotsToDeleteDates,
-                    });
-                  }
-                }}
+                disabled={slotsToDeleteDates.length === 0}
+                onClick={() => setConfirmDeleteSlots(true)}
               >
-                {deleteMultipleSlots.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
+                {t("delete")}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Delete Multiple Slots */}
+      <AlertDialog open={confirmDeleteSlots} onOpenChange={setConfirmDeleteSlots}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === "ru" ? "Удалить выбранные слоты?" : "Таңдалған слоттарды жою керек пе?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {slotsToDeleteDates.length === availableDatesForDelete.length
+                ? (language === "ru" 
+                    ? `Вы уверены, что хотите удалить ВСЕ слоты (${availableDatesForDelete.length} дней) в расписании "${selectedScheduleForDelete?.title}"? Это действие нельзя отменить.`
+                    : `"${selectedScheduleForDelete?.title}" кестесіндегі БАРЛЫҚ слоттарды (${availableDatesForDelete.length} күн) жойғыңыз келетініне сенімдісіз бе? Бұл әрекетті болдырмау мүмкін емес.`)
+                : (language === "ru"
+                    ? `Вы уверены, что хотите удалить слоты за ${slotsToDeleteDates.length} дней? Это действие нельзя отменить.`
+                    : `${slotsToDeleteDates.length} күн үшін слоттарды жойғыңыз келетініне сенімдісіз бе? Бұл әрекетті болдырмау мүмкін емес.`)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedScheduleForDelete) {
+                  const isAll = slotsToDeleteDates.length === availableDatesForDelete.length;
+                  deleteMultipleSlots.mutate({
+                    scheduleId: selectedScheduleForDelete.id,
+                    dates: isAll ? "all" : slotsToDeleteDates,
+                  });
+                  setConfirmDeleteSlots(false);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMultipleSlots.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
