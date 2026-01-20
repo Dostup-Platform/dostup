@@ -48,6 +48,7 @@ interface BookingCancellation {
   user_phone: string | null;
   product_title: string;
   product_id: string;
+  schedule_id: string | null;
   schedule_title: string | null;
   slot_date: string;
   slot_time: string;
@@ -69,23 +70,61 @@ const CreatorNotificationsTab = ({ lastViewedAt }: CreatorNotificationsTabProps)
 
   const dateLocale = language === "kk" ? kk : ru;
 
-  // Получить отменённые записи
-  const { data: cancellations = [], isLoading: cancellationsLoading } = useQuery<BookingCancellation[]>({
-    queryKey: ["creator-cancellations", productIds],
+  // Получить ID расписаний автора (без teacher_id)
+  const { data: authorScheduleIds = [] } = useQuery({
+    queryKey: ["creator-author-schedule-ids", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
-
       const { data } = await supabase
+        .from("schedules")
+        .select("id")
+        .in("product_id", productIds)
+        .is("teacher_id", null);
+      return data?.map(s => s.id) || [];
+    },
+    enabled: productIds.length > 0,
+  });
+
+  // Получить отменённые записи - только для расписаний автора
+  const { data: cancellations = [], isLoading: cancellationsLoading } = useQuery<BookingCancellation[]>({
+    queryKey: ["creator-cancellations", productIds, authorScheduleIds],
+    queryFn: async () => {
+      if (!productIds.length || !authorScheduleIds.length) return [];
+
+      // Получить отмены где schedule_id принадлежит расписаниям автора
+      // или schedule_id отсутствует (старые записи) - для них фильтруем по названию
+      const { data: allCancellations } = await supabase
         .from("booking_cancellations")
         .select("*")
         .in("product_id", productIds)
         .eq("cancelled_by", "student")
         .order("cancelled_at", { ascending: false })
-        .limit(50);
+        .limit(100);
 
-      return (data || []) as BookingCancellation[];
+      if (!allCancellations?.length) return [];
+
+      // Получаем названия расписаний автора для fallback фильтрации старых записей
+      const { data: authorSchedules } = await supabase
+        .from("schedules")
+        .select("id, title")
+        .in("id", authorScheduleIds);
+
+      const authorScheduleTitles = new Set(authorSchedules?.map(s => s.title) || []);
+
+      // Фильтруем: 
+      // 1. Если есть schedule_id - проверяем что он в списке расписаний автора
+      // 2. Если нет schedule_id (старые записи) - проверяем по названию
+      const filtered = (allCancellations as BookingCancellation[]).filter(c => {
+        if (c.schedule_id) {
+          return authorScheduleIds.includes(c.schedule_id);
+        }
+        // Fallback для старых записей без schedule_id
+        return c.schedule_title && authorScheduleTitles.has(c.schedule_title);
+      });
+
+      return (filtered.slice(0, 50) || []) as BookingCancellation[];
     },
-    enabled: productIds.length > 0,
+    enabled: productIds.length > 0 && authorScheduleIds.length > 0,
   });
 
   // Realtime подписка для обновления отменённых записей

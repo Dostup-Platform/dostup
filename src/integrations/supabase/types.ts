@@ -43,6 +43,7 @@ export type Database = {
           id: string
           product_id: string
           product_title: string
+          schedule_id: string | null
           schedule_title: string | null
           slot_date: string
           slot_time: string
@@ -56,6 +57,7 @@ export type Database = {
           id?: string
           product_id: string
           product_title: string
+          schedule_id?: string | null
           schedule_title?: string | null
           slot_date: string
           slot_time: string
@@ -69,6 +71,7 @@ export type Database = {
           id?: string
           product_id?: string
           product_title?: string
+          schedule_id?: string | null
           schedule_title?: string | null
           slot_date?: string
           slot_time?: string
@@ -81,6 +84,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_cancellations_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
             referencedColumns: ["id"]
           },
         ]
