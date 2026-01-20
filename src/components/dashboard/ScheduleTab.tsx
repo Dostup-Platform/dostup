@@ -105,21 +105,23 @@ const ScheduleTab = () => {
     console.log("ScheduleTab: Filtering schedules. selectedTeacherId:", selectedTeacherId, "canChooseTeacher:", canChooseTeacher);
     console.log("ScheduleTab: All schedules:", schedules);
     
+    // Если назначен конкретный учитель - показываем только его расписания
     if (selectedTeacherId) {
-      // Показываем расписания назначенного учителя
       const filtered = schedules.filter(s => s.teacher_id === selectedTeacherId);
-      console.log("ScheduleTab: Filtered by teacher:", filtered);
+      console.log("ScheduleTab: Filtered by assigned teacher:", filtered);
       return filtered;
     }
     
-    // Если не выбран учитель и нельзя выбирать - показываем только расписания автора (без teacher_id)
-    if (!canChooseTeacher) {
-      const filtered = schedules.filter(s => !s.teacher_id);
-      console.log("ScheduleTab: Filtered for author (no teacher_id):", filtered);
-      return filtered;
+    // Если можно выбирать учителя - показываем ВСЕ расписания (всех учителей)
+    if (canChooseTeacher) {
+      console.log("ScheduleTab: canChooseTeacher=true, showing all teacher schedules:", schedules);
+      return schedules;
     }
     
-    return schedules;
+    // Если нельзя выбирать и нет назначенного учителя - показываем расписания автора (без teacher_id)
+    const filtered = schedules.filter(s => !s.teacher_id);
+    console.log("ScheduleTab: Filtered for author (no teacher_id):", filtered);
+    return filtered;
   }, [schedules, selectedTeacherId, canChooseTeacher]);
 
   // Показывать 7 дней начиная с сегодня (i начинается с 0)
