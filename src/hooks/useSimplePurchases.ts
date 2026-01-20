@@ -376,6 +376,7 @@ export const useCancelSimpleBooking = () => {
           user_phone: user.phone,
           product_title: (booking as any).schedule?.product?.title || "",
           product_id: (booking as any).schedule?.product_id,
+          schedule_id: (booking as any).schedule?.id, // Добавляем schedule_id для фильтрации
           schedule_title: (booking as any).schedule?.title || "",
           slot_date: (booking as any).time_slot?.date,
           slot_time: (booking as any).time_slot?.start_time,
@@ -431,6 +432,7 @@ export const useCreatorCancelBooking = () => {
           user_phone: user?.phone,
           product_title: (booking as any).schedule?.product?.title || "",
           product_id: (booking as any).schedule?.product_id,
+          schedule_id: (booking as any).schedule?.id, // Добавляем schedule_id для фильтрации
           schedule_title: (booking as any).schedule?.title || "",
           slot_date: (booking as any).time_slot?.date,
           slot_time: (booking as any).time_slot?.start_time,
@@ -454,17 +456,19 @@ export const useCreatorCancelBooking = () => {
 };
 
 // Получить все бронирования для создателя (для уведомлений)
+// Показываем ТОЛЬКО бронирования на расписания автора (где teacher_id IS NULL)
 export const useCreatorSimpleBookings = (productIds: string[]) => {
   return useQuery({
     queryKey: ["creator-simple-bookings", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
 
-      // Получить schedules для продуктов создателя
+      // Получить ТОЛЬКО расписания самого автора (не учителей)
       const { data: schedules, error: schedulesError } = await supabase
         .from("schedules")
         .select("id, title, event_type, product_id")
-        .in("product_id", productIds);
+        .in("product_id", productIds)
+        .is("teacher_id", null); // Только расписания автора
 
       if (schedulesError) throw schedulesError;
       if (!schedules?.length) return [];
