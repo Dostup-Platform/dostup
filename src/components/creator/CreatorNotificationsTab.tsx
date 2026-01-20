@@ -128,8 +128,9 @@ const CreatorNotificationsTab = ({ lastViewedAt }: CreatorNotificationsTabProps)
   });
 
   // Realtime подписка для обновления отменённых записей
+  // ВАЖНО: только для расписаний автора (где teacher_id = null)
   useEffect(() => {
-    if (!productIds.length) return;
+    if (!productIds.length || !authorScheduleIds.length) return;
 
     const channel = supabase
       .channel("creator-cancellations-realtime")
@@ -140,7 +141,22 @@ const CreatorNotificationsTab = ({ lastViewedAt }: CreatorNotificationsTabProps)
           schema: "public",
           table: "booking_cancellations",
         },
-        () => {
+        (payload) => {
+          const newCancellation = payload.new as BookingCancellation;
+          
+          // Проверяем: отмена должна быть от студента И для расписания автора
+          if (newCancellation.cancelled_by !== "student") {
+            console.log("Cancellation not by student, ignoring for creator");
+            return;
+          }
+          
+          // Проверяем что schedule_id принадлежит автору (не учителю)
+          if (newCancellation.schedule_id && !authorScheduleIds.includes(newCancellation.schedule_id)) {
+            console.log("Cancellation is for teacher's schedule, not notifying creator");
+            return;
+          }
+          
+          // Только если это расписание автора - обновляем
           queryClient.invalidateQueries({ queryKey: ["creator-cancellations"] });
         }
       )
@@ -149,7 +165,7 @@ const CreatorNotificationsTab = ({ lastViewedAt }: CreatorNotificationsTabProps)
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [productIds, queryClient]);
+  }, [productIds, authorScheduleIds, queryClient]);
 
   // Получить ожидающие покупки
   const { data: pendingPurchases = [], isLoading: purchasesLoading } = useQuery<PendingPurchase[]>({
