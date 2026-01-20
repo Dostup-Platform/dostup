@@ -341,37 +341,70 @@ const ScheduleTab = () => {
         </div>
       ) : (
         <>
-          {/* Schedule Type Selection */}
-          <div className="grid grid-cols-2 gap-3">
-            {filteredSchedules.map((schedule) => (
-              <button
-                key={schedule.id}
-                onClick={() => setSelectedScheduleId(schedule.id)}
-                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                  selectedScheduleId === schedule.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50"
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  {schedule.event_type === "group" ? (
-                    <Users className="w-5 h-5 text-primary" />
-                  ) : (
-                    <User className="w-5 h-5 text-primary" />
-                  )}
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                    {schedule.event_type === "group" ? t("group") : t("individual")}
-                  </span>
-                </div>
-                <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
-                {schedule.max_participants && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t("upToParticipants").replace("{count}", String(schedule.max_participants))}
-                  </p>
+          {/* Schedule Type Selection - разделяем на групповые и индивидуальные */}
+          {(() => {
+            const groupSchedules = filteredSchedules.filter(s => s.event_type === "group");
+            const individualSchedules = filteredSchedules.filter(s => s.event_type === "individual");
+            
+            return (
+              <div className="space-y-4">
+                {/* Групповые занятия */}
+                {groupSchedules.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Users className="w-4 h-4" />
+                      <span>{t("group")}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {groupSchedules.map((schedule) => (
+                        <button
+                          key={schedule.id}
+                          onClick={() => setSelectedScheduleId(schedule.id)}
+                          className={`p-4 rounded-xl border-2 text-left transition-all ${
+                            selectedScheduleId === schedule.id
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50"
+                          }`}
+                        >
+                          <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
+                          {schedule.max_participants && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {t("upToParticipants").replace("{count}", String(schedule.max_participants))}
+                            </p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </button>
-            ))}
-          </div>
+
+                {/* Индивидуальные занятия */}
+                {individualSchedules.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <User className="w-4 h-4" />
+                      <span>{t("individual")}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {individualSchedules.map((schedule) => (
+                        <button
+                          key={schedule.id}
+                          onClick={() => setSelectedScheduleId(schedule.id)}
+                          className={`p-4 rounded-xl border-2 text-left transition-all ${
+                            selectedScheduleId === schedule.id
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50"
+                          }`}
+                        >
+                          <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {selectedScheduleId && (
             <>
@@ -488,12 +521,6 @@ const ScheduleTab = () => {
             </>
           )}
 
-          {!selectedScheduleId && (
-            <div className="text-center py-8">
-              <Calendar className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
-              <p className="text-muted-foreground">{t("selectSessionType")}</p>
-            </div>
-          )}
         </>
       )}
 
