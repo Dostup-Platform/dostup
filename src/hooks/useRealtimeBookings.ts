@@ -75,10 +75,12 @@ export const useRealtimeBookingNotifications = (
     if (!enabled || productIds.length === 0) return;
     
     const cacheExistingBookings = async () => {
+      // Only fetch schedules where teacher_id is null (creator's own schedules)
       const { data: schedules } = await supabase
         .from("schedules")
         .select("id")
-        .in("product_id", productIds);
+        .in("product_id", productIds)
+        .is("teacher_id", null);
       
       if (!schedules?.length) return;
       
@@ -134,10 +136,18 @@ export const useRealtimeBookingNotifications = (
           if (!bookingDetails) return;
           
           const productId = bookingDetails.schedule?.product_id;
+          const teacherId = bookingDetails.schedule?.teacher_id;
           
           // Check if this booking is for one of the creator's products
           if (!productIdsRef.current.includes(productId)) {
             console.log("Booking is not for creator's product, ignoring");
+            return;
+          }
+          
+          // IMPORTANT: Only notify creator for their own schedules (teacher_id = null)
+          // Teacher schedules have their own notification flow
+          if (teacherId !== null) {
+            console.log("Booking is for teacher's schedule, not notifying creator");
             return;
           }
 
