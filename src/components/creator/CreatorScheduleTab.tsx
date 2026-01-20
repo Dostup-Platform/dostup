@@ -97,15 +97,17 @@ const CreatorScheduleTab = () => {
   // Убрана фильтрация по has_schedule - расписание можно создать для любого продукта
   const productIds = useMemo(() => products.map(p => p.id), [products]);
 
-  // Fetch all schedules for creator's products
+  // Fetch only creator's own schedules (where teacher_id IS NULL)
+  // Teachers' schedules have teacher_id set and should not appear here
   const { data: schedules = [], isLoading: schedulesLoading } = useQuery({
-    queryKey: ["creator-all-schedules", productIds],
+    queryKey: ["creator-own-schedules", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
       const { data, error } = await supabase
         .from("schedules")
         .select("*, product:products(title)")
-        .in("product_id", productIds);
+        .in("product_id", productIds)
+        .is("teacher_id", null); // Only show creator's own schedules
       if (error) throw error;
       return data as Schedule[];
     },
@@ -185,7 +187,7 @@ const CreatorScheduleTab = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-all-schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-own-schedules"] });
       toast.success("Расписание создано!");
       setIsAddingSchedule(false);
       setScheduleForm({ title: "", productId: "", maxParticipants: "10" });
@@ -200,7 +202,7 @@ const CreatorScheduleTab = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-all-schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-own-schedules"] });
       toast.success("Расписание удалено!");
       setDeletingSchedule(null);
     },
