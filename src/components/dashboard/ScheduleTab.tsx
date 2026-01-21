@@ -118,10 +118,18 @@ const ScheduleTab = () => {
       return schedules;
     }
     
-    // Если нельзя выбирать и нет назначенного учителя - показываем расписания автора (без teacher_id)
-    const filtered = schedules.filter(s => !s.teacher_id);
-    console.log("ScheduleTab: Filtered for author (no teacher_id):", filtered);
-    return filtered;
+    // Если нельзя выбирать и нет назначенного учителя - сначала ищем расписания автора (без teacher_id)
+    const authorSchedules = schedules.filter(s => !s.teacher_id);
+    console.log("ScheduleTab: Author schedules (no teacher_id):", authorSchedules);
+    
+    // Если расписаний автора нет, но есть расписания учителей — показываем ВСЕ расписания
+    // (это случай когда автор создал ссылку без параметра учителя, но расписания ведут учителя)
+    if (authorSchedules.length === 0 && schedules.length > 0) {
+      console.log("ScheduleTab: No author schedules found, showing all schedules as fallback");
+      return schedules;
+    }
+    
+    return authorSchedules;
   }, [schedules, selectedTeacherId, canChooseTeacher]);
 
   // Показывать 7 дней начиная с сегодня (i начинается с 0)
