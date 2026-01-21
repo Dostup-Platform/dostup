@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -17,11 +17,15 @@ const formatPrice = (price: number) => {
 const ProductPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { t } = useLanguage();
   const { data: product, isLoading } = useProduct(productId);
   
+  // Передаём параметры учителя на страницу checkout
   const handleBuy = () => {
-    navigate(`/checkout/${productId || "demo"}`);
+    const teacherParam = searchParams.get("teacher");
+    const checkoutUrl = `/checkout/${productId || "demo"}${teacherParam ? `?teacher=${encodeURIComponent(teacherParam)}` : ""}`;
+    navigate(checkoutUrl);
   };
 
   if (isLoading) {
