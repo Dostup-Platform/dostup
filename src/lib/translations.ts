@@ -247,6 +247,7 @@ export const translations = {
     revokeAccessDescription: "Вы уверены, что хотите закрыть доступ пользователю",
     accessRevoked: "Доступ закрыт",
     lessonLink: "Ссылка на урок",
+    copy: "Копировать",
   },
   kk: {
     // Common
@@ -494,6 +495,7 @@ export const translations = {
     revokeAccessDescription: "Сіз бұл пайдаланушының қол жеткізуін жабуға сенімдісіз бе",
     accessRevoked: "Қол жеткізу жабылды",
     lessonLink: "Сабаққа сілтеме",
+    copy: "Көшіру",
   },
 } as const;
 
