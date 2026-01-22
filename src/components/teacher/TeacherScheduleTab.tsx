@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil, UserPlus, Link } from "lucide-react";
+import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil, UserPlus, Link, Copy } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1790,6 +1790,19 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
             </div>
             <div className="flex gap-2">
               <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => {
+                  if (viewingLinkSlot?.lesson_link) {
+                    navigator.clipboard.writeText(viewingLinkSlot.lesson_link);
+                    toast.success(language === "ru" ? "Ссылка скопирована!" : "Сілтеме көшірілді!");
+                  }
+                }}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                {language === "ru" ? "Копировать" : "Көшіру"}
+              </Button>
+              <Button
                 variant="outline"
                 className="flex-1"
                 onClick={() => {
@@ -1803,20 +1816,20 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                 <Pencil className="w-4 h-4 mr-2" />
                 {language === "ru" ? "Изменить" : "Өзгерту"}
               </Button>
-              <Button
-                variant="destructive"
-                className="flex-1"
-                onClick={() => {
-                  if (viewingLinkSlot) {
-                    updateSlotLink.mutate({ slotId: viewingLinkSlot.id, link: null });
-                    setViewingLinkSlot(null);
-                  }
-                }}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                {language === "ru" ? "Удалить" : "Жою"}
-              </Button>
             </div>
+            <Button
+              variant="destructive"
+              className="w-full"
+              onClick={() => {
+                if (viewingLinkSlot) {
+                  updateSlotLink.mutate({ slotId: viewingLinkSlot.id, link: null });
+                  setViewingLinkSlot(null);
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              {language === "ru" ? "Удалить ссылку" : "Сілтемені жою"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

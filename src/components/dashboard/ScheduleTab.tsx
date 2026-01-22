@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSimplePurchases, useSimpleSchedules, useSimpleTimeSlots, useSimpleBookings, useCreateSimpleBooking, useCancelSimpleBooking, useAllBookingsForSchedule } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck, GraduationCap, Link as LinkIcon } from "lucide-react";
+import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck, GraduationCap, Link as LinkIcon, Copy } from "lucide-react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
@@ -311,16 +311,30 @@ const ScheduleTab = () => {
                 </div>
                 {/* Lesson link if available */}
                 {booking.time_slot?.lesson_link && (
-                  <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex items-center gap-2 text-blue-700 text-sm font-medium mb-1">
-                      <LinkIcon className="w-4 h-4" />
-                      {t("lessonLink")}
+                  <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 text-sm font-medium">
+                        <LinkIcon className="w-4 h-4" />
+                        {t("lessonLink")}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900"
+                        onClick={() => {
+                          navigator.clipboard.writeText(booking.time_slot.lesson_link!);
+                          toast.success(t("linkCopied"));
+                        }}
+                      >
+                        <Copy className="w-3.5 h-3.5 mr-1" />
+                        {t("copy")}
+                      </Button>
                     </div>
                     <a 
                       href={booking.time_slot.lesson_link} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline text-sm break-all"
+                      className="text-blue-600 dark:text-blue-400 hover:underline text-sm break-all"
                     >
                       {booking.time_slot.lesson_link}
                     </a>
