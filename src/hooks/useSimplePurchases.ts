@@ -292,7 +292,7 @@ export const useSimpleBookings = () => {
       const slotIds = bookings.map(b => b.time_slot_id);
       const { data: slots } = await supabase
         .from("time_slots")
-        .select("id, date, start_time, end_time")
+        .select("id, date, start_time, end_time, lesson_link")
         .in("id", slotIds);
 
       // Получить schedules

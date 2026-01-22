@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil, UserPlus } from "lucide-react";
+import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil, UserPlus, Link } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -60,6 +60,7 @@ interface TimeSlot {
   end_time: string;
   is_available: boolean;
   max_participants?: number | null;
+  lesson_link?: string | null;
 }
 
 interface Booking {
@@ -94,6 +95,14 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
   const [editScheduleTitle, setEditScheduleTitle] = useState("");
   const [deletingSlotWithBookings, setDeletingSlotWithBookings] = useState<TimeSlot | null>(null);
   const [expandingSlot, setExpandingSlot] = useState<{ slot: TimeSlot; schedule: Schedule } | null>(null);
+  
+  // Lesson link states
+  const [isAddingLink, setIsAddingLink] = useState(false);
+  const [selectedScheduleForLink, setSelectedScheduleForLink] = useState<Schedule | null>(null);
+  const [slotsForLinkDates, setSlotsForLinkDates] = useState<string[]>([]);
+  const [availableDatesForLink, setAvailableDatesForLink] = useState<string[]>([]);
+  const [lessonLinkUrl, setLessonLinkUrl] = useState("");
+  const [viewingLinkSlot, setViewingLinkSlot] = useState<TimeSlot | null>(null);
 
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -472,6 +481,64 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
     }
   };
 
+  // Fetch available dates for link dialog
+  const fetchAvailableDatesForLink = async (scheduleId: string) => {
+    const { data } = await supabase
+      .from("time_slots")
+      .select("date")
+      .eq("schedule_id", scheduleId)
+      .order("date");
+    if (data) {
+      const uniqueDates = [...new Set(data.map(s => s.date))];
+      setAvailableDatesForLink(uniqueDates);
+    }
+  };
+
+  // Add lesson link mutation
+  const addLessonLink = useMutation({
+    mutationFn: async ({ scheduleId, dates, link }: { scheduleId: string; dates: string[] | "all"; link: string }) => {
+      if (dates === "all") {
+        const { error } = await supabase
+          .from("time_slots")
+          .update({ lesson_link: link })
+          .eq("schedule_id", scheduleId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("time_slots")
+          .update({ lesson_link: link })
+          .eq("schedule_id", scheduleId)
+          .in("date", dates);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
+      toast.success(language === "ru" ? "Ссылка добавлена!" : "Сілтеме қосылды!");
+      setIsAddingLink(false);
+      setSelectedScheduleForLink(null);
+      setSlotsForLinkDates([]);
+      setLessonLinkUrl("");
+    },
+    onError: () => toast.error(language === "ru" ? "Ошибка при добавлении ссылки" : "Сілтемені қосу кезінде қате"),
+  });
+
+  // Update single slot lesson link
+  const updateSlotLink = useMutation({
+    mutationFn: async ({ slotId, link }: { slotId: string; link: string | null }) => {
+      const { error } = await supabase
+        .from("time_slots")
+        .update({ lesson_link: link })
+        .eq("id", slotId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
+      toast.success(language === "ru" ? "Ссылка обновлена!" : "Сілтеме жаңартылды!");
+    },
+    onError: () => toast.error(language === "ru" ? "Ошибка при обновлении ссылки" : "Сілтемені жаңарту кезінде қате"),
+  });
+
   // Week navigation
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
@@ -668,6 +735,20 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => {
+                      setSelectedScheduleForLink(schedule);
+                      fetchAvailableDatesForLink(schedule.id);
+                      setSlotsForLinkDates([]);
+                      setLessonLinkUrl("");
+                      setIsAddingLink(true);
+                    }}
+                  >
+                    <Link className="w-4 h-4 mr-1" />
+                    {language === "ru" ? "Ссылка" : "Сілтеме"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="text-destructive border-destructive/50 hover:bg-destructive/10"
                     onClick={() => {
                       setSelectedScheduleForDelete(schedule);
@@ -827,6 +908,25 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                           )}
                         </div>
                         <div className="flex items-center gap-1">
+                          {/* Lesson link button */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-7 w-7 ${slot.lesson_link ? "text-blue-600 hover:text-blue-600 hover:bg-blue-50" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
+                            onClick={() => {
+                              if (slot.lesson_link) {
+                                setViewingLinkSlot(slot);
+                              } else {
+                                const newLink = prompt(language === "ru" ? "Введите ссылку на урок:" : "Сабаққа сілтемені енгізіңіз:");
+                                if (newLink) {
+                                  updateSlotLink.mutate({ slotId: slot.id, link: newLink });
+                                }
+                              }
+                            }}
+                            title={slot.lesson_link ? (language === "ru" ? "Просмотреть ссылку" : "Сілтемені көру") : (language === "ru" ? "Добавить ссылку" : "Сілтеме қосу")}
+                          >
+                            <Link className="w-4 h-4" />
+                          </Button>
                           {/* Add spot button for ALL group sessions */}
                           {isGroup && schedule && (
                             <Button
@@ -1496,6 +1596,225 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                 ) : (
                   t("save")
                 )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Lesson Link Dialog (by dates) */}
+      <Dialog open={isAddingLink} onOpenChange={(open) => { if (!open) { setIsAddingLink(false); setSelectedScheduleForLink(null); setSlotsForLinkDates([]); setAvailableDatesForLink([]); setLessonLinkUrl(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{language === "ru" ? "Добавить ссылку на урок" : "Сабаққа сілтеме қосу"}</DialogTitle>
+          </DialogHeader>
+          
+          {!selectedScheduleForLink ? (
+            <div className="space-y-4 mt-4">
+              <Label>{language === "ru" ? "Выберите расписание" : "Кестені таңдаңыз"}</Label>
+              {schedules.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  {language === "ru" ? "Нет расписаний" : "Кестелер жоқ"}
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {schedules.map((schedule) => (
+                    <Button
+                      key={schedule.id}
+                      variant="outline"
+                      className="w-full justify-start gap-3 h-auto py-3"
+                      onClick={() => {
+                        setSelectedScheduleForLink(schedule);
+                        fetchAvailableDatesForLink(schedule.id);
+                        setSlotsForLinkDates([]);
+                      }}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        {schedule.event_type === "group" ? (
+                          <Users className="w-4 h-4 text-primary" />
+                        ) : (
+                          <User className="w-4 h-4 text-primary" />
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium">{schedule.title}</p>
+                        <p className="text-xs text-muted-foreground">{schedule.product?.title}</p>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mt-2 mb-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedScheduleForLink(null);
+                    setSlotsForLinkDates([]);
+                    setAvailableDatesForLink([]);
+                    setLessonLinkUrl("");
+                  }}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  {language === "ru" ? "Назад" : "Артқа"}
+                </Button>
+                <div className="flex items-center gap-2">
+                  {selectedScheduleForLink.event_type === "group" ? (
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <User className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <span className="font-medium">{selectedScheduleForLink.title}</span>
+                </div>
+              </div>
+              <div className="space-y-4">
+                {availableDatesForLink.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    {language === "ru" ? "Нет слотов для добавления ссылки" : "Сілтеме қосуға слоттар жоқ"}
+                  </p>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>{language === "ru" ? "Ссылка на урок" : "Сабаққа сілтеме"}</Label>
+                      <Input
+                        placeholder="https://zoom.us/j/..."
+                        value={lessonLinkUrl}
+                        onChange={(e) => setLessonLinkUrl(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{language === "ru" ? "Выберите даты" : "Күндерді таңдаңыз"}</Label>
+                      <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-2 border rounded-md">
+                        {availableDatesForLink.map((date) => {
+                          const isSelected = slotsForLinkDates.includes(date);
+                          return (
+                            <Button
+                              key={date}
+                              type="button"
+                              variant={isSelected ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSlotsForLinkDates(slotsForLinkDates.filter(d => d !== date));
+                                } else {
+                                  setSlotsForLinkDates([...slotsForLinkDates, date]);
+                                }
+                              }}
+                            >
+                              {format(new Date(date), "d MMM", { locale: ru })}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {language === "ru" 
+                          ? `Выбрано: ${slotsForLinkDates.length} из ${availableDatesForLink.length}` 
+                          : `Таңдалды: ${slotsForLinkDates.length} / ${availableDatesForLink.length}`}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => {
+                          if (slotsForLinkDates.length === availableDatesForLink.length) {
+                            setSlotsForLinkDates([]);
+                          } else {
+                            setSlotsForLinkDates([...availableDatesForLink]);
+                          }
+                        }}
+                      >
+                        {slotsForLinkDates.length === availableDatesForLink.length 
+                          ? (language === "ru" ? "Снять всё" : "Барлығын алу") 
+                          : (language === "ru" ? "Выбрать все" : "Барлығын таңдау")}
+                      </Button>
+                    </div>
+                  </>
+                )}
+                <div className="flex gap-2 pt-2 border-t">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="flex-1" 
+                    onClick={() => { setIsAddingLink(false); setSelectedScheduleForLink(null); setSlotsForLinkDates([]); setLessonLinkUrl(""); }}
+                  >
+                    {t("cancel")}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1"
+                    disabled={slotsForLinkDates.length === 0 || !lessonLinkUrl.trim() || addLessonLink.isPending}
+                    onClick={() => {
+                      if (selectedScheduleForLink && lessonLinkUrl.trim()) {
+                        const isAll = slotsForLinkDates.length === availableDatesForLink.length;
+                        addLessonLink.mutate({
+                          scheduleId: selectedScheduleForLink.id,
+                          dates: isAll ? "all" : slotsForLinkDates,
+                          link: lessonLinkUrl.trim(),
+                        });
+                      }
+                    }}
+                  >
+                    {addLessonLink.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === "ru" ? "Добавить" : "Қосу")}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* View/Edit Lesson Link Dialog */}
+      <Dialog open={!!viewingLinkSlot} onOpenChange={(open) => { if (!open) setViewingLinkSlot(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{language === "ru" ? "Ссылка на урок" : "Сабаққа сілтеме"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">
+                {viewingLinkSlot?.date && format(new Date(viewingLinkSlot.date), "d MMMM", { locale: ru })}, {viewingLinkSlot?.start_time.slice(0, 5)} - {viewingLinkSlot?.end_time.slice(0, 5)}
+              </p>
+              <a 
+                href={viewingLinkSlot?.lesson_link || "#"} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline break-all"
+              >
+                {viewingLinkSlot?.lesson_link}
+              </a>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  const newLink = prompt(language === "ru" ? "Введите новую ссылку:" : "Жаңа сілтемені енгізіңіз:", viewingLinkSlot?.lesson_link || "");
+                  if (newLink !== null && viewingLinkSlot) {
+                    updateSlotLink.mutate({ slotId: viewingLinkSlot.id, link: newLink || null });
+                    setViewingLinkSlot(null);
+                  }
+                }}
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                {language === "ru" ? "Изменить" : "Өзгерту"}
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => {
+                  if (viewingLinkSlot) {
+                    updateSlotLink.mutate({ slotId: viewingLinkSlot.id, link: null });
+                    setViewingLinkSlot(null);
+                  }
+                }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {language === "ru" ? "Удалить" : "Жою"}
               </Button>
             </div>
           </div>

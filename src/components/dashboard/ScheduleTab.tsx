@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSimplePurchases, useSimpleSchedules, useSimpleTimeSlots, useSimpleBookings, useCreateSimpleBooking, useCancelSimpleBooking, useAllBookingsForSchedule } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck, GraduationCap } from "lucide-react";
+import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck, GraduationCap, Link as LinkIcon } from "lucide-react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
@@ -273,40 +273,59 @@ const ScheduleTab = () => {
             {upcomingBookings.map((booking) => (
               <div
                 key={booking.id}
-                className="p-4 rounded-xl border border-green-500/30 bg-green-500/5 flex items-center justify-between"
+                className="p-4 rounded-xl border border-green-500/30 bg-green-500/5"
               >
-                <div className="flex-1">
-                  <div className="font-medium text-foreground">
-                    {booking.product?.title || booking.schedule?.title}
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium text-foreground">
+                      {booking.product?.title || booking.schedule?.title}
+                    </div>
+                    <div className="text-sm text-muted-foreground flex items-center gap-3 mt-1">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {booking.time_slot?.date && format(parseISO(booking.time_slot.date), "d MMM", { locale: ru })}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        {booking.time_slot?.start_time?.slice(0, 5)}-{booking.time_slot?.end_time?.slice(0, 5)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        {booking.schedule?.event_type === "group" ? (
+                          <Users className="w-3.5 h-3.5" />
+                        ) : (
+                          <User className="w-3.5 h-3.5" />
+                        )}
+                        {booking.schedule?.event_type === "group" ? t("group") : t("individual")}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground flex items-center gap-3 mt-1">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {booking.time_slot?.date && format(parseISO(booking.time_slot.date), "d MMM", { locale: ru })}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" />
-                      {booking.time_slot?.start_time?.slice(0, 5)}-{booking.time_slot?.end_time?.slice(0, 5)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      {booking.schedule?.event_type === "group" ? (
-                        <Users className="w-3.5 h-3.5" />
-                      ) : (
-                        <User className="w-3.5 h-3.5" />
-                      )}
-                      {booking.schedule?.event_type === "group" ? t("group") : t("individual")}
-                    </span>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBookingToCancel(booking.id)}
+                    disabled={cancelBooking.isPending}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setBookingToCancel(booking.id)}
-                  disabled={cancelBooking.isPending}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
+                {/* Lesson link if available */}
+                {booking.time_slot?.lesson_link && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2 text-blue-700 text-sm font-medium mb-1">
+                      <LinkIcon className="w-4 h-4" />
+                      {t("lessonLink")}
+                    </div>
+                    <a 
+                      href={booking.time_slot.lesson_link} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-sm break-all"
+                    >
+                      {booking.time_slot.lesson_link}
+                    </a>
+                  </div>
+                )}
               </div>
             ))}
           </div>
