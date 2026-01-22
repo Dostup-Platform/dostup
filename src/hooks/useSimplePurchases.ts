@@ -147,7 +147,7 @@ export const useSimpleSchedules = () => {
 
       const { data, error } = await supabase
         .from("schedules")
-        .select("*")
+        .select("id, product_id, title, event_type, max_participants, teacher_id, created_at")
         .in("product_id", productIds);
 
       if (error) throw error;

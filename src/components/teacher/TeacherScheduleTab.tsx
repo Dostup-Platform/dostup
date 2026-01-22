@@ -752,43 +752,29 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   return (
                     <div
                       key={slot.id}
-                      className={`flex items-center justify-between p-3 rounded-lg ${styles.bg}`}
+                      className={`p-3 rounded-lg ${styles.bg}`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${styles.dot}`} />
-                        <div className="flex flex-col">
-                          <span className="font-medium">
-                            {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
-                          </span>
-                          {filteredSchedules.length > 1 && schedule && (
-                            <span className="text-[10px] text-muted-foreground leading-tight">
-                              {schedule.title}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${styles.dot}`} />
+                          <div className="flex flex-col">
+                            <span className="font-medium">
+                              {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
+                            </span>
+                            {filteredSchedules.length > 1 && schedule && (
+                              <span className="text-[10px] text-muted-foreground leading-tight">
+                                {schedule.title}
+                              </span>
+                            )}
+                          </div>
+                          {isGroup && (
+                            <span className="text-xs text-muted-foreground">
+                              ({slotBookings.length}/{maxParticipants})
                             </span>
                           )}
                         </div>
-                        {isGroup && (
-                          <span className="text-xs text-muted-foreground">
-                            ({slotBookings.length}/{maxParticipants})
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {slotBookings.length > 0 ? (
-                          <>
-                            <span className={`text-sm ${styles.text}`}>
-                              {slotBookings.map(b => b.user?.name || "—").join(", ")}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setCancelingBooking(slotBookings[0])}
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
+                        {slotBookings.length === 0 && (
+                          <div className="flex items-center gap-2">
                             <span className={`text-sm ${styles.text}`}>
                               {language === "ru" ? "Свободно" : "Бос"}
                             </span>
@@ -800,9 +786,30 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
-                          </>
+                          </div>
                         )}
                       </div>
+                      
+                      {/* List of bookings with individual delete buttons */}
+                      {slotBookings.length > 0 && (
+                        <div className="mt-2 space-y-1 pl-5">
+                          {slotBookings.map((booking) => (
+                            <div key={booking.id} className="flex items-center justify-between py-1 px-2 bg-background/50 rounded">
+                              <span className={`text-sm ${styles.text}`}>
+                                {booking.user?.name || "—"}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setCancelingBooking(booking)}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
