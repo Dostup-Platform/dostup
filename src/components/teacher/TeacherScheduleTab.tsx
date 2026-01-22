@@ -421,7 +421,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
       return newMax;
     },
     onSuccess: (newMax) => {
-      queryClient.invalidateQueries({ queryKey: ["teacher-schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-schedules-list"] });
       toast.success(language === "ru" ? `Группа расширена до ${newMax} мест!` : `Топ ${newMax} орынға дейін кеңейтілді!`);
       setExpandingSchedule(null);
     },
