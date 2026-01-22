@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil } from "lucide-react";
+import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil, UserPlus } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -91,6 +91,8 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [editScheduleTitle, setEditScheduleTitle] = useState("");
+  const [deletingSlotWithBookings, setDeletingSlotWithBookings] = useState<TimeSlot | null>(null);
+  const [expandingSchedule, setExpandingSchedule] = useState<Schedule | null>(null);
 
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -379,6 +381,51 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
       setDeletingSlot(null);
     },
     onError: () => toast.error(language === "ru" ? "Ошибка при удалении" : "Жою кезінде қате"),
+  });
+
+  // Delete time slot with bookings (force delete)
+  const deleteSlotWithBookings = useMutation({
+    mutationFn: async (slotId: string) => {
+      // First delete all bookings for this slot
+      const { error: bookingsError } = await supabase
+        .from("simple_bookings")
+        .delete()
+        .eq("time_slot_id", slotId);
+      if (bookingsError) throw bookingsError;
+      
+      // Then delete the slot
+      const { error: slotError } = await supabase
+        .from("time_slots")
+        .delete()
+        .eq("id", slotId);
+      if (slotError) throw slotError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
+      toast.success(language === "ru" ? "Слот и записи удалены!" : "Слот пен жазбалар жойылды!");
+      setDeletingSlotWithBookings(null);
+    },
+    onError: () => toast.error(language === "ru" ? "Ошибка при удалении" : "Жою кезінде қате"),
+  });
+
+  // Expand group (increase max_participants by 1)
+  const expandGroup = useMutation({
+    mutationFn: async (schedule: Schedule) => {
+      const newMax = (schedule.max_participants || 1) + 1;
+      const { error } = await supabase
+        .from("schedules")
+        .update({ max_participants: newMax })
+        .eq("id", schedule.id);
+      if (error) throw error;
+      return newMax;
+    },
+    onSuccess: (newMax) => {
+      queryClient.invalidateQueries({ queryKey: ["teacher-schedules"] });
+      toast.success(language === "ru" ? `Группа расширена до ${newMax} мест!` : `Топ ${newMax} орынға дейін кеңейтілді!`);
+      setExpandingSchedule(null);
+    },
+    onError: () => toast.error(language === "ru" ? "Ошибка при расширении" : "Кеңейту кезінде қате"),
   });
 
   // Delete multiple time slots mutation
@@ -773,21 +820,45 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                             </span>
                           )}
                         </div>
-                        {slotBookings.length === 0 && (
-                          <div className="flex items-center gap-2">
-                            <span className={`text-sm ${styles.text}`}>
-                              {language === "ru" ? "Свободно" : "Бос"}
-                            </span>
+                        <div className="flex items-center gap-1">
+                          {/* Add spot button for group sessions */}
+                          {isGroup && schedule && slotStatus === "full" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10"
+                              onClick={() => setExpandingSchedule(schedule)}
+                              title={language === "ru" ? "Добавить место" : "Орын қосу"}
+                            >
+                              <UserPlus className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {slotBookings.length === 0 ? (
+                            <>
+                              <span className={`text-sm ${styles.text} mr-1`}>
+                                {language === "ru" ? "Свободно" : "Бос"}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeletingSlot(slot)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setDeletingSlot(slot)}
+                              onClick={() => setDeletingSlotWithBookings(slot)}
+                              title={language === "ru" ? "Удалить слот" : "Слотты жою"}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                       
                       {/* List of bookings with individual delete buttons */}
@@ -1055,6 +1126,52 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteTimeSlot.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Time Slot WITH Bookings Confirmation */}
+      <AlertDialog open={!!deletingSlotWithBookings} onOpenChange={(open) => { if (!open) setDeletingSlotWithBookings(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{language === "ru" ? "Удалить слот с записями?" : "Жазбалары бар слотты жою керек пе?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {language === "ru"
+                ? `Вы уверены, что хотите удалить слот ${deletingSlotWithBookings?.start_time.slice(0, 5)} - ${deletingSlotWithBookings?.end_time.slice(0, 5)}? Все записи учеников на этот слот будут также удалены!`
+                : `${deletingSlotWithBookings?.start_time.slice(0, 5)} - ${deletingSlotWithBookings?.end_time.slice(0, 5)} слотын жойғыңыз келетініне сенімдісіз бе? Осы слотқа оқушылардың барлық жазбалары да жойылады!`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingSlotWithBookings && deleteSlotWithBookings.mutate(deletingSlotWithBookings.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteSlotWithBookings.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Expand Group Confirmation */}
+      <AlertDialog open={!!expandingSchedule} onOpenChange={(open) => { if (!open) setExpandingSchedule(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{language === "ru" ? "Добавить место в группу?" : "Топқа орын қосу керек пе?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {language === "ru"
+                ? `Максимальное количество участников для расписания "${expandingSchedule?.title}" будет увеличено с ${expandingSchedule?.max_participants || 1} до ${(expandingSchedule?.max_participants || 1) + 1}.`
+                : `"${expandingSchedule?.title}" кестесі үшін қатысушылардың максималды саны ${expandingSchedule?.max_participants || 1}-ден ${(expandingSchedule?.max_participants || 1) + 1}-ге дейін артады.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => expandingSchedule && expandGroup.mutate(expandingSchedule)}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {expandGroup.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : language === "ru" ? "Добавить место" : "Орын қосу"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
