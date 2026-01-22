@@ -1617,31 +1617,66 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   {language === "ru" ? "Нет расписаний" : "Кестелер жоқ"}
                 </p>
               ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {schedules.map((schedule) => (
-                    <Button
-                      key={schedule.id}
-                      variant="outline"
-                      className="w-full justify-start gap-3 h-auto py-3"
-                      onClick={() => {
-                        setSelectedScheduleForLink(schedule);
-                        fetchAvailableDatesForLink(schedule.id);
-                        setSlotsForLinkDates([]);
-                      }}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        {schedule.event_type === "group" ? (
-                          <Users className="w-4 h-4 text-primary" />
-                        ) : (
-                          <User className="w-4 h-4 text-primary" />
-                        )}
+                <div className="space-y-4 max-h-80 overflow-y-auto">
+                  {/* Individual schedules */}
+                  {schedules.filter(s => s.event_type === "individual").length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                        <User className="w-4 h-4" />
+                        {language === "ru" ? "Индивидуальные" : "Жеке сабақтар"}
                       </div>
-                      <div className="text-left">
-                        <p className="font-medium">{schedule.title}</p>
-                        <p className="text-xs text-muted-foreground">{schedule.product?.title}</p>
+                      {schedules.filter(s => s.event_type === "individual").map((schedule) => (
+                        <Button
+                          key={schedule.id}
+                          variant="outline"
+                          className="w-full justify-start gap-3 h-auto py-3"
+                          onClick={() => {
+                            setSelectedScheduleForLink(schedule);
+                            fetchAvailableDatesForLink(schedule.id);
+                            setSlotsForLinkDates([]);
+                          }}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <User className="w-4 h-4 text-primary" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium">{schedule.title}</p>
+                            <p className="text-xs text-muted-foreground">{schedule.product?.title}</p>
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Group schedules */}
+                  {schedules.filter(s => s.event_type === "group").length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                        <Users className="w-4 h-4" />
+                        {language === "ru" ? "Групповые" : "Топтық сабақтар"}
                       </div>
-                    </Button>
-                  ))}
+                      {schedules.filter(s => s.event_type === "group").map((schedule) => (
+                        <Button
+                          key={schedule.id}
+                          variant="outline"
+                          className="w-full justify-start gap-3 h-auto py-3"
+                          onClick={() => {
+                            setSelectedScheduleForLink(schedule);
+                            fetchAvailableDatesForLink(schedule.id);
+                            setSlotsForLinkDates([]);
+                          }}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Users className="w-4 h-4 text-primary" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium">{schedule.title}</p>
+                            <p className="text-xs text-muted-foreground">{schedule.product?.title}</p>
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
