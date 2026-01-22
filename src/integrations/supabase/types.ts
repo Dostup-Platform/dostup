@@ -630,6 +630,7 @@ export type Database = {
           end_time: string
           id: string
           is_available: boolean
+          max_participants: number | null
           schedule_id: string
           start_time: string
         }
@@ -639,6 +640,7 @@ export type Database = {
           end_time: string
           id?: string
           is_available?: boolean
+          max_participants?: number | null
           schedule_id: string
           start_time: string
         }
@@ -648,6 +650,7 @@ export type Database = {
           end_time?: string
           id?: string
           is_available?: boolean
+          max_participants?: number | null
           schedule_id?: string
           start_time?: string
         }

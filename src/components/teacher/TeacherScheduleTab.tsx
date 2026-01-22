@@ -59,6 +59,7 @@ interface TimeSlot {
   start_time: string;
   end_time: string;
   is_available: boolean;
+  max_participants?: number | null;
 }
 
 interface Booking {
@@ -92,7 +93,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [editScheduleTitle, setEditScheduleTitle] = useState("");
   const [deletingSlotWithBookings, setDeletingSlotWithBookings] = useState<TimeSlot | null>(null);
-  const [expandingSchedule, setExpandingSchedule] = useState<Schedule | null>(null);
+  const [expandingSlot, setExpandingSlot] = useState<{ slot: TimeSlot; schedule: Schedule } | null>(null);
 
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -409,21 +410,23 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
     onError: () => toast.error(language === "ru" ? "Ошибка при удалении" : "Жою кезінде қате"),
   });
 
-  // Expand group (increase max_participants by 1)
-  const expandGroup = useMutation({
-    mutationFn: async (schedule: Schedule) => {
-      const newMax = (schedule.max_participants || 1) + 1;
+  // Expand slot (increase max_participants for specific slot)
+  const expandSlot = useMutation({
+    mutationFn: async ({ slot, schedule }: { slot: TimeSlot; schedule: Schedule }) => {
+      // Get current max for this slot (use slot override or schedule default)
+      const currentMax = slot.max_participants ?? schedule.max_participants ?? 1;
+      const newMax = currentMax + 1;
       const { error } = await supabase
-        .from("schedules")
+        .from("time_slots")
         .update({ max_participants: newMax })
-        .eq("id", schedule.id);
+        .eq("id", slot.id);
       if (error) throw error;
       return newMax;
     },
     onSuccess: (newMax) => {
-      queryClient.invalidateQueries({ queryKey: ["teacher-schedules-list"] });
-      toast.success(language === "ru" ? `Группа расширена до ${newMax} мест!` : `Топ ${newMax} орынға дейін кеңейтілді!`);
-      setExpandingSchedule(null);
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
+      toast.success(language === "ru" ? `Слот расширен до ${newMax} мест!` : `Слот ${newMax} орынға дейін кеңейтілді!`);
+      setExpandingSlot(null);
     },
     onError: () => toast.error(language === "ru" ? "Ошибка при расширении" : "Кеңейту кезінде қате"),
   });
@@ -493,6 +496,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
     const slotBookings = getBookingsForSlot(slotId);
     if (slotBookings.length === 0) return false;
     
+    const slot = timeSlots.find(s => s.id === slotId);
     const schedule = getScheduleForSlot(slotId);
     if (!schedule) return slotBookings.length > 0;
     
@@ -500,7 +504,8 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
       return slotBookings.length > 0;
     }
     
-    const maxParticipants = schedule.max_participants || 1;
+    // Use slot's max_participants if set, otherwise fall back to schedule's default
+    const maxParticipants = slot?.max_participants ?? schedule.max_participants ?? 1;
     return slotBookings.length >= maxParticipants;
   };
 
@@ -783,7 +788,8 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   const slotBookings = getBookingsForSlot(slot.id);
                   const slotStatus = getSlotStatus(slot.id);
                   const schedule = getScheduleForSlot(slot.id);
-                  const maxParticipants = schedule?.max_participants || 1;
+                  // Use slot's max_participants if set, otherwise fall back to schedule's default
+                  const maxParticipants = slot.max_participants ?? schedule?.max_participants ?? 1;
                   const isGroup = schedule?.event_type === "group";
                   
                   const getSlotStyles = () => {
@@ -821,32 +827,29 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                           )}
                         </div>
                         <div className="flex items-center gap-1">
-                          {/* Add spot button for group sessions */}
-                          {isGroup && schedule && slotStatus === "full" && (
+                          {/* Add spot button for ALL group sessions */}
+                          {isGroup && schedule && (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10"
-                              onClick={() => setExpandingSchedule(schedule)}
+                              onClick={() => setExpandingSlot({ slot, schedule })}
                               title={language === "ru" ? "Добавить место" : "Орын қосу"}
                             >
                               <UserPlus className="w-4 h-4" />
                             </Button>
                           )}
+                          {/* Delete slot button - always visible */}
                           {slotBookings.length === 0 ? (
-                            <>
-                              <span className={`text-sm ${styles.text} mr-1`}>
-                                {language === "ru" ? "Свободно" : "Бос"}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => setDeletingSlot(slot)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setDeletingSlot(slot)}
+                              title={language === "ru" ? "Удалить слот" : "Слотты жою"}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           ) : (
                             <Button
                               variant="ghost"
@@ -1154,24 +1157,29 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Expand Group Confirmation */}
-      <AlertDialog open={!!expandingSchedule} onOpenChange={(open) => { if (!open) setExpandingSchedule(null); }}>
+      {/* Expand Slot Confirmation */}
+      <AlertDialog open={!!expandingSlot} onOpenChange={(open) => { if (!open) setExpandingSlot(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{language === "ru" ? "Добавить место в группу?" : "Топқа орын қосу керек пе?"}</AlertDialogTitle>
+            <AlertDialogTitle>{language === "ru" ? "Добавить место в слот?" : "Слотқа орын қосу керек пе?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              {language === "ru"
-                ? `Максимальное количество участников для расписания "${expandingSchedule?.title}" будет увеличено с ${expandingSchedule?.max_participants || 1} до ${(expandingSchedule?.max_participants || 1) + 1}.`
-                : `"${expandingSchedule?.title}" кестесі үшін қатысушылардың максималды саны ${expandingSchedule?.max_participants || 1}-ден ${(expandingSchedule?.max_participants || 1) + 1}-ге дейін артады.`}
+              {(() => {
+                if (!expandingSlot) return "";
+                const currentMax = expandingSlot.slot.max_participants ?? expandingSlot.schedule.max_participants ?? 1;
+                const newMax = currentMax + 1;
+                return language === "ru"
+                  ? `Максимальное количество участников для слота ${expandingSlot.slot.start_time.slice(0, 5)} - ${expandingSlot.slot.end_time.slice(0, 5)} будет увеличено с ${currentMax} до ${newMax}.`
+                  : `${expandingSlot.slot.start_time.slice(0, 5)} - ${expandingSlot.slot.end_time.slice(0, 5)} слотындағы қатысушылардың максималды саны ${currentMax}-ден ${newMax}-ге дейін артады.`;
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => expandingSchedule && expandGroup.mutate(expandingSchedule)}
+              onClick={() => expandingSlot && expandSlot.mutate(expandingSlot)}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {expandGroup.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : language === "ru" ? "Добавить место" : "Орын қосу"}
+              {expandSlot.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : language === "ru" ? "Добавить место" : "Орын қосу"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
