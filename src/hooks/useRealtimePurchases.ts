@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { playPaymentSound, showBrowserNotification } from "@/hooks/useNotificationPermission";
-import { sendPushNotification } from "@/lib/firebase";
 
 interface NewPurchasePayload {
   new: {
@@ -101,18 +100,8 @@ export const useRealtimePurchaseNotifications = (productIds: string[], enabled: 
               duration: 8000,
             });
 
-            // Browser push notification
+            // Browser notification only (no push - push is sent from ProductPurchasePage)
             showBrowserNotification(title, description);
-
-            // Send FCM push notification to creator only (filter by role)
-            const creatorName = localStorage.getItem("creator_name");
-            if (creatorName) {
-              sendPushNotification(creatorName, title, description, {
-                type: "payment",
-                purchaseId: fullPurchase.id,
-                amount: String(fullPurchase.amount)
-              }, "creator"); // Only send to creator role
-            }
           }
 
           // Refresh the purchases list
