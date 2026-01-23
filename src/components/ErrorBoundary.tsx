@@ -1,0 +1,109 @@
+import React, { Component, ErrorInfo, ReactNode } from "react";
+import { AlertTriangle, RefreshCw, Home } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+interface Props {
+  children: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<Props, State> {
+  public state: State = {
+    hasError: false,
+    error: null,
+  };
+
+  public static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Error caught by ErrorBoundary:", error, errorInfo);
+  }
+
+  private handleReload = () => {
+    window.location.reload();
+  };
+
+  private handleGoHome = () => {
+    window.location.href = "/";
+  };
+
+  public render() {
+    if (this.state.hasError) {
+      // Get language from localStorage or default to "ru"
+      const language = (localStorage.getItem("language") as "ru" | "kk") || "ru";
+      
+      const translations = {
+        ru: {
+          title: "Что-то пошло не так",
+          message: "Не беспокойтесь! Это временная техническая проблема.",
+          tryThese: "Попробуйте:",
+          option1: "Перезагрузить страницу",
+          option2: "Подождать пару минут и попробовать снова",
+          reloadButton: "Перезагрузить страницу",
+          homeButton: "На главную",
+        },
+        kk: {
+          title: "Бірдеңе дұрыс болмады",
+          message: "Уайымдамаңыз! Бұл уақытша техникалық мәселе.",
+          tryThese: "Мынаны көріңіз:",
+          option1: "Бетті қайта жүктеу",
+          option2: "Бірнеше минут күтіп, қайта көріңіз",
+          reloadButton: "Бетті қайта жүктеу",
+          homeButton: "Басты бетке",
+        },
+      };
+
+      const t = translations[language];
+
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-4">
+          <div className="max-w-md w-full text-center space-y-6">
+            {/* Icon */}
+            <div className="flex justify-center">
+              <div className="w-20 h-20 rounded-full bg-warning/10 flex items-center justify-center">
+                <AlertTriangle className="w-10 h-10 text-warning" />
+              </div>
+            </div>
+
+            {/* Title and message */}
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold text-foreground">{t.title}</h1>
+              <p className="text-muted-foreground">{t.message}</p>
+            </div>
+
+            {/* Tips */}
+            <div className="bg-muted/50 rounded-lg p-4 text-left">
+              <p className="font-medium text-foreground mb-2">{t.tryThese}</p>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                <li>• {t.option1}</li>
+                <li>• {t.option2}</li>
+              </ul>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button onClick={this.handleReload} className="gap-2">
+                <RefreshCw className="w-4 h-4" />
+                {t.reloadButton}
+              </Button>
+              <Button variant="outline" onClick={this.handleGoHome} className="gap-2">
+                <Home className="w-4 h-4" />
+                {t.homeButton}
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+export default ErrorBoundary;
