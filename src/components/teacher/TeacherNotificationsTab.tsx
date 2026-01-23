@@ -123,22 +123,6 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
     );
   }
 
-  if (allNotifications.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <Bell className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
-        <p className="text-muted-foreground">
-          {language === "ru" ? "Уведомлений пока нет" : "Хабарландырулар әзірше жоқ"}
-        </p>
-        <p className="text-sm text-muted-foreground mt-1">
-          {language === "ru" 
-            ? "Здесь будут появляться записи и отмены" 
-            : "Мұнда жазбалар мен бас тартулар пайда болады"}
-        </p>
-      </div>
-    );
-  }
-
   // Use teacher's phone for preferences
   const teacherPhone = teacherData?.phone || `teacher_${teacherName}`;
 
@@ -152,7 +136,20 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
         {language === "ru" ? "Уведомления" : "Хабарландырулар"}
       </h2>
 
-      <div className="space-y-3">
+      {allNotifications.length === 0 ? (
+        <div className="text-center py-12">
+          <Bell className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+          <p className="text-muted-foreground">
+            {language === "ru" ? "Уведомлений пока нет" : "Хабарландырулар әзірше жоқ"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {language === "ru" 
+              ? "Здесь будут появляться записи и отмены" 
+              : "Мұнда жазбалар мен бас тартулар пайда болады"}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
         {allNotifications.map((notification) => {
           const isNew = new Date(notification.date) > compareDate;
           
@@ -230,7 +227,8 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
             );
           }
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
