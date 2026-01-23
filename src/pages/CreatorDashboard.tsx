@@ -189,16 +189,16 @@ const CreatorDashboard = () => {
           </TabsList>
 
           <TabsContent value="products" className="mt-0 animate-fade-in">
-            <CreatorProductsTab />
+            <CreatorProductsTab creatorName={creatorName} />
           </TabsContent>
           <TabsContent value="users" className="mt-0 animate-fade-in">
-            <CreatorUsersTab />
+            <CreatorUsersTab creatorName={creatorName} />
           </TabsContent>
           <TabsContent value="schedule" className="mt-0 animate-fade-in">
-            <CreatorScheduleTab />
+            <CreatorScheduleTab creatorName={creatorName} />
           </TabsContent>
           <TabsContent value="notifications" className="mt-0 animate-fade-in">
-            <CreatorNotificationsTab lastViewedAt={lastViewedAt} />
+            <CreatorNotificationsTab creatorName={creatorName} lastViewedAt={lastViewedAt} />
           </TabsContent>
           <TabsContent value="account" className="mt-0 animate-fade-in">
             <CreatorAccountTab creatorName={creatorName} />

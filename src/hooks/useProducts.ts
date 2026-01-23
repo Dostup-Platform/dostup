@@ -51,16 +51,17 @@ export const useProduct = (productId: string | undefined) => {
   });
 };
 
-export const useCreatorId = () => {
+export const useCreatorId = (passedCreatorName?: string | null) => {
   const { user } = useSimpleAuth();
-  const creatorName = localStorage.getItem("creator_name");
+  const localStorageName = typeof window !== 'undefined' ? localStorage.getItem("creator_name") : null;
+  const creatorName = passedCreatorName ?? localStorageName;
   
   // If logged in via SimpleAuth as creator
   if (user && user.role === "creator") {
     return user.id;
   }
   
-  // If logged in via creator_name (localStorage)
+  // If logged in via creator_name (localStorage or passed)
   if (creatorName) {
     return creatorName; // Use creator name as ID
   }
@@ -68,8 +69,8 @@ export const useCreatorId = () => {
   return null;
 };
 
-export const useCreatorProducts = () => {
-  const creatorId = useCreatorId();
+export const useCreatorProducts = (passedCreatorName?: string | null) => {
+  const creatorId = useCreatorId(passedCreatorName);
 
   return useQuery({
     queryKey: ["creator-products", creatorId],
@@ -86,6 +87,8 @@ export const useCreatorProducts = () => {
       return data as Product[];
     },
     enabled: !!creatorId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 };
 

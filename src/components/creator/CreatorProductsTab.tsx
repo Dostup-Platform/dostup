@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
-import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText, Users } from "lucide-react";
 import {
@@ -144,10 +143,13 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
   </form>
 );
 
-const CreatorProductsTab = () => {
-  const { user } = useSimpleAuth();
+interface CreatorProductsTabProps {
+  creatorName: string;
+}
+
+const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const { t, language } = useLanguage();
-  const { data: products = [], isLoading } = useCreatorProducts();
+  const { data: products = [], isLoading } = useCreatorProducts(creatorName);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
