@@ -43,6 +43,7 @@ const ProductPurchasePage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<"form" | "pending" | "completed">("form");
   const [purchaseId, setPurchaseId] = useState<string | null>(null);
+  const [notificationSent, setNotificationSent] = useState(false);
 
   // Найти teacher_id по имени из URL
   useEffect(() => {
@@ -257,36 +258,38 @@ const ProductPurchasePage = () => {
       return;
     }
 
-    // Send push notification to creator immediately
-    const userName = `${firstName} ${lastName}`.trim() || "Клиент";
-    const creatorId = product?.creator_id;
-    const productTitle = product?.title || "";
-    const productPrice = product?.price || 0;
-    
-    console.log("[Purchase] Attempting to send push notification to creator:", creatorId);
-    
-    if (creatorId) {
-      const title = `Новая покупка от ${userName}`;
-      const body = productTitle;
+    // Send push notification to creator immediately (only once)
+    if (!notificationSent) {
+      setNotificationSent(true);
       
-      // Send FCM push to creator (async, don't wait)
-      sendPushNotification(
-        creatorId, 
-        title, 
-        body, 
-        {
-          type: "payment",
-          purchaseId: purchase.id,
-          amount: String(productPrice)
-        },
-        "creator"
-      ).then((success) => {
-        console.log("[Purchase] Push notification result:", success);
-      }).catch((err) => {
-        console.error("[Purchase] Failed to send push notification:", err);
-      });
-    } else {
-      console.warn("[Purchase] No creator_id found for product, skipping push notification");
+      const userName = `${firstName} ${lastName}`.trim() || "Клиент";
+      const creatorId = product?.creator_id;
+      const productTitle = product?.title || "";
+      const productPrice = product?.price || 0;
+      
+      console.log("[Purchase] Sending ONE push notification to creator:", creatorId);
+      
+      if (creatorId) {
+        const title = `Новая покупка от ${userName}`;
+        const body = productTitle;
+        
+        // Send FCM push to creator (async, don't wait)
+        sendPushNotification(
+          creatorId, 
+          title, 
+          body, 
+          {
+            type: "payment",
+            purchaseId: purchase.id,
+            amount: String(productPrice)
+          },
+          "creator"
+        ).then((success) => {
+          console.log("[Purchase] Push notification result:", success);
+        }).catch((err) => {
+          console.error("[Purchase] Failed to send push notification:", err);
+        });
+      }
     }
 
     setPurchaseId(purchase.id);
