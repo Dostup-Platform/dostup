@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { initializeFirebaseMessaging, registerPushToken, onForegroundMessage } from "@/lib/firebase";
-import { toast } from "sonner";
-import { useLanguage } from "@/contexts/LanguageContext";
 
 interface UseFCMRegistrationOptions {
   userPhone: string | undefined;
@@ -17,7 +15,6 @@ export const useFCMRegistration = ({
   const [isRegistered, setIsRegistered] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const registrationAttempted = useRef(false);
-  const { language } = useLanguage();
 
   useEffect(() => {
     if (!enabled || !userPhone || registrationAttempted.current) return;
@@ -61,22 +58,18 @@ export const useFCMRegistration = ({
   }, [enabled, userPhone, userRole]);
 
   // Set up foreground message handler
+  // NOTE: We don't show toast here because realtime hooks already show toasts
+  // This handler is only for logging and potential future use
   useEffect(() => {
     if (!isRegistered) return;
 
     const unsubscribe = onForegroundMessage((payload) => {
-      // Show toast for foreground messages
-      // The actual notification sound is handled by the realtime hooks
-      if (payload.title && payload.body) {
-        toast.info(payload.title, {
-          description: payload.body,
-          duration: 8000
-        });
-      }
+      // Log foreground message but don't show toast - realtime hooks handle that
+      console.log("FCM foreground message received (toast handled by realtime hooks):", payload.title);
     });
 
     return unsubscribe;
-  }, [isRegistered, language]);
+  }, [isRegistered]);
 
   return {
     isRegistered,

@@ -49,13 +49,13 @@ export const useRealtimeStudentNotifications = (
           // Браузерное push-уведомление
           showBrowserNotification(title, description);
 
-          // FCM push-уведомление студенту
+          // FCM push-уведомление студенту (filter by student role)
           if (userPhone) {
             sendPushNotification(userPhone, title, description, {
               type: "creator_cancellation",
               productTitle: cancellation.product_title,
               date: cancellation.slot_date
-            });
+            }, "student"); // Only send to student role
           }
 
           // Обновить данные

@@ -179,12 +179,18 @@ export const onForegroundMessage = (
 
 /**
  * Send push notification via edge function
+ * @param userPhone - Target user's phone/identifier
+ * @param title - Notification title
+ * @param body - Notification body
+ * @param data - Optional data payload
+ * @param targetRole - Optional: filter by user role ('creator' | 'student' | 'teacher')
  */
 export const sendPushNotification = async (
   userPhone: string,
   title: string,
   body: string,
-  data?: Record<string, string>
+  data?: Record<string, string>,
+  targetRole?: "creator" | "student" | "teacher"
 ): Promise<boolean> => {
   try {
     const { error } = await supabase.functions.invoke("send-push-notification", {
@@ -192,7 +198,8 @@ export const sendPushNotification = async (
         userPhone,
         title,
         body,
-        data
+        data,
+        targetRole
       }
     });
 
