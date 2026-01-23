@@ -225,6 +225,39 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          created_at: string
+          id: string
+          morning_time: string
+          reminder_24h: boolean
+          reminder_2h: boolean
+          reminder_morning: boolean
+          updated_at: string
+          user_phone: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          morning_time?: string
+          reminder_24h?: boolean
+          reminder_2h?: boolean
+          reminder_morning?: boolean
+          updated_at?: string
+          user_phone: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          morning_time?: string
+          reminder_24h?: boolean
+          reminder_2h?: boolean
+          reminder_morning?: boolean
+          updated_at?: string
+          user_phone?: string
+        }
+        Relationships: []
+      }
       product_teachers: {
         Row: {
           created_at: string

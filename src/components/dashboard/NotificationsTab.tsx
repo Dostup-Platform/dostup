@@ -8,6 +8,7 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { format, formatDistanceToNow } from "date-fns";
 import { ru, kk } from "date-fns/locale";
+import NotificationPreferences from "@/components/NotificationPreferences";
 
 interface BookingCancellation {
   id: string;
@@ -98,6 +99,9 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-foreground">{t("notifications")}</h2>
+
+      {/* Notification Preferences */}
+      {user?.phone && <NotificationPreferences userPhone={user.phone} />}
 
       {!hasNotifications ? (
         <Card>
