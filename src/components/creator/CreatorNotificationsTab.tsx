@@ -391,12 +391,6 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                           <span className="font-medium text-foreground">
                             {formatPrice(Number(purchase.amount))}
                           </span>
-                          {purchase.user?.phone && (
-                            <div className="flex items-center gap-1">
-                              <Phone className="w-3.5 h-3.5" />
-                              <span>{purchase.user.phone}</span>
-                            </div>
-                          )}
                         </div>
                       </div>
                       
