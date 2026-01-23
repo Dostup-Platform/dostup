@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
+import NotificationPreferences from "@/components/NotificationPreferences";
 
 interface TeacherNotificationsTabProps {
   teacherName: string;
@@ -16,20 +17,19 @@ interface TeacherNotificationsTabProps {
 const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: TeacherNotificationsTabProps) => {
   const { language } = useLanguage();
 
-  // Get teacher's user ID and schedules
+  // Get teacher's user ID for phone
   const { data: teacherData } = useQuery({
     queryKey: ["teacher-id", teacherName],
     queryFn: async () => {
       const { data } = await supabase
         .from("simple_users")
-        .select("id")
+        .select("id, phone")
         .eq("name", teacherName)
         .single();
       return data;
     },
     enabled: !!teacherName,
   });
-
   // Get teacher's schedules
   const { data: teacherSchedules = [] } = useQuery({
     queryKey: ["teacher-notification-schedules", teacherData?.id, productIds],
@@ -139,8 +139,14 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
     );
   }
 
+  // Use teacher's phone for preferences
+  const teacherPhone = teacherData?.phone || `teacher_${teacherName}`;
+
   return (
     <div className="space-y-4">
+      {/* Notification Preferences */}
+      <NotificationPreferences userPhone={teacherPhone} />
+
       <h2 className="text-lg font-semibold flex items-center gap-2">
         <Bell className="w-5 h-5" />
         {language === "ru" ? "Уведомления" : "Хабарландырулар"}

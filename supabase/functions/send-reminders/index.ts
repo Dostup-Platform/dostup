@@ -6,6 +6,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface Reminder {
+  id: string;
+  booking_id: string | null;
+  user_phone: string;
+  reminder_type: string;
+  scheduled_at: string;
+  product_title: string | null;
+  slot_date: string | null;
+  slot_time: string | null;
+  sent_at: string | null;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -27,7 +39,7 @@ serve(async (req) => {
       .select("*")
       .lte("scheduled_at", now)
       .is("sent_at", null)
-      .limit(100);
+      .limit(200);
 
     if (remindersError) {
       console.error("Error fetching reminders:", remindersError);
@@ -42,15 +54,19 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Found ${reminders.length} reminders to send`);
+    console.log(`Found ${reminders.length} reminders to process`);
+
+    // Separate morning reminders from regular reminders
+    const morningReminders = (reminders as Reminder[]).filter(r => r.reminder_type === "morning");
+    const regularReminders = (reminders as Reminder[]).filter(r => r.reminder_type !== "morning");
 
     let successCount = 0;
     let failCount = 0;
 
-    for (const reminder of reminders) {
+    // Process regular reminders (24h and 2h) - one notification per reminder
+    for (const reminder of regularReminders) {
       try {
-        // Format the notification message based on reminder type
-        const isRussian = true; // Default to Russian, could be extended with user preferences
+        const isRussian = true; // Default to Russian
         
         let title: string;
         let body: string;
@@ -88,20 +104,93 @@ serve(async (req) => {
         }
 
         // Mark reminder as sent
-        const { error: updateError } = await supabase
+        await supabase
           .from("booking_reminders")
           .update({ sent_at: new Date().toISOString() })
           .eq("id", reminder.id);
 
-        if (updateError) {
-          console.error(`Error updating reminder ${reminder.id}:`, updateError);
-        }
-
         successCount++;
-        console.log(`Sent reminder ${reminder.id} to ${reminder.user_phone}`);
+        console.log(`Sent regular reminder ${reminder.id} to ${reminder.user_phone}`);
       } catch (error) {
         console.error(`Exception processing reminder ${reminder.id}:`, error);
         failCount++;
+      }
+    }
+
+    // Process morning reminders - group by user and send ONE consolidated notification
+    const morningByUser = new Map<string, Reminder[]>();
+    for (const reminder of morningReminders) {
+      const existing = morningByUser.get(reminder.user_phone) || [];
+      existing.push(reminder);
+      morningByUser.set(reminder.user_phone, existing);
+    }
+
+    for (const [userPhone, userReminders] of morningByUser) {
+      try {
+        const isRussian = true;
+
+        // Sort by time
+        const sortedReminders = userReminders.sort((a, b) => {
+          const timeA = a.slot_time || "00:00";
+          const timeB = b.slot_time || "00:00";
+          return timeA.localeCompare(timeB);
+        });
+
+        // Build consolidated message
+        let title: string;
+        let body: string;
+
+        if (sortedReminders.length === 1) {
+          // Single lesson
+          const r = sortedReminders[0];
+          title = isRussian ? "Сегодня занятие!" : "Бүгін сабақ!";
+          body = isRussian
+            ? `"${r.product_title}" в ${formatTime(r.slot_time)}`
+            : `"${r.product_title}" ${formatTime(r.slot_time)} кезінде`;
+        } else {
+          // Multiple lessons - consolidated
+          title = isRussian 
+            ? `Сегодня ${sortedReminders.length} занятия!` 
+            : `Бүгін ${sortedReminders.length} сабақ!`;
+          
+          const times = sortedReminders.map(r => formatTime(r.slot_time)).join(", ");
+          body = isRussian
+            ? `У вас уроки сегодня в ${times}`
+            : `Бүгінгі сабақтарыңыз: ${times}`;
+        }
+
+        // Send single consolidated notification
+        const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
+          body: {
+            userPhone,
+            title,
+            body,
+            data: {
+              type: "reminder",
+              reminderType: "morning",
+              lessonCount: sortedReminders.length
+            }
+          }
+        });
+
+        if (pushError) {
+          console.error(`Error sending morning digest to ${userPhone}:`, pushError);
+          failCount += userReminders.length;
+          continue;
+        }
+
+        // Mark all morning reminders for this user as sent
+        const reminderIds = userReminders.map(r => r.id);
+        await supabase
+          .from("booking_reminders")
+          .update({ sent_at: new Date().toISOString() })
+          .in("id", reminderIds);
+
+        successCount += userReminders.length;
+        console.log(`Sent morning digest to ${userPhone} with ${userReminders.length} lessons`);
+      } catch (error) {
+        console.error(`Exception processing morning digest for ${userPhone}:`, error);
+        failCount += userReminders.length;
       }
     }
 
@@ -128,12 +217,13 @@ serve(async (req) => {
 });
 
 // Helper functions
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "";
   const date = new Date(dateStr);
   return date.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
-function formatTime(timeStr: string): string {
+function formatTime(timeStr: string | null): string {
   if (!timeStr) return "";
   // Handle both "HH:MM:SS" and "HH:MM" formats
   return timeStr.substring(0, 5);
