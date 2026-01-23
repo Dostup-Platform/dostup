@@ -55,8 +55,6 @@ const AccountTab = () => {
 
   return (
     <div className="space-y-6">
-      {/* Notification Preferences */}
-      {user.phone && <NotificationPreferences userPhone={user.phone} />}
       {/* Profile Info */}
       <Card>
         <CardHeader>
@@ -81,6 +79,9 @@ const AccountTab = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Notification Preferences */}
+      {user.phone && <NotificationPreferences userPhone={user.phone} />}
 
       {/* Purchased Products */}
       <Card>

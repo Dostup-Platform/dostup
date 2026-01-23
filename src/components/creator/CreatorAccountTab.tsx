@@ -55,8 +55,6 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Notification Preferences */}
-      <NotificationPreferences userPhone={creatorName} />
       {/* Profile Info */}
       <Card>
         <CardHeader>
@@ -83,6 +81,9 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Notification Preferences */}
+      <NotificationPreferences userPhone={creatorName} />
 
       {/* Logout */}
       <Button

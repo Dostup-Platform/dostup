@@ -42,9 +42,6 @@ const TeacherAccountTab = ({ teacherName, teacherPhone }: TeacherAccountTabProps
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">{t("account")}</h2>
 
-      {/* Notification Preferences */}
-      {teacherPhone && <NotificationPreferences userPhone={teacherPhone} />}
-
       {/* Profile Card */}
       <Card>
         <CardHeader>
@@ -67,6 +64,9 @@ const TeacherAccountTab = ({ teacherName, teacherPhone }: TeacherAccountTabProps
           </div>
         </CardContent>
       </Card>
+
+      {/* Notification Preferences */}
+      {teacherPhone && <NotificationPreferences userPhone={teacherPhone} />}
 
       {/* Logout Button */}
       <Button
