@@ -80,9 +80,6 @@ const AccountTab = () => {
         </CardContent>
       </Card>
 
-      {/* Notification Preferences */}
-      {user.phone && <NotificationPreferences userPhone={user.phone} />}
-
       {/* Purchased Products */}
       <Card>
         <CardHeader>
@@ -126,6 +123,9 @@ const AccountTab = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Notification Preferences */}
+      {user.phone && <NotificationPreferences userPhone={user.phone} />}
 
       {/* Install App */}
       <Card>
