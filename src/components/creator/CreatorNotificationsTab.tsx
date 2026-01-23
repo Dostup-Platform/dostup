@@ -1,8 +1,8 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, Calendar, Clock, User, X, Check, ShoppingCart, Loader2, Phone, XCircle } from "lucide-react";
+import { Bell, Calendar, Clock, X, Check, ShoppingCart, Loader2, Phone, XCircle } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings, useCreatorCancelBooking } from "@/hooks/useSimplePurchases";
@@ -235,7 +235,7 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     try {
       await cancelBooking.mutateAsync(bookingId);
       toast.success(t("bookingCancelledCreator"));
-    } catch (error) {
+    } catch {
       toast.error(t("cancelFailed"));
     }
   };
@@ -293,22 +293,10 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     );
   }
 
-  const hasNotifications = sortedBookings.length > 0 || pendingPurchases.length > 0 || cancellations.length > 0;
-
-  if (!hasNotifications) {
-    return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">{t("noNotifications")}</p>
-          <p className="text-sm text-muted-foreground mt-1">{t("notificationsWillAppear")}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   // Get creator phone for preferences (using creatorName)
   const creatorPhone = `creator_${creatorName}`;
+
+  const hasNotifications = sortedBookings.length > 0 || pendingPurchases.length > 0 || cancellations.length > 0;
 
   return (
     <div className="space-y-4">
@@ -597,6 +585,17 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                 );
               })}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty state if no notifications */}
+      {!hasNotifications && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">{t("noNotifications")}</p>
+            <p className="text-sm text-muted-foreground mt-1">{t("notificationsWillAppear")}</p>
           </CardContent>
         </Card>
       )}
