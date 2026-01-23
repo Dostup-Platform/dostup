@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { User, LogOut, Loader2 } from "lucide-react";
+import { unregisterPushToken } from "@/lib/firebase";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,8 +26,11 @@ const TeacherAccountTab = ({ teacherName }: TeacherAccountTabProps) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsLoggingOut(true);
+    // Удаляем push-токены при выходе
+    await unregisterPushToken(teacherName).catch(console.error);
+    
     localStorage.removeItem("teacher_data");
     localStorage.removeItem("teacher_notifications_last_viewed");
     navigate("/");

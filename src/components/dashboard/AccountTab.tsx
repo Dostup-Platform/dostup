@@ -8,6 +8,7 @@ import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate, Link } from "react-router-dom";
 import { useState } from "react";
+import { unregisterPushToken } from "@/lib/firebase";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +35,11 @@ const AccountTab = () => {
   const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Удаляем push-токены при выходе
+    if (user?.phone) {
+      await unregisterPushToken(user.phone).catch(console.error);
+    }
     logout(); // logout уже сохраняет данные пользователя для повторного входа
     navigate("/");
   };

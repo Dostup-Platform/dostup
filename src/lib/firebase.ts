@@ -128,18 +128,16 @@ export const registerPushToken = async (
 };
 
 /**
- * Unregister FCM token from the server
+ * Unregister FCM token from the server (removes ALL tokens for user)
  */
 export const unregisterPushToken = async (userPhone: string): Promise<boolean> => {
   try {
-    const fcmToken = await getFCMToken();
-    if (!fcmToken) return false;
-
+    // Remove all tokens for this user (don't need specific token)
     const { error } = await supabase.functions.invoke("manage-push-token", {
       body: {
         action: "unregister",
-        userPhone,
-        fcmToken
+        userPhone
+        // No fcmToken = delete all tokens for this user
       }
     });
 
@@ -148,7 +146,7 @@ export const unregisterPushToken = async (userPhone: string): Promise<boolean> =
       return false;
     }
 
-    console.log("Push token unregistered successfully");
+    console.log("Push tokens unregistered for", userPhone);
     return true;
   } catch (error) {
     console.error("Error in unregisterPushToken:", error);

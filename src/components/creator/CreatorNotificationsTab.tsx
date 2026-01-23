@@ -207,6 +207,53 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     enabled: productIds.length > 0,
   });
 
+  // Realtime подписка для обновления pending purchases
+  useEffect(() => {
+    if (!productIds.length) return;
+
+    const channel = supabase
+      .channel("creator-purchases-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "simple_purchases",
+        },
+        (payload) => {
+          const newPurchase = payload.new as { product_id: string };
+          
+          // Проверяем что покупка для нашего продукта
+          if (productIds.includes(newPurchase.product_id)) {
+            console.log("[CreatorNotifications] New purchase detected, refreshing...");
+            queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases"] });
+            queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases-count"] });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "simple_purchases",
+        },
+        (payload) => {
+          const updatedPurchase = payload.new as { product_id: string };
+          
+          if (productIds.includes(updatedPurchase.product_id)) {
+            queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases"] });
+            queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases-count"] });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [productIds, queryClient]);
+
   // Мутация для подтверждения покупки
   const confirmPurchase = useMutation({
     mutationFn: async (purchaseId: string) => {
