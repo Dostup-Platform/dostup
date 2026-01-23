@@ -487,12 +487,6 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                               </div>
                             </>
                           )}
-                          {user?.phone && (
-                            <div className="flex items-center gap-1">
-                              <Phone className="w-3.5 h-3.5" />
-                              <span>{user.phone}</span>
-                            </div>
-                          )}
                         </div>
                       </div>
                       
