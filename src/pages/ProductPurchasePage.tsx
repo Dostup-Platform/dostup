@@ -258,25 +258,35 @@ const ProductPurchasePage = () => {
     }
 
     // Send push notification to creator immediately
-    if (product?.creator_id) {
-      const userName = `${firstName} ${lastName}`.trim() || "Клиент";
+    const userName = `${firstName} ${lastName}`.trim() || "Клиент";
+    const creatorId = product?.creator_id;
+    const productTitle = product?.title || "";
+    const productPrice = product?.price || 0;
+    
+    console.log("[Purchase] Attempting to send push notification to creator:", creatorId);
+    
+    if (creatorId) {
       const title = `Новая покупка от ${userName}`;
-      const body = product.title || "";
+      const body = productTitle;
       
       // Send FCM push to creator (async, don't wait)
       sendPushNotification(
-        product.creator_id, 
+        creatorId, 
         title, 
         body, 
         {
           type: "payment",
           purchaseId: purchase.id,
-          amount: String(product.price || 0)
+          amount: String(productPrice)
         },
         "creator"
-      ).catch((err) => {
-        console.error("Failed to send push notification:", err);
+      ).then((success) => {
+        console.log("[Purchase] Push notification result:", success);
+      }).catch((err) => {
+        console.error("[Purchase] Failed to send push notification:", err);
       });
+    } else {
+      console.warn("[Purchase] No creator_id found for product, skipping push notification");
     }
 
     setPurchaseId(purchase.id);
