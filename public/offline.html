@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f97316">
+  <title>Dostup - Нет подключения</title>
+  <link rel="icon" href="/logo.png">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #fff7ed 0%, #ffffff 50%, #fff7ed 100%);
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      padding-top: max(24px, env(safe-area-inset-top));
+      padding-bottom: max(24px, env(safe-area-inset-bottom));
+    }
+    
+    .container {
+      max-width: 360px;
+      width: 100%;
+      text-align: center;
+    }
+    
+    .logo {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 32px;
+      border-radius: 16px;
+    }
+    
+    .icon-wrapper {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 24px;
+      background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 40px -10px rgba(249, 115, 22, 0.3);
+    }
+    
+    .icon-wrapper svg {
+      width: 56px;
+      height: 56px;
+      color: #ea580c;
+    }
+    
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1c1917;
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+    
+    .message {
+      font-size: 16px;
+      color: #78716c;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+    
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 14px -3px rgba(249, 115, 22, 0.5);
+      width: 100%;
+      max-width: 280px;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px -3px rgba(249, 115, 22, 0.6);
+    }
+    
+    .button:active {
+      transform: translateY(0);
+    }
+    
+    .button svg {
+      width: 20px;
+      height: 20px;
+    }
+    
+    .hint {
+      margin-top: 24px;
+      font-size: 14px;
+      color: #a8a29e;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: linear-gradient(135deg, #1c1917 0%, #0c0a09 50%, #1c1917 100%);
+      }
+      
+      .title {
+        color: #fafaf9;
+      }
+      
+      .message {
+        color: #a8a29e;
+      }
+      
+      .hint {
+        color: #78716c;
+      }
+      
+      .icon-wrapper {
+        background: linear-gradient(135deg, #431407 0%, #7c2d12 100%);
+      }
+      
+      .icon-wrapper svg {
+        color: #fb923c;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="/logo.png" alt="Dostup" class="logo" onerror="this.style.display='none'">
+    
+    <div class="icon-wrapper">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a5 5 0 01-1.414-7.072m0 0L9.879 5.636m-2.829 2.828L3.222 4.636" />
+      </svg>
+    </div>
+    
+    <h1 class="title" id="title">Нет подключения к интернету</h1>
+    <p class="message" id="message">Проверьте подключение и попробуйте снова</p>
+    
+    <button class="button" onclick="location.reload()">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+      <span id="buttonText">Обновить</span>
+    </button>
+    
+    <p class="hint" id="hint">Или попробуйте позже</p>
+  </div>
+
+  <script>
+    // Detect language from localStorage or browser
+    (function() {
+      try {
+        var lang = localStorage.getItem('language') || navigator.language || 'ru';
+        var isKazakh = lang.startsWith('kk');
+        
+        if (isKazakh) {
+          document.getElementById('title').textContent = 'Интернетке қосылым жоқ';
+          document.getElementById('message').textContent = 'Қосылымды тексеріп, қайталап көріңіз';
+          document.getElementById('buttonText').textContent = 'Жаңарту';
+          document.getElementById('hint').textContent = 'Немесе кейінірек көріңіз';
+          document.documentElement.lang = 'kk';
+        }
+      } catch (e) {
+        // Fallback to Russian
+      }
+    })();
+  </script>
+</body>
+</html>
