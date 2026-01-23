@@ -42,14 +42,15 @@ interface PurchaseWithUser {
   };
 }
 
-const CreatorUsersTab = () => {
+interface CreatorUsersTabProps {
+  creatorName: string;
+}
+
+const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [revokeDialog, setRevokeDialog] = useState<{ id: string; name: string } | null>(null);
   const { t } = useLanguage();
   const queryClient = useQueryClient();
-  
-  // Получаем имя креатора из localStorage (НЕ из useSimpleAuth)
-  const creatorName = localStorage.getItem("creator_name");
 
   // Получить все покупки продуктов этого создателя
   const { data: purchases = [], isLoading } = useQuery({

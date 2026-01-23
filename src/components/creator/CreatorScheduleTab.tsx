@@ -66,7 +66,11 @@ interface Booking {
   user?: { name: string };
 }
 
-const CreatorScheduleTab = () => {
+interface CreatorScheduleTabProps {
+  creatorName: string;
+}
+
+const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
   const { t, language } = useLanguage();
   const queryClient = useQueryClient();
 
@@ -115,7 +119,7 @@ const CreatorScheduleTab = () => {
   });
 
   // Fetch products
-  const { data: products = [], isLoading: productsLoading } = useCreatorProducts();
+  const { data: products = [], isLoading: productsLoading } = useCreatorProducts(creatorName);
   const productIds = useMemo(() => products.map(p => p.id), [products]);
 
   // Fetch creator's own schedules (where teacher_id IS NULL)

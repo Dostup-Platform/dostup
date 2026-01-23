@@ -57,13 +57,14 @@ interface BookingCancellation {
 }
 
 interface CreatorNotificationsTabProps {
+  creatorName: string;
   lastViewedAt?: Date | null;
 }
 
-const CreatorNotificationsTab = ({ lastViewedAt }: CreatorNotificationsTabProps) => {
+const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificationsTabProps) => {
   const { t, language } = useLanguage();
   const queryClient = useQueryClient();
-  const { data: products } = useCreatorProducts();
+  const { data: products } = useCreatorProducts(creatorName);
   const productIds = useMemo(() => products?.map(p => p.id) || [], [products]);
   const { data: bookings, isLoading: bookingsLoading } = useCreatorSimpleBookings(productIds);
   const cancelBooking = useCreatorCancelBooking();
