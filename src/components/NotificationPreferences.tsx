@@ -39,7 +39,7 @@ const NotificationPreferences = ({ userPhone }: NotificationPreferencesProps) =>
 
   const translations = {
     ru: {
-      title: "Настройки напоминаний",
+      title: "Настройки напоминаний об уроке",
       reminder24h: "За 24 часа до урока",
       reminderMorning: "Утром в день занятия",
       reminder2h: "За 2 часа до урока",
@@ -50,7 +50,7 @@ const NotificationPreferences = ({ userPhone }: NotificationPreferencesProps) =>
       morningNote: "Одно уведомление обо всех уроках за день",
     },
     kk: {
-      title: "Еске салу параметрлері",
+      title: "Сабақ туралы еске салу параметрлері",
       reminder24h: "Сабақтан 24 сағат бұрын",
       reminderMorning: "Сабақ күні таңертең",
       reminder2h: "Сабақтан 2 сағат бұрын",
