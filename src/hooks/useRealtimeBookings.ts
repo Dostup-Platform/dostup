@@ -173,13 +173,13 @@ export const useRealtimeBookingNotifications = (
           // Browser push notification
           showBrowserNotification(title, description);
 
-          // Send FCM push notification to creator (in case they're not in the app)
+          // Send FCM push notification to creator only (filter by role)
           const creatorName = localStorage.getItem("creator_name");
           if (creatorName) {
             sendPushNotification(creatorName, title, description, {
               type: "booking",
               bookingId: newBooking.id
-            });
+            }, "creator"); // Only send to creator role
           }
 
           // Invalidate bookings query to refresh data
@@ -222,14 +222,14 @@ export const useRealtimeBookingNotifications = (
           // Browser push notification
           showBrowserNotification(title, description);
 
-          // Send FCM push notification to creator
+          // Send FCM push notification to creator only (filter by role)
           const creatorName = localStorage.getItem("creator_name");
           if (creatorName) {
             sendPushNotification(creatorName, title, description, {
               type: "cancellation",
               date: cachedInfo.date,
               time: cachedInfo.time
-            });
+            }, "creator"); // Only send to creator role
           }
 
           // Remove from cache

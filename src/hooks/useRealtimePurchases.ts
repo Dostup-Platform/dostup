@@ -104,14 +104,14 @@ export const useRealtimePurchaseNotifications = (productIds: string[], enabled: 
             // Browser push notification
             showBrowserNotification(title, description);
 
-            // Send FCM push notification to creator
+            // Send FCM push notification to creator only (filter by role)
             const creatorName = localStorage.getItem("creator_name");
             if (creatorName) {
               sendPushNotification(creatorName, title, description, {
                 type: "payment",
                 purchaseId: fullPurchase.id,
                 amount: String(fullPurchase.amount)
-              });
+              }, "creator"); // Only send to creator role
             }
           }
 

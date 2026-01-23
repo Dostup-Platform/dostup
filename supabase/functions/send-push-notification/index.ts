@@ -203,7 +203,7 @@ serve(async (req) => {
   }
 
   try {
-    const { userPhone, title, body, data } = await req.json();
+    const { userPhone, title, body, data, targetRole } = await req.json();
 
     if (!userPhone || !title || !body) {
       return new Response(
@@ -212,18 +212,25 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Sending push notification to ${userPhone}: ${title}`);
+    console.log(`Sending push notification to ${userPhone} (role: ${targetRole || 'any'}): ${title}`);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get all FCM tokens for this user
-    const { data: tokens, error: tokensError } = await supabase
+    // Build query for FCM tokens - filter by role if specified
+    let query = supabase
       .from("push_tokens")
-      .select("id, fcm_token")
+      .select("id, fcm_token, user_role")
       .eq("user_phone", userPhone);
+    
+    // Filter by role if targetRole is specified
+    if (targetRole) {
+      query = query.eq("user_role", targetRole);
+    }
+
+    const { data: tokens, error: tokensError } = await query;
 
     if (tokensError) {
       console.error("Error fetching tokens:", tokensError);
@@ -234,7 +241,7 @@ serve(async (req) => {
     }
 
     if (!tokens || tokens.length === 0) {
-      console.log(`No push tokens found for user: ${userPhone}`);
+      console.log(`No push tokens found for user: ${userPhone} with role: ${targetRole || 'any'}`);
       return new Response(
         JSON.stringify({ message: "No tokens registered", sent: 0 }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
