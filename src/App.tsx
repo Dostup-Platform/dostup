@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SimpleAuthProvider } from "@/contexts/SimpleAuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import ProductPage from "./pages/ProductPage";
 import ProductPurchasePage from "./pages/ProductPurchasePage";
@@ -18,8 +19,9 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <LanguageProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <LanguageProvider>
       <SimpleAuthProvider>
         <AuthProvider>
           <TooltipProvider>
@@ -40,8 +42,9 @@ const App = () => (
           </TooltipProvider>
         </AuthProvider>
       </SimpleAuthProvider>
-    </LanguageProvider>
-  </QueryClientProvider>
+      </LanguageProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
