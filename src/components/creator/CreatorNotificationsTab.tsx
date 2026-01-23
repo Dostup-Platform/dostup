@@ -11,7 +11,6 @@ import { ru, kk } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import NotificationPreferences from "@/components/NotificationPreferences";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -340,15 +339,10 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     );
   }
 
-  // Get creator phone for preferences (using creatorName)
-  const creatorPhone = `creator_${creatorName}`;
-
   const hasNotifications = sortedBookings.length > 0 || pendingPurchases.length > 0 || cancellations.length > 0;
 
   return (
     <div className="space-y-4">
-      {/* Notification Preferences */}
-      <NotificationPreferences userPhone={creatorPhone} />
 
       {/* Pending Purchases Section */}
       {pendingPurchases.length > 0 && (

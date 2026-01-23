@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { User, LogOut, Loader2 } from "lucide-react";
 import { unregisterPushToken } from "@/lib/firebase";
+import NotificationPreferences from "@/components/NotificationPreferences";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,9 +19,10 @@ import {
 
 interface TeacherAccountTabProps {
   teacherName: string;
+  teacherPhone?: string;
 }
 
-const TeacherAccountTab = ({ teacherName }: TeacherAccountTabProps) => {
+const TeacherAccountTab = ({ teacherName, teacherPhone }: TeacherAccountTabProps) => {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -39,6 +41,9 @@ const TeacherAccountTab = ({ teacherName }: TeacherAccountTabProps) => {
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold">{t("account")}</h2>
+
+      {/* Notification Preferences */}
+      {teacherPhone && <NotificationPreferences userPhone={teacherPhone} />}
 
       {/* Profile Card */}
       <Card>
