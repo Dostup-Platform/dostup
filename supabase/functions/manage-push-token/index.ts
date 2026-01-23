@@ -42,17 +42,30 @@ serve(async (req) => {
           )
         }
 
-        // Upsert the token
+        // First, delete any existing tokens for this device (same fcm_token)
+        // This ensures one device = one token, regardless of user
+        await supabase
+          .from('push_tokens')
+          .delete()
+          .eq('fcm_token', fcmToken)
+
+        // Also delete old tokens for this user+role combination on other devices
+        // Keep only the most recent device per user+role
+        await supabase
+          .from('push_tokens')
+          .delete()
+          .eq('user_phone', userPhone)
+          .eq('user_role', userRole || 'student')
+
+        // Insert the new token
         const { error } = await supabase
           .from('push_tokens')
-          .upsert({
+          .insert({
             user_phone: userPhone,
             user_role: userRole || 'student',
             fcm_token: fcmToken,
             device_info: deviceInfo || null,
             updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_phone,fcm_token'
           })
 
         if (error) {
@@ -66,6 +79,8 @@ serve(async (req) => {
           )
         }
 
+        console.log(`Token registered for ${userPhone} (${userRole})`)
+
         return new Response(
           JSON.stringify({ success: true }),
           { 
@@ -76,21 +91,18 @@ serve(async (req) => {
       }
 
       case 'unregister': {
-        if (!fcmToken) {
-          return new Response(
-            JSON.stringify({ error: 'Missing fcmToken for unregister action' }),
-            { 
-              status: 400, 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-            }
-          )
+        // Delete token - can be by fcmToken OR by userPhone (for logout)
+        let deleteQuery = supabase.from('push_tokens').delete()
+        
+        if (fcmToken) {
+          // Delete specific token
+          deleteQuery = deleteQuery.eq('fcm_token', fcmToken)
+        } else {
+          // Delete all tokens for this user (logout scenario)
+          deleteQuery = deleteQuery.eq('user_phone', userPhone)
         }
 
-        const { error } = await supabase
-          .from('push_tokens')
-          .delete()
-          .eq('user_phone', userPhone)
-          .eq('fcm_token', fcmToken)
+        const { error } = await deleteQuery
 
         if (error) {
           console.error('Error unregistering push token:', error)
@@ -102,6 +114,8 @@ serve(async (req) => {
             }
           )
         }
+
+        console.log(`Token(s) unregistered for ${userPhone}`)
 
         return new Response(
           JSON.stringify({ success: true }),

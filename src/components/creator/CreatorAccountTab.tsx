@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { unregisterPushToken } from "@/lib/firebase";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,7 +41,10 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
     }
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Удаляем push-токены при выходе
+    await unregisterPushToken(creatorName).catch(console.error);
+    
     // Сохраняем имя для подсказки при следующем входе
     localStorage.setItem("creator_last_name", creatorName);
     localStorage.removeItem("creator_name");
