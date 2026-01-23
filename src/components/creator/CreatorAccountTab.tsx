@@ -7,6 +7,7 @@ import { ru } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
+import NotificationPreferences from "@/components/NotificationPreferences";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +55,8 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Notification Preferences */}
+      <NotificationPreferences userPhone={creatorName} />
       {/* Profile Info */}
       <Card>
         <CardHeader>

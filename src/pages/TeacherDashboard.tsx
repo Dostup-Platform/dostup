@@ -50,6 +50,24 @@ const TeacherDashboard = () => {
   const { data: teacherProducts = [], isLoading: productsLoading } = useTeacherProducts(teacherName || undefined);
   const productIds = useMemo(() => teacherProducts.map(tp => tp.product_id), [teacherProducts]);
 
+  // Get teacher user record for phone
+  const { data: teacherUser } = useQuery({
+    queryKey: ["teacher-user", teacherName],
+    queryFn: async () => {
+      if (!teacherName) return null;
+      
+      const { data } = await supabase
+        .from("simple_users")
+        .select("id, phone")
+        .eq("name", teacherName)
+        .eq("role", "teacher")
+        .maybeSingle();
+      
+      return data;
+    },
+    enabled: !!teacherName,
+  });
+
   // Get teacher's schedule IDs for notifications
   const { data: teacherSchedules = [] } = useQuery({
     queryKey: ["teacher-schedules", teacherName],
@@ -177,7 +195,7 @@ const TeacherDashboard = () => {
             />
           </TabsContent>
           <TabsContent value="account" className="mt-0 animate-fade-in">
-            <TeacherAccountTab teacherName={teacherName} />
+            <TeacherAccountTab teacherName={teacherName} teacherPhone={teacherUser?.phone} />
           </TabsContent>
         </Tabs>
       </main>

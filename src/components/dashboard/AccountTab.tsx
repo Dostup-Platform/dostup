@@ -9,6 +9,7 @@ import { ru } from "date-fns/locale";
 import { useNavigate, Link } from "react-router-dom";
 import { useState } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
+import NotificationPreferences from "@/components/NotificationPreferences";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +55,8 @@ const AccountTab = () => {
 
   return (
     <div className="space-y-6">
+      {/* Notification Preferences */}
+      {user.phone && <NotificationPreferences userPhone={user.phone} />}
       {/* Profile Info */}
       <Card>
         <CardHeader>

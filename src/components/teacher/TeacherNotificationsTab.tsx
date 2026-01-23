@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
-import NotificationPreferences from "@/components/NotificationPreferences";
 
 interface TeacherNotificationsTabProps {
   teacherName: string;
@@ -123,14 +122,8 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
     );
   }
 
-  // Use teacher's phone for preferences
-  const teacherPhone = teacherData?.phone || `teacher_${teacherName}`;
-
   return (
     <div className="space-y-4">
-      {/* Notification Preferences */}
-      <NotificationPreferences userPhone={teacherPhone} />
-
       <h2 className="text-lg font-semibold flex items-center gap-2">
         <Bell className="w-5 h-5" />
         {language === "ru" ? "Уведомления" : "Хабарландырулар"}
