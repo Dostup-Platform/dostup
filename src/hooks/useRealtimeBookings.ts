@@ -23,6 +23,17 @@ interface DeletedBookingInfo {
   time: string;
 }
 
+// Global set to track processed booking IDs to prevent duplicates
+const processedBookingInserts = new Set<string>();
+const processedBookingDeletes = new Set<string>();
+
+// Clean up old entries after 30 seconds
+const cleanupProcessedIds = (set: Set<string>, id: string) => {
+  setTimeout(() => {
+    set.delete(id);
+  }, 30000);
+};
+
 export const useRealtimeBookingNotifications = (
   productIds: string[],
   enabled: boolean = true
@@ -130,6 +141,14 @@ export const useRealtimeBookingNotifications = (
           
           const newBooking = payload.new as BookingPayload;
           
+          // Skip if we already processed this booking
+          if (processedBookingInserts.has(newBooking.id)) {
+            console.log("Already processed booking insert:", newBooking.id);
+            return;
+          }
+          processedBookingInserts.add(newBooking.id);
+          cleanupProcessedIds(processedBookingInserts, newBooking.id);
+          
           // Fetch full booking details
           const bookingDetails = await fetchBookingDetails(newBooking.id);
           
@@ -197,6 +216,14 @@ export const useRealtimeBookingNotifications = (
           console.log("Booking cancelled:", payload);
           
           const deletedBooking = payload.old as BookingPayload;
+          
+          // Skip if we already processed this deletion
+          if (processedBookingDeletes.has(deletedBooking.id)) {
+            console.log("Already processed booking delete:", deletedBooking.id);
+            return;
+          }
+          processedBookingDeletes.add(deletedBooking.id);
+          cleanupProcessedIds(processedBookingDeletes, deletedBooking.id);
           
           // Get cached info about the deleted booking
           const cachedInfo = bookingCacheRef.current.get(deletedBooking.id);

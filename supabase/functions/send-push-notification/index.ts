@@ -9,6 +9,37 @@ const corsHeaders = {
 // Cache for access token
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
+// Deduplication cache - prevents sending same notification multiple times
+// Key: hash of userPhone + title + body + purchaseId/bookingId
+const sentNotifications = new Map<string, number>();
+const DEDUP_WINDOW_MS = 30000; // 30 seconds
+
+function getNotificationKey(userPhone: string, title: string, data?: Record<string, string>): string {
+  const dataKey = data?.purchaseId || data?.bookingId || data?.type || "";
+  return `${userPhone}:${title}:${dataKey}`;
+}
+
+function isDuplicate(key: string): boolean {
+  const lastSent = sentNotifications.get(key);
+  if (lastSent && Date.now() - lastSent < DEDUP_WINDOW_MS) {
+    return true;
+  }
+  return false;
+}
+
+function markAsSent(key: string): void {
+  sentNotifications.set(key, Date.now());
+  // Cleanup old entries periodically
+  if (sentNotifications.size > 100) {
+    const now = Date.now();
+    for (const [k, v] of sentNotifications.entries()) {
+      if (now - v > DEDUP_WINDOW_MS) {
+        sentNotifications.delete(k);
+      }
+    }
+  }
+}
+
 /**
  * Get Google OAuth2 access token for FCM v1 API
  */
@@ -211,6 +242,17 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Check for duplicate notifications
+    const dedupKey = getNotificationKey(userPhone, title, data);
+    if (isDuplicate(dedupKey)) {
+      console.log(`Duplicate notification blocked: ${dedupKey}`);
+      return new Response(
+        JSON.stringify({ message: "Duplicate notification blocked", sent: 0 }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    markAsSent(dedupKey);
 
     console.log(`Sending push notification to ${userPhone} (role: ${targetRole || 'any'}): ${title}`);
 

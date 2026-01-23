@@ -16,6 +16,16 @@ interface NewPurchasePayload {
   };
 }
 
+// Global set to track processed purchase IDs to prevent duplicate notifications
+const processedPurchaseInserts = new Set<string>();
+
+// Clean up old entries after 30 seconds
+const cleanupProcessedIds = (id: string) => {
+  setTimeout(() => {
+    processedPurchaseInserts.delete(id);
+  }, 30000);
+};
+
 export const useRealtimePurchaseNotifications = (productIds: string[], enabled: boolean = true) => {
   const queryClient = useQueryClient();
   const { language } = useLanguage();
@@ -76,6 +86,14 @@ export const useRealtimePurchaseNotifications = (productIds: string[], enabled: 
         },
         async (payload: NewPurchasePayload) => {
           const newPurchase = payload.new;
+          
+          // Skip if we already processed this purchase
+          if (processedPurchaseInserts.has(newPurchase.id)) {
+            console.log("Already processed purchase insert:", newPurchase.id);
+            return;
+          }
+          processedPurchaseInserts.add(newPurchase.id);
+          cleanupProcessedIds(newPurchase.id);
           
           // Check if the purchase is for one of creator's products
           if (!productIdsRef.current.includes(newPurchase.product_id)) {
