@@ -13,6 +13,7 @@ import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Download } from "lucide-
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import heroBackground from "@/assets/hero-background.jpg";
+import { sendPushNotification } from "@/lib/firebase";
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("ru-RU", {
@@ -254,6 +255,28 @@ const ProductPurchasePage = () => {
       toast.error("Ошибка создания заказа");
       setIsProcessing(false);
       return;
+    }
+
+    // Send push notification to creator immediately
+    if (product?.creator_id) {
+      const userName = `${firstName} ${lastName}`.trim() || "Клиент";
+      const title = `Новая покупка от ${userName}`;
+      const body = product.title || "";
+      
+      // Send FCM push to creator (async, don't wait)
+      sendPushNotification(
+        product.creator_id, 
+        title, 
+        body, 
+        {
+          type: "payment",
+          purchaseId: purchase.id,
+          amount: String(product.price || 0)
+        },
+        "creator"
+      ).catch((err) => {
+        console.error("Failed to send push notification:", err);
+      });
     }
 
     setPurchaseId(purchase.id);
