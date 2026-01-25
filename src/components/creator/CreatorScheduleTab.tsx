@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil, UserPlus, Link, Copy } from "lucide-react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -73,6 +74,7 @@ interface CreatorScheduleTabProps {
 const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
   const { t, language } = useLanguage();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   const [scheduleType, setScheduleType] = useState<EventType>("individual");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -667,8 +669,8 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                 <div className="flex gap-1">
                   <Button
                     variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
+                    size={isMobile ? "icon" : "sm"}
+                    className={isMobile ? "h-8 w-8" : "h-8"}
                     onClick={() => {
                       setSelectedScheduleForSlots(schedule);
                       setSlotsForm({
@@ -681,11 +683,12 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                     title={language === "ru" ? "Добавить слоты" : "Слоттар қосу"}
                   >
                     <Plus className="w-4 h-4" />
+                    {!isMobile && <span className="ml-1">{language === "ru" ? "Слоты" : "Слоттар"}</span>}
                   </Button>
                   <Button
                     variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
+                    size={isMobile ? "icon" : "sm"}
+                    className={isMobile ? "h-8 w-8" : "h-8"}
                     onClick={() => {
                       setSelectedScheduleForLink(schedule);
                       fetchAvailableDatesForLink(schedule.id);
@@ -696,11 +699,12 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                     title={language === "ru" ? "Добавить ссылку" : "Сілтеме қосу"}
                   >
                     <Link className="w-4 h-4" />
+                    {!isMobile && <span className="ml-1">{language === "ru" ? "Ссылка" : "Сілтеме"}</span>}
                   </Button>
                   <Button
                     variant="outline"
-                    size="icon"
-                    className="h-8 w-8 text-destructive border-destructive/50 hover:bg-destructive/10"
+                    size={isMobile ? "icon" : "sm"}
+                    className={`text-destructive border-destructive/50 hover:bg-destructive/10 ${isMobile ? "h-8 w-8" : "h-8"}`}
                     onClick={() => {
                       setSelectedScheduleForDelete(schedule);
                       fetchAvailableDates(schedule.id);
@@ -710,6 +714,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                     title={language === "ru" ? "Удалить слоты" : "Слоттарды жою"}
                   >
                     <Trash2 className="w-4 h-4" />
+                    {!isMobile && <span className="ml-1">{language === "ru" ? "Выбрать" : "Таңдау"}</span>}
                   </Button>
                 </div>
               </CardContent>

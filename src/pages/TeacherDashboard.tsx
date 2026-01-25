@@ -5,6 +5,7 @@ import { Calendar, FileText, Bell, User, Loader2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useTeacherProducts } from "@/hooks/useProductTeachers";
+import { useIsMobile } from "@/hooks/use-mobile";
 import TeacherScheduleTab from "@/components/teacher/TeacherScheduleTab";
 import TeacherMaterialsTab from "@/components/teacher/TeacherMaterialsTab";
 import TeacherNotificationsTab from "@/components/teacher/TeacherNotificationsTab";
@@ -21,6 +22,7 @@ const TeacherDashboard = () => {
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
   const { t, language } = useLanguage();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // Load teacher data from localStorage
   useEffect(() => {
@@ -164,10 +166,10 @@ const TeacherDashboard = () => {
   if (!teacherName) return null;
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className={`min-h-screen bg-background ${isMobile ? "pb-20" : ""}`}>
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-foreground">
               {language === "ru" ? "Панель учителя" : "Мұғалім панелі"}
@@ -179,8 +181,35 @@ const TeacherDashboard = () => {
       </header>
 
       {/* Content */}
-      <main className="max-w-2xl mx-auto px-4 py-6">
+      <main className="max-w-4xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          {/* Desktop Top Tabs */}
+          {!isMobile && (
+            <TabsList className="w-full h-12 grid grid-cols-4 mb-6">
+              <TabsTrigger value="schedule" className="gap-2">
+                <Calendar className="w-4 h-4" />
+                {t("schedule")}
+              </TabsTrigger>
+              <TabsTrigger value="materials" className="gap-2">
+                <FileText className="w-4 h-4" />
+                {t("materials")}
+              </TabsTrigger>
+              <TabsTrigger value="notifications" className="gap-2 relative">
+                <Bell className="w-4 h-4" />
+                {t("notifications")}
+                {newNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="account" className="gap-2">
+                <User className="w-4 h-4" />
+                {t("account")}
+              </TabsTrigger>
+            </TabsList>
+          )}
+
           <TabsContent value="schedule" className="mt-0 animate-fade-in">
             <TeacherScheduleTab teacherName={teacherName} productIds={productIds} />
           </TabsContent>
@@ -200,48 +229,50 @@ const TeacherDashboard = () => {
         </Tabs>
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
-        <div className="max-w-2xl mx-auto">
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-4 gap-1">
-              <TabsTrigger 
-                value="schedule" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
-              >
-                <Calendar className="w-5 h-5" />
-                <span className="text-xs">{t("schedule")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="materials" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
-              >
-                <FileText className="w-5 h-5" />
-                <span className="text-xs">{t("materials")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="notifications" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none relative"
-              >
-                <Bell className="w-5 h-5" />
-                <span className="text-xs">{t("notifications")}</span>
-                {newNotificationsCount > 0 && (
-                  <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="account" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
-              >
-                <User className="w-5 h-5" />
-                <span className="text-xs">{t("account")}</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </nav>
+      {/* Bottom Navigation - Mobile Only */}
+      {isMobile && (
+        <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
+          <div className="max-w-2xl mx-auto">
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
+              <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-4 gap-1">
+                <TabsTrigger 
+                  value="schedule" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+                >
+                  <Calendar className="w-5 h-5" />
+                  <span className="text-xs">{t("schedule")}</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="materials" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+                >
+                  <FileText className="w-5 h-5" />
+                  <span className="text-xs">{t("materials")}</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="notifications" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none relative"
+                >
+                  <Bell className="w-5 h-5" />
+                  <span className="text-xs">{t("notifications")}</span>
+                  {newNotificationsCount > 0 && (
+                    <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+                      {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="account" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+                >
+                  <User className="w-5 h-5" />
+                  <span className="text-xs">{t("account")}</span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </nav>
+      )}
     </div>
   );
 };
