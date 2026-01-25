@@ -10,6 +10,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useState } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
 import NotificationPreferences from "@/components/NotificationPreferences";
+import { usePWADetection } from "@/hooks/usePWADetection";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +35,7 @@ const AccountTab = () => {
   const { user, logout } = useSimpleAuth();
   const { t } = useLanguage();
   const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
+  const isAppInstalled = usePWADetection();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = async () => {
@@ -127,25 +129,27 @@ const AccountTab = () => {
       {/* Notification Preferences */}
       {user.phone && <NotificationPreferences userPhone={user.phone} />}
 
-      {/* Install App */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Download className="w-5 h-5" />
-            {t("installApp")}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground mb-3">
-            {t("installAppDescription")}
-          </p>
-          <Link to="/install">
-            <Button variant="outline" className="w-full">
-              {t("viewInstallInstructions")}
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
+      {/* Install App - only show if not installed */}
+      {!isAppInstalled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Download className="w-5 h-5" />
+              {t("installApp")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              {t("installAppDescription")}
+            </p>
+            <Link to="/install">
+              <Button variant="outline" className="w-full">
+                {t("viewInstallInstructions")}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Logout */}
       <Button

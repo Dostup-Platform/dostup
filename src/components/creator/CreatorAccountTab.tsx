@@ -1,13 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { User, LogOut } from "lucide-react";
+import { User, LogOut, Download } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
 import NotificationPreferences from "@/components/NotificationPreferences";
+import { usePWADetection } from "@/hooks/usePWADetection";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +29,7 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
   const { t } = useLanguage();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [createdAt, setCreatedAt] = useState<Date | null>(null);
+  const isAppInstalled = usePWADetection();
 
   useEffect(() => {
     // Получаем дату создания из localStorage или используем текущую
@@ -84,6 +86,28 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
 
       {/* Notification Preferences */}
       <NotificationPreferences userPhone={creatorName} />
+
+      {/* Install App - only show if not installed */}
+      {!isAppInstalled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Download className="w-5 h-5" />
+              {t("installApp")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              {t("installAppDescription")}
+            </p>
+            <Link to="/install">
+              <Button variant="outline" className="w-full">
+                {t("viewInstallInstructions")}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Logout */}
       <Button

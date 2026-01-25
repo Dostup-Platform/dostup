@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { User, LogOut, Loader2 } from "lucide-react";
+import { User, LogOut, Loader2, Download } from "lucide-react";
 import { unregisterPushToken } from "@/lib/firebase";
 import NotificationPreferences from "@/components/NotificationPreferences";
+import { usePWADetection } from "@/hooks/usePWADetection";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +28,7 @@ const TeacherAccountTab = ({ teacherName, teacherPhone }: TeacherAccountTabProps
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const isAppInstalled = usePWADetection();
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -67,6 +69,28 @@ const TeacherAccountTab = ({ teacherName, teacherPhone }: TeacherAccountTabProps
 
       {/* Notification Preferences */}
       {teacherPhone && <NotificationPreferences userPhone={teacherPhone} />}
+
+      {/* Install App - only show if not installed */}
+      {!isAppInstalled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Download className="w-5 h-5" />
+              {t("installApp")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-3">
+              {t("installAppDescription")}
+            </p>
+            <Link to="/install">
+              <Button variant="outline" className="w-full">
+                {t("viewInstallInstructions")}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Logout Button */}
       <Button
