@@ -347,9 +347,9 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
       {/* Pending Purchases Section */}
       {pendingPurchases.length > 0 && (
         <Card className="border-warning/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2 text-warning">
-              <ShoppingCart className="w-5 h-5" />
+          <CardHeader className="pb-2 px-3 pt-3">
+            <CardTitle className="text-base flex items-center gap-2 text-warning">
+              <ShoppingCart className="w-4 h-4" />
               {t("pendingPayments")} ({pendingPurchases.length})
             </CardTitle>
           </CardHeader>
@@ -361,54 +361,52 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                 return (
                   <div 
                     key={purchase.id} 
-                    className={`p-4 transition-colors ${isNewPurchase ? "bg-warning/5" : ""}`}
+                    className={`p-3 transition-colors ${isNewPurchase ? "bg-warning/5" : ""}`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-full flex-shrink-0 bg-warning/10 text-warning">
-                        <ShoppingCart className="w-4 h-4" />
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-foreground">
-                            {purchase.user?.name || t("student")}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {language === "ru" ? "хочет купить" : "сатып алғысы келеді"}
-                          </span>
-                          {isNewPurchase && (
-                            <Badge variant="default" className="text-xs bg-warning text-warning-foreground">
-                              {t("new")}
-                            </Badge>
-                          )}
+                    {/* Mobile-optimized layout */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="p-1.5 rounded-full flex-shrink-0 bg-warning/10 text-warning">
+                          <ShoppingCart className="w-3.5 h-3.5" />
                         </div>
-                        
-                        <p className="text-sm text-muted-foreground mt-1 truncate">
-                          {purchase.product?.title}
-                        </p>
-                        
-                        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                          <span className="font-medium text-foreground">
-                            {formatPrice(Number(purchase.amount))}
-                          </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-foreground truncate">
+                              {purchase.user?.name || t("student")}
+                            </span>
+                            {isNewPurchase && (
+                              <Badge variant="default" className="text-[10px] px-1.5 py-0 bg-warning text-warning-foreground">
+                                {t("new")}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                        {getTimeAgo(purchase.created_at)}
+                      </span>
+                    </div>
+                    
+                    <div className="pl-8">
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        {language === "ru" ? "хочет купить" : "сатып алғысы келеді"}: {purchase.product?.title}
+                      </p>
                       
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <div className="text-xs text-muted-foreground whitespace-nowrap">
-                          {getTimeAgo(purchase.created_at)}
-                        </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-sm font-semibold text-foreground">
+                          {formatPrice(Number(purchase.amount))}
+                        </span>
                         <Button
                           size="sm"
                           onClick={() => confirmPurchase.mutate(purchase.id)}
                           disabled={confirmPurchase.isPending}
-                          className="h-8"
+                          className="h-7 text-xs px-2"
                         >
                           {confirmPurchase.isPending ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
                             <>
-                              <Check className="w-4 h-4 mr-1" />
+                              <Check className="w-3.5 h-3.5 mr-1" />
                               {t("confirmPayment")}
                             </>
                           )}

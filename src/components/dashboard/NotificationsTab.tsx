@@ -96,8 +96,8 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
   const hasNotifications = cancellations.length > 0;
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-foreground">{t("notifications")}</h2>
+    <div className="space-y-4">
+      <h2 className="text-lg font-semibold text-foreground">{t("notifications")}</h2>
 
       {!hasNotifications ? (
         <Card>
@@ -110,51 +110,51 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
             <Calendar className="w-4 h-4" />
             {t("cancelledBookings")}
           </h3>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {cancellations.map((cancellation) => (
               <Card key={cancellation.id} className="relative overflow-hidden">
                 {isNew(cancellation.cancelled_at) && (
                   <div className="absolute top-0 right-0">
-                    <Badge className="rounded-none rounded-bl-lg bg-primary text-primary-foreground text-xs">
+                    <Badge className="rounded-none rounded-bl-lg bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5">
                       {t("new")}
                     </Badge>
                   </div>
                 )}
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                      <Calendar className="w-5 h-5 text-destructive" />
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                      <Calendar className="w-4 h-4 text-destructive" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-foreground">
+                      <p className="text-sm font-medium text-foreground">
                         {language === "ru" ? "Запись отменена автором" : "Автор жазылуды болдырмады"}
                       </p>
-                      <p className="text-sm text-muted-foreground mt-1">
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                         {cancellation.product_title}
                         {cancellation.schedule_title && ` • ${cancellation.schedule_title}`}
                       </p>
-                      <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-0.5">
+                          <Calendar className="w-3 h-3" />
                           {format(new Date(cancellation.slot_date), "d MMM", { locale })}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="w-3 h-3" />
                           {cancellation.slot_time?.slice(0, 5)}
                         </span>
+                        <span>
+                          {formatDistanceToNow(new Date(cancellation.cancelled_at), {
+                            addSuffix: true,
+                            locale,
+                          })}
+                        </span>
                       </div>
-                      <p className="text-xs text-muted-foreground/70 mt-2">
-                        {formatDistanceToNow(new Date(cancellation.cancelled_at), {
-                          addSuffix: true,
-                          locale,
-                        })}
-                      </p>
                     </div>
                   </div>
                 </CardContent>
