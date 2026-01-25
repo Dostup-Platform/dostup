@@ -335,80 +335,84 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       </AlertDialog>
 
       {/* Products List */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {products.map((product) => (
           <Card key={product.id} className="overflow-hidden">
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-4">
+            <CardContent className="p-3">
+              {/* Header: title + price */}
+              <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-foreground">{product.title}</h3>
+                  <h3 className="text-sm font-semibold text-foreground line-clamp-2">{product.title}</h3>
                   {product.headline && (
-                    <p className="text-sm text-muted-foreground mt-1">{product.headline}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{product.headline}</p>
                   )}
-                  <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    <span className="text-lg font-bold text-primary">
-                      {formatPrice(Number(product.price))}
-                    </span>
-                    {product.has_schedule && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                        Расписание
-                      </span>
-                    )}
-                    {product.kaspi_link && (
-                      <span className="text-xs bg-success/10 text-success px-2 py-1 rounded-full">
-                        Kaspi
-                      </span>
-                    )}
-                  </div>
                 </div>
-                <div className="flex gap-1 flex-wrap">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setMaterialsProduct({ id: product.id, title: product.title })}
-                    title={t("materials")}
-                  >
-                    <FileText className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setTeachersProduct({ id: product.id, title: product.title })}
-                    title={language === "ru" ? "Учителя" : "Мұғалімдер"}
-                  >
-                    <Users className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShareProduct({ id: product.id, title: product.title })}
-                    title={t("copyLink")}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" asChild title={t("view")}>
-                    <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEdit(product)}
-                    title={t("edit")}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setDeletingProduct(product)}
-                    title={t("delete")}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
+                <span className="text-sm font-bold text-primary whitespace-nowrap">
+                  {formatPrice(Number(product.price))}
+                </span>
+              </div>
+              
+              {/* Badges */}
+              <div className="flex items-center gap-1.5 mb-2">
+                {product.has_schedule && (
+                  <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                    {language === "ru" ? "Расписание" : "Кесте"}
+                  </span>
+                )}
+                {product.kaspi_link && (
+                  <span className="text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">
+                    Kaspi
+                  </span>
+                )}
+              </div>
+              
+              {/* Actions - horizontal scroll on mobile */}
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide -mx-1 px-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setMaterialsProduct({ id: product.id, title: product.title })}
+                  className="h-8 px-2 flex-shrink-0"
+                >
+                  <FileText className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTeachersProduct({ id: product.id, title: product.title })}
+                  className="h-8 px-2 flex-shrink-0"
+                >
+                  <Users className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShareProduct({ id: product.id, title: product.title })}
+                  className="h-8 px-2 flex-shrink-0"
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="sm" asChild className="h-8 px-2 flex-shrink-0">
+                  <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleEdit(product)}
+                  className="h-8 px-2 flex-shrink-0"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDeletingProduct(product)}
+                  className="h-8 px-2 flex-shrink-0 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
             </CardContent>
           </Card>

@@ -142,7 +142,7 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
         {allNotifications.map((notification) => {
           const isNew = new Date(notification.date) > compareDate;
           
@@ -150,29 +150,29 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
             const booking = notification.data as any;
             return (
               <Card key={`booking-${notification.id}`} className={isNew ? "border-primary/50 bg-primary/5" : ""}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                      <User className="w-5 h-5 text-green-600" />
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-success" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{booking.user?.name || "—"}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium truncate">{booking.user?.name || "—"}</p>
                         {isNew && (
-                          <Badge variant="default" className="text-xs">
+                          <Badge variant="default" className="text-[10px] px-1.5 py-0">
                             {language === "ru" ? "Новое" : "Жаңа"}
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs text-muted-foreground line-clamp-1">
                         {language === "ru" ? "записался на" : "жазылды"} {booking.schedule?.product?.title || booking.schedule?.title}
                       </p>
-                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-0.5">
                           <Calendar className="w-3 h-3" />
                           {booking.time_slot?.date && format(parseISO(booking.time_slot.date), "d MMM", { locale: ru })}
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-0.5">
                           <Clock className="w-3 h-3" />
                           {booking.time_slot?.start_time?.slice(0, 5)}
                         </span>
@@ -186,29 +186,29 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
             const cancellation = notification.data as any;
             return (
               <Card key={`cancel-${notification.id}`} className={isNew ? "border-destructive/50 bg-destructive/5" : ""}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                      <X className="w-5 h-5 text-red-600" />
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                      <X className="w-4 h-4 text-destructive" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{cancellation.user_name}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium truncate">{cancellation.user_name}</p>
                         {isNew && (
-                          <Badge variant="destructive" className="text-xs">
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
                             {language === "ru" ? "Новое" : "Жаңа"}
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs text-muted-foreground line-clamp-1">
                         {language === "ru" ? "отменил запись на" : "жазбасын бас тартты"} {cancellation.product_title}
                       </p>
-                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-0.5">
                           <Calendar className="w-3 h-3" />
                           {cancellation.slot_date && format(parseISO(cancellation.slot_date), "d MMM", { locale: ru })}
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-0.5">
                           <Clock className="w-3 h-3" />
                           {cancellation.slot_time?.slice(0, 5)}
                         </span>
