@@ -632,22 +632,22 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
         <div className="space-y-2">
           {filteredSchedules.map((schedule) => (
             <Card key={schedule.id}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <CardContent className="p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                     {schedule.event_type === "group" ? (
-                      <Users className="w-5 h-5 text-primary" />
+                      <Users className="w-4 h-4 text-primary" />
                     ) : (
-                      <User className="w-5 h-5 text-primary" />
+                      <User className="w-4 h-4 text-primary" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium truncate">{schedule.title}</p>
+                    <div className="flex items-center gap-1">
+                      <p className="text-sm font-medium truncate">{schedule.title}</p>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 shrink-0"
+                        className="h-5 w-5 shrink-0"
                         onClick={() => {
                           setEditingSchedule(schedule);
                           setEditScheduleTitle(schedule.title);
@@ -656,18 +656,19 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                         <Pencil className="w-3 h-3" />
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[10px] text-muted-foreground truncate">
                       {schedule.product?.title}
                       {schedule.event_type === "group" && schedule.max_participants && (
-                        <span className="ml-2">• {language === "ru" ? "до" : "дейін"} {schedule.max_participants} {language === "ru" ? "чел." : "адам"}</span>
+                        <span className="ml-1">• {schedule.max_participants} {language === "ru" ? "чел." : "адам"}</span>
                       )}
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1">
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="icon"
+                    className="h-8 w-8"
                     onClick={() => {
                       setSelectedScheduleForSlots(schedule);
                       setSlotsForm({
@@ -677,13 +678,14 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                       });
                       setIsAddingSlots(true);
                     }}
+                    title={language === "ru" ? "Добавить слоты" : "Слоттар қосу"}
                   >
-                    <Plus className="w-4 h-4 mr-1" />
-                    {language === "ru" ? "Слоты" : "Слоттар"}
+                    <Plus className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="icon"
+                    className="h-8 w-8"
                     onClick={() => {
                       setSelectedScheduleForLink(schedule);
                       fetchAvailableDatesForLink(schedule.id);
@@ -691,23 +693,23 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                       setLessonLinkUrl("");
                       setIsAddingLink(true);
                     }}
+                    title={language === "ru" ? "Добавить ссылку" : "Сілтеме қосу"}
                   >
-                    <Link className="w-4 h-4 mr-1" />
-                    {language === "ru" ? "Ссылка" : "Сілтеме"}
+                    <Link className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
-                    className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                    size="icon"
+                    className="h-8 w-8 text-destructive border-destructive/50 hover:bg-destructive/10"
                     onClick={() => {
                       setSelectedScheduleForDelete(schedule);
                       fetchAvailableDates(schedule.id);
                       setSlotsToDeleteDates([]);
                       setIsDeletingSlots(true);
                     }}
+                    title={language === "ru" ? "Удалить слоты" : "Слоттарды жою"}
                   >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    {language === "ru" ? "Выбрать" : "Таңдау"}
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </CardContent>
@@ -834,13 +836,13 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                   return (
                     <div
                       key={slot.id}
-                      className={`p-3 rounded-lg ${styles.bg}`}
+                      className={`p-2 rounded-lg ${styles.bg}`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${styles.dot}`} />
+                        <div className="flex items-center gap-2">
+                          <div className={`w-1.5 h-1.5 rounded-full ${styles.dot}`} />
                           <div className="flex flex-col">
-                            <span className="font-medium">
+                            <span className="text-sm font-medium">
                               {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
                             </span>
                             {filteredSchedules.length > 1 && schedule && (
@@ -850,7 +852,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                             )}
                           </div>
                           {isGroup && (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-[10px] text-muted-foreground">
                               ({slotBookings.length}/{maxParticipants})
                             </span>
                           )}
