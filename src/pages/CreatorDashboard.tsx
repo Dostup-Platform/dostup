@@ -14,6 +14,7 @@ import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
 import { useRealtimeBookingNotifications } from "@/hooks/useRealtimeBookings";
 import { useRealtimePurchaseNotifications } from "@/hooks/useRealtimePurchases";
 import { useFCMRegistration } from "@/hooks/useFCMRegistration";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -26,6 +27,7 @@ const CreatorDashboard = () => {
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   
   // Load last viewed timestamp from localStorage
   useEffect(() => {
@@ -136,10 +138,10 @@ const CreatorDashboard = () => {
   if (!creatorName) return null;
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className={`min-h-screen bg-background ${isMobile ? "pb-20" : ""}`}>
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-foreground">{t("creatorDashboard")}</h1>
             <p className="text-sm text-muted-foreground">{creatorName}</p>
@@ -149,8 +151,39 @@ const CreatorDashboard = () => {
       </header>
 
       {/* Content */}
-      <main className="max-w-2xl mx-auto px-4 py-6">
+      <main className="max-w-4xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          {/* Desktop Top Tabs */}
+          {!isMobile && (
+            <TabsList className="w-full h-12 grid grid-cols-5 mb-6">
+              <TabsTrigger value="products" className="gap-2">
+                <Package className="w-4 h-4" />
+                {t("products")}
+              </TabsTrigger>
+              <TabsTrigger value="users" className="gap-2">
+                <Users className="w-4 h-4" />
+                {t("users")}
+              </TabsTrigger>
+              <TabsTrigger value="schedule" className="gap-2">
+                <Calendar className="w-4 h-4" />
+                {t("schedule")}
+              </TabsTrigger>
+              <TabsTrigger value="notifications" className="gap-2 relative">
+                <Bell className="w-4 h-4" />
+                {t("notifications")}
+                {newNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="account" className="gap-2">
+                <User className="w-4 h-4" />
+                {t("account")}
+              </TabsTrigger>
+            </TabsList>
+          )}
+
           <TabsContent value="products" className="mt-0 animate-fade-in">
             <CreatorProductsTab creatorName={creatorName} />
           </TabsContent>
@@ -169,55 +202,57 @@ const CreatorDashboard = () => {
         </Tabs>
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
-        <div className="max-w-2xl mx-auto">
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-0">
-              <TabsTrigger 
-                value="products" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-              >
-                <Package className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("products")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="users" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-              >
-                <Users className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("users")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="schedule" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-              >
-                <Calendar className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("schedule")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="notifications" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none relative px-1"
-              >
-                <Bell className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("notifications")}</span>
-                {newNotificationsCount > 0 && (
-                  <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="account" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-              >
-                <User className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("account")}</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </nav>
+      {/* Bottom Navigation - Mobile Only */}
+      {isMobile && (
+        <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
+          <div className="max-w-2xl mx-auto">
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
+              <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-0">
+                <TabsTrigger 
+                  value="products" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
+                >
+                  <Package className="w-5 h-5" />
+                  <span className="text-[10px] leading-tight">{t("products")}</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="users" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
+                >
+                  <Users className="w-5 h-5" />
+                  <span className="text-[10px] leading-tight">{t("users")}</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="schedule" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
+                >
+                  <Calendar className="w-5 h-5" />
+                  <span className="text-[10px] leading-tight">{t("schedule")}</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="notifications" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none relative px-1"
+                >
+                  <Bell className="w-5 h-5" />
+                  <span className="text-[10px] leading-tight">{t("notifications")}</span>
+                  {newNotificationsCount > 0 && (
+                    <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+                      {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="account" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
+                >
+                  <User className="w-5 h-5" />
+                  <span className="text-[10px] leading-tight">{t("account")}</span>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </nav>
+      )}
     </div>
   );
 };

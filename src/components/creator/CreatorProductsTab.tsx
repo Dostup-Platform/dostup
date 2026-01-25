@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText, Users } from "lucide-react";
 import {
   Dialog,
@@ -149,6 +150,7 @@ interface CreatorProductsTabProps {
 
 const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const { t, language } = useLanguage();
+  const isMobile = useIsMobile();
   const { data: products = [], isLoading } = useCreatorProducts(creatorName);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -338,80 +340,86 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       <div className="space-y-3">
         {products.map((product) => (
           <Card key={product.id} className="overflow-hidden">
-            <CardContent className="p-3">
+            <CardContent className={isMobile ? "p-3" : "p-4"}>
               {/* Header: title + price */}
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-foreground line-clamp-2">{product.title}</h3>
+                  <h3 className={`font-semibold text-foreground ${isMobile ? "text-sm line-clamp-2" : "text-base"}`}>{product.title}</h3>
                   {product.headline && (
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{product.headline}</p>
+                    <p className={`text-muted-foreground mt-0.5 ${isMobile ? "text-xs line-clamp-1" : "text-sm"}`}>{product.headline}</p>
                   )}
                 </div>
-                <span className="text-sm font-bold text-primary whitespace-nowrap">
+                <span className={`font-bold text-primary whitespace-nowrap ${isMobile ? "text-sm" : "text-base"}`}>
                   {formatPrice(Number(product.price))}
                 </span>
               </div>
               
               {/* Badges */}
-              <div className="flex items-center gap-1.5 mb-2">
+              <div className="flex items-center gap-1.5 mb-3">
                 {product.has_schedule && (
-                  <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                  <span className={`bg-primary/10 text-primary px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
                     {language === "ru" ? "Расписание" : "Кесте"}
                   </span>
                 )}
                 {product.kaspi_link && (
-                  <span className="text-[10px] bg-success/10 text-success px-1.5 py-0.5 rounded-full">
+                  <span className={`bg-success/10 text-success px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
                     Kaspi
                   </span>
                 )}
               </div>
               
-              {/* Actions - horizontal scroll on mobile */}
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide -mx-1 px-1">
+              {/* Actions */}
+              <div className={`flex items-center gap-1 ${isMobile ? "overflow-x-auto scrollbar-hide -mx-1 px-1" : "flex-wrap gap-2"}`}>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setMaterialsProduct({ id: product.id, title: product.title })}
-                  className="h-8 px-2 flex-shrink-0"
+                  className={isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}
                 >
                   <FileText className="w-4 h-4" />
+                  {!isMobile && <span className="ml-2">{t("materials")}</span>}
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setTeachersProduct({ id: product.id, title: product.title })}
-                  className="h-8 px-2 flex-shrink-0"
+                  className={isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}
                 >
                   <Users className="w-4 h-4" />
+                  {!isMobile && <span className="ml-2">{language === "ru" ? "Учителя" : "Мұғалімдер"}</span>}
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShareProduct({ id: product.id, title: product.title })}
-                  className="h-8 px-2 flex-shrink-0"
+                  className={isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}
                 >
                   <Copy className="w-4 h-4" />
+                  {!isMobile && <span className="ml-2">{language === "ru" ? "Ссылка" : "Сілтеме"}</span>}
                 </Button>
-                <Button variant="ghost" size="sm" asChild className="h-8 px-2 flex-shrink-0">
+                <Button variant="ghost" size="sm" asChild className={isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}>
                   <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4" />
+                    {!isMobile && <span className="ml-2">{language === "ru" ? "Открыть" : "Ашу"}</span>}
                   </a>
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => handleEdit(product)}
-                  className="h-8 px-2 flex-shrink-0"
+                  className={isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}
                 >
                   <Edit className="w-4 h-4" />
+                  {!isMobile && <span className="ml-2">{t("edit")}</span>}
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setDeletingProduct(product)}
-                  className="h-8 px-2 flex-shrink-0 text-destructive hover:text-destructive"
+                  className={`text-destructive hover:text-destructive ${isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}`}
                 >
                   <Trash2 className="w-4 h-4" />
+                  {!isMobile && <span className="ml-2">{t("delete")}</span>}
                 </Button>
               </div>
             </CardContent>
