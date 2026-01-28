@@ -180,10 +180,8 @@ export const useRealtimeTeacherNotifications = (
             duration: 10000,
           });
 
-          // Browser push notification (for when app is open in browser)
-          showBrowserNotification(title, description);
-
-          // FCM push notifications are now sent from the server via database triggers
+          // Push notifications are sent from the server via database triggers
+          // Browser notification removed to avoid duplicates
 
           // Update app badge
           const newBadgeCount = badgeCountRef.current + 1;
@@ -264,10 +262,8 @@ export const useRealtimeTeacherNotifications = (
             duration: 10000,
           });
 
-          // Browser push notification (for when app is open in browser)
-          showBrowserNotification(title, description);
-
-          // FCM push notifications are now sent from the server via database triggers
+          // Push notifications are sent from the server via database triggers
+          // Browser notification removed to avoid duplicates
 
           // Remove from cache
           bookingCacheRef.current.delete(deletedBooking.id);
