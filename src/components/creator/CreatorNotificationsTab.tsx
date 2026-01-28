@@ -1,8 +1,8 @@
-import { useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, Calendar, Clock, X, Check, ShoppingCart, Loader2, Phone, XCircle } from "lucide-react";
+import { Bell, Calendar, Clock, X, Check, ShoppingCart, Loader2, XCircle } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings, useCreatorCancelBooking } from "@/hooks/useSimplePurchases";
@@ -11,17 +11,7 @@ import { ru, kk } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("ru-RU", {
@@ -70,6 +60,15 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
   const productIds = useMemo(() => products?.map(p => p.id) || [], [products]);
   const { data: bookings, isLoading: bookingsLoading } = useCreatorSimpleBookings(productIds);
   const cancelBooking = useCreatorCancelBooking();
+  
+  // State for cancellation dialog
+  const [cancelingBooking, setCancelingBooking] = useState<{
+    id: string;
+    userName: string;
+    productTitle: string;
+    slotDate?: string;
+    slotTime?: string;
+  } | null>(null);
 
   const dateLocale = language === "kk" ? kk : ru;
 
@@ -279,13 +278,17 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     },
   });
 
-  const handleCancelBooking = async (bookingId: string) => {
+  const handleCancelBookingWithReason = async (reasons: string[], comment: string) => {
+    if (!cancelingBooking) return;
     try {
       await cancelBooking.mutateAsync({ 
-        bookingId, 
-        cancelledBy: "creator" 
+        bookingId: cancelingBooking.id, 
+        cancelledBy: "creator",
+        reasons,
+        comment,
       });
       toast.success(t("bookingCancelledCreator"));
+      setCancelingBooking(null);
     } catch {
       toast.error(t("cancelFailed"));
     }
@@ -497,43 +500,20 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                         <div className="text-xs text-muted-foreground whitespace-nowrap">
                           {getTimeAgo(booking.created_at)}
                         </div>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>{t("cancelBookingCreator")}</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {t("confirmCancelBooking")}
-                                <div className="mt-3 p-3 bg-muted rounded-lg">
-                                  <p className="font-medium">{user?.name}</p>
-                                  <p className="text-sm">{product?.title}</p>
-                                  {timeSlot && (
-                                    <p className="text-sm text-muted-foreground">
-                                      {format(new Date(timeSlot.date), "d MMMM", { locale: dateLocale })} в {timeSlot.start_time?.slice(0, 5)}
-                                    </p>
-                                  )}
-                                </div>
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleCancelBooking(booking.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                {t("cancelBookingCreator")}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setCancelingBooking({
+                            id: booking.id,
+                            userName: user?.name || t("student"),
+                            productTitle: product?.title || schedule?.title || "",
+                            slotDate: timeSlot?.date,
+                            slotTime: timeSlot?.start_time,
+                          })}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -636,6 +616,17 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
         </Card>
       )}
 
+      {/* Cancellation Reason Dialog */}
+      <CancellationReasonDialog
+        isOpen={!!cancelingBooking}
+        onClose={() => setCancelingBooking(null)}
+        onConfirm={handleCancelBookingWithReason}
+        isPending={cancelBooking.isPending}
+        title={language === "ru" ? "Отменить запись?" : "Жазбаны бас тарту керек пе?"}
+        description={language === "ru"
+          ? `Вы отменяете запись ученика "${cancelingBooking?.userName || "—"}". Укажите причину.`
+          : `"${cancelingBooking?.userName || "—"}" оқушысының жазбасын бас тартасыз. Себебін көрсетіңіз.`}
+      />
       {/* Empty state if no notifications */}
       {!hasNotifications && (
         <Card>
