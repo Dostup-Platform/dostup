@@ -4,8 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { playBookingSound, playCancellationSound, showBrowserNotification } from "@/hooks/useNotificationPermission";
-import { sendPushNotification } from "@/lib/firebase";
 import { setAppBadge } from "@/lib/appBadge";
+// Push notifications are now sent from the server via database triggers
 interface BookingPayload {
   id: string;
   simple_user_id: string;
@@ -199,17 +199,10 @@ export const useRealtimeBookingNotifications = (
             duration: 10000,
           });
 
-          // Browser push notification
+          // Browser push notification (for when app is open in browser)
           showBrowserNotification(title, description);
 
-          // Send FCM push notification to creator only (filter by role)
-          const creatorName = localStorage.getItem("creator_name");
-          if (creatorName) {
-            sendPushNotification(creatorName, title, description, {
-              type: "booking",
-              bookingId: newBooking.id
-            }, "creator"); // Only send to creator role
-          }
+          // FCM push notifications are now sent from the server via database triggers
 
           // Update app badge
           const newBadgeCount = badgeCountRef.current + 1;
@@ -281,20 +274,10 @@ export const useRealtimeBookingNotifications = (
             duration: 10000,
           });
 
-          // Browser push notification
+          // Browser push notification (for when app is open in browser)
           showBrowserNotification(title, description);
 
-          // Send FCM push notification to creator only (filter by role)
-          const creatorName = localStorage.getItem("creator_name");
-          if (creatorName) {
-            sendPushNotification(creatorName, title, description, {
-              type: "cancellation",
-              date: cachedInfo.date,
-              time: cachedInfo.time,
-              reasons: reasons.join(", "),
-              comment: comment
-            }, "creator"); // Only send to creator role
-          }
+          // FCM push notifications are now sent from the server via database triggers
 
           // Remove from cache
           bookingCacheRef.current.delete(deletedBooking.id);
