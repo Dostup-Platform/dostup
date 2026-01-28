@@ -7,16 +7,7 @@ import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import {
   Select,
   SelectContent,
@@ -203,10 +194,14 @@ const ScheduleTab = () => {
     }
   };
 
-  const handleCancelBooking = async () => {
+  const handleCancelBooking = async (reasons: string[], comment: string) => {
     if (!bookingToCancel) return;
     try {
-      await cancelBooking.mutateAsync(bookingToCancel);
+      await cancelBooking.mutateAsync({ 
+        bookingId: bookingToCancel,
+        reasons,
+        comment 
+      });
       toast.success(t("bookingCancelled"));
     } catch (error) {
       toast.error(t("cancelFailed"));
@@ -565,26 +560,13 @@ const ScheduleTab = () => {
         </>
       )}
 
-      {/* Confirm Cancel Dialog */}
-      <AlertDialog open={!!bookingToCancel} onOpenChange={(open) => !open && setBookingToCancel(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("confirmCancelBookingStudent")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("confirmCancelBookingStudentDescription")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("no")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleCancelBooking}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {t("yes")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Confirm Cancel Dialog with Reasons */}
+      <CancellationReasonDialog
+        isOpen={!!bookingToCancel}
+        onClose={() => setBookingToCancel(null)}
+        onConfirm={handleCancelBooking}
+        isPending={cancelBooking.isPending}
+      />
     </div>
   );
 };
