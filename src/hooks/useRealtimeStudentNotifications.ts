@@ -73,19 +73,6 @@ export const useRealtimeStudentNotifications = (
 
           toast.warning(title, { description, duration: 10000 });
 
-          // Браузерное push-уведомление
-          showBrowserNotification(title, description);
-
-          // FCM push-уведомление студенту (filter by student role)
-          if (userPhone) {
-            sendPushNotification(userPhone, title, description, {
-              type: "creator_cancellation",
-              productTitle: cancellation.product_title,
-              date: cancellation.slot_date,
-              reason: reasonText
-            }, "student"); // Only send to student role
-          }
-
           // Update app badge
           const newBadgeCount = badgeCountRef.current + 1;
           setAppBadge(newBadgeCount);
