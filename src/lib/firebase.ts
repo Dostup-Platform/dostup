@@ -91,7 +91,7 @@ export const getFCMToken = async (): Promise<string | null> => {
  */
 export const registerPushToken = async (
   userPhone: string,
-  userRole: "creator" | "student"
+  userRole: "creator" | "student" | "teacher"
 ): Promise<boolean> => {
   try {
     const fcmToken = await getFCMToken();
