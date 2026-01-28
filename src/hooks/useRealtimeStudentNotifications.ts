@@ -38,11 +38,26 @@ export const useRealtimeStudentNotifications = (
           // Воспроизвести звук отмены
           playCancellationSound();
 
+          // Формируем текст причины
+          let reasonText = "";
+          const reasons = cancellation.cancellation_reasons as string[] | null;
+          const comment = cancellation.cancellation_comment as string | null;
+          
+          if (reasons && reasons.length > 0) {
+            reasonText = reasons.join(", ");
+          } else if (comment) {
+            reasonText = comment;
+          }
+
           // Показать toast
           const title = language === "ru" ? "Запись отменена" : "Жазба болдырмалды";
-          const description = language === "ru"
+          let description = language === "ru"
             ? `Автор отменил вашу запись на "${cancellation.product_title}" на ${cancellation.slot_date} в ${cancellation.slot_time?.slice(0, 5)}`
             : `Автор сіздің "${cancellation.product_title}" сабағына ${cancellation.slot_date} күні ${cancellation.slot_time?.slice(0, 5)} жазбаңызды болдырмады`;
+          
+          if (reasonText) {
+            description += language === "ru" ? `. Причина: ${reasonText}` : `. Себебі: ${reasonText}`;
+          }
 
           toast.warning(title, { description, duration: 10000 });
 
@@ -54,7 +69,8 @@ export const useRealtimeStudentNotifications = (
             sendPushNotification(userPhone, title, description, {
               type: "creator_cancellation",
               productTitle: cancellation.product_title,
-              date: cancellation.slot_date
+              date: cancellation.slot_date,
+              reason: reasonText
             }, "student"); // Only send to student role
           }
 
