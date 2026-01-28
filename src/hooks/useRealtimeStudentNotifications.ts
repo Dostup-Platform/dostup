@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -8,13 +8,21 @@ import {
   showBrowserNotification 
 } from "@/hooks/useNotificationPermission";
 import { sendPushNotification } from "@/lib/firebase";
+import { setAppBadge } from "@/lib/appBadge";
 
 export const useRealtimeStudentNotifications = (
   userPhone: string | undefined,
-  enabled: boolean = true
+  enabled: boolean = true,
+  currentBadgeCount: number = 0
 ) => {
   const queryClient = useQueryClient();
   const { language } = useLanguage();
+  const badgeCountRef = useRef<number>(currentBadgeCount);
+  
+  // Keep badge count ref updated
+  useEffect(() => {
+    badgeCountRef.current = currentBadgeCount;
+  }, [currentBadgeCount]);
 
   useEffect(() => {
     if (!enabled || !userPhone) return;
@@ -77,6 +85,10 @@ export const useRealtimeStudentNotifications = (
               reason: reasonText
             }, "student"); // Only send to student role
           }
+
+          // Update app badge
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
 
           // Обновить данные - включая слоты и бронирования для real-time
           queryClient.invalidateQueries({ queryKey: ["student-cancellations"] });

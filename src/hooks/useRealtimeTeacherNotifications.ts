@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { playBookingSound, playCancellationSound, showBrowserNotification } from "@/hooks/useNotificationPermission";
 import { sendPushNotification } from "@/lib/firebase";
+import { setAppBadge } from "@/lib/appBadge";
 
 interface BookingPayload {
   id: string;
@@ -37,12 +38,19 @@ export const useRealtimeTeacherNotifications = (
   teacherName: string | null,
   teacherPhone: string | undefined,
   scheduleIds: string[],
-  enabled: boolean = true
+  enabled: boolean = true,
+  currentBadgeCount: number = 0
 ) => {
   const queryClient = useQueryClient();
   const { language } = useLanguage();
   const scheduleIdsRef = useRef<string[]>(scheduleIds);
   const bookingCacheRef = useRef<Map<string, DeletedBookingInfo>>(new Map());
+  const badgeCountRef = useRef<number>(currentBadgeCount);
+  
+  // Keep badge count ref updated
+  useEffect(() => {
+    badgeCountRef.current = currentBadgeCount;
+  }, [currentBadgeCount]);
 
   // Keep scheduleIds ref updated
   useEffect(() => {
@@ -182,6 +190,10 @@ export const useRealtimeTeacherNotifications = (
             }, "teacher");
           }
 
+          // Update app badge
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
+
           // Invalidate queries to refresh data - include all related queries
           queryClient.invalidateQueries({ queryKey: ["teacher-bookings"] });
           queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
@@ -273,6 +285,10 @@ export const useRealtimeTeacherNotifications = (
 
           // Remove from cache
           bookingCacheRef.current.delete(deletedBooking.id);
+
+          // Update app badge
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
 
           // Invalidate queries to refresh data - include all related queries
           queryClient.invalidateQueries({ queryKey: ["teacher-bookings"] });
