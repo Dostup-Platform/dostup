@@ -203,6 +203,25 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
                       <p className="text-xs text-muted-foreground line-clamp-1">
                         {language === "ru" ? "отменил запись на" : "жазбасын бас тартты"} {cancellation.product_title}
                       </p>
+                      
+                      {/* Причины отмены */}
+                      {cancellation.cancellation_reasons && cancellation.cancellation_reasons.length > 0 && (
+                        <div className="mt-1.5 p-1.5 bg-destructive/5 rounded">
+                          <div className="flex flex-wrap gap-1">
+                            {cancellation.cancellation_reasons.map((reason: string, idx: number) => (
+                              <Badge key={idx} variant="outline" className="text-[10px] px-1 py-0 border-destructive/30 text-destructive">
+                                {reason}
+                              </Badge>
+                            ))}
+                          </div>
+                          {cancellation.cancellation_comment && (
+                            <p className="text-[10px] text-muted-foreground mt-1 italic">
+                              "{cancellation.cancellation_comment}"
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
                       <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
                         <span className="flex items-center gap-0.5">
                           <Calendar className="w-3 h-3" />

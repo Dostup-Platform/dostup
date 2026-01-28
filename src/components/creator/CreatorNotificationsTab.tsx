@@ -54,6 +54,8 @@ interface BookingCancellation {
   slot_time: string;
   cancelled_at: string;
   cancelled_by: string;
+  cancellation_reasons: string[] | null;
+  cancellation_comment: string | null;
 }
 
 interface CreatorNotificationsTabProps {
@@ -279,7 +281,10 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
 
   const handleCancelBooking = async (bookingId: string) => {
     try {
-      await cancelBooking.mutateAsync(bookingId);
+      await cancelBooking.mutateAsync({ 
+        bookingId, 
+        cancelledBy: "creator" 
+      });
       toast.success(t("bookingCancelledCreator"));
     } catch {
       toast.error(t("cancelFailed"));
@@ -582,6 +587,27 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                           {cancellation.product_title}
                         </p>
                         
+                        {/* Причины отмены */}
+                        {cancellation.cancellation_reasons && cancellation.cancellation_reasons.length > 0 && (
+                          <div className="mt-2 p-2 bg-destructive/5 rounded-md">
+                            <p className="text-xs font-medium text-destructive mb-1">
+                              {language === "ru" ? "Причины:" : "Себептері:"}
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {cancellation.cancellation_reasons.map((reason, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs border-destructive/30 text-destructive">
+                                  {reason}
+                                </Badge>
+                              ))}
+                            </div>
+                            {cancellation.cancellation_comment && (
+                              <p className="text-xs text-muted-foreground mt-1 italic">
+                                "{cancellation.cancellation_comment}"
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        
                         <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5" />
@@ -595,12 +621,6 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                               {cancellation.slot_time?.slice(0, 5)}
                             </span>
                           </div>
-                          {cancellation.user_phone && (
-                            <div className="flex items-center gap-1">
-                              <Phone className="w-3.5 h-3.5" />
-                              <span>{cancellation.user_phone}</span>
-                            </div>
-                          )}
                         </div>
                       </div>
                       

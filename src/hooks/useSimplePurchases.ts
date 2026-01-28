@@ -356,7 +356,7 @@ export const useCancelSimpleBooking = () => {
   const { user } = useSimpleAuth();
 
   return useMutation({
-    mutationFn: async (bookingId: string) => {
+    mutationFn: async ({ bookingId, reasons, comment }: { bookingId: string; reasons?: string[]; comment?: string }) => {
       // Сначала получаем данные бронирования для сохранения в cancellations
       const { data: booking } = await supabase
         .from("simple_bookings")
@@ -376,11 +376,13 @@ export const useCancelSimpleBooking = () => {
           user_phone: user.phone,
           product_title: (booking as any).schedule?.product?.title || "",
           product_id: (booking as any).schedule?.product_id,
-          schedule_id: (booking as any).schedule?.id, // Добавляем schedule_id для фильтрации
+          schedule_id: (booking as any).schedule?.id,
           schedule_title: (booking as any).schedule?.title || "",
           slot_date: (booking as any).time_slot?.date,
           slot_time: (booking as any).time_slot?.start_time,
           cancelled_by: "student",
+          cancellation_reasons: reasons || [],
+          cancellation_comment: comment || null,
         });
       }
 
@@ -399,12 +401,17 @@ export const useCancelSimpleBooking = () => {
   });
 };
 
-// Отменить бронирование (для создателя) с сохранением в cancellations
+// Отменить бронирование (для создателя/учителя) с сохранением в cancellations
 export const useCreatorCancelBooking = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (bookingId: string) => {
+    mutationFn: async ({ bookingId, cancelledBy, reasons, comment }: { 
+      bookingId: string; 
+      cancelledBy: "creator" | "teacher";
+      reasons?: string[];
+      comment?: string;
+    }) => {
       // Сначала получаем данные бронирования для сохранения в cancellations
       const { data: booking } = await supabase
         .from("simple_bookings")
@@ -432,11 +439,13 @@ export const useCreatorCancelBooking = () => {
           user_phone: user?.phone,
           product_title: (booking as any).schedule?.product?.title || "",
           product_id: (booking as any).schedule?.product_id,
-          schedule_id: (booking as any).schedule?.id, // Добавляем schedule_id для фильтрации
+          schedule_id: (booking as any).schedule?.id,
           schedule_title: (booking as any).schedule?.title || "",
           slot_date: (booking as any).time_slot?.date,
           slot_time: (booking as any).time_slot?.start_time,
-          cancelled_by: "creator",
+          cancelled_by: cancelledBy,
+          cancellation_reasons: reasons || [],
+          cancellation_comment: comment || null,
         });
       }
 
@@ -450,6 +459,8 @@ export const useCreatorCancelBooking = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-simple-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-week-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
     },
   });

@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil, UserPlus, Link, Copy } from "lucide-react";
+import CancellationReasonDialog from "@/components/CancellationReasonDialog";
+import { useCreatorCancelBooking } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -361,22 +363,24 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
     },
   });
 
-  // Cancel booking mutation
-  const cancelBooking = useMutation({
-    mutationFn: async (bookingId: string) => {
-      const { error } = await supabase
-        .from("simple_bookings")
-        .delete()
-        .eq("id", bookingId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
+  // Cancel booking mutation using shared hook
+  const teacherCancelBooking = useCreatorCancelBooking();
+
+  const handleCancelBookingWithReason = async (reasons: string[], comment: string) => {
+    if (!cancelingBooking) return;
+    try {
+      await teacherCancelBooking.mutateAsync({
+        bookingId: cancelingBooking.id,
+        cancelledBy: "teacher",
+        reasons,
+        comment,
+      });
       toast.success(language === "ru" ? "Запись отменена!" : "Жазба бас тартылды!");
       setCancelingBooking(null);
-    },
-    onError: () => toast.error(language === "ru" ? "Ошибка при отмене" : "Бас тарту кезінде қате"),
-  });
+    } catch {
+      toast.error(language === "ru" ? "Ошибка при отмене" : "Бас тарту кезінде қате");
+    }
+  };
 
   // Delete time slot mutation
   const deleteTimeSlot = useMutation({
@@ -1195,28 +1199,17 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Cancel Booking Confirmation */}
-      <AlertDialog open={!!cancelingBooking} onOpenChange={(open) => { if (!open) setCancelingBooking(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{language === "ru" ? "Отменить запись?" : "Жазбаны бас тарту керек пе?"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {language === "ru"
-                ? `Вы уверены, что хотите отменить запись ученика "${cancelingBooking?.user?.name || "—"}"? Слот станет снова свободным.`
-                : `"${cancelingBooking?.user?.name || "—"}" оқушысының жазбасын бас тартқыңыз келетініне сенімдісіз бе?`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => cancelingBooking && cancelBooking.mutate(cancelingBooking.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {cancelBooking.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : language === "ru" ? "Отменить запись" : "Жазбаны бас тарту"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Cancel Booking Confirmation with Reasons */}
+      <CancellationReasonDialog
+        isOpen={!!cancelingBooking}
+        onClose={() => setCancelingBooking(null)}
+        onConfirm={handleCancelBookingWithReason}
+        isPending={teacherCancelBooking.isPending}
+        title={language === "ru" ? "Отменить запись?" : "Жазбаны бас тарту керек пе?"}
+        description={language === "ru"
+          ? `Вы отменяете запись ученика "${cancelingBooking?.user?.name || "—"}". Укажите причину.`
+          : `"${cancelingBooking?.user?.name || "—"}" оқушысының жазбасын бас тартасыз. Себебін көрсетіңіз.`}
+      />
 
       {/* Delete Time Slot Confirmation */}
       <AlertDialog open={!!deletingSlot} onOpenChange={(open) => { if (!open) setDeletingSlot(null); }}>

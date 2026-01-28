@@ -38,6 +38,8 @@ export type Database = {
       booking_cancellations: {
         Row: {
           booking_id: string
+          cancellation_comment: string | null
+          cancellation_reasons: string[] | null
           cancelled_at: string
           cancelled_by: string
           id: string
@@ -52,6 +54,8 @@ export type Database = {
         }
         Insert: {
           booking_id: string
+          cancellation_comment?: string | null
+          cancellation_reasons?: string[] | null
           cancelled_at?: string
           cancelled_by?: string
           id?: string
@@ -66,6 +70,8 @@ export type Database = {
         }
         Update: {
           booking_id?: string
+          cancellation_comment?: string | null
+          cancellation_reasons?: string[] | null
           cancelled_at?: string
           cancelled_by?: string
           id?: string
