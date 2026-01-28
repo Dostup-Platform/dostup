@@ -369,33 +369,33 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
               </div>
               
               {/* Actions */}
-              <div className={`flex items-center ${isMobile ? "gap-1 overflow-x-auto scrollbar-hide -mx-1 px-1" : "gap-2 flex-wrap"}`}>
+              <div className={`flex items-center ${isMobile ? "gap-1.5 overflow-x-auto scrollbar-hide -mx-1 px-1" : "gap-2 flex-wrap"}`}>
                 <Button
-                  variant={isMobile ? "ghost" : "outline"}
+                  variant="outline"
                   size="sm"
                   onClick={() => setMaterialsProduct({ id: product.id, title: product.title })}
-                  className={isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}
+                  className={isMobile ? "h-8 px-2.5 flex-shrink-0 text-xs" : "h-9"}
                 >
                   <FileText className="w-4 h-4" />
-                  {!isMobile && <span className="ml-2">{t("materials")}</span>}
+                  <span className={isMobile ? "ml-1" : "ml-2"}>{t("materials")}</span>
                 </Button>
                 <Button
-                  variant={isMobile ? "ghost" : "outline"}
+                  variant="outline"
                   size="sm"
                   onClick={() => setTeachersProduct({ id: product.id, title: product.title })}
-                  className={isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}
+                  className={isMobile ? "h-8 px-2.5 flex-shrink-0 text-xs" : "h-9"}
                 >
                   <Users className="w-4 h-4" />
-                  {!isMobile && <span className="ml-2">{language === "ru" ? "Учителя" : "Мұғалімдер"}</span>}
+                  <span className={isMobile ? "ml-1" : "ml-2"}>{language === "ru" ? "Учителя" : "Мұғалімдер"}</span>
                 </Button>
                 <Button
-                  variant={isMobile ? "ghost" : "outline"}
+                  variant="outline"
                   size="sm"
                   onClick={() => setShareProduct({ id: product.id, title: product.title })}
-                  className={isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}
+                  className={isMobile ? "h-8 px-2.5 flex-shrink-0 text-xs" : "h-9"}
                 >
                   <Copy className="w-4 h-4" />
-                  {!isMobile && <span className="ml-2">{language === "ru" ? "Ссылка" : "Сілтеме"}</span>}
+                  <span className={isMobile ? "ml-1" : "ml-2"}>{language === "ru" ? "Ссылка" : "Сілтеме"}</span>
                 </Button>
                 {!isMobile && (
                   <Button variant="outline" size="sm" asChild className="h-9">
@@ -406,16 +406,16 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                   </Button>
                 )}
                 <Button
-                  variant={isMobile ? "ghost" : "outline"}
+                  variant="outline"
                   size="sm"
                   onClick={() => handleEdit(product)}
-                  className={isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}
+                  className={isMobile ? "h-8 px-2.5 flex-shrink-0 text-xs" : "h-9"}
                 >
                   <Edit className="w-4 h-4" />
-                  {!isMobile && <span className="ml-2">{t("edit")}</span>}
+                  <span className={isMobile ? "ml-1" : "ml-2"}>{t("edit")}</span>
                 </Button>
                 <Button
-                  variant={isMobile ? "ghost" : "outline"}
+                  variant="outline"
                   size="sm"
                   onClick={() => setDeletingProduct(product)}
                   className={`text-destructive hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 ${isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}`}
