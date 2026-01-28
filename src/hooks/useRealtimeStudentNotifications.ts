@@ -31,8 +31,8 @@ export const useRealtimeStudentNotifications = (
         async (payload) => {
           const cancellation = payload.new as any;
           
-          // Проверяем что это отмена от автора и для текущего пользователя
-          if (cancellation.cancelled_by !== "creator") return;
+          // Проверяем что это отмена от автора или учителя и для текущего пользователя
+          if (cancellation.cancelled_by !== "creator" && cancellation.cancelled_by !== "teacher") return;
           if (cancellation.user_phone !== userPhone) return;
 
           // Воспроизвести звук отмены
@@ -50,10 +50,14 @@ export const useRealtimeStudentNotifications = (
           }
 
           // Показать toast
+          const isByTeacher = cancellation.cancelled_by === "teacher";
           const title = language === "ru" ? "Запись отменена" : "Жазба болдырмалды";
+          const cancellerText = isByTeacher 
+            ? (language === "ru" ? "Учитель" : "Мұғалім")
+            : (language === "ru" ? "Автор" : "Автор");
           let description = language === "ru"
-            ? `Автор отменил вашу запись на "${cancellation.product_title}" на ${cancellation.slot_date} в ${cancellation.slot_time?.slice(0, 5)}`
-            : `Автор сіздің "${cancellation.product_title}" сабағына ${cancellation.slot_date} күні ${cancellation.slot_time?.slice(0, 5)} жазбаңызды болдырмады`;
+            ? `${cancellerText} отменил вашу запись на "${cancellation.product_title}" на ${cancellation.slot_date} в ${cancellation.slot_time?.slice(0, 5)}`
+            : `${cancellerText} сіздің "${cancellation.product_title}" сабағына ${cancellation.slot_date} күні ${cancellation.slot_time?.slice(0, 5)} жазбаңызды болдырмады`;
           
           if (reasonText) {
             description += language === "ru" ? `. Причина: ${reasonText}` : `. Себебі: ${reasonText}`;

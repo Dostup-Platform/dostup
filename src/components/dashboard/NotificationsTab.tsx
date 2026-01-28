@@ -41,7 +41,7 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
         .from("booking_cancellations")
         .select("*")
         .eq("user_phone", user.phone)
-        .eq("cancelled_by", "creator")
+        .in("cancelled_by", ["creator", "teacher"])
         .order("cancelled_at", { ascending: false })
         .limit(50);
 
@@ -135,7 +135,9 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-base font-medium text-foreground">
-                        {language === "ru" ? "Запись отменена автором" : "Автор жазылуды болдырмады"}
+                        {cancellation.cancelled_by === "teacher"
+                          ? (language === "ru" ? "Запись отменена учителем" : "Мұғалім жазылуды болдырмады")
+                          : (language === "ru" ? "Запись отменена автором" : "Автор жазылуды болдырмады")}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                         {cancellation.product_title}
