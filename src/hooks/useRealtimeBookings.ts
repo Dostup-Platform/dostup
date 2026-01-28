@@ -3,9 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { playBookingSound, playCancellationSound, showBrowserNotification } from "@/hooks/useNotificationPermission";
+import { playBookingSound, playCancellationSound } from "@/hooks/useNotificationPermission";
 import { setAppBadge } from "@/lib/appBadge";
-// Push notifications are now sent from the server via database triggers
+// Push notifications are now sent ONLY from the server via database triggers
+// DO NOT call showBrowserNotification here - it causes duplicate notifications!
 interface BookingPayload {
   id: string;
   simple_user_id: string;
@@ -199,10 +200,8 @@ export const useRealtimeBookingNotifications = (
             duration: 10000,
           });
 
-          // Browser push notification (for when app is open in browser)
-          showBrowserNotification(title, description);
-
-          // FCM push notifications are now sent from the server via database triggers
+          // Push notifications are sent ONLY from server via database triggers
+          // DO NOT add showBrowserNotification here - it causes duplicate notifications!
 
           // Update app badge
           const newBadgeCount = badgeCountRef.current + 1;
@@ -274,10 +273,8 @@ export const useRealtimeBookingNotifications = (
             duration: 10000,
           });
 
-          // Browser push notification (for when app is open in browser)
-          showBrowserNotification(title, description);
-
-          // FCM push notifications are now sent from the server via database triggers
+          // Push notifications are sent ONLY from server via database triggers
+          // DO NOT add showBrowserNotification here - it causes duplicate notifications!
 
           // Remove from cache
           bookingCacheRef.current.delete(deletedBooking.id);
