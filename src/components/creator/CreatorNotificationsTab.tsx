@@ -567,19 +567,23 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                           {cancellation.product_title}
                         </p>
                         
-                        {/* Причины отмены */}
-                        {cancellation.cancellation_reasons && cancellation.cancellation_reasons.length > 0 && (
+                        {/* Причины отмены или комментарий */}
+                        {((cancellation.cancellation_reasons && cancellation.cancellation_reasons.length > 0) || cancellation.cancellation_comment) && (
                           <div className="mt-2 p-2 bg-destructive/5 rounded-md">
-                            <p className="text-xs font-medium text-destructive mb-1">
-                              {language === "ru" ? "Причины:" : "Себептері:"}
-                            </p>
-                            <div className="flex flex-wrap gap-1">
-                              {cancellation.cancellation_reasons.map((reason, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs border-destructive/30 text-destructive">
-                                  {reason}
-                                </Badge>
-                              ))}
-                            </div>
+                            {cancellation.cancellation_reasons && cancellation.cancellation_reasons.length > 0 && (
+                              <>
+                                <p className="text-xs font-medium text-destructive mb-1">
+                                  {language === "ru" ? "Причины:" : "Себептері:"}
+                                </p>
+                                <div className="flex flex-wrap gap-1">
+                                  {cancellation.cancellation_reasons.map((reason, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs border-destructive/30 text-destructive">
+                                      {reason}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                             {cancellation.cancellation_comment && (
                               <p className="text-xs text-muted-foreground mt-1 italic">
                                 "{cancellation.cancellation_comment}"
