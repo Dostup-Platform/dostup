@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { playBookingSound, playCancellationSound, showBrowserNotification } from "@/hooks/useNotificationPermission";
 import { sendPushNotification } from "@/lib/firebase";
-
+import { setAppBadge } from "@/lib/appBadge";
 interface BookingPayload {
   id: string;
   simple_user_id: string;
@@ -37,12 +37,19 @@ const cleanupProcessedIds = (set: Set<string>, id: string) => {
 
 export const useRealtimeBookingNotifications = (
   productIds: string[],
-  enabled: boolean = true
+  enabled: boolean = true,
+  currentBadgeCount: number = 0
 ) => {
   const queryClient = useQueryClient();
   const { language } = useLanguage();
   const productIdsRef = useRef<string[]>(productIds);
   const bookingCacheRef = useRef<Map<string, DeletedBookingInfo>>(new Map());
+  const badgeCountRef = useRef<number>(currentBadgeCount);
+  
+  // Keep badge count ref updated
+  useEffect(() => {
+    badgeCountRef.current = currentBadgeCount;
+  }, [currentBadgeCount]);
   
   // Keep productIds ref updated
   useEffect(() => {
@@ -204,6 +211,10 @@ export const useRealtimeBookingNotifications = (
             }, "creator"); // Only send to creator role
           }
 
+          // Update app badge
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
+
           // Invalidate bookings query to refresh data
           queryClient.invalidateQueries({ queryKey: ["creator-simple-bookings"] });
         }
@@ -287,6 +298,10 @@ export const useRealtimeBookingNotifications = (
 
           // Remove from cache
           bookingCacheRef.current.delete(deletedBooking.id);
+
+          // Update app badge
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
 
           // Invalidate queries to refresh data - include schedule and notification queries
           queryClient.invalidateQueries({ queryKey: ["creator-simple-bookings"] });

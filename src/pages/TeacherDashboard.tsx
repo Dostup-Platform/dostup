@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { useRealtimeTeacherNotifications } from "@/hooks/useRealtimeTeacherNotifications";
+import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 
 const LAST_VIEWED_KEY = "teacher_notifications_last_viewed";
 
@@ -108,14 +109,6 @@ const TeacherDashboard = () => {
     enabled: !!teacherUser?.phone,
   });
 
-  // Real-time notifications for teacher bookings/cancellations
-  useRealtimeTeacherNotifications(
-    teacherName,
-    teacherUser?.phone,
-    scheduleIds,
-    scheduleIds.length > 0
-  );
-
   // Get bookings for notification count - use same key as notification tab
   const { data: bookings = [] } = useQuery({
     queryKey: ["teacher-notification-bookings", scheduleIds],
@@ -162,12 +155,30 @@ const TeacherDashboard = () => {
     return newBookingsCount + newCancellationsCount;
   }, [bookings, cancellations, lastViewedAt]);
 
+  // Real-time notifications for teacher bookings/cancellations (with badge count)
+  useRealtimeTeacherNotifications(
+    teacherName,
+    teacherUser?.phone,
+    scheduleIds,
+    scheduleIds.length > 0,
+    newNotificationsCount
+  );
+  
+  // Set initial app badge based on notification count
+  useEffect(() => {
+    if (activeTab !== "notifications") {
+      setAppBadge(newNotificationsCount);
+    }
+  }, [newNotificationsCount, activeTab]);
+
   // Handle tab change - update last viewed when leaving notifications
   const handleTabChange = useCallback((value: string) => {
     if (activeTab === "notifications" && value !== "notifications") {
       const now = new Date();
       localStorage.setItem(LAST_VIEWED_KEY, now.toISOString());
       setLastViewedAt(now);
+      // Clear app badge when leaving notifications
+      clearAppBadge();
     }
     setActiveTab(value);
   }, [activeTab]);

@@ -13,6 +13,7 @@ import AccountTab from "@/components/dashboard/AccountTab";
 import NotificationsTab from "@/components/dashboard/NotificationsTab";
 import { useRealtimeStudentNotifications } from "@/hooks/useRealtimeStudentNotifications";
 import { useFCMRegistration } from "@/hooks/useFCMRegistration";
+import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("materials");
@@ -29,16 +30,6 @@ const Dashboard = () => {
       setLastViewedAt(new Date(saved));
     }
   }, []);
-
-  // Realtime уведомления (звуки и push)
-  useRealtimeStudentNotifications(user?.phone, !!user);
-
-  // Register FCM token for push notifications
-  useFCMRegistration({
-    userPhone: user?.phone,
-    userRole: "student",
-    enabled: !!user?.phone
-  });
 
   // Получить отменённые записи для подсчёта бейджа
   const { data: cancellations = [] } = useQuery({
@@ -66,12 +57,31 @@ const Dashboard = () => {
     return cancellations.filter(c => new Date(c.cancelled_at) > compareDate).length;
   }, [cancellations, lastViewedAt]);
 
+  // Realtime уведомления (звуки и push) с badge count
+  useRealtimeStudentNotifications(user?.phone, !!user, newNotificationsCount);
+
+  // Register FCM token for push notifications
+  useFCMRegistration({
+    userPhone: user?.phone,
+    userRole: "student",
+    enabled: !!user?.phone
+  });
+
+  // Set initial app badge based on notification count
+  useEffect(() => {
+    if (activeTab !== "notifications") {
+      setAppBadge(newNotificationsCount);
+    }
+  }, [newNotificationsCount, activeTab]);
+
   // Обновление lastViewedAt при уходе с вкладки уведомлений
   const handleTabChange = (value: string) => {
     if (previousTab.current === "notifications" && value !== "notifications") {
       const now = new Date();
       localStorage.setItem("student_notifications_last_viewed", now.toISOString());
       setLastViewedAt(now);
+      // Clear app badge when leaving notifications
+      clearAppBadge();
     }
     previousTab.current = value;
     setActiveTab(value);

@@ -17,6 +17,7 @@ import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 
 const LAST_VIEWED_KEY = "creator_notifications_last_viewed";
 
@@ -44,6 +45,8 @@ const CreatorDashboard = () => {
       const now = new Date();
       localStorage.setItem(LAST_VIEWED_KEY, now.toISOString());
       setLastViewedAt(now);
+      // Clear app badge when leaving notifications
+      clearAppBadge();
     }
     setActiveTab(value);
   }, [activeTab]);
@@ -106,8 +109,16 @@ const CreatorDashboard = () => {
     return newBookingsCount + newPurchasesCount + newCancellationsCount;
   }, [bookings, pendingPurchases, cancellations, lastViewedAt]);
 
-  // Enable real-time notifications for new bookings and purchases
-  useRealtimeBookingNotifications(productIds, productIds.length > 0);
+  // Set initial app badge based on notification count
+  useEffect(() => {
+    if (activeTab !== "notifications") {
+      // Set badge to current unread count
+      setAppBadge(newNotificationsCount);
+    }
+  }, [newNotificationsCount, activeTab]);
+
+  // Enable real-time notifications for new bookings and purchases (with badge count)
+  useRealtimeBookingNotifications(productIds, productIds.length > 0, newNotificationsCount);
   useRealtimePurchaseNotifications(productIds, productIds.length > 0);
 
   // Register FCM token for push notifications
