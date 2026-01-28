@@ -21,6 +21,7 @@ interface DeletedBookingInfo {
   productTitle: string;
   date: string;
   time: string;
+  bookingId: string;
 }
 
 // Global set to track processed booking IDs to prevent duplicates
@@ -72,6 +73,7 @@ export const useRealtimeBookingNotifications = (
         productTitle: booking.schedule?.product?.title || "",
         date: booking.time_slot?.date || "",
         time: booking.time_slot?.start_time || "",
+        bookingId: bookingId,
       };
       bookingCacheRef.current.set(bookingId, info);
       
@@ -114,6 +116,7 @@ export const useRealtimeBookingNotifications = (
           productTitle: booking.schedule?.product?.title || "",
           date: booking.time_slot?.date || "",
           time: booking.time_slot?.start_time || "",
+          bookingId: booking.id,
         };
         bookingCacheRef.current.set(booking.id, info);
       });
@@ -229,17 +232,38 @@ export const useRealtimeBookingNotifications = (
           const cachedInfo = bookingCacheRef.current.get(deletedBooking.id);
           
           if (!cachedInfo) {
-            console.log("No cached info for deleted booking");
+            console.log("No cached info for deleted booking - not for creator's schedules");
             return;
           }
+
+          console.log("Creator: Found cached booking info, showing cancellation notification");
+
+          // Fetch cancellation details (reasons and comment) from booking_cancellations table
+          const { data: cancellationData } = await supabase
+            .from("booking_cancellations")
+            .select("cancellation_reasons, cancellation_comment")
+            .eq("booking_id", cachedInfo.bookingId)
+            .single();
+
+          const reasons = cancellationData?.cancellation_reasons || [];
+          const comment = cancellationData?.cancellation_comment || "";
 
           // Play cancellation sound
           playCancellationSound();
 
-          const title = language === "ru" ? "Запись отменена" : "Жазба жойылды";
-          const description = language === "ru" 
+          // Build description with reasons/comment
+          let description = language === "ru" 
             ? `${cachedInfo.userName} отменил запись на "${cachedInfo.productTitle}" на ${cachedInfo.date} в ${cachedInfo.time}`
             : `${cachedInfo.userName} "${cachedInfo.productTitle}" сабағына ${cachedInfo.date} күні ${cachedInfo.time} жазбасын жойды`;
+
+          // Add reasons or comment to description
+          if (comment) {
+            description += `\n"${comment}"`;
+          } else if (reasons.length > 0) {
+            description += `\n${reasons.join(", ")}`;
+          }
+
+          const title = language === "ru" ? "Запись отменена" : "Жазба жойылды";
 
           toast.warning(title, {
             description,
@@ -255,15 +279,22 @@ export const useRealtimeBookingNotifications = (
             sendPushNotification(creatorName, title, description, {
               type: "cancellation",
               date: cachedInfo.date,
-              time: cachedInfo.time
+              time: cachedInfo.time,
+              reasons: reasons.join(", "),
+              comment: comment
             }, "creator"); // Only send to creator role
           }
 
           // Remove from cache
           bookingCacheRef.current.delete(deletedBooking.id);
 
-          // Invalidate bookings query to refresh data
+          // Invalidate queries to refresh data - include schedule and notification queries
           queryClient.invalidateQueries({ queryKey: ["creator-simple-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["creator-cancellations"] });
+          queryClient.invalidateQueries({ queryKey: ["creator-cancellations-count"] });
+          queryClient.invalidateQueries({ queryKey: ["creator-schedule-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+          queryClient.invalidateQueries({ queryKey: ["time-slots"] });
         }
       )
       .subscribe((status) => {
