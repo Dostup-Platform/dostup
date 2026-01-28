@@ -195,41 +195,32 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
               className="border-warning/30 bg-warning/5 animate-fade-in"
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full bg-warning/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-lg font-bold text-warning">
+              <CardContent className="p-3">
+                <div className="flex items-start gap-2">
+                  <div className="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-bold text-warning">
                       {purchase.simple_user.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-foreground">{purchase.simple_user.name}</h3>
-                    
-                    <div className="mt-3 pt-3 border-t border-border">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">{t("products")}</span>
-                        <span className="font-medium text-foreground">{purchase.product.title}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm mt-1">
-                        <span className="text-muted-foreground">{t("amount") || "Сумма"}</span>
-                        <span className="font-medium text-foreground">{formatPrice(Number(purchase.amount))}</span>
-                      </div>
-                    </div>
+                    <h3 className="text-sm font-medium text-foreground truncate">{purchase.simple_user.name}</h3>
+                    <p className="text-xs text-muted-foreground line-clamp-1">
+                      {purchase.product.title} · {formatPrice(Number(purchase.amount))}
+                    </p>
                   </div>
+                  <Button 
+                    size="sm"
+                    className="h-7 text-xs flex-shrink-0"
+                    onClick={() => confirmPayment.mutate(purchase.id)}
+                    disabled={confirmPayment.isPending}
+                  >
+                    {confirmPayment.isPending ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Check className="w-3 h-3" />
+                    )}
+                  </Button>
                 </div>
-
-                <Button 
-                  className="w-full mt-4"
-                  onClick={() => confirmPayment.mutate(purchase.id)}
-                  disabled={confirmPayment.isPending}
-                >
-                  {confirmPayment.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Check className="w-4 h-4 mr-2" />
-                  )}
-                  {t("confirmPayment")}
-                </Button>
               </CardContent>
             </Card>
           ))}
@@ -257,38 +248,30 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
             className="animate-fade-in"
             style={{ animationDelay: `${index * 50}ms` }}
           >
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center flex-shrink-0">
-                  <span className="text-lg font-bold text-success">
+            <CardContent className="p-3">
+              <div className="flex items-start gap-2">
+                <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-bold text-success">
                     {purchase.simple_user.name.charAt(0).toUpperCase()}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-foreground">{purchase.simple_user.name}</h3>
-                    <Check className="w-4 h-4 text-success" />
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-sm font-medium text-foreground truncate">{purchase.simple_user.name}</h3>
+                    <Check className="w-3 h-3 text-success flex-shrink-0" />
                   </div>
-                  
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{t("products")}</span>
-                      <span className="font-medium text-foreground">{purchase.product.title}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm mt-1">
-                      <span className="text-muted-foreground">{t("purchased")}</span>
-                      <span className="font-medium text-success">{formatPrice(Number(purchase.amount))}</span>
-                    </div>
-                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    {purchase.product.title} · <span className="text-success">{formatPrice(Number(purchase.amount))}</span>
+                  </p>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
                   onClick={() => setRevokeDialog({ id: purchase.id, name: purchase.simple_user.name })}
                   title={t("revokeAccess") || "Закрыть доступ"}
                 >
-                  <UserX className="w-4 h-4" />
+                  <UserX className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </CardContent>
