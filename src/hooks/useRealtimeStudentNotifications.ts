@@ -78,9 +78,12 @@ export const useRealtimeStudentNotifications = (
             }, "student"); // Only send to student role
           }
 
-          // Обновить данные
+          // Обновить данные - включая слоты и бронирования для real-time
           queryClient.invalidateQueries({ queryKey: ["student-cancellations"] });
           queryClient.invalidateQueries({ queryKey: ["student-cancellations-count"] });
+          queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
+          queryClient.invalidateQueries({ queryKey: ["all-bookings-for-schedule"] });
         }
       )
       .subscribe();
