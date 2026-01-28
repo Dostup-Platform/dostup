@@ -10,13 +10,17 @@ const corsHeaders = {
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
 // Deduplication cache - prevents sending same notification multiple times
-// Key: hash of userPhone + title + body + purchaseId/bookingId
+// Key: hash of userPhone + title + body + bookingId/purchaseId + timestamp bucket
 const sentNotifications = new Map<string, number>();
-const DEDUP_WINDOW_MS = 30000; // 30 seconds
+const DEDUP_WINDOW_MS = 60000; // 60 seconds - increased window
 
 function getNotificationKey(userPhone: string, title: string, data?: Record<string, string>): string {
-  const dataKey = data?.purchaseId || data?.bookingId || data?.type || "";
-  return `${userPhone}:${title}:${dataKey}`;
+  // Use more specific key including the actual ID
+  const bookingId = data?.bookingId || "";
+  const purchaseId = data?.purchaseId || "";
+  const type = data?.type || "";
+  // Create a unique key per actual event
+  return `${userPhone}:${type}:${bookingId}:${purchaseId}`;
 }
 
 function isDuplicate(key: string): boolean {
