@@ -397,12 +397,14 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                   <Copy className="w-4 h-4" />
                   {!isMobile && <span className="ml-2">{language === "ru" ? "Ссылка" : "Сілтеме"}</span>}
                 </Button>
-                <Button variant="ghost" size="sm" asChild className={isMobile ? "h-8 px-2 flex-shrink-0" : "h-9"}>
-                  <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="w-4 h-4" />
-                    {!isMobile && <span className="ml-2">{language === "ru" ? "Открыть" : "Ашу"}</span>}
-                  </a>
-                </Button>
+                {!isMobile && (
+                  <Button variant="ghost" size="sm" asChild className="h-9">
+                    <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="w-4 h-4" />
+                      <span className="ml-2">{language === "ru" ? "Открыть" : "Ашу"}</span>
+                    </a>
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
