@@ -13,7 +13,7 @@ import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Download } from "lucide-
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import heroBackground from "@/assets/hero-background.jpg";
-import { sendPushNotification } from "@/lib/firebase";
+// Push notifications are now sent from the server via database triggers
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("ru-RU", {
@@ -43,7 +43,7 @@ const ProductPurchasePage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<"form" | "pending" | "completed">("form");
   const [purchaseId, setPurchaseId] = useState<string | null>(null);
-  const [notificationSent, setNotificationSent] = useState(false);
+  // Push notifications are now sent from the server via database triggers
 
   // Найти teacher_id по имени из URL
   useEffect(() => {
@@ -258,39 +258,7 @@ const ProductPurchasePage = () => {
       return;
     }
 
-    // Send push notification to creator immediately (only once)
-    if (!notificationSent) {
-      setNotificationSent(true);
-      
-      const userName = `${firstName} ${lastName}`.trim() || "Клиент";
-      const creatorId = product?.creator_id;
-      const productTitle = product?.title || "";
-      const productPrice = product?.price || 0;
-      
-      console.log("[Purchase] Sending ONE push notification to creator:", creatorId);
-      
-      if (creatorId) {
-        const title = `Новая покупка от ${userName}`;
-        const body = productTitle;
-        
-        // Send FCM push to creator (async, don't wait)
-        sendPushNotification(
-          creatorId, 
-          title, 
-          body, 
-          {
-            type: "payment",
-            purchaseId: purchase.id,
-            amount: String(productPrice)
-          },
-          "creator"
-        ).then((success) => {
-          console.log("[Purchase] Push notification result:", success);
-        }).catch((err) => {
-          console.error("[Purchase] Failed to send push notification:", err);
-        });
-      }
-    }
+    // Push notification to creator is now sent automatically from the server via database trigger
 
     setPurchaseId(purchase.id);
     setPurchaseStatus("pending");
