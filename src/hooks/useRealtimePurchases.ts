@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { playPaymentSound, showBrowserNotification } from "@/hooks/useNotificationPermission";
+import { playPaymentSound } from "@/hooks/useNotificationPermission";
+// Push notifications are sent ONLY from server via database triggers
+// DO NOT call showBrowserNotification here - it causes duplicate notifications!
 
 interface NewPurchasePayload {
   new: {
@@ -118,8 +120,8 @@ export const useRealtimePurchaseNotifications = (productIds: string[], enabled: 
               duration: 8000,
             });
 
-            // Browser notification only (no push - push is sent from ProductPurchasePage)
-            showBrowserNotification(title, description);
+            // Push notifications are sent ONLY from server via database triggers
+            // DO NOT add showBrowserNotification here - it causes duplicate notifications!
           }
 
           // Refresh the purchases list
