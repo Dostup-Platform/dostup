@@ -50,7 +50,7 @@ const Dashboard = () => {
         .from("booking_cancellations")
         .select("id, cancelled_at")
         .eq("user_phone", user.phone)
-        .eq("cancelled_by", "creator")
+        .in("cancelled_by", ["creator", "teacher"])
         .order("cancelled_at", { ascending: false })
         .limit(50);
 
