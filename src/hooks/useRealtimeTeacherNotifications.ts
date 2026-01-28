@@ -27,6 +27,8 @@ interface DeletedBookingInfo {
 // Global set to track processed IDs to prevent duplicates
 const processedTeacherBookingInserts = new Set<string>();
 const processedTeacherBookingDeletes = new Set<string>();
+// Track sent push notifications to prevent duplicate FCM calls
+const sentTeacherPushNotifications = new Set<string>();
 
 const cleanupProcessedIds = (set: Set<string>, id: string) => {
   setTimeout(() => {
@@ -182,8 +184,11 @@ export const useRealtimeTeacherNotifications = (
           // Browser push notification
           showBrowserNotification(title, description);
 
-          // Send FCM push notification to teacher
-          if (teacherPhone) {
+          // Send FCM push notification to teacher (with dedup check)
+          const pushKey = `booking:${newBooking.id}`;
+          if (teacherPhone && !sentTeacherPushNotifications.has(pushKey)) {
+            sentTeacherPushNotifications.add(pushKey);
+            cleanupProcessedIds(sentTeacherPushNotifications, pushKey);
             sendPushNotification(teacherPhone, title, description, {
               type: "booking",
               bookingId: newBooking.id
@@ -272,8 +277,11 @@ export const useRealtimeTeacherNotifications = (
           // Browser push notification
           showBrowserNotification(title, description);
 
-          // Send FCM push notification to teacher
-          if (teacherPhone) {
+          // Send FCM push notification to teacher (with dedup check)
+          const pushKey = `cancellation:${deletedBooking.id}`;
+          if (teacherPhone && !sentTeacherPushNotifications.has(pushKey)) {
+            sentTeacherPushNotifications.add(pushKey);
+            cleanupProcessedIds(sentTeacherPushNotifications, pushKey);
             sendPushNotification(teacherPhone, title, description, {
               type: "cancellation",
               date: cachedInfo.date,
