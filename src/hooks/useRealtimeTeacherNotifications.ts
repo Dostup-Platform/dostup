@@ -20,6 +20,7 @@ interface DeletedBookingInfo {
   productTitle: string;
   date: string;
   time: string;
+  bookingId: string;
 }
 
 // Global set to track processed IDs to prevent duplicates
@@ -72,6 +73,7 @@ export const useRealtimeTeacherNotifications = (
         productTitle: booking.schedule?.product?.title || "",
         date: booking.time_slot?.date || "",
         time: booking.time_slot?.start_time || "",
+        bookingId: bookingId,
       };
       bookingCacheRef.current.set(bookingId, info);
 
@@ -103,6 +105,7 @@ export const useRealtimeTeacherNotifications = (
           productTitle: booking.schedule?.product?.title || "",
           date: booking.time_slot?.date || "",
           time: booking.time_slot?.start_time || "",
+          bookingId: booking.id,
         };
         bookingCacheRef.current.set(booking.id, info);
       });
@@ -222,13 +225,32 @@ export const useRealtimeTeacherNotifications = (
 
           console.log("Teacher: Found cached booking info, showing cancellation notification");
 
+          // Fetch cancellation details (reasons and comment) from booking_cancellations table
+          const { data: cancellationData } = await supabase
+            .from("booking_cancellations")
+            .select("cancellation_reasons, cancellation_comment")
+            .eq("booking_id", cachedInfo.bookingId)
+            .single();
+
+          const reasons = cancellationData?.cancellation_reasons || [];
+          const comment = cancellationData?.cancellation_comment || "";
+
           // Play cancellation sound
           playCancellationSound();
 
-          const title = language === "ru" ? "Запись отменена" : "Жазба жойылды";
-          const description = language === "ru"
+          // Build description with reasons/comment
+          let description = language === "ru"
             ? `${cachedInfo.userName} отменил запись на "${cachedInfo.productTitle}" на ${cachedInfo.date} в ${cachedInfo.time}`
             : `${cachedInfo.userName} "${cachedInfo.productTitle}" сабағына ${cachedInfo.date} күні ${cachedInfo.time} жазбасын жойды`;
+
+          // Add reasons or comment to description
+          if (comment) {
+            description += `\n"${comment}"`;
+          } else if (reasons.length > 0) {
+            description += `\n${reasons.join(", ")}`;
+          }
+
+          const title = language === "ru" ? "Запись отменена" : "Жазба жойылды";
 
           toast.warning(title, {
             description,
@@ -243,7 +265,9 @@ export const useRealtimeTeacherNotifications = (
             sendPushNotification(teacherPhone, title, description, {
               type: "cancellation",
               date: cachedInfo.date,
-              time: cachedInfo.time
+              time: cachedInfo.time,
+              reasons: reasons.join(", "),
+              comment: comment
             }, "teacher");
           }
 
