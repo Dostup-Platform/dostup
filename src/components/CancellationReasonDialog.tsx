@@ -104,11 +104,16 @@ const CancellationReasonDialog = ({
             <Textarea
               placeholder={
                 language === "ru"
-                  ? "Дополнительный комментарий (необязательно)"
-                  : "Қосымша түсініктеме (міндетті емес)"
+                  ? "Свой комментарий"
+                  : "Өз түсініктемеңіз"
               }
               value={comment}
-              onChange={(e) => setComment(e.target.value)}
+              onChange={(e) => {
+                setComment(e.target.value);
+                if (e.target.value.length > 0) {
+                  setSelectedReasons([]);
+                }
+              }}
               rows={3}
               className="resize-none"
             />
@@ -122,7 +127,7 @@ const CancellationReasonDialog = ({
           <Button
             variant="destructive"
             onClick={handleConfirm}
-            disabled={isPending || selectedReasons.length === 0}
+            disabled={isPending || (selectedReasons.length === 0 && comment.trim().length === 0)}
           >
             {isPending ? (
               <Loader2 className="w-4 h-4 animate-spin mr-2" />
