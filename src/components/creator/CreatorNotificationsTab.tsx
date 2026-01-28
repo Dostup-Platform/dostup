@@ -544,40 +544,40 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                     className={`p-4 transition-colors ${isNewCancellation ? "bg-destructive/5" : ""}`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-full flex-shrink-0 bg-destructive/10 text-destructive">
-                        <XCircle className="w-4 h-4" />
+                      <div className="p-2.5 rounded-full flex-shrink-0 bg-destructive/10 text-destructive">
+                        <XCircle className="w-5 h-5" />
                       </div>
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-foreground">
+                          <span className="text-base font-medium text-foreground">
                             {cancellation.user_name || t("student")}
                           </span>
-                          <span className="text-muted-foreground">
+                          <span className="text-sm text-muted-foreground">
                             {t("cancelledSession")}
                           </span>
                           {isNewCancellation && (
-                            <Badge variant="destructive" className="text-xs">
+                            <Badge variant="destructive" className="text-xs px-2 py-0.5">
                               {t("new")}
                             </Badge>
                           )}
                         </div>
                         
-                        <p className="text-sm text-muted-foreground mt-1 truncate">
+                        <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2">
                           {cancellation.product_title}
                         </p>
                         
                         {/* Причины отмены или комментарий */}
                         {((cancellation.cancellation_reasons && cancellation.cancellation_reasons.length > 0) || cancellation.cancellation_comment) && (
-                          <div className="mt-2 p-2 bg-destructive/5 rounded-md">
+                          <div className="mt-2 p-2.5 bg-destructive/5 rounded-md">
                             {cancellation.cancellation_reasons && cancellation.cancellation_reasons.length > 0 && (
                               <>
-                                <p className="text-xs font-medium text-destructive mb-1">
+                                <p className="text-sm font-medium text-destructive mb-1.5">
                                   {language === "ru" ? "Причины:" : "Себептері:"}
                                 </p>
-                                <div className="flex flex-wrap gap-1">
+                                <div className="flex flex-wrap gap-1.5">
                                   {cancellation.cancellation_reasons.map((reason, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs border-destructive/30 text-destructive">
+                                    <Badge key={idx} variant="outline" className="text-sm px-2 py-0.5 border-destructive/30 text-destructive">
                                       {reason}
                                     </Badge>
                                   ))}
@@ -585,22 +585,22 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                               </>
                             )}
                             {cancellation.cancellation_comment && (
-                              <p className="text-xs text-muted-foreground mt-1 italic">
+                              <p className="text-sm text-muted-foreground mt-2 italic">
                                 "{cancellation.cancellation_comment}"
                               </p>
                             )}
                           </div>
                         )}
                         
-                        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5" />
+                        <div className="flex items-center gap-4 mt-2.5 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-4 h-4" />
                             <span>
                               {format(new Date(cancellation.slot_date), "d MMM", { locale: dateLocale })}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" />
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-4 h-4" />
                             <span>
                               {cancellation.slot_time?.slice(0, 5)}
                             </span>
@@ -608,7 +608,7 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                         </div>
                       </div>
                       
-                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                      <div className="text-sm text-muted-foreground whitespace-nowrap">
                         {getTimeAgo(cancellation.cancelled_at)}
                       </div>
                     </div>
