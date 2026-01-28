@@ -179,11 +179,14 @@ export const useRealtimeTeacherNotifications = (
             }, "teacher");
           }
 
-          // Invalidate queries to refresh data
+          // Invalidate queries to refresh data - include all related queries
           queryClient.invalidateQueries({ queryKey: ["teacher-bookings"] });
           queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
           queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
           queryClient.invalidateQueries({ queryKey: ["teacher-notification-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-cancellations"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-schedules-list"] });
+          queryClient.invalidateQueries({ queryKey: ["time-slots"] });
         }
       )
       .on(
@@ -206,19 +209,18 @@ export const useRealtimeTeacherNotifications = (
           processedTeacherBookingDeletes.add(deletedBooking.id);
           cleanupProcessedIds(processedTeacherBookingDeletes, deletedBooking.id);
 
-          // Check if this booking was for one of the teacher's schedules
-          if (!scheduleIdsRef.current.includes(deletedBooking.schedule_id)) {
-            console.log("Deleted booking was not for teacher's schedule, ignoring");
-            return;
-          }
-
           // Get cached info about the deleted booking
+          // NOTE: We use cache to check if booking was for teacher's schedule
+          // because DELETE payload only contains 'id', not 'schedule_id'
           const cachedInfo = bookingCacheRef.current.get(deletedBooking.id);
 
           if (!cachedInfo) {
-            console.log("No cached info for deleted booking");
+            // Booking was not in our cache = not for this teacher's schedules
+            console.log("No cached info for deleted booking - not for this teacher");
             return;
           }
+
+          console.log("Teacher: Found cached booking info, showing cancellation notification");
 
           // Play cancellation sound
           playCancellationSound();
@@ -248,13 +250,15 @@ export const useRealtimeTeacherNotifications = (
           // Remove from cache
           bookingCacheRef.current.delete(deletedBooking.id);
 
-          // Invalidate queries to refresh data
+          // Invalidate queries to refresh data - include all related queries
           queryClient.invalidateQueries({ queryKey: ["teacher-bookings"] });
           queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
           queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
           queryClient.invalidateQueries({ queryKey: ["teacher-cancellations"] });
           queryClient.invalidateQueries({ queryKey: ["teacher-notification-bookings"] });
           queryClient.invalidateQueries({ queryKey: ["teacher-notification-cancellations"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-schedules-list"] });
+          queryClient.invalidateQueries({ queryKey: ["time-slots"] });
         }
       )
       .subscribe((status) => {

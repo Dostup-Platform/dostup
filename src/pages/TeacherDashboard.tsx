@@ -116,9 +116,9 @@ const TeacherDashboard = () => {
     scheduleIds.length > 0
   );
 
-  // Get bookings for notification count
+  // Get bookings for notification count - use same key as notification tab
   const { data: bookings = [] } = useQuery({
-    queryKey: ["teacher-bookings", scheduleIds],
+    queryKey: ["teacher-notification-bookings", scheduleIds],
     queryFn: async () => {
       if (!scheduleIds.length) return [];
       
@@ -134,9 +134,9 @@ const TeacherDashboard = () => {
     enabled: scheduleIds.length > 0,
   });
 
-  // Get cancellations
+  // Get cancellations - use same key as notification tab
   const { data: cancellations = [] } = useQuery({
-    queryKey: ["teacher-cancellations", productIds],
+    queryKey: ["teacher-notification-cancellations", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
       
