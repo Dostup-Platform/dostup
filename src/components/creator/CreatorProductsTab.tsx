@@ -369,7 +369,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
               </div>
               
               {/* Actions */}
-              <div className={`flex items-center ${isMobile ? "flex-wrap gap-1.5" : "gap-2 flex-wrap"}`}>
+              <div className={`flex items-center justify-end ${isMobile ? "flex-wrap gap-1.5" : "gap-2 flex-wrap"}`}>
                 <Button
                   variant="outline"
                   size="sm"
