@@ -6,6 +6,32 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Deduplication: track processed booking IDs to prevent duplicate notifications
+const processedBookings = new Map<string, number>();
+const DEDUP_WINDOW_MS = 60000; // 60 seconds
+
+function isAlreadyProcessed(bookingId: string, eventType: string): boolean {
+  const key = `${eventType}:${bookingId}`;
+  const now = Date.now();
+  const lastProcessed = processedBookings.get(key);
+  
+  if (lastProcessed && (now - lastProcessed) < DEDUP_WINDOW_MS) {
+    console.log(`Dedup: skipping ${key}, processed ${now - lastProcessed}ms ago`);
+    return true;
+  }
+  
+  processedBookings.set(key, now);
+  
+  // Cleanup old entries
+  for (const [k, time] of processedBookings.entries()) {
+    if (now - time > DEDUP_WINDOW_MS) {
+      processedBookings.delete(k);
+    }
+  }
+  
+  return false;
+}
+
 // Cache for access token
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
@@ -204,10 +230,15 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     if (type === "INSERT" && record) {
-      // New booking - notify teacher and creator
       const bookingId = record.id;
-      const scheduleId = record.schedule_id;
-      const userId = record.simple_user_id;
+      
+      // Deduplication check
+      if (isAlreadyProcessed(bookingId, "INSERT")) {
+        return new Response(
+          JSON.stringify({ success: true, message: "Already processed (dedup)" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Fetch full booking details
       const { data: booking, error: bookingError } = await supabase
@@ -299,8 +330,15 @@ serve(async (req) => {
     }
 
     if (type === "DELETE" && old_record) {
-      // Booking cancelled - notify teacher and creator
       const bookingId = old_record.id;
+      
+      // Deduplication check
+      if (isAlreadyProcessed(bookingId, "DELETE")) {
+        return new Response(
+          JSON.stringify({ success: true, message: "Already processed (dedup)" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Try to get cancellation details
       const { data: cancellation } = await supabase
