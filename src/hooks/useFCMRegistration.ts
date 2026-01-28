@@ -3,7 +3,7 @@ import { initializeFirebaseMessaging, registerPushToken, onForegroundMessage } f
 
 interface UseFCMRegistrationOptions {
   userPhone: string | undefined;
-  userRole: "creator" | "student";
+  userRole: "creator" | "student" | "teacher";
   enabled?: boolean;
 }
 

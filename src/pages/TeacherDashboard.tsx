@@ -12,6 +12,8 @@ import TeacherNotificationsTab from "@/components/teacher/TeacherNotificationsTa
 import TeacherAccountTab from "@/components/teacher/TeacherAccountTab";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useFCMRegistration } from "@/hooks/useFCMRegistration";
+import { useRealtimeTeacherNotifications } from "@/hooks/useRealtimeTeacherNotifications";
 
 const LAST_VIEWED_KEY = "teacher_notifications_last_viewed";
 
@@ -98,6 +100,21 @@ const TeacherDashboard = () => {
   });
 
   const scheduleIds = useMemo(() => teacherSchedules.map(s => s.id), [teacherSchedules]);
+
+  // Register FCM for teacher push notifications
+  useFCMRegistration({
+    userPhone: teacherUser?.phone,
+    userRole: "teacher",
+    enabled: !!teacherUser?.phone,
+  });
+
+  // Real-time notifications for teacher bookings/cancellations
+  useRealtimeTeacherNotifications(
+    teacherName,
+    teacherUser?.phone,
+    scheduleIds,
+    scheduleIds.length > 0
+  );
 
   // Get bookings for notification count
   const { data: bookings = [] } = useQuery({
