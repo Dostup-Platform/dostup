@@ -181,8 +181,9 @@ export const useRealtimeTeacherNotifications = (
 
           // Invalidate queries to refresh data
           queryClient.invalidateQueries({ queryKey: ["teacher-bookings"] });
-          queryClient.invalidateQueries({ queryKey: ["teacher-schedule-bookings"] });
-          queryClient.invalidateQueries({ queryKey: ["time-slots"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-notification-bookings"] });
         }
       )
       .on(
@@ -249,9 +250,11 @@ export const useRealtimeTeacherNotifications = (
 
           // Invalidate queries to refresh data
           queryClient.invalidateQueries({ queryKey: ["teacher-bookings"] });
-          queryClient.invalidateQueries({ queryKey: ["teacher-schedule-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
           queryClient.invalidateQueries({ queryKey: ["teacher-cancellations"] });
-          queryClient.invalidateQueries({ queryKey: ["time-slots"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-notification-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-notification-cancellations"] });
         }
       )
       .subscribe((status) => {
