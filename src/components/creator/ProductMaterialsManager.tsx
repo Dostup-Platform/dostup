@@ -8,7 +8,6 @@
    DialogContent,
    DialogHeader,
    DialogTitle,
-  DialogDescription,
  } from "@/components/ui/dialog";
  import {
    AlertDialog,
@@ -23,6 +22,7 @@
  import { useProductMaterials, useCreateMaterial, useUpdateMaterial, useDeleteMaterial, uploadMaterialFile } from "@/hooks/useMaterials";
  import { useLanguage } from "@/contexts/LanguageContext";
  import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X } from "lucide-react";
+import { ExternalLink } from "lucide-react";
  import { toast } from "sonner";
  import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
@@ -271,8 +271,8 @@ interface FilePermission {
   const handleOpenFile = async (material: Material, action: 'view' | 'download') => {
     if (!material.file_url) return;
     
-   // Открыть окно СРАЗУ (до async), чтобы избежать блокировки popup
-   const newWindow = window.open('about:blank', '_blank');
+   // Открыть окно СРАЗУ (до async), чтобы избежать блокировки popup (только для view)
+   const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
    
     try {
       setIsLoadingUrl(true);
@@ -298,8 +298,16 @@ interface FilePermission {
        throw error;
      }
       
-     if (newWindow) {
-       // Установить URL в уже открытое окно
+     if (action === 'download') {
+       // Скачивание файла
+       const link = document.createElement('a');
+       link.href = data.signedUrl;
+       link.download = material.title;
+       document.body.appendChild(link);
+       link.click();
+       document.body.removeChild(link);
+     } else if (newWindow) {
+       // Просмотр в браузере
         newWindow.location.href = data.signedUrl;
       }
       
@@ -669,14 +677,26 @@ interface FilePermission {
                            </div>
                            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                             {material.type === "file" && material.file_url && (
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                onClick={() => handleOpenFile(material, 'download')}
-                                disabled={isLoadingUrl}
-                              >
-                                <Download className="w-4 h-4" />
-                               </Button>
+                              <>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => handleOpenFile(material, 'download')}
+                                  disabled={isLoadingUrl}
+                                  title="Скачать"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => handleOpenFile(material, 'view')}
+                                  disabled={isLoadingUrl}
+                                  title="Открыть в браузере"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </Button>
+                              </>
                              )}
                              <Button variant="ghost" size="icon" onClick={() => handleEdit(material)}>
                                <Edit className="w-4 h-4" />

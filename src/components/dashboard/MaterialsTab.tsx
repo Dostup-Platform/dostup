@@ -2,19 +2,10 @@ import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSimpleMaterials } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Eye, Folder } from "lucide-react";
+import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-
-interface OpeningFile {
-  id: string;
-  title: string;
-  file_url: string;
-  allow_view?: boolean;
-  allow_download?: boolean;
-}
 
 const getIcon = (type: string) => {
   switch (type) {
@@ -168,8 +159,6 @@ const MaterialsTab = () => {
   const { t } = useLanguage();
   const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
-  const [openingFile, setOpeningFile] = useState<OpeningFile | null>(null);
-  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
 
   const toggleVideoExpand = (materialId: string) => {
     setExpandedVideos(prev => {
@@ -187,8 +176,6 @@ const MaterialsTab = () => {
     if (!material.file_url) return;
     
     try {
-      setIsLoadingUrl(true);
-      
       // Check if it's a path (no http) or already a URL
       const isPath = !material.file_url.startsWith('http');
       
@@ -213,13 +200,9 @@ const MaterialsTab = () => {
       } else {
         window.open(url, '_blank');
       }
-      
-      setOpeningFile(null);
     } catch (err) {
       console.error('Error getting file URL:', err);
       toast.error('Ошибка при открытии файла');
-    } finally {
-      setIsLoadingUrl(false);
     }
   }, []);
 
@@ -297,22 +280,28 @@ const MaterialsTab = () => {
                       </div>
                       
                       {material.type === "file" && material.file_url && (
-                        (material.allow_view !== false || material.allow_download !== false) && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="flex-shrink-0"
-                            onClick={() => setOpeningFile({ 
-                              id: material.id, 
-                              title: material.title, 
-                              file_url: material.file_url!,
-                              allow_view: material.allow_view,
-                              allow_download: material.allow_download
-                            })}
-                          >
-                            <ExternalLink className="w-5 h-5" />
-                          </Button>
-                        )
+                       <div className="flex gap-1 flex-shrink-0">
+                         {material.allow_download !== false && (
+                           <Button 
+                             variant="ghost" 
+                             size="icon"
+                             onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'download')}
+                             title="Скачать"
+                           >
+                             <Download className="w-5 h-5" />
+                           </Button>
+                         )}
+                         {material.allow_view !== false && (
+                           <Button 
+                             variant="ghost" 
+                             size="icon"
+                             onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'view')}
+                             title="Открыть в браузере"
+                           >
+                             <ExternalLink className="w-5 h-5" />
+                           </Button>
+                         )}
+                       </div>
                       )}
                       
                       {isVideo && canPlay && (
@@ -360,49 +349,6 @@ const MaterialsTab = () => {
       {fullscreenVideo && (
         <VideoPlayer url={fullscreenVideo} onClose={() => setFullscreenVideo(null)} />
       )}
-
-      {/* File open dialog */}
-      <Dialog open={!!openingFile} onOpenChange={(open) => { if (!open) setOpeningFile(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Открыть файл</DialogTitle>
-            <DialogDescription>
-              {openingFile?.title}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 mt-4">
-            {openingFile?.allow_view !== false && (
-            <Button
-              onClick={() => openingFile && handleOpenFile(openingFile, 'view')}
-              disabled={isLoadingUrl}
-              className="w-full"
-            >
-              {isLoadingUrl ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Eye className="w-4 h-4 mr-2" />
-              )}
-              Открыть в браузере
-            </Button>
-            )}
-            {openingFile?.allow_download !== false && (
-            <Button
-              variant="outline"
-              onClick={() => openingFile && handleOpenFile(openingFile, 'download')}
-              disabled={isLoadingUrl}
-              className="w-full"
-            >
-              {isLoadingUrl ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Download className="w-4 h-4 mr-2" />
-              )}
-              Скачать файл
-            </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
