@@ -2,10 +2,9 @@
  import { useState, useCallback } from "react";
  import { supabase } from "@/integrations/supabase/client";
  import { useLanguage } from "@/contexts/LanguageContext";
- import { FileText, ExternalLink, Loader2, Video, Link as LinkIcon, Folder, Eye, Download } from "lucide-react";
+import { FileText, ExternalLink, Loader2, Video, Link as LinkIcon, Folder, Download } from "lucide-react";
  import { Card, CardContent } from "@/components/ui/card";
  import { Button } from "@/components/ui/button";
- import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
  import { toast } from "sonner";
  
  interface TeacherMaterialsTabProps {
@@ -26,8 +25,6 @@
  
  const TeacherMaterialsTab = ({ productIds }: TeacherMaterialsTabProps) => {
    const { language } = useLanguage();
-   const [openingFile, setOpeningFile] = useState<Material | null>(null);
-   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
  
    const { data: materials = [], isLoading } = useQuery({
      queryKey: ["teacher-materials", productIds],
@@ -77,12 +74,10 @@
      }
    };
  
-   const handleOpenFile = useCallback(async (material: Material, action: 'view' | 'download') => {
+   const handleOpenFile = useCallback(async (material: { file_url: string; title: string }, action: 'view' | 'download') => {
      if (!material.file_url) return;
      
      try {
-       setIsLoadingUrl(true);
-       
        const isPath = !material.file_url.startsWith('http');
        
        let url = material.file_url;
@@ -105,23 +100,11 @@
        } else {
          window.open(url, '_blank');
        }
-       
-       setOpeningFile(null);
      } catch (err) {
        console.error('Error getting file URL:', err);
        toast.error('Ошибка при открытии файла');
-     } finally {
-       setIsLoadingUrl(false);
      }
    }, []);
- 
-   const handleOpenMaterial = (material: Material) => {
-     if (material.type === "link" && material.content) {
-       window.open(material.content, "_blank");
-     } else if (material.file_url) {
-       setOpeningFile(material);
-     }
-   };
  
    if (isLoading) {
      return (
@@ -165,15 +148,52 @@
                      </div>
                    </div>
                    {material.type !== "folder" && (
-                    (material.allow_view !== false || material.allow_download !== false) && (
-                     <Button
-                       variant="ghost"
-                       size="icon"
-                       onClick={() => handleOpenMaterial(material)}
-                     >
-                       <ExternalLink className="w-4 h-4" />
-                     </Button>
-                    )
+                     <div className="flex gap-1">
+                       {material.type === "link" && material.content && (
+                         <Button
+                           variant="ghost"
+                           size="icon"
+                           onClick={() => window.open(material.content!, "_blank")}
+                           title="Открыть ссылку"
+                         >
+                           <ExternalLink className="w-4 h-4" />
+                         </Button>
+                       )}
+                       {material.type === "file" && material.file_url && (
+                         <>
+                           {material.allow_download !== false && (
+                             <Button
+                               variant="ghost"
+                               size="icon"
+                               onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'download')}
+                               title="Скачать"
+                             >
+                               <Download className="w-4 h-4" />
+                             </Button>
+                           )}
+                           {material.allow_view !== false && (
+                             <Button
+                               variant="ghost"
+                               size="icon"
+                               onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'view')}
+                               title="Открыть в браузере"
+                             >
+                               <ExternalLink className="w-4 h-4" />
+                             </Button>
+                           )}
+                         </>
+                       )}
+                       {material.type === "video" && material.file_url && (
+                         <Button
+                           variant="ghost"
+                           size="icon"
+                           onClick={() => window.open(material.file_url!, "_blank")}
+                           title="Открыть видео"
+                         >
+                           <ExternalLink className="w-4 h-4" />
+                         </Button>
+                       )}
+                     </div>
                    )}
                  </CardContent>
                </Card>
@@ -187,48 +207,6 @@
            ? "Только просмотр. Редактирование доступно автору курса."
            : "Тек қарау. Өңдеу курс авторына қолжетімді."}
        </p>
- 
-       <Dialog open={!!openingFile} onOpenChange={(open) => { if (!open) setOpeningFile(null); }}>
-         <DialogContent className="max-w-sm">
-           <DialogHeader>
-             <DialogTitle>Открыть файл</DialogTitle>
-             <DialogDescription>
-               {openingFile?.title}
-             </DialogDescription>
-           </DialogHeader>
-           <div className="flex flex-col gap-3 mt-4">
-            {openingFile?.allow_view !== false && (
-             <Button
-               onClick={() => openingFile && handleOpenFile(openingFile, 'view')}
-               disabled={isLoadingUrl}
-               className="w-full"
-             >
-               {isLoadingUrl ? (
-                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
-               ) : (
-                 <Eye className="w-4 h-4 mr-2" />
-               )}
-               Открыть в браузере
-             </Button>
-            )}
-            {openingFile?.allow_download !== false && (
-             <Button
-               variant="outline"
-               onClick={() => openingFile && handleOpenFile(openingFile, 'download')}
-               disabled={isLoadingUrl}
-               className="w-full"
-             >
-               {isLoadingUrl ? (
-                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
-               ) : (
-                 <Download className="w-4 h-4 mr-2" />
-               )}
-               Скачать файл
-             </Button>
-            )}
-           </div>
-         </DialogContent>
-       </Dialog>
      </div>
    );
  };
