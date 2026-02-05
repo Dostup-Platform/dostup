@@ -48,6 +48,11 @@ const isDirectVideoUrl = (url: string): boolean => {
   return /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url);
 };
 
+// Check if file can be viewed via Google Docs Viewer
+const isOfficeDocument = (url: string): boolean => {
+  return /\.(docx?|xlsx?|pptx?|odt|ods|odp)(\?.*)?$/i.test(url);
+};
+
 interface VideoPlayerProps {
   url: string;
   onClose: () => void;
@@ -208,7 +213,13 @@ const MaterialsTab = () => {
         link.click();
         document.body.removeChild(link);
       } else if (newWindow) {
-        newWindow.location.href = data.signedUrl;
+        // Check if this is an office document that needs Google Docs Viewer
+        if (isOfficeDocument(material.title)) {
+          const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(data.signedUrl)}&embedded=true`;
+          newWindow.location.href = viewerUrl;
+        } else {
+          newWindow.location.href = data.signedUrl;
+        }
       }
     } catch (err) {
       console.error('Error getting file URL:', err);
