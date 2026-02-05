@@ -14,6 +14,8 @@ interface Material {
   order_index: number;
   created_at: string;
   parent_id?: string | null;
+  allow_view?: boolean;
+  allow_download?: boolean;
 }
 
 export const useMaterials = (productId: string | undefined) => {
@@ -87,6 +89,8 @@ interface CreateMaterialInput {
   file_url?: string | null;
   order_index?: number;
   parent_id?: string | null;
+  allow_view?: boolean;
+  allow_download?: boolean;
 }
 
 export const useCreateMaterial = () => {
@@ -104,6 +108,8 @@ export const useCreateMaterial = () => {
           file_url: material.file_url || null,
           order_index: material.order_index || 0,
           parent_id: material.parent_id || null,
+          allow_view: material.allow_view !== false,
+          allow_download: material.allow_download !== false,
         })
         .select()
         .single();

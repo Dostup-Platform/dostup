@@ -26,6 +26,8 @@
  import { toast } from "sonner";
  import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Eye } from "lucide-react";
  
  interface ProductMaterialsManagerProps {
    productId: string;
@@ -46,12 +48,22 @@ import { supabase } from "@/integrations/supabase/client";
    order_index: number;
    created_at: string;
    parent_id?: string | null;
+  allow_view?: boolean;
+  allow_download?: boolean;
  }
  
+interface FilePermission {
+  allow_view: boolean;
+  allow_download: boolean;
+}
+
  interface FormData {
    title: string;
    itemType: ItemType;
    files: File[];
+  filePermissions: FilePermission[];
+  allow_view: boolean;
+  allow_download: boolean;
  }
  
  const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: ProductMaterialsManagerProps) => {
@@ -73,6 +85,9 @@ import { supabase } from "@/integrations/supabase/client";
      title: "",
      itemType: "file",
      files: [],
+    filePermissions: [],
+    allow_view: true,
+    allow_download: true,
    });
  
    // Filter materials for current folder level
@@ -105,7 +120,7 @@ import { supabase } from "@/integrations/supabase/client";
    };
  
    const resetForm = () => {
-     setFormData({ title: "", itemType: "file", files: [] });
+    setFormData({ title: "", itemType: "file", files: [], filePermissions: [], allow_view: true, allow_download: true });
      if (fileInputRef.current) fileInputRef.current.value = "";
    };
  
@@ -142,6 +157,7 @@ import { supabase } from "@/integrations/supabase/client";
            for (let i = 0; i < formData.files.length; i++) {
              const file = formData.files[i];
              const fileUrl = await uploadMaterialFile(file, productId);
+            const permissions = formData.filePermissions[i] || { allow_view: true, allow_download: true };
              await createMaterial.mutateAsync({
                product_id: productId,
                title: file.name,
@@ -150,6 +166,8 @@ import { supabase } from "@/integrations/supabase/client";
                file_url: fileUrl,
                order_index: i,
                parent_id: folder.id,
+              allow_view: permissions.allow_view,
+              allow_download: permissions.allow_download,
              });
            }
          }
@@ -160,6 +178,7 @@ import { supabase } from "@/integrations/supabase/client";
          for (let i = 0; i < formData.files.length; i++) {
            const file = formData.files[i];
            const fileUrl = await uploadMaterialFile(file, productId);
+          const permissions = formData.filePermissions[i] || { allow_view: true, allow_download: true };
            await createMaterial.mutateAsync({
              product_id: productId,
              title: formData.title || file.name,
@@ -168,6 +187,8 @@ import { supabase } from "@/integrations/supabase/client";
              file_url: fileUrl,
              order_index: materials.length + i,
              parent_id: currentFolderId,
+            allow_view: permissions.allow_view,
+            allow_download: permissions.allow_download,
            });
          }
          toast.success(formData.files.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");
@@ -189,6 +210,9 @@ import { supabase } from "@/integrations/supabase/client";
        title: material.title,
        itemType: material.type === "folder" ? "folder" : "file",
        files: [],
+      filePermissions: [],
+      allow_view: material.allow_view !== false,
+      allow_download: material.allow_download !== false,
      });
    };
  
@@ -201,9 +225,11 @@ import { supabase } from "@/integrations/supabase/client";
          id: editingId,
          productId: productId,
          title: formData.title,
+        allow_view: formData.allow_view,
+        allow_download: formData.allow_download,
        });
  
-       toast.success("Название обновлено!");
+      toast.success("Изменения сохранены!");
        setEditingId(null);
        resetForm();
      } catch (err) {
@@ -333,25 +359,64 @@ import { supabase } from "@/integrations/supabase/client";
          {formData.files.length > 0 && (
              <div className="space-y-1 mb-3">
                {formData.files.map((file, index) => (
-                 <div key={index} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
-                   <div className="flex items-center gap-2 min-w-0">
+                <div key={index} className="bg-muted/50 rounded-md px-3 py-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
                      <FileText className="w-4 h-4 text-primary flex-shrink-0" />
                      <span className="text-sm truncate">{file.name}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          files: prev.files.filter((_, i) => i !== index),
+                          filePermissions: prev.filePermissions.filter((_, i) => i !== index)
+                        }));
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
                    </div>
-                   <Button
-                     type="button"
-                     variant="ghost"
-                     size="icon"
-                     className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                     onClick={() => {
-                       setFormData(prev => ({
-                         ...prev,
-                         files: prev.files.filter((_, i) => i !== index)
-                       }));
-                     }}
-                   >
-                     <X className="w-4 h-4" />
-                   </Button>
+                  <div className="flex items-center gap-4 pl-6">
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={formData.filePermissions[index]?.allow_view !== false}
+                        onCheckedChange={(checked) => {
+                          setFormData(prev => {
+                            const newPermissions = [...prev.filePermissions];
+                            if (!newPermissions[index]) {
+                              newPermissions[index] = { allow_view: true, allow_download: true };
+                            }
+                            newPermissions[index].allow_view = !!checked;
+                            return { ...prev, filePermissions: newPermissions };
+                          });
+                        }}
+                      />
+                      <Eye className="w-3 h-3" />
+                      Просмотр
+                    </label>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <Checkbox
+                        checked={formData.filePermissions[index]?.allow_download !== false}
+                        onCheckedChange={(checked) => {
+                          setFormData(prev => {
+                            const newPermissions = [...prev.filePermissions];
+                            if (!newPermissions[index]) {
+                              newPermissions[index] = { allow_view: true, allow_download: true };
+                            }
+                            newPermissions[index].allow_download = !!checked;
+                            return { ...prev, filePermissions: newPermissions };
+                          });
+                        }}
+                      />
+                      <Download className="w-3 h-3" />
+                      Скачивание
+                    </label>
+                  </div>
                  </div>
                ))}
              </div>
@@ -435,6 +500,30 @@ import { supabase } from "@/integrations/supabase/client";
          />
        </div>
  
+      {formData.itemType === "file" && (
+        <div className="space-y-3">
+          <Label>Доступ для учеников/учителей</Label>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox
+                checked={formData.allow_view}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, allow_view: !!checked }))}
+              />
+              <Eye className="w-4 h-4" />
+              Просмотр в браузере
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <Checkbox
+                checked={formData.allow_download}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, allow_download: !!checked }))}
+              />
+              <Download className="w-4 h-4" />
+              Скачивание файла
+            </label>
+          </div>
+        </div>
+      )}
+
        <div className="flex gap-2 pt-2">
          <Button
            type="button"
@@ -566,7 +655,7 @@ import { supabase } from "@/integrations/supabase/client";
                              <p className="text-xs text-muted-foreground">
                                {material.type === "folder" 
                                  ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
-                                 : "Файл"
+                                : `Файл${material.allow_view !== false || material.allow_download !== false ? ' •' : ''}${material.allow_view !== false ? ' 👁' : ''}${material.allow_download !== false ? ' ⬇' : ''}`
                                }
                              </p>
                            </div>

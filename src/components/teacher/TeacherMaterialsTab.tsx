@@ -20,6 +20,8 @@
    file_url: string | null;
    product_id: string;
    product?: { title: string };
+  allow_view?: boolean;
+  allow_download?: boolean;
  }
  
  const TeacherMaterialsTab = ({ productIds }: TeacherMaterialsTabProps) => {
@@ -34,7 +36,7 @@
  
        const { data, error } = await supabase
          .from("materials")
-         .select("id, title, type, content, file_url, product_id")
+        .select("id, title, type, content, file_url, product_id, allow_view, allow_download")
          .in("product_id", productIds)
          .order("order_index");
  
@@ -163,6 +165,7 @@
                      </div>
                    </div>
                    {material.type !== "folder" && (
+                    (material.allow_view !== false || material.allow_download !== false) && (
                      <Button
                        variant="ghost"
                        size="icon"
@@ -170,6 +173,7 @@
                      >
                        <ExternalLink className="w-4 h-4" />
                      </Button>
+                    )
                    )}
                  </CardContent>
                </Card>
@@ -193,6 +197,7 @@
              </DialogDescription>
            </DialogHeader>
            <div className="flex flex-col gap-3 mt-4">
+            {openingFile?.allow_view !== false && (
              <Button
                onClick={() => openingFile && handleOpenFile(openingFile, 'view')}
                disabled={isLoadingUrl}
@@ -205,6 +210,8 @@
                )}
                Открыть в браузере
              </Button>
+            )}
+            {openingFile?.allow_download !== false && (
              <Button
                variant="outline"
                onClick={() => openingFile && handleOpenFile(openingFile, 'download')}
@@ -218,6 +225,7 @@
                )}
                Скачать файл
              </Button>
+            )}
            </div>
          </DialogContent>
        </Dialog>

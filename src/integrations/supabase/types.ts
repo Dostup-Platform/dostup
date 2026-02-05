@@ -192,6 +192,8 @@ export type Database = {
       }
       materials: {
         Row: {
+          allow_download: boolean
+          allow_view: boolean
           content: string | null
           created_at: string
           file_url: string | null
@@ -203,6 +205,8 @@ export type Database = {
           type: Database["public"]["Enums"]["material_type"]
         }
         Insert: {
+          allow_download?: boolean
+          allow_view?: boolean
           content?: string | null
           created_at?: string
           file_url?: string | null
@@ -214,6 +218,8 @@ export type Database = {
           type?: Database["public"]["Enums"]["material_type"]
         }
         Update: {
+          allow_download?: boolean
+          allow_view?: boolean
           content?: string | null
           created_at?: string
           file_url?: string | null

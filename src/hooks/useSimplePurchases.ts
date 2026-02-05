@@ -112,7 +112,9 @@ export const useSimpleMaterials = () => {
           content,
           file_url,
           order_index,
-          product_id
+          product_id,
+          allow_view,
+          allow_download
         `)
         .in("product_id", productIds)
         .order("order_index");
