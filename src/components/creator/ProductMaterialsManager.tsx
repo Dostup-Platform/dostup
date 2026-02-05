@@ -246,6 +246,12 @@ import { supabase } from "@/integrations/supabase/client";
   const handleOpenFile = async (material: Material, action: 'view' | 'download') => {
     if (!material.file_url) return;
     
+   // Для просмотра - открыть окно СРАЗУ (до async), чтобы избежать блокировки popup
+   let newWindow: Window | null = null;
+   if (action === 'view') {
+     newWindow = window.open('about:blank', '_blank');
+   }
+   
     try {
       setIsLoadingUrl(true);
       
@@ -256,6 +262,7 @@ import { supabase } from "@/integrations/supabase/client";
        : material.file_url;
      
      if (!path) {
+       newWindow?.close();
        throw new Error('Invalid file path');
      }
      
@@ -264,7 +271,10 @@ import { supabase } from "@/integrations/supabase/client";
         .from('materials')
        .createSignedUrl(path, 3600); // 1 hour
       
-      if (error) throw error;
+      if (error) {
+       newWindow?.close();
+       throw error;
+     }
       
       if (action === 'download') {
         // Create download link
@@ -274,9 +284,9 @@ import { supabase } from "@/integrations/supabase/client";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-      } else {
-        // Open in new tab
-        window.open(data.signedUrl, '_blank');
+      } else if (newWindow) {
+        // Установить URL в уже открытое окно
+        newWindow.location.href = data.signedUrl;
       }
       
       setOpeningFile(null);
