@@ -314,8 +314,9 @@ interface FilePermission {
       } else if (newWindow) {
         // Просмотр в браузере
         if (isOfficeDocument(material.title)) {
-          // Use Google Docs Viewer for office documents
-          const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(data.signedUrl)}&embedded=true`;
+          // Use proxy URL for office documents so Google Docs Viewer can access them
+          const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-material?path=${encodeURIComponent(path)}`;
+          const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(proxyUrl)}&embedded=true`;
           newWindow.location.href = viewerUrl;
         } else {
           newWindow.location.href = data.signedUrl;

@@ -15,6 +15,9 @@ verify_jwt = false
 [functions.get-material-url]
 verify_jwt = false
 
+[functions.proxy-material]
+verify_jwt = false
+
 [functions.manage-push-token]
 verify_jwt = false
 

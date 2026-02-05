@@ -215,7 +215,9 @@ const MaterialsTab = () => {
       } else if (newWindow) {
         // Check if this is an office document that needs Google Docs Viewer
         if (isOfficeDocument(material.title)) {
-          const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(data.signedUrl)}&embedded=true`;
+          // Use proxy URL for office documents so Google Docs Viewer can access them
+          const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-material?path=${encodeURIComponent(path)}`;
+          const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(proxyUrl)}&embedded=true`;
           newWindow.location.href = viewerUrl;
         } else {
           newWindow.location.href = data.signedUrl;
