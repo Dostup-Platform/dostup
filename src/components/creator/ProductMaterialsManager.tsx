@@ -8,6 +8,7 @@
    DialogContent,
    DialogHeader,
    DialogTitle,
+  DialogDescription,
  } from "@/components/ui/dialog";
  import {
    AlertDialog,
@@ -21,9 +22,10 @@
  } from "@/components/ui/alert-dialog";
  import { useProductMaterials, useCreateMaterial, useUpdateMaterial, useDeleteMaterial, uploadMaterialFile } from "@/hooks/useMaterials";
  import { useLanguage } from "@/contexts/LanguageContext";
- import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, ExternalLink, GripVertical, ChevronLeft, FolderOpen } from "lucide-react";
+import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, ExternalLink, GripVertical, ChevronLeft, FolderOpen, Download, Eye } from "lucide-react";
  import { toast } from "sonner";
  import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { supabase } from "@/integrations/supabase/client";
  
  interface ProductMaterialsManagerProps {
    productId: string;
@@ -65,6 +67,8 @@
    const [isUploading, setIsUploading] = useState(false);
    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
    const fileInputRef = useRef<HTMLInputElement>(null);
+  const [openingFile, setOpeningFile] = useState<Material | null>(null);
+  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
    
    const [formData, setFormData] = useState<FormData>({
      title: "",
@@ -239,6 +243,41 @@
      setEditingId(null);
    };
  
+  const handleOpenFile = async (material: Material, action: 'view' | 'download') => {
+    if (!material.file_url) return;
+    
+    try {
+      setIsLoadingUrl(true);
+      
+      // file_url now contains the path, generate signed URL
+      const { data, error } = await supabase.storage
+        .from('materials')
+        .createSignedUrl(material.file_url, 3600); // 1 hour
+      
+      if (error) throw error;
+      
+      if (action === 'download') {
+        // Create download link
+        const link = document.createElement('a');
+        link.href = data.signedUrl;
+        link.download = material.title;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Open in new tab
+        window.open(data.signedUrl, '_blank');
+      }
+      
+      setOpeningFile(null);
+    } catch (err) {
+      console.error('Error getting file URL:', err);
+      toast.error('Ошибка при открытии файла');
+    } finally {
+      setIsLoadingUrl(false);
+    }
+  };
+
    const renderAddForm = () => (
      <form onSubmit={handleAdd} className="space-y-4">
        <div className="space-y-3">
@@ -501,10 +540,12 @@
                            </div>
                            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                              {material.file_url && (
-                               <Button variant="ghost" size="icon" asChild>
-                                 <a href={material.file_url} target="_blank" rel="noopener noreferrer">
-                                   <ExternalLink className="w-4 h-4" />
-                                 </a>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => setOpeningFile(material)}
+                              >
+                                <ExternalLink className="w-4 h-4" />
                                </Button>
                              )}
                              <Button variant="ghost" size="icon" onClick={() => handleEdit(material)}>
@@ -553,6 +594,45 @@
            </AlertDialogFooter>
          </AlertDialogContent>
        </AlertDialog>
+
+      {/* File open dialog */}
+      <Dialog open={!!openingFile} onOpenChange={(open) => { if (!open) setOpeningFile(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Открыть файл</DialogTitle>
+            <DialogDescription>
+              {openingFile?.title}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            <Button
+              onClick={() => openingFile && handleOpenFile(openingFile, 'view')}
+              disabled={isLoadingUrl}
+              className="w-full"
+            >
+              {isLoadingUrl ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Eye className="w-4 h-4 mr-2" />
+              )}
+              Открыть в браузере
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => openingFile && handleOpenFile(openingFile, 'download')}
+              disabled={isLoadingUrl}
+              className="w-full"
+            >
+              {isLoadingUrl ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Download className="w-4 h-4 mr-2" />
+              )}
+              Скачать файл
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
      </>
    );
  };
