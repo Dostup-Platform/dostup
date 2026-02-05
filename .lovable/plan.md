@@ -1,76 +1,62 @@
 
-# План исправления открытия файла
 
-## Проблема
-Браузеры блокируют всплывающие окна (`window.open`), если они вызываются не напрямую в обработчике клика, а после асинхронной операции. Сейчас код сначала запрашивает signed URL, а потом пытается открыть окно - это блокируется.
+## План: Полноценный оффлайн-режим для PWA
 
-## Решение
-Открыть пустое окно **сразу** по клику пользователя, а затем установить его URL после получения signed URL.
+### Проблема
+Сейчас приложение кэширует только страницу "Нет подключения", но не кэширует само приложение. Когда пользователь открывает приложение без интернета, браузер не может загрузить JavaScript и CSS файлы, поэтому показывается "Not Found".
 
-## Изменения
+### Решение
+Добавить `vite-plugin-pwa` — специальный плагин, который автоматически кэширует все файлы приложения при первом запуске. После этого приложение будет открываться мгновенно, даже без интернета.
 
-### Файл: `src/components/creator/ProductMaterialsManager.tsx`
+### Что изменится для пользователя
+- Приложение будет открываться мгновенно даже без интернета
+- Последние загруженные данные будут доступны оффлайн
+- Пуш-уведомления продолжат работать как раньше
 
-**Функция `handleOpenFile`:**
-
-```typescript
-const handleOpenFile = async (material: Material, action: 'view' | 'download') => {
-  if (!material.file_url) return;
-  
-  // Для просмотра - открыть окно СРАЗУ (до async)
-  let newWindow: Window | null = null;
-  if (action === 'view') {
-    newWindow = window.open('about:blank', '_blank');
-  }
-  
-  try {
-    setIsLoadingUrl(true);
-    
-    const isFullUrl = material.file_url.startsWith('http');
-    const path = isFullUrl 
-      ? material.file_url.split('/materials/')[1] 
-      : material.file_url;
-    
-    if (!path) {
-      newWindow?.close();
-      throw new Error('Invalid file path');
-    }
-    
-    const { data, error } = await supabase.storage
-      .from('materials')
-      .createSignedUrl(path, 3600);
-    
-    if (error) {
-      newWindow?.close();
-      throw error;
-    }
-    
-    if (action === 'download') {
-      const link = document.createElement('a');
-      link.href = data.signedUrl;
-      link.download = material.title;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else if (newWindow) {
-      // Установить URL в уже открытое окно
-      newWindow.location.href = data.signedUrl;
-    }
-    
-    setOpeningFile(null);
-  } catch (err) {
-    console.error('Error getting file URL:', err);
-    toast.error('Ошибка при открытии файла');
-  } finally {
-    setIsLoadingUrl(false);
-  }
-};
-```
+---
 
 ## Технические детали
-- `window.open('about:blank', '_blank')` вызывается синхронно при клике - браузер не блокирует
-- После получения signed URL устанавливаем `newWindow.location.href`
-- При ошибке закрываем пустое окно через `newWindow?.close()`
 
-## Результат
-Файлы будут корректно открываться в новой вкладке браузера без блокировки popup-blocker.
+### 1. Установка зависимости
+```
+vite-plugin-pwa
+```
+
+### 2. Обновление vite.config.ts
+- Добавить плагин VitePWA с настройками:
+  - `registerType: 'autoUpdate'` — автоматическое обновление
+  - `workbox.globPatterns` — кэширование всех JS, CSS, HTML, шрифтов и изображений
+  - `workbox.runtimeCaching` — кэширование API запросов и внешних ресурсов
+  - `manifest` — настройки манифеста PWA
+
+### 3. Обновление firebase-messaging-sw.js
+- Убрать базовое кэширование (теперь это делает Workbox)
+- Оставить только логику Firebase для push-уведомлений
+- Добавить импорт Workbox для интеграции
+
+### 4. Создание нового service-worker.ts
+- Интеграция Firebase Messaging с Workbox
+- Precaching всех статических файлов
+- Runtime caching для:
+  - Supabase API (`/rest/v1/`, `/functions/v1/`)
+  - Изображения из Storage
+  - Google Fonts
+
+### 5. Обновление main.tsx
+- Регистрация сервис-воркера при запуске приложения
+
+### 6. Стратегии кэширования
+| Ресурс | Стратегия | Описание |
+|--------|-----------|----------|
+| App shell (JS/CSS/HTML) | Precache | Кэшируется при установке |
+| API запросы | NetworkFirst | Сначала сеть, потом кэш |
+| Изображения | CacheFirst | Сначала кэш, потом сеть |
+| Шрифты | CacheFirst | Кэшируется навсегда |
+
+### Файлы для изменения
+1. `package.json` — добавить vite-plugin-pwa
+2. `vite.config.ts` — настройка плагина
+3. `public/firebase-messaging-sw.js` — упрощение, только push
+4. `src/main.tsx` — регистрация SW
+5. `public/manifest.json` — удалить (будет генерироваться плагином)
+
