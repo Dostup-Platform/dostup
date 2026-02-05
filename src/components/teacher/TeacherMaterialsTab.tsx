@@ -80,15 +80,16 @@ import { FileText, ExternalLink, Loader2, Video, Link as LinkIcon, Folder, Downl
      try {
        const isPath = !material.file_url.startsWith('http');
        
-       let url = material.file_url;
-       if (isPath) {
-         const { data, error } = await supabase.storage
-           .from('materials')
-           .createSignedUrl(material.file_url, 3600);
-         
-         if (error) throw error;
-         url = data.signedUrl;
-       }
+      let url = material.file_url;
+      if (isPath) {
+        // Generate signed URL with download option based on action
+        const { data, error } = await supabase.storage
+          .from('materials')
+          .createSignedUrl(material.file_url, 3600, { download: action === 'download' ? material.title : false });
+        
+        if (error) throw error;
+        url = data.signedUrl;
+      }
        
        if (action === 'download') {
          const link = document.createElement('a');

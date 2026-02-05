@@ -288,10 +288,10 @@ interface FilePermission {
        throw new Error('Invalid file path');
      }
      
-     // Generate signed URL
-      const { data, error } = await supabase.storage
-        .from('materials')
-       .createSignedUrl(path, 3600); // 1 hour
+      // Generate signed URL with download option based on action
+       const { data, error } = await supabase.storage
+         .from('materials')
+        .createSignedUrl(path, 3600, { download: action === 'download' ? material.title : false });
       
       if (error) {
        newWindow?.close();

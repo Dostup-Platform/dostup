@@ -181,10 +181,10 @@ const MaterialsTab = () => {
       
       let url = material.file_url;
       if (isPath) {
-        // Generate signed URL
+        // Generate signed URL with download option based on action
         const { data, error } = await supabase.storage
           .from('materials')
-          .createSignedUrl(material.file_url, 3600);
+          .createSignedUrl(material.file_url, 3600, { download: action === 'download' ? material.title : false });
         
         if (error) throw error;
         url = data.signedUrl;
