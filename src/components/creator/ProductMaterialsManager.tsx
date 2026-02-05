@@ -1,4 +1,9 @@
- import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo } from "react";
+
+// Check if file can be viewed via Google Docs Viewer
+const isOfficeDocument = (fileName: string): boolean => {
+  return /\.(docx?|xlsx?|pptx?|odt|ods|odp)$/i.test(fileName);
+};
  import { Button } from "@/components/ui/button";
  import { Input } from "@/components/ui/input";
  import { Label } from "@/components/ui/label";
@@ -298,17 +303,23 @@ interface FilePermission {
        throw error;
      }
       
-     if (action === 'download') {
-       // Скачивание файла
-       const link = document.createElement('a');
-       link.href = data.signedUrl;
-       link.download = material.title;
-       document.body.appendChild(link);
-       link.click();
-       document.body.removeChild(link);
-     } else if (newWindow) {
-       // Просмотр в браузере
-        newWindow.location.href = data.signedUrl;
+      if (action === 'download') {
+        // Скачивание файла
+        const link = document.createElement('a');
+        link.href = data.signedUrl;
+        link.download = material.title;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else if (newWindow) {
+        // Просмотр в браузере
+        if (isOfficeDocument(material.title)) {
+          // Use Google Docs Viewer for office documents
+          const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(data.signedUrl)}&embedded=true`;
+          newWindow.location.href = viewerUrl;
+        } else {
+          newWindow.location.href = data.signedUrl;
+        }
       }
       
     } catch (err) {
