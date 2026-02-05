@@ -655,7 +655,15 @@ interface FilePermission {
                              <p className="text-xs text-muted-foreground">
                                {material.type === "folder" 
                                  ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
-                                : `Файл${material.allow_view !== false || material.allow_download !== false ? ' •' : ''}${material.allow_view !== false ? ' 👁' : ''}${material.allow_download !== false ? ' ⬇' : ''}`
+                                 : `Файл • ${
+                                     material.allow_view !== false && material.allow_download !== false 
+                                       ? 'для просмотра и скачивания'
+                                       : material.allow_view !== false 
+                                         ? 'только для просмотра'
+                                         : material.allow_download !== false 
+                                           ? 'только для скачивания'
+                                           : 'без доступа'
+                                   }`
                                }
                              </p>
                            </div>
