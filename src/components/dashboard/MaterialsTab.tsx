@@ -175,30 +175,40 @@ const MaterialsTab = () => {
   const handleOpenFile = useCallback(async (material: { file_url: string; title: string }, action: 'view' | 'download') => {
     if (!material.file_url) return;
     
+    // Open window immediately for view action to avoid popup blocker
+    const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
+    
     try {
-      // Check if it's a path (no http) or already a URL
-      const isPath = !material.file_url.startsWith('http');
+      // Extract path from full URL or use path directly
+      const isFullUrl = material.file_url.startsWith('http');
+      const path = isFullUrl 
+        ? material.file_url.split('/materials/')[1] 
+        : material.file_url;
       
-      let url = material.file_url;
-      if (isPath) {
-        // Generate signed URL with download option based on action
-        const { data, error } = await supabase.storage
-          .from('materials')
-          .createSignedUrl(material.file_url, 3600, { download: action === 'download' ? material.title : false });
-        
-        if (error) throw error;
-        url = data.signedUrl;
+      if (!path) {
+        newWindow?.close();
+        throw new Error('Invalid file path');
+      }
+      
+      // Always generate signed URL with download option based on action
+      const { data, error } = await supabase.storage
+        .from('materials')
+        .createSignedUrl(path, 3600, { download: action === 'download' ? material.title : false });
+      
+      if (error) {
+        newWindow?.close();
+        throw error;
       }
       
       if (action === 'download') {
         const link = document.createElement('a');
-        link.href = url;
+        link.href = data.signedUrl;
         link.download = material.title;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-      } else {
-        window.open(url, '_blank');
+      } else if (newWindow) {
+        newWindow.location.href = data.signedUrl;
       }
     } catch (err) {
       console.error('Error getting file URL:', err);
