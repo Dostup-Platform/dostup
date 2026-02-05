@@ -1,12 +1,9 @@
 // Firebase Messaging Service Worker
 // This file handles push notifications when the app is in the background
+// Note: App caching is now handled by Workbox (vite-plugin-pwa)
 
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
-
-// Cache name for offline support
-const OFFLINE_CACHE = 'dostup-offline-v1';
-const OFFLINE_URLS = ['/offline.html', '/icon-192.png', '/logo.png'];
 
 // Firebase configuration
 const firebaseConfig = {
@@ -81,49 +78,4 @@ self.addEventListener('notificationclick', (event) => {
       }
     })
   );
-});
-
-// Handle service worker installation - cache offline page
-self.addEventListener('install', (event) => {
-  console.log('[firebase-messaging-sw.js] Service Worker installed');
-  
-  event.waitUntil(
-    caches.open(OFFLINE_CACHE).then((cache) => {
-      console.log('[firebase-messaging-sw.js] Caching offline page');
-      return cache.addAll(OFFLINE_URLS);
-    })
-  );
-  
-  self.skipWaiting();
-});
-
-// Handle service worker activation - clean old caches
-self.addEventListener('activate', (event) => {
-  console.log('[firebase-messaging-sw.js] Service Worker activated');
-  
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== OFFLINE_CACHE) {
-            console.log('[firebase-messaging-sw.js] Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    }).then(() => clients.claim())
-  );
-});
-
-// Handle fetch requests - show offline page when navigation fails
-self.addEventListener('fetch', (event) => {
-  // Only handle navigation requests (HTML pages)
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        console.log('[firebase-messaging-sw.js] Network failed, serving offline page');
-        return caches.match('/offline.html');
-      })
-    );
-  }
 });
