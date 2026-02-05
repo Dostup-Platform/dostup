@@ -178,6 +178,6 @@ export const uploadMaterialFile = async (file: File, productId: string): Promise
   
   if (uploadError) throw uploadError;
   
-  const { data } = supabase.storage.from("materials").getPublicUrl(fileName);
-  return data.publicUrl;
+  // Return path only, not URL - signed URL will be generated on demand
+  return fileName;
 };
