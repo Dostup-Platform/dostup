@@ -197,6 +197,7 @@ export type Database = {
           file_url: string | null
           id: string
           order_index: number
+          parent_id: string | null
           product_id: string
           title: string
           type: Database["public"]["Enums"]["material_type"]
@@ -207,6 +208,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           order_index?: number
+          parent_id?: string | null
           product_id: string
           title: string
           type?: Database["public"]["Enums"]["material_type"]
@@ -217,11 +219,19 @@ export type Database = {
           file_url?: string | null
           id?: string
           order_index?: number
+          parent_id?: string | null
           product_id?: string
           title?: string
           type?: Database["public"]["Enums"]["material_type"]
         }
         Relationships: [
+          {
+            foreignKeyName: "materials_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "materials_product_id_fkey"
             columns: ["product_id"]
@@ -740,7 +750,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "creator" | "user"
       event_type: "group" | "individual"
-      material_type: "file" | "video" | "text" | "link"
+      material_type: "file" | "video" | "text" | "link" | "folder"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -870,7 +880,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "creator", "user"],
       event_type: ["group", "individual"],
-      material_type: ["file", "video", "text", "link"],
+      material_type: ["file", "video", "text", "link", "folder"],
     },
   },
 } as const

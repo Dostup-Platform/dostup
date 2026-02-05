@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 
-type MaterialType = "file" | "video" | "text";
+type MaterialType = "file" | "video" | "text" | "folder" | "link";
 
 interface Material {
   id: string;
@@ -13,6 +13,7 @@ interface Material {
   file_url: string | null;
   order_index: number;
   created_at: string;
+  parent_id?: string | null;
 }
 
 export const useMaterials = (productId: string | undefined) => {
@@ -85,6 +86,7 @@ interface CreateMaterialInput {
   content?: string | null;
   file_url?: string | null;
   order_index?: number;
+  parent_id?: string | null;
 }
 
 export const useCreateMaterial = () => {
@@ -101,6 +103,7 @@ export const useCreateMaterial = () => {
           content: material.content || null,
           file_url: material.file_url || null,
           order_index: material.order_index || 0,
+          parent_id: material.parent_id || null,
         })
         .select()
         .single();
