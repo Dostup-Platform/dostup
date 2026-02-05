@@ -8,6 +8,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+interface OpeningFile {
+  id: string;
+  title: string;
+  file_url: string;
+  allow_view?: boolean;
+  allow_download?: boolean;
+}
+
 const getIcon = (type: string) => {
   switch (type) {
     case "video":
@@ -160,7 +168,7 @@ const MaterialsTab = () => {
   const { t } = useLanguage();
   const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
-  const [openingFile, setOpeningFile] = useState<{ id: string; title: string; file_url: string } | null>(null);
+  const [openingFile, setOpeningFile] = useState<OpeningFile | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
 
   const toggleVideoExpand = (materialId: string) => {
@@ -289,14 +297,22 @@ const MaterialsTab = () => {
                       </div>
                       
                       {material.type === "file" && material.file_url && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="flex-shrink-0"
-                          onClick={() => setOpeningFile({ id: material.id, title: material.title, file_url: material.file_url! })}
-                        >
-                          <ExternalLink className="w-5 h-5" />
-                        </Button>
+                        (material.allow_view !== false || material.allow_download !== false) && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="flex-shrink-0"
+                            onClick={() => setOpeningFile({ 
+                              id: material.id, 
+                              title: material.title, 
+                              file_url: material.file_url!,
+                              allow_view: material.allow_view,
+                              allow_download: material.allow_download
+                            })}
+                          >
+                            <ExternalLink className="w-5 h-5" />
+                          </Button>
+                        )
                       )}
                       
                       {isVideo && canPlay && (
@@ -355,6 +371,7 @@ const MaterialsTab = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3 mt-4">
+            {openingFile?.allow_view !== false && (
             <Button
               onClick={() => openingFile && handleOpenFile(openingFile, 'view')}
               disabled={isLoadingUrl}
@@ -367,6 +384,8 @@ const MaterialsTab = () => {
               )}
               Открыть в браузере
             </Button>
+            )}
+            {openingFile?.allow_download !== false && (
             <Button
               variant="outline"
               onClick={() => openingFile && handleOpenFile(openingFile, 'download')}
@@ -380,6 +399,7 @@ const MaterialsTab = () => {
               )}
               Скачать файл
             </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
