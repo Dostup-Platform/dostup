@@ -22,7 +22,7 @@
  } from "@/components/ui/alert-dialog";
  import { useProductMaterials, useCreateMaterial, useUpdateMaterial, useDeleteMaterial, uploadMaterialFile } from "@/hooks/useMaterials";
  import { useLanguage } from "@/contexts/LanguageContext";
-import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download } from "lucide-react";
+ import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X } from "lucide-react";
  import { toast } from "sonner";
  import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
@@ -329,32 +329,57 @@ import { supabase } from "@/integrations/supabase/client";
              ? "Файлы в папку (опционально)" 
              : "Выберите файл(ы) *"}
          </Label>
+         {/* Selected files list */}
+         {formData.files.length > 0 && (
+             <div className="space-y-1 mb-3">
+               {formData.files.map((file, index) => (
+                 <div key={index} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
+                   <div className="flex items-center gap-2 min-w-0">
+                     <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                     <span className="text-sm truncate">{file.name}</span>
+                   </div>
+                   <Button
+                     type="button"
+                     variant="ghost"
+                     size="icon"
+                     className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                     onClick={() => {
+                       setFormData(prev => ({
+                         ...prev,
+                         files: prev.files.filter((_, i) => i !== index)
+                       }));
+                     }}
+                   >
+                     <X className="w-4 h-4" />
+                   </Button>
+                 </div>
+               ))}
+             </div>
+         )}
+ 
+         {/* Add more files button */}
          <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
            <input
              ref={fileInputRef}
              type="file"
              multiple
-             onChange={(e) => setFormData(prev => ({ 
-               ...prev, 
-               files: e.target.files ? Array.from(e.target.files) : [] 
-             }))}
+             onChange={(e) => {
+               if (e.target.files && e.target.files.length > 0) {
+                 setFormData(prev => ({ 
+                   ...prev, 
+                   files: [...prev.files, ...Array.from(e.target.files!)]
+                 }));
+               }
+               if (fileInputRef.current) fileInputRef.current.value = "";
+             }}
              className="hidden"
              id="file-upload"
            />
            <label htmlFor="file-upload" className="cursor-pointer">
              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-             {formData.files.length > 0 ? (
-               <div className="text-sm text-foreground">
-                 <p className="font-medium">Выбрано: {formData.files.length} файл(ов)</p>
-                 <p className="text-xs text-muted-foreground mt-1">
-                   {formData.files.map(f => f.name).join(", ")}
-                 </p>
-               </div>
-             ) : (
-               <p className="text-sm text-muted-foreground">
-                 Нажмите для выбора файла(ов)
-               </p>
-             )}
+             <p className="text-sm text-muted-foreground">
+               {formData.files.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите для выбора файла(ов)"}
+             </p>
            </label>
          </div>
        </div>
