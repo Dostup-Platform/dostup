@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSimpleMaterials } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder } from "lucide-react";
+import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -51,6 +51,10 @@ const isDirectVideoUrl = (url: string): boolean => {
 // Check if file can be viewed via Google Docs Viewer
 const isOfficeDocument = (url: string): boolean => {
   return /\.(docx?|xlsx?|pptx?|odt|ods|odp)(\?.*)?$/i.test(url);
+};
+
+const canPlayInline = (url: string) => {
+  return getYouTubeVideoId(url) || getVimeoVideoId(url) || isDirectVideoUrl(url);
 };
 
 interface VideoPlayerProps {
@@ -161,7 +165,7 @@ const InlineVideoPlayer = ({ url }: InlineVideoPlayerProps) => {
 
 const MaterialsTab = () => {
   const { data: materials, isLoading } = useSimpleMaterials();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
 
@@ -180,11 +184,9 @@ const MaterialsTab = () => {
   const handleOpenFile = useCallback(async (material: { file_url: string; title: string }, action: 'view' | 'download') => {
     if (!material.file_url) return;
     
-    // Open window immediately for view action to avoid popup blocker
     const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
     
     try {
-      // Extract path from full URL or use path directly
       const isFullUrl = material.file_url.startsWith('http');
       const path = isFullUrl 
         ? material.file_url.split('/materials/')[1] 
@@ -195,7 +197,6 @@ const MaterialsTab = () => {
         throw new Error('Invalid file path');
       }
       
-      // Always generate signed URL with download option based on action
       const { data, error } = await supabase.storage
         .from('materials')
         .createSignedUrl(path, 3600, { download: action === 'download' ? material.title : false });
@@ -213,11 +214,8 @@ const MaterialsTab = () => {
         link.click();
         document.body.removeChild(link);
       } else if (newWindow) {
-        // Check if this is an office document that needs a viewer
         if (isOfficeDocument(material.title)) {
-          // Use proxy URL for office documents so Microsoft Office Online can access them
           const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-material?path=${encodeURIComponent(path)}`;
-          // Use Microsoft Office Online Viewer - works better for Office docs
           const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
           newWindow.location.href = viewerUrl;
         } else {
@@ -226,9 +224,9 @@ const MaterialsTab = () => {
       }
     } catch (err) {
       console.error('Error getting file URL:', err);
-      toast.error('Ошибка при открытии файла');
+      toast.error(language === "ru" ? 'Ошибка при открытии файла' : 'Файлды ашу кезінде қате');
     }
-  }, []);
+  }, [language]);
 
   if (isLoading) {
     return (
@@ -238,19 +236,124 @@ const MaterialsTab = () => {
     );
   }
 
-  const groupedMaterials = materials?.reduce((acc, material) => {
+  // Separate creator materials and teacher materials
+  const creatorMaterials = materials?.filter(m => !m.is_teacher_material) || [];
+  const teacherMaterials = materials?.filter(m => m.is_teacher_material) || [];
+
+  const groupCreatorMaterials = creatorMaterials.reduce((acc, material) => {
     const productTitle = material.product?.title || "Продукт";
     if (!acc[productTitle]) {
       acc[productTitle] = [];
     }
     acc[productTitle].push(material);
     return acc;
-  }, {} as Record<string, typeof materials>) || {};
+  }, {} as Record<string, typeof creatorMaterials>);
+
+  const groupTeacherMaterials = teacherMaterials.reduce((acc, material) => {
+    const key = `${material.product?.title || "Продукт"} - ${material.teacher_name || (language === "ru" ? "Учитель" : "Мұғалім")}`;
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+    acc[key].push(material);
+    return acc;
+  }, {} as Record<string, typeof teacherMaterials>);
 
   const hasNoMaterials = !materials || materials.length === 0;
 
-  const canPlayInline = (url: string) => {
-    return getYouTubeVideoId(url) || getVimeoVideoId(url) || isDirectVideoUrl(url);
+  const renderMaterialCard = (material: typeof materials[0], index: number) => {
+    const isVideo = material.type === "video" && material.file_url;
+    const isExpanded = expandedVideos.has(material.id);
+    const canPlay = isVideo && canPlayInline(material.file_url!);
+
+    return (
+      <Card 
+        key={material.id} 
+        className="animate-fade-in"
+        style={{ animationDelay: `${index * 50}ms` }}
+      >
+        <CardContent className="p-4">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              {getIcon(material.type)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium text-foreground">{material.title}</h3>
+              <p className="text-sm text-muted-foreground capitalize mt-0.5">
+                {material.type === "video" ? "Видео" : material.type}
+              </p>
+              
+              {material.type === "text" && material.content && (
+                <p className="text-sm text-muted-foreground mt-3 whitespace-pre-line">
+                  {material.content}
+                </p>
+              )}
+
+              {isVideo && isExpanded && canPlay && (
+                <InlineVideoPlayer url={material.file_url!} />
+              )}
+            </div>
+            
+            {material.type === "file" && material.file_url && (
+             <div className="flex gap-1 flex-shrink-0">
+               {material.allow_download !== false && (
+                 <Button 
+                   variant="ghost" 
+                   size="icon"
+                   onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'download')}
+                   title={language === "ru" ? "Скачать" : "Жүктеу"}
+                 >
+                   <Download className="w-5 h-5" />
+                 </Button>
+               )}
+               {material.allow_view !== false && (
+                 <Button 
+                   variant="ghost" 
+                   size="icon"
+                   onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'view')}
+                   title={language === "ru" ? "Открыть в браузере" : "Браузерде ашу"}
+                 >
+                   <ExternalLink className="w-5 h-5" />
+                 </Button>
+               )}
+             </div>
+            )}
+            
+            {isVideo && canPlay && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="flex-shrink-0"
+                onClick={() => toggleVideoExpand(material.id)}
+              >
+                <Play className={`w-5 h-5 ${isExpanded ? "text-primary" : ""}`} />
+              </Button>
+            )}
+
+            {isVideo && !canPlay && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="flex-shrink-0"
+                onClick={() => window.open(material.file_url!, "_blank")}
+              >
+                <ExternalLink className="w-5 h-5" />
+              </Button>
+            )}
+            
+            {material.type === "link" && material.file_url && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="flex-shrink-0"
+                onClick={() => window.open(material.file_url!, "_blank")}
+              >
+                <ExternalLink className="w-5 h-5" />
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
@@ -266,107 +369,37 @@ const MaterialsTab = () => {
           </p>
         </div>
       ) : (
-        Object.entries(groupedMaterials).map(([productTitle, productMaterials]) => (
-          <div key={productTitle} className="space-y-3">
-            <h3 className="font-medium text-muted-foreground">{productTitle}</h3>
-            {productMaterials?.map((material, index) => {
-              const isVideo = material.type === "video" && material.file_url;
-              const isExpanded = expandedVideos.has(material.id);
-              const canPlay = isVideo && canPlayInline(material.file_url!);
+        <>
+          {/* Creator Materials */}
+          {Object.keys(groupCreatorMaterials).length > 0 && (
+            <div className="space-y-4">
+              {Object.entries(groupCreatorMaterials).map(([productTitle, productMaterials]) => (
+                <div key={productTitle} className="space-y-3">
+                  <h3 className="font-medium text-muted-foreground">{productTitle}</h3>
+                  {productMaterials?.map((material, index) => renderMaterialCard(material, index))}
+                </div>
+              ))}
+            </div>
+          )}
 
-              return (
-                <Card 
-                  key={material.id} 
-                  className="animate-fade-in"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                        {getIcon(material.type)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-foreground">{material.title}</h3>
-                        <p className="text-sm text-muted-foreground capitalize mt-0.5">
-                          {material.type === "video" ? "Видео" : material.type}
-                        </p>
-                        
-                        {material.type === "text" && material.content && (
-                          <p className="text-sm text-muted-foreground mt-3 whitespace-pre-line">
-                            {material.content}
-                          </p>
-                        )}
-
-                        {/* Inline Video Player */}
-                        {isVideo && isExpanded && canPlay && (
-                          <InlineVideoPlayer url={material.file_url!} />
-                        )}
-                      </div>
-                      
-                      {material.type === "file" && material.file_url && (
-                       <div className="flex gap-1 flex-shrink-0">
-                         {material.allow_download !== false && (
-                           <Button 
-                             variant="ghost" 
-                             size="icon"
-                             onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'download')}
-                             title="Скачать"
-                           >
-                             <Download className="w-5 h-5" />
-                           </Button>
-                         )}
-                         {material.allow_view !== false && (
-                           <Button 
-                             variant="ghost" 
-                             size="icon"
-                             onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'view')}
-                             title="Открыть в браузере"
-                           >
-                             <ExternalLink className="w-5 h-5" />
-                           </Button>
-                         )}
-                       </div>
-                      )}
-                      
-                      {isVideo && canPlay && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="flex-shrink-0"
-                          onClick={() => toggleVideoExpand(material.id)}
-                        >
-                          <Play className={`w-5 h-5 ${isExpanded ? "text-primary" : ""}`} />
-                        </Button>
-                      )}
-
-                      {isVideo && !canPlay && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="flex-shrink-0"
-                          onClick={() => window.open(material.file_url!, "_blank")}
-                        >
-                          <ExternalLink className="w-5 h-5" />
-                        </Button>
-                      )}
-                      
-                      {material.type === "link" && material.file_url && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="flex-shrink-0"
-                          onClick={() => window.open(material.file_url!, "_blank")}
-                        >
-                          <ExternalLink className="w-5 h-5" />
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        ))
+          {/* Teacher Materials */}
+          {Object.keys(groupTeacherMaterials).length > 0 && (
+            <div className="space-y-4 mt-8">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <User className="w-4 h-4" />
+                <h3 className="font-medium">
+                  {language === "ru" ? "Материалы от учителя" : "Мұғалімнен материалдар"}
+                </h3>
+              </div>
+              {Object.entries(groupTeacherMaterials).map(([groupTitle, productMaterials]) => (
+                <div key={groupTitle} className="space-y-3">
+                  <h4 className="text-sm font-medium text-muted-foreground">{groupTitle}</h4>
+                  {productMaterials?.map((material, index) => renderMaterialCard(material, index))}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Fullscreen Video Modal */}

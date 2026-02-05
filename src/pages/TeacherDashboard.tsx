@@ -242,7 +242,7 @@ const TeacherDashboard = () => {
             <TeacherScheduleTab teacherName={teacherName} productIds={productIds} />
           </TabsContent>
           <TabsContent value="materials" className="mt-0 animate-fade-in">
-            <TeacherMaterialsTab productIds={productIds} />
+            <TeacherMaterialsTab productIds={productIds} teacherName={teacherName} />
           </TabsContent>
           <TabsContent value="notifications" className="mt-0 animate-fade-in">
             <TeacherNotificationsTab 
