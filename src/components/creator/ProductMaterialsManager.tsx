@@ -249,10 +249,20 @@ import { supabase } from "@/integrations/supabase/client";
     try {
       setIsLoadingUrl(true);
       
-      // file_url now contains the path, generate signed URL
+     // Handle both old format (full URL) and new format (path only)
+     const isFullUrl = material.file_url.startsWith('http');
+     const path = isFullUrl 
+       ? material.file_url.split('/materials/')[1] 
+       : material.file_url;
+     
+     if (!path) {
+       throw new Error('Invalid file path');
+     }
+     
+     // Generate signed URL
       const { data, error } = await supabase.storage
         .from('materials')
-        .createSignedUrl(material.file_url, 3600); // 1 hour
+       .createSignedUrl(path, 3600); // 1 hour
       
       if (error) throw error;
       
