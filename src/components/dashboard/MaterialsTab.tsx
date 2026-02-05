@@ -213,11 +213,12 @@ const MaterialsTab = () => {
         link.click();
         document.body.removeChild(link);
       } else if (newWindow) {
-        // Check if this is an office document that needs Google Docs Viewer
+        // Check if this is an office document that needs a viewer
         if (isOfficeDocument(material.title)) {
-          // Use proxy URL for office documents so Google Docs Viewer can access them
+          // Use proxy URL for office documents so Microsoft Office Online can access them
           const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-material?path=${encodeURIComponent(path)}`;
-          const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(proxyUrl)}&embedded=true`;
+          // Use Microsoft Office Online Viewer - works better for Office docs
+          const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
           newWindow.location.href = viewerUrl;
         } else {
           newWindow.location.href = data.signedUrl;
