@@ -546,7 +546,7 @@ import { supabase } from "@/integrations/supabase/client";
                              </p>
                            </div>
                            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                             {material.file_url && (
+                            {material.type === "file" && material.file_url && (
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
