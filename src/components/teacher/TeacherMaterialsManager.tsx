@@ -55,11 +55,18 @@ interface FilePermission {
   allow_download: boolean;
 }
 
+interface FileEntry {
+  file: File;
+  customName: string;
+  permissions: FilePermission;
+}
+
 interface FormData {
   title: string;
   itemType: ItemType;
   files: File[];
   filePermissions: FilePermission[];
+  fileEntries: FileEntry[];
   allow_view: boolean;
   allow_download: boolean;
 }
@@ -88,6 +95,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     itemType: "file",
     files: [],
     filePermissions: [],
+    fileEntries: [],
     allow_view: true,
     allow_download: true,
   });
@@ -106,7 +114,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   }, [allMaterials, currentFolderId]);
 
   const resetForm = () => {
-    setFormData({ title: "", itemType: "file", files: [], filePermissions: [], allow_view: true, allow_download: true });
+    setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_view: true, allow_download: true });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -118,7 +126,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       return;
     }
     
-    if (formData.itemType === "file" && formData.files.length === 0) {
+    if (formData.itemType === "file" && formData.fileEntries.length === 0) {
       toast.error(language === "ru" ? "Выберите файл(ы)" : "Файл(дар)ды таңдаңыз");
       return;
     }
@@ -138,48 +146,46 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
           parent_id: currentFolderId,
         });
 
-        if (formData.files.length > 0) {
-          for (let i = 0; i < formData.files.length; i++) {
-            const file = formData.files[i];
-            const fileUrl = await uploadTeacherMaterialFile(file, productId, teacherId);
-            const permissions = formData.filePermissions[i] || { allow_view: true, allow_download: true };
+        if (formData.fileEntries.length > 0) {
+          for (let i = 0; i < formData.fileEntries.length; i++) {
+            const entry = formData.fileEntries[i];
+            const fileUrl = await uploadTeacherMaterialFile(entry.file, productId, teacherId);
             await createMaterial.mutateAsync({
               product_id: productId,
               teacher_id: teacherId,
-              title: file.name,
+              title: entry.customName || entry.file.name,
               type: "file",
               content: null,
               file_url: fileUrl,
               order_index: i,
               parent_id: folder.id,
-              allow_view: permissions.allow_view,
-              allow_download: permissions.allow_download,
+              allow_view: entry.permissions.allow_view,
+              allow_download: entry.permissions.allow_download,
             });
           }
         }
 
         toast.success(language === "ru" ? `Папка "${formData.title}" создана!` : `"${formData.title}" қалтасы жасалды!`);
       } else {
-        for (let i = 0; i < formData.files.length; i++) {
-          const file = formData.files[i];
-          const fileUrl = await uploadTeacherMaterialFile(file, productId, teacherId);
-          const permissions = formData.filePermissions[i] || { allow_view: true, allow_download: true };
+        for (let i = 0; i < formData.fileEntries.length; i++) {
+          const entry = formData.fileEntries[i];
+          const fileUrl = await uploadTeacherMaterialFile(entry.file, productId, teacherId);
           await createMaterial.mutateAsync({
             product_id: productId,
             teacher_id: teacherId,
-            title: formData.title || file.name,
+            title: entry.customName || entry.file.name,
             type: "file",
             content: null,
             file_url: fileUrl,
             order_index: materials.length + i,
             parent_id: currentFolderId,
-            allow_view: permissions.allow_view,
-            allow_download: permissions.allow_download,
+            allow_view: entry.permissions.allow_view,
+            allow_download: entry.permissions.allow_download,
           });
         }
         toast.success(language === "ru" 
-          ? (formData.files.length > 1 ? "Файлы добавлены!" : "Файл добавлен!")
-          : (formData.files.length > 1 ? "Файлдар қосылды!" : "Файл қосылды!"));
+          ? (formData.fileEntries.length > 1 ? "Файлы добавлены!" : "Файл добавлен!")
+          : (formData.fileEntries.length > 1 ? "Файлдар қосылды!" : "Файл қосылды!"));
       }
 
       setIsAdding(false);
@@ -199,6 +205,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       itemType: material.type === "folder" ? "folder" : "file",
       files: [],
       filePermissions: [],
+      fileEntries: [],
       allow_view: material.allow_view !== false,
       allow_download: material.allow_download !== false,
     });
@@ -405,25 +412,33 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                     : (language === "ru" ? "Выберите файл(ы) *" : "Файл(дар)ды таңдаңыз *")}
                 </Label>
                 
-                {formData.files.length > 0 && (
-                  <div className="space-y-1 mb-3">
-                    {formData.files.map((file, index) => (
+                {formData.fileEntries.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {formData.fileEntries.map((entry, index) => (
                       <div key={index} className="bg-muted/50 rounded-md px-3 py-2 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                            <span className="text-sm truncate">{file.name}</span>
-                          </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                          <Input
+                            placeholder={entry.file.name}
+                            value={entry.customName}
+                            onChange={(e) => {
+                              setFormData(prev => {
+                                const newEntries = [...prev.fileEntries];
+                                newEntries[index] = { ...newEntries[index], customName: e.target.value };
+                                return { ...prev, fileEntries: newEntries };
+                              });
+                            }}
+                            className="flex-1 h-8 text-sm"
+                          />
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0"
                             onClick={() => {
                               setFormData(prev => ({
                                 ...prev,
-                                files: prev.files.filter((_, i) => i !== index),
-                                filePermissions: prev.filePermissions.filter((_, i) => i !== index)
+                                fileEntries: prev.fileEntries.filter((_, i) => i !== index)
                               }));
                             }}
                           >
@@ -433,15 +448,15 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                         <div className="flex items-center gap-4 pl-6">
                           <label className="flex items-center gap-2 text-xs cursor-pointer">
                             <Checkbox
-                              checked={formData.filePermissions[index]?.allow_view !== false}
+                              checked={entry.permissions.allow_view}
                               onCheckedChange={(checked) => {
                                 setFormData(prev => {
-                                  const newPermissions = [...prev.filePermissions];
-                                  if (!newPermissions[index]) {
-                                    newPermissions[index] = { allow_view: true, allow_download: true };
-                                  }
-                                  newPermissions[index].allow_view = !!checked;
-                                  return { ...prev, filePermissions: newPermissions };
+                                  const newEntries = [...prev.fileEntries];
+                                  newEntries[index] = { 
+                                    ...newEntries[index], 
+                                    permissions: { ...newEntries[index].permissions, allow_view: !!checked }
+                                  };
+                                  return { ...prev, fileEntries: newEntries };
                                 });
                               }}
                             />
@@ -450,15 +465,15 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                           </label>
                           <label className="flex items-center gap-2 text-xs cursor-pointer">
                             <Checkbox
-                              checked={formData.filePermissions[index]?.allow_download !== false}
+                              checked={entry.permissions.allow_download}
                               onCheckedChange={(checked) => {
                                 setFormData(prev => {
-                                  const newPermissions = [...prev.filePermissions];
-                                  if (!newPermissions[index]) {
-                                    newPermissions[index] = { allow_view: true, allow_download: true };
-                                  }
-                                  newPermissions[index].allow_download = !!checked;
-                                  return { ...prev, filePermissions: newPermissions };
+                                  const newEntries = [...prev.fileEntries];
+                                  newEntries[index] = { 
+                                    ...newEntries[index], 
+                                    permissions: { ...newEntries[index].permissions, allow_download: !!checked }
+                                  };
+                                  return { ...prev, fileEntries: newEntries };
                                 });
                               }}
                             />
@@ -478,9 +493,14 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                     multiple
                     onChange={(e) => {
                       if (e.target.files && e.target.files.length > 0) {
+                        const newEntries: FileEntry[] = Array.from(e.target.files).map(file => ({
+                          file,
+                          customName: "",
+                          permissions: { allow_view: true, allow_download: true }
+                        }));
                         setFormData(prev => ({ 
                           ...prev, 
-                          files: [...prev.files, ...Array.from(e.target.files!)]
+                          fileEntries: [...prev.fileEntries, ...newEntries]
                         }));
                       }
                       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -491,24 +511,13 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                   <label htmlFor="teacher-file-upload" className="cursor-pointer">
                     <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
                     <p className="text-sm text-muted-foreground">
-                      {formData.files.length > 0 
+                      {formData.fileEntries.length > 0 
                         ? (language === "ru" ? "Добавить ещё файл(ы)" : "Тағы файл қосу")
                         : (language === "ru" ? "Нажмите для выбора файла(ов)" : "Файл таңдау үшін басыңыз")}
                     </p>
                   </label>
                 </div>
               </div>
-
-              {formData.itemType === "file" && formData.files.length === 1 && (
-                <div className="space-y-2">
-                  <Label>{language === "ru" ? "Название (по умолчанию имя файла)" : "Атауы (әдепкі файл аты)"}</Label>
-                  <Input
-                    placeholder={formData.files[0]?.name || ""}
-                    value={formData.title}
-                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                  />
-                </div>
-              )}
 
               <div className="flex gap-2">
                 <Button type="submit" disabled={isUploading} className="flex-1">
