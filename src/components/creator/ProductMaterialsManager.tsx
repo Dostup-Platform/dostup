@@ -62,14 +62,21 @@ interface FilePermission {
   allow_download: boolean;
 }
 
- interface FormData {
-   title: string;
-   itemType: ItemType;
-   files: File[];
+interface FileEntry {
+  file: File;
+  customName: string;
+  permissions: FilePermission;
+}
+
+interface FormData {
+  title: string;
+  itemType: ItemType;
+  files: File[];
   filePermissions: FilePermission[];
+  fileEntries: FileEntry[];
   allow_view: boolean;
   allow_download: boolean;
- }
+}
  
  const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: ProductMaterialsManagerProps) => {
    const { t } = useLanguage();
@@ -90,9 +97,10 @@ interface FilePermission {
      title: "",
      itemType: "file",
      files: [],
-    filePermissions: [],
-    allow_view: true,
-    allow_download: true,
+     filePermissions: [],
+     fileEntries: [],
+     allow_view: true,
+     allow_download: true,
    });
  
    // Filter materials for current folder level
@@ -125,7 +133,7 @@ interface FilePermission {
    };
  
    const resetForm = () => {
-    setFormData({ title: "", itemType: "file", files: [], filePermissions: [], allow_view: true, allow_download: true });
+     setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_view: true, allow_download: true });
      if (fileInputRef.current) fileInputRef.current.value = "";
    };
  
@@ -137,14 +145,14 @@ interface FilePermission {
        return;
      }
      
-     if (formData.itemType === "file" && formData.files.length === 0) {
+     if (formData.itemType === "file" && formData.fileEntries.length === 0) {
        toast.error("Выберите файл(ы)");
        return;
      }
- 
+
      try {
        setIsUploading(true);
- 
+
        if (formData.itemType === "folder") {
          // Create folder
          const folder = await createMaterial.mutateAsync({
@@ -156,49 +164,47 @@ interface FilePermission {
            order_index: materials.length,
            parent_id: currentFolderId,
          });
- 
+
          // If files selected, add them to the folder
-         if (formData.files.length > 0) {
-           for (let i = 0; i < formData.files.length; i++) {
-             const file = formData.files[i];
-             const fileUrl = await uploadMaterialFile(file, productId);
-            const permissions = formData.filePermissions[i] || { allow_view: true, allow_download: true };
+         if (formData.fileEntries.length > 0) {
+           for (let i = 0; i < formData.fileEntries.length; i++) {
+             const entry = formData.fileEntries[i];
+             const fileUrl = await uploadMaterialFile(entry.file, productId);
              await createMaterial.mutateAsync({
                product_id: productId,
-               title: file.name,
+               title: entry.customName || entry.file.name,
                type: "file",
                content: null,
                file_url: fileUrl,
                order_index: i,
                parent_id: folder.id,
-              allow_view: permissions.allow_view,
-              allow_download: permissions.allow_download,
+               allow_view: entry.permissions.allow_view,
+               allow_download: entry.permissions.allow_download,
              });
            }
          }
- 
+
          toast.success(`Папка "${formData.title}" создана!`);
        } else {
          // Upload files
-         for (let i = 0; i < formData.files.length; i++) {
-           const file = formData.files[i];
-           const fileUrl = await uploadMaterialFile(file, productId);
-          const permissions = formData.filePermissions[i] || { allow_view: true, allow_download: true };
+         for (let i = 0; i < formData.fileEntries.length; i++) {
+           const entry = formData.fileEntries[i];
+           const fileUrl = await uploadMaterialFile(entry.file, productId);
            await createMaterial.mutateAsync({
              product_id: productId,
-             title: formData.title || file.name,
+             title: entry.customName || entry.file.name,
              type: "file",
              content: null,
              file_url: fileUrl,
              order_index: materials.length + i,
              parent_id: currentFolderId,
-            allow_view: permissions.allow_view,
-            allow_download: permissions.allow_download,
+             allow_view: entry.permissions.allow_view,
+             allow_download: entry.permissions.allow_download,
            });
          }
-         toast.success(formData.files.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");
+         toast.success(formData.fileEntries.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");
        }
- 
+
        setIsAdding(false);
        resetForm();
      } catch (err) {
@@ -215,9 +221,10 @@ interface FilePermission {
        title: material.title,
        itemType: material.type === "folder" ? "folder" : "file",
        files: [],
-      filePermissions: [],
-      allow_view: material.allow_view !== false,
-      allow_download: material.allow_download !== false,
+       filePermissions: [],
+       fileEntries: [],
+       allow_view: material.allow_view !== false,
+       allow_download: material.allow_download !== false,
      });
    };
  
@@ -377,25 +384,33 @@ interface FilePermission {
              : "Выберите файл(ы) *"}
          </Label>
          {/* Selected files list */}
-         {formData.files.length > 0 && (
-             <div className="space-y-1 mb-3">
-               {formData.files.map((file, index) => (
+         {formData.fileEntries.length > 0 && (
+             <div className="space-y-2 mb-3">
+               {formData.fileEntries.map((entry, index) => (
                 <div key={index} className="bg-muted/50 rounded-md px-3 py-2 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0">
-                     <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                     <span className="text-sm truncate">{file.name}</span>
-                    </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                    <Input
+                      placeholder={entry.file.name}
+                      value={entry.customName}
+                      onChange={(e) => {
+                        setFormData(prev => {
+                          const newEntries = [...prev.fileEntries];
+                          newEntries[index] = { ...newEntries[index], customName: e.target.value };
+                          return { ...prev, fileEntries: newEntries };
+                        });
+                      }}
+                      className="flex-1 h-8 text-sm"
+                    />
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0"
                       onClick={() => {
                         setFormData(prev => ({
                           ...prev,
-                          files: prev.files.filter((_, i) => i !== index),
-                          filePermissions: prev.filePermissions.filter((_, i) => i !== index)
+                          fileEntries: prev.fileEntries.filter((_, i) => i !== index)
                         }));
                       }}
                     >
@@ -405,15 +420,15 @@ interface FilePermission {
                   <div className="flex items-center gap-4 pl-6">
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox
-                        checked={formData.filePermissions[index]?.allow_view !== false}
+                        checked={entry.permissions.allow_view}
                         onCheckedChange={(checked) => {
                           setFormData(prev => {
-                            const newPermissions = [...prev.filePermissions];
-                            if (!newPermissions[index]) {
-                              newPermissions[index] = { allow_view: true, allow_download: true };
-                            }
-                            newPermissions[index].allow_view = !!checked;
-                            return { ...prev, filePermissions: newPermissions };
+                            const newEntries = [...prev.fileEntries];
+                            newEntries[index] = { 
+                              ...newEntries[index], 
+                              permissions: { ...newEntries[index].permissions, allow_view: !!checked }
+                            };
+                            return { ...prev, fileEntries: newEntries };
                           });
                         }}
                       />
@@ -422,15 +437,15 @@ interface FilePermission {
                     </label>
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox
-                        checked={formData.filePermissions[index]?.allow_download !== false}
+                        checked={entry.permissions.allow_download}
                         onCheckedChange={(checked) => {
                           setFormData(prev => {
-                            const newPermissions = [...prev.filePermissions];
-                            if (!newPermissions[index]) {
-                              newPermissions[index] = { allow_view: true, allow_download: true };
-                            }
-                            newPermissions[index].allow_download = !!checked;
-                            return { ...prev, filePermissions: newPermissions };
+                            const newEntries = [...prev.fileEntries];
+                            newEntries[index] = { 
+                              ...newEntries[index], 
+                              permissions: { ...newEntries[index].permissions, allow_download: !!checked }
+                            };
+                            return { ...prev, fileEntries: newEntries };
                           });
                         }}
                       />
@@ -442,7 +457,7 @@ interface FilePermission {
                ))}
              </div>
          )}
- 
+
          {/* Add more files button */}
          <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
            <input
@@ -451,9 +466,14 @@ interface FilePermission {
              multiple
              onChange={(e) => {
                if (e.target.files && e.target.files.length > 0) {
+                 const newEntries: FileEntry[] = Array.from(e.target.files).map(file => ({
+                   file,
+                   customName: "",
+                   permissions: { allow_view: true, allow_download: true }
+                 }));
                  setFormData(prev => ({ 
                    ...prev, 
-                   files: [...prev.files, ...Array.from(e.target.files!)]
+                   fileEntries: [...prev.fileEntries, ...newEntries]
                  }));
                }
                if (fileInputRef.current) fileInputRef.current.value = "";
@@ -464,22 +484,11 @@ interface FilePermission {
            <label htmlFor="file-upload" className="cursor-pointer">
              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
              <p className="text-sm text-muted-foreground">
-               {formData.files.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите для выбора файла(ов)"}
+               {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите для выбора файла(ов)"}
              </p>
            </label>
          </div>
        </div>
- 
-       {formData.itemType === "file" && formData.files.length === 1 && (
-         <div className="space-y-2">
-           <Label>Название (по умолчанию имя файла)</Label>
-           <Input
-             placeholder={formData.files[0]?.name || "Название материала"}
-             value={formData.title}
-             onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-           />
-         </div>
-       )}
  
        <div className="flex gap-2 pt-2">
          <Button
