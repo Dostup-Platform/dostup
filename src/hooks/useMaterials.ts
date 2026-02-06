@@ -18,17 +18,23 @@ interface Material {
   allow_download?: boolean;
 }
 
-export const useMaterials = (productId: string | undefined) => {
+export const useMaterials = (productId: string | undefined, options?: { creatorOnly?: boolean }) => {
   return useQuery({
-    queryKey: ["materials", productId],
+    queryKey: ["materials", productId, options?.creatorOnly ? "creator" : "all"],
     queryFn: async () => {
       if (!productId) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("materials")
         .select("*")
-        .eq("product_id", productId)
-        .order("order_index", { ascending: true });
+        .eq("product_id", productId);
+      
+      // Filter to only creator materials (teacher_id is null)
+      if (options?.creatorOnly) {
+        query = query.is("teacher_id", null);
+      }
+      
+      const { data, error } = await query.order("order_index", { ascending: true });
       
       if (error) throw error;
       return data as Material[];
@@ -38,7 +44,8 @@ export const useMaterials = (productId: string | undefined) => {
 };
 
 // Alias for backward compatibility
-export const useProductMaterials = useMaterials;
+export const useProductMaterials = (productId: string | undefined, options?: { creatorOnly?: boolean }) => 
+  useMaterials(productId, options);
 
 export const useUserMaterials = () => {
   const { user } = useSimpleAuth();

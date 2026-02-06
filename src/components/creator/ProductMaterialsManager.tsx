@@ -73,7 +73,7 @@ interface FilePermission {
  
  const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: ProductMaterialsManagerProps) => {
    const { t } = useLanguage();
-   const { data: allMaterials = [], isLoading } = useProductMaterials(productId);
+   const { data: allMaterials = [], isLoading } = useProductMaterials(productId, { creatorOnly: true });
    const createMaterial = useCreateMaterial();
    const updateMaterial = useUpdateMaterial();
    const deleteMaterial = useDeleteMaterial();
@@ -576,7 +576,7 @@ interface FilePermission {
    return (
      <>
        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setCurrentFolderId(null); } }}>
-         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
            <DialogHeader>
              <DialogTitle className="flex items-center gap-2">
                Материалы: {productTitle}
@@ -661,18 +661,18 @@ interface FilePermission {
                        {editingId === material.id ? (
                          renderEditForm()
                        ) : (
-                         <div 
-                           className="flex items-center gap-3"
-                           onClick={() => material.type === "folder" && handleOpenFolder(material.id)}
-                         >
-                           <div className="text-muted-foreground cursor-grab">
-                             <GripVertical className="w-4 h-4" />
-                           </div>
-                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                             {getItemIcon(material.type)}
-                           </div>
-                           <div className="flex-1 min-w-0">
-                             <p className="font-medium text-sm truncate">{material.title}</p>
+                          <div 
+                            className="flex items-center gap-3 min-w-0"
+                            onClick={() => material.type === "folder" && handleOpenFolder(material.id)}
+                          >
+                            <div className="text-muted-foreground cursor-grab flex-shrink-0">
+                              <GripVertical className="w-4 h-4" />
+                            </div>
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                              {getItemIcon(material.type)}
+                            </div>
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                              <p className="font-medium text-sm truncate" title={material.title}>{material.title}</p>
                              <p className="text-xs text-muted-foreground">
                                {material.type === "folder" 
                                  ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
