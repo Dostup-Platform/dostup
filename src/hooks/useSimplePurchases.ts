@@ -97,14 +97,11 @@ export const useSimpleMaterials = () => {
   const { data: purchases } = useSimplePurchases();
 
   return useQuery({
-    queryKey: ["simple-materials", purchases?.map(p => p.product_id), purchases?.map(p => p.assigned_teacher_id)],
+    queryKey: ["simple-materials", purchases?.map(p => `${p.product_id}-${p.assigned_teacher_id}-${p.can_choose_teacher}`)],
     queryFn: async () => {
       if (!purchases?.length) return [];
 
       const productIds = purchases.map(p => p.product_id);
-      const assignedTeacherIds = purchases
-        .filter(p => p.assigned_teacher_id)
-        .map(p => p.assigned_teacher_id!);
 
       // Получить материалы автора (teacher_id IS NULL)
       const { data: creatorMaterials, error: creatorError } = await supabase
@@ -127,10 +124,22 @@ export const useSimpleMaterials = () => {
 
       if (creatorError) throw creatorError;
 
-      // Получить материалы назначенных учителей
+      // Собрать информацию о доступе к учителям по продуктам
+      // can_choose_teacher = true означает доступ ко ВСЕМ учителям продукта
+      // assigned_teacher_id означает доступ только к конкретному учителю
+      const canChooseTeacherProducts = purchases
+        .filter(p => p.can_choose_teacher)
+        .map(p => p.product_id);
+      
+      const specificTeacherAssignments = purchases
+        .filter(p => !p.can_choose_teacher && p.assigned_teacher_id)
+        .map(p => ({ product_id: p.product_id, teacher_id: p.assigned_teacher_id! }));
+
       let teacherMaterials: typeof creatorMaterials = [];
-      if (assignedTeacherIds.length > 0) {
-        const { data: tMaterials, error: teacherError } = await supabase
+
+      // Получить ВСЕ материалы учителей для продуктов с can_choose_teacher
+      if (canChooseTeacherProducts.length > 0) {
+        const { data: allTeacherMaterials, error } = await supabase
           .from("materials")
           .select(`
             id,
@@ -144,15 +153,44 @@ export const useSimpleMaterials = () => {
             allow_download,
             teacher_id
           `)
-          .in("product_id", productIds)
-          .in("teacher_id", assignedTeacherIds)
+          .in("product_id", canChooseTeacherProducts)
+          .not("teacher_id", "is", null)
           .order("order_index");
 
-        if (teacherError) throw teacherError;
-        teacherMaterials = tMaterials || [];
+        if (error) throw error;
+        teacherMaterials = allTeacherMaterials || [];
       }
 
-      const allMaterials = [...(creatorMaterials || []), ...(teacherMaterials || [])];
+      // Получить материалы конкретных назначенных учителей
+      for (const assignment of specificTeacherAssignments) {
+        // Пропустить если продукт уже в can_choose_teacher (мы уже получили все материалы)
+        if (canChooseTeacherProducts.includes(assignment.product_id)) continue;
+
+        const { data: specificMaterials, error } = await supabase
+          .from("materials")
+          .select(`
+            id,
+            title,
+            type,
+            content,
+            file_url,
+            order_index,
+            product_id,
+            allow_view,
+            allow_download,
+            teacher_id
+          `)
+          .eq("product_id", assignment.product_id)
+          .eq("teacher_id", assignment.teacher_id)
+          .order("order_index");
+
+        if (error) throw error;
+        if (specificMaterials) {
+          teacherMaterials = [...teacherMaterials, ...specificMaterials];
+        }
+      }
+
+      const allMaterials = [...(creatorMaterials || []), ...teacherMaterials];
 
       // Добавить информацию о продукте
       const { data: products } = await supabase

@@ -384,17 +384,19 @@ const MaterialsTab = () => {
 
           {/* Teacher Materials */}
           {Object.keys(groupTeacherMaterials).length > 0 && (
-            <div className="space-y-4 mt-8">
+            <div className="space-y-6 mt-8">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <User className="w-4 h-4" />
                 <h3 className="font-medium">
-                  {language === "ru" ? "Материалы от учителя" : "Мұғалімнен материалдар"}
+                  {language === "ru" ? "Материалы от учителей" : "Мұғалімдерден материалдар"}
                 </h3>
               </div>
               {Object.entries(groupTeacherMaterials).map(([groupTitle, productMaterials]) => (
-                <div key={groupTitle} className="space-y-3">
-                  <h4 className="text-sm font-medium text-muted-foreground">{groupTitle}</h4>
-                  {productMaterials?.map((material, index) => renderMaterialCard(material, index))}
+                <div key={groupTitle} className="space-y-3 p-4 bg-muted/30 rounded-lg border border-border/50">
+                  <h4 className="text-sm font-medium text-foreground truncate" title={groupTitle}>{groupTitle}</h4>
+                  <div className="space-y-2">
+                    {productMaterials?.map((material, index) => renderMaterialCard(material, index))}
+                  </div>
                 </div>
               ))}
             </div>
