@@ -585,7 +585,7 @@ interface FormData {
    return (
      <>
        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setCurrentFolderId(null); } }}>
-         <DialogContent className="max-w-full sm:max-w-3xl w-full sm:w-[95vw] !max-h-[100dvh] sm:!max-h-[90vh] !h-[100dvh] sm:!h-auto overflow-y-auto overflow-x-hidden p-3 sm:p-6 !rounded-none sm:!rounded-lg !left-0 !top-0 !translate-x-0 !translate-y-0 sm:!left-[50%] sm:!top-[50%] sm:!translate-x-[-50%] sm:!translate-y-[-50%] !right-0 !bottom-0 sm:!right-auto sm:!bottom-auto">
+         <DialogContent className="dialog-mobile-fullscreen max-w-3xl sm:w-[95vw] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
            <DialogHeader>
              <DialogTitle className="flex items-center gap-2">
                Материалы: {productTitle}
