@@ -671,68 +671,70 @@ interface FormData {
                          renderEditForm()
                        ) : (
                           <div 
-                            className="flex items-center gap-3 min-w-0"
-                            onClick={() => material.type === "folder" && handleOpenFolder(material.id)}
-                          >
-                            <div className="text-muted-foreground cursor-grab flex-shrink-0">
-                              <GripVertical className="w-4 h-4" />
+                             className="flex items-center gap-2 sm:gap-3 min-w-0 w-full"
+                             onClick={() => material.type === "folder" && handleOpenFolder(material.id)}
+                           >
+                             <div className="text-muted-foreground cursor-grab flex-shrink-0 hidden sm:block">
+                               <GripVertical className="w-4 h-4" />
+                             </div>
+                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                               {getItemIcon(material.type)}
+                             </div>
+                             <div className="flex-1 min-w-0">
+                               <p className="font-medium text-sm truncate" title={material.title}>{material.title}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {material.type === "folder" 
+                                  ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
+                                  : `Файл • ${
+                                      material.allow_view !== false && material.allow_download !== false 
+                                        ? 'просм. и скач.'
+                                        : material.allow_view !== false 
+                                          ? 'только просмотр'
+                                          : material.allow_download !== false 
+                                            ? 'только скач.'
+                                            : 'без доступа'
+                                    }`
+                                }
+                              </p>
                             </div>
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                              {getItemIcon(material.type)}
+                            <div className="flex gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                             {material.type === "file" && material.file_url && (
+                               <>
+                                 <Button 
+                                   variant="ghost" 
+                                   size="icon" 
+                                   className="h-8 w-8"
+                                   onClick={() => handleOpenFile(material, 'download')}
+                                   disabled={isLoadingUrl}
+                                   title="Скачать"
+                                 >
+                                   <Download className="w-4 h-4" />
+                                 </Button>
+                                 <Button 
+                                   variant="ghost" 
+                                   size="icon" 
+                                   className="h-8 w-8"
+                                   onClick={() => handleOpenFile(material, 'view')}
+                                   disabled={isLoadingUrl}
+                                   title="Открыть в браузере"
+                                 >
+                                   <ExternalLink className="w-4 h-4" />
+                                 </Button>
+                               </>
+                              )}
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(material)}>
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => setDeletingMaterial({ id: material.id, title: material.title, file_url: material.file_url })}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
-                            <div className="flex-1 min-w-0 overflow-hidden">
-                              <p className="font-medium text-sm truncate" title={material.title}>{material.title}</p>
-                             <p className="text-xs text-muted-foreground">
-                               {material.type === "folder" 
-                                 ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
-                                 : `Файл • ${
-                                     material.allow_view !== false && material.allow_download !== false 
-                                       ? 'для просмотра и скачивания'
-                                       : material.allow_view !== false 
-                                         ? 'только для просмотра'
-                                         : material.allow_download !== false 
-                                           ? 'только для скачивания'
-                                           : 'без доступа'
-                                   }`
-                               }
-                             </p>
-                           </div>
-                           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                            {material.type === "file" && material.file_url && (
-                              <>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  onClick={() => handleOpenFile(material, 'download')}
-                                  disabled={isLoadingUrl}
-                                  title="Скачать"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  onClick={() => handleOpenFile(material, 'view')}
-                                  disabled={isLoadingUrl}
-                                  title="Открыть в браузере"
-                                >
-                                  <ExternalLink className="w-4 h-4" />
-                                </Button>
-                              </>
-                             )}
-                             <Button variant="ghost" size="icon" onClick={() => handleEdit(material)}>
-                               <Edit className="w-4 h-4" />
-                             </Button>
-                             <Button
-                               variant="ghost"
-                               size="icon"
-                               className="text-destructive hover:text-destructive"
-                               onClick={() => setDeletingMaterial({ id: material.id, title: material.title, file_url: material.file_url })}
-                             >
-                               <Trash2 className="w-4 h-4" />
-                             </Button>
-                           </div>
-                         </div>
+                          </div>
                        )}
                      </CardContent>
                    </Card>
