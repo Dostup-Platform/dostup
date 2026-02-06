@@ -1,62 +1,31 @@
 
 
-## План: Полноценный оффлайн-режим для PWA
+# Fix: Creator Materials Dialog on Mobile
 
-### Проблема
-Сейчас приложение кэширует только страницу "Нет подключения", но не кэширует само приложение. Когда пользователь открывает приложение без интернета, браузер не может загрузить JavaScript и CSS файлы, поэтому показывается "Not Found".
+## Problem
+On mobile, the materials dialog is clipped -- action buttons (especially delete) are cut off because the dialog uses a centered overlay with limited width/height, and the row of 4 action buttons overflows on narrow screens.
 
-### Решение
-Добавить `vite-plugin-pwa` — специальный плагин, который автоматически кэширует все файлы приложения при первом запуске. После этого приложение будет открываться мгновенно, даже без интернета.
+## Solution
+Two changes to `src/components/creator/ProductMaterialsManager.tsx`:
 
-### Что изменится для пользователя
-- Приложение будет открываться мгновенно даже без интернета
-- Последние загруженные данные будут доступны оффлайн
-- Пуш-уведомления продолжат работать как раньше
+### 1. Full-screen dialog on mobile
+Change the `DialogContent` to be full-screen on mobile (no rounded corners, no margins, fills the viewport), while keeping the current desktop behavior:
 
----
-
-## Технические детали
-
-### 1. Установка зависимости
 ```
-vite-plugin-pwa
+className="max-w-3xl w-full sm:w-[95vw] max-h-full sm:max-h-[90vh] h-full sm:h-auto
+           overflow-y-auto overflow-x-hidden p-3 sm:p-6 
+           sm:rounded-lg rounded-none inset-0 sm:inset-auto
+           sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%]
+           left-0 top-0 translate-x-0 translate-y-0"
 ```
 
-### 2. Обновление vite.config.ts
-- Добавить плагин VitePWA с настройками:
-  - `registerType: 'autoUpdate'` — автоматическое обновление
-  - `workbox.globPatterns` — кэширование всех JS, CSS, HTML, шрифтов и изображений
-  - `workbox.runtimeCaching` — кэширование API запросов и внешних ресурсов
-  - `manifest` — настройки манифеста PWA
+### 2. Action buttons layout on mobile
+For each material row, change the layout so on mobile the action buttons sit on a second line below the title instead of being squeezed into the same row:
 
-### 3. Обновление firebase-messaging-sw.js
-- Убрать базовое кэширование (теперь это делает Workbox)
-- Оставить только логику Firebase для push-уведомлений
-- Добавить импорт Workbox для интеграции
+- Wrap the entire row in a vertical flex on mobile (`flex-col sm:flex-row`)
+- Action buttons get their own row aligned to the right on small screens
+- This guarantees download, view, edit, and delete buttons are always visible and tappable
 
-### 4. Создание нового service-worker.ts
-- Интеграция Firebase Messaging с Workbox
-- Precaching всех статических файлов
-- Runtime caching для:
-  - Supabase API (`/rest/v1/`, `/functions/v1/`)
-  - Изображения из Storage
-  - Google Fonts
-
-### 5. Обновление main.tsx
-- Регистрация сервис-воркера при запуске приложения
-
-### 6. Стратегии кэширования
-| Ресурс | Стратегия | Описание |
-|--------|-----------|----------|
-| App shell (JS/CSS/HTML) | Precache | Кэшируется при установке |
-| API запросы | NetworkFirst | Сначала сеть, потом кэш |
-| Изображения | CacheFirst | Сначала кэш, потом сеть |
-| Шрифты | CacheFirst | Кэшируется навсегда |
-
-### Файлы для изменения
-1. `package.json` — добавить vite-plugin-pwa
-2. `vite.config.ts` — настройка плагина
-3. `public/firebase-messaging-sw.js` — упрощение, только push
-4. `src/main.tsx` — регистрация SW
-5. `public/manifest.json` — удалить (будет генерироваться плагином)
+### Files to edit
+- `src/components/creator/ProductMaterialsManager.tsx` -- dialog sizing and material row layout
 
