@@ -276,8 +276,8 @@ const MaterialsTab = () => {
             <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
               {getIcon(material.type)}
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-foreground">{material.title}</h3>
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <h3 className="font-medium text-foreground truncate" title={material.title}>{material.title}</h3>
               <p className="text-sm text-muted-foreground capitalize mt-0.5">
                 {material.type === "video" ? "Видео" : material.type}
               </p>
