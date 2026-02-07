@@ -6,58 +6,108 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/**
+ * Validate caller identity:
+ * - For creators: check creator_sessions table
+ * - For students/teachers: check simple_users table
+ */
+async function validateIdentity(
+  supabase: any,
+  userPhone: string,
+  userRole: string,
+  creatorToken?: string,
+  creatorName?: string
+): Promise<boolean> {
+  if (userRole === 'creator') {
+    if (!creatorToken || !creatorName) {
+      console.log('Creator role requires creatorToken and creatorName');
+      return false;
+    }
+    const { data: session } = await supabase
+      .from('creator_sessions')
+      .select('id')
+      .eq('token', creatorToken)
+      .eq('creator_name', creatorName)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    
+    if (!session) {
+      console.log('Invalid creator session for:', creatorName);
+      return false;
+    }
+    return true;
+  }
+
+  // For students/teachers: verify user exists in simple_users
+  const { data: user } = await supabase
+    .from('simple_users')
+    .select('id')
+    .eq('phone', userPhone)
+    .maybeSingle();
+  
+  if (!user) {
+    console.log('User not found in simple_users:', userPhone);
+    return false;
+  }
+  return true;
+}
+
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { action, userPhone, userRole, fcmToken, deviceInfo } = await req.json()
+    const { action, userPhone, userRole, fcmToken, deviceInfo, creatorToken, creatorName } = await req.json()
 
     if (!action || !userPhone) {
       return new Response(
         JSON.stringify({ error: 'Missing action or userPhone' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Create Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // --- Validate caller identity ---
+    const isValid = await validateIdentity(
+      supabase,
+      userPhone,
+      userRole || 'student',
+      creatorToken,
+      creatorName
+    );
+
+    if (!isValid) {
+      console.warn(`Unauthorized manage-push-token call for ${userPhone} (role: ${userRole})`);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - identity validation failed' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     switch (action) {
       case 'register': {
         if (!fcmToken) {
           return new Response(
             JSON.stringify({ error: 'Missing fcmToken for register action' }),
-            { 
-              status: 400, 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-            }
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
-        // First, delete any existing tokens for this device (same fcm_token)
-        // This ensures one device = one token, regardless of user
         await supabase
           .from('push_tokens')
           .delete()
           .eq('fcm_token', fcmToken)
 
-        // Also delete old tokens for this user+role combination on other devices
-        // Keep only the most recent device per user+role
         await supabase
           .from('push_tokens')
           .delete()
           .eq('user_phone', userPhone)
           .eq('user_role', userRole || 'student')
 
-        // Insert the new token
         const { error } = await supabase
           .from('push_tokens')
           .insert({
@@ -72,33 +122,23 @@ serve(async (req) => {
           console.error('Error registering push token:', error)
           return new Response(
             JSON.stringify({ error: 'Failed to register token' }),
-            { 
-              status: 500, 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-            }
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
         console.log(`Token registered for ${userPhone} (${userRole})`)
-
         return new Response(
           JSON.stringify({ success: true }),
-          { 
-            status: 200, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
       case 'unregister': {
-        // Delete token - can be by fcmToken OR by userPhone (for logout)
         let deleteQuery = supabase.from('push_tokens').delete()
         
         if (fcmToken) {
-          // Delete specific token
           deleteQuery = deleteQuery.eq('fcm_token', fcmToken)
         } else {
-          // Delete all tokens for this user (logout scenario)
           deleteQuery = deleteQuery.eq('user_phone', userPhone)
         }
 
@@ -108,31 +148,21 @@ serve(async (req) => {
           console.error('Error unregistering push token:', error)
           return new Response(
             JSON.stringify({ error: 'Failed to unregister token' }),
-            { 
-              status: 500, 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-            }
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
         console.log(`Token(s) unregistered for ${userPhone}`)
-
         return new Response(
           JSON.stringify({ success: true }),
-          { 
-            status: 200, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }
 
@@ -140,10 +170,7 @@ serve(async (req) => {
     console.error('Error managing push token:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

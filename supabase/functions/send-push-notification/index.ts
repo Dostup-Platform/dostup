@@ -9,17 +9,14 @@ const corsHeaders = {
 // Cache for access token
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
-// Deduplication cache - prevents sending same notification multiple times
-// Key: hash of userPhone + title + body + bookingId/purchaseId + timestamp bucket
+// Deduplication cache
 const sentNotifications = new Map<string, number>();
-const DEDUP_WINDOW_MS = 60000; // 60 seconds - increased window
+const DEDUP_WINDOW_MS = 60000;
 
 function getNotificationKey(userPhone: string, title: string, data?: Record<string, string>): string {
-  // Use more specific key including the actual ID
   const bookingId = data?.bookingId || "";
   const purchaseId = data?.purchaseId || "";
   const type = data?.type || "";
-  // Create a unique key per actual event
   return `${userPhone}:${type}:${bookingId}:${purchaseId}`;
 }
 
@@ -33,7 +30,6 @@ function isDuplicate(key: string): boolean {
 
 function markAsSent(key: string): void {
   sentNotifications.set(key, Date.now());
-  // Cleanup old entries periodically
   if (sentNotifications.size > 100) {
     const now = Date.now();
     for (const [k, v] of sentNotifications.entries()) {
@@ -44,11 +40,7 @@ function markAsSent(key: string): void {
   }
 }
 
-/**
- * Get Google OAuth2 access token for FCM v1 API
- */
 async function getAccessToken(): Promise<string> {
-  // Check if we have a valid cached token
   if (cachedAccessToken && Date.now() < cachedAccessToken.expiresAt - 60000) {
     return cachedAccessToken.token;
   }
@@ -60,15 +52,9 @@ async function getAccessToken(): Promise<string> {
     throw new Error("FCM credentials not configured");
   }
 
-  // Parse the private key (handle escaped newlines)
   const parsedPrivateKey = privateKey.replace(/\\n/g, "\n");
 
-  // Create JWT header and claim
-  const header = {
-    alg: "RS256",
-    typ: "JWT"
-  };
-
+  const header = { alg: "RS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
   const claim = {
     iss: clientEmail,
@@ -78,7 +64,6 @@ async function getAccessToken(): Promise<string> {
     exp: now + 3600
   };
 
-  // Base64url encode
   const base64urlEncode = (obj: object) => {
     const str = JSON.stringify(obj);
     const base64 = btoa(str);
@@ -89,11 +74,9 @@ async function getAccessToken(): Promise<string> {
   const claimEncoded = base64urlEncode(claim);
   const signatureInput = `${headerEncoded}.${claimEncoded}`;
 
-  // Sign with RS256
   const encoder = new TextEncoder();
   const signatureInputBytes = encoder.encode(signatureInput);
 
-  // Import private key
   const pemHeader = "-----BEGIN PRIVATE KEY-----";
   const pemFooter = "-----END PRIVATE KEY-----";
   const pemContents = parsedPrivateKey
@@ -106,10 +89,7 @@ async function getAccessToken(): Promise<string> {
   const cryptoKey = await crypto.subtle.importKey(
     "pkcs8",
     binaryKey,
-    {
-      name: "RSASSA-PKCS1-v1_5",
-      hash: "SHA-256"
-    },
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"]
   );
@@ -127,12 +107,9 @@ async function getAccessToken(): Promise<string> {
 
   const jwt = `${signatureInput}.${signatureBase64}`;
 
-  // Exchange JWT for access token
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
   });
 
@@ -143,8 +120,6 @@ async function getAccessToken(): Promise<string> {
   }
 
   const tokenData = await tokenResponse.json();
-  
-  // Cache the token
   cachedAccessToken = {
     token: tokenData.access_token,
     expiresAt: Date.now() + (tokenData.expires_in * 1000)
@@ -153,9 +128,6 @@ async function getAccessToken(): Promise<string> {
   return tokenData.access_token;
 }
 
-/**
- * Send FCM notification to a device
- */
 async function sendFCMNotification(
   fcmToken: string,
   title: string,
@@ -173,10 +145,7 @@ async function sendFCMNotification(
     const message = {
       message: {
         token: fcmToken,
-        notification: {
-          title,
-          body
-        },
+        notification: { title, body },
         data: data || {},
         webpush: {
           notification: {
@@ -185,9 +154,7 @@ async function sendFCMNotification(
             vibrate: [200, 100, 200],
             requireInteraction: true
           },
-          fcm_options: {
-            link: "/"
-          }
+          fcm_options: { link: "/" }
         }
       }
     };
@@ -208,7 +175,6 @@ async function sendFCMNotification(
       const errorData = await response.json();
       console.error("FCM send error:", errorData);
       
-      // Check for invalid token errors
       if (
         errorData.error?.code === 404 ||
         errorData.error?.details?.some((d: any) => 
@@ -232,12 +198,23 @@ async function sendFCMNotification(
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // --- Auth check: only allow service_role calls (from DB triggers) ---
+    const authHeader = req.headers.get("Authorization") || "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    
+    if (!authHeader.includes(serviceRoleKey)) {
+      console.warn("Unauthorized call to send-push-notification: missing service_role key");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { userPhone, title, body, data, targetRole } = await req.json();
 
     if (!userPhone || !title || !body) {
@@ -260,18 +237,14 @@ serve(async (req) => {
 
     console.log(`Sending push notification to ${userPhone} (role: ${targetRole || 'any'}): ${title}`);
 
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Build query for FCM tokens - filter by role if specified
     let query = supabase
       .from("push_tokens")
       .select("id, fcm_token, user_role")
       .eq("user_phone", userPhone);
     
-    // Filter by role if targetRole is specified
     if (targetRole) {
       query = query.eq("user_role", targetRole);
     }
@@ -296,7 +269,6 @@ serve(async (req) => {
 
     console.log(`Found ${tokens.length} tokens for user ${userPhone}`);
 
-    // Send to all registered devices
     const results = await Promise.all(
       tokens.map(async (tokenRecord) => {
         const result = await sendFCMNotification(
@@ -306,7 +278,6 @@ serve(async (req) => {
           data
         );
 
-        // Remove invalid tokens
         if (!result.success && result.error === "INVALID_TOKEN") {
           console.log(`Removing invalid token: ${tokenRecord.id}`);
           await supabase

@@ -103,15 +103,24 @@ export const registerPushToken = async (
     // Get device info
     const deviceInfo = `${navigator.userAgent.substring(0, 100)}`;
 
+    // Build request body with session credentials for identity validation
+    const body: Record<string, string | null> = {
+      action: "register",
+      userPhone,
+      userRole,
+      fcmToken,
+      deviceInfo
+    };
+
+    // For creators, include session token for validation
+    if (userRole === "creator") {
+      body.creatorToken = localStorage.getItem("creator_token");
+      body.creatorName = localStorage.getItem("creator_name");
+    }
+
     // Call edge function to register token
     const { data, error } = await supabase.functions.invoke("manage-push-token", {
-      body: {
-        action: "register",
-        userPhone,
-        userRole,
-        fcmToken,
-        deviceInfo
-      }
+      body
     });
 
     if (error) {
@@ -133,12 +142,23 @@ export const registerPushToken = async (
 export const unregisterPushToken = async (userPhone: string): Promise<boolean> => {
   try {
     // Remove all tokens for this user (don't need specific token)
+    // Build body with identity info
+    const body: Record<string, string | null> = {
+      action: "unregister",
+      userPhone
+    };
+
+    // For creators, include session token
+    const creatorToken = localStorage.getItem("creator_token");
+    const creatorName = localStorage.getItem("creator_name");
+    if (creatorToken && creatorName) {
+      body.userRole = "creator";
+      body.creatorToken = creatorToken;
+      body.creatorName = creatorName;
+    }
+
     const { error } = await supabase.functions.invoke("manage-push-token", {
-      body: {
-        action: "unregister",
-        userPhone
-        // No fcmToken = delete all tokens for this user
-      }
+      body
     });
 
     if (error) {
