@@ -31,6 +31,7 @@ import { ExternalLink } from "lucide-react";
  import { toast } from "sonner";
  import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
+import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye } from "lucide-react";
  
@@ -321,11 +322,10 @@ interface FormData {
       } else if (newWindow) {
         // Просмотр в браузере
         if (isOfficeDocument(material.title)) {
-          // Use proxy URL for office documents so Microsoft Office Online can access them
-          const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-material?path=${encodeURIComponent(path)}`;
-          // Use Microsoft Office Online Viewer - works better for Office docs than Google Docs Viewer
-          const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-          newWindow.location.href = viewerUrl;
+           const token = await requestMaterialToken(path, 'creator');
+           const proxyUrl = buildProxyUrl(token);
+           const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
+           newWindow.location.href = viewerUrl;
         } else {
           newWindow.location.href = data.signedUrl;
         }

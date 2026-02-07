@@ -214,6 +214,33 @@ export type Database = {
         }
         Relationships: []
       }
+      material_access_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          file_path: string
+          id: string
+          token: string
+          used: boolean
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          file_path: string
+          id?: string
+          token: string
+          used?: boolean
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          file_path?: string
+          id?: string
+          token?: string
+          used?: boolean
+        }
+        Relationships: []
+      }
       materials: {
         Row: {
           allow_download: boolean

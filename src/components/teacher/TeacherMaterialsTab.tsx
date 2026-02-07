@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FileText, ExternalLink, Loader2, Video, Link as LinkIcon, Folder, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -150,7 +151,8 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
         document.body.removeChild(link);
       } else if (newWindow) {
         if (isOfficeDocument(material.title)) {
-          const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-material?path=${encodeURIComponent(path)}`;
+          const token = await requestMaterialToken(path, 'teacher', teacherUser?.id);
+          const proxyUrl = buildProxyUrl(token);
           const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
           newWindow.location.href = viewerUrl;
         } else {

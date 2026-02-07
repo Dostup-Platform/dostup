@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react";
+import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSimpleMaterials } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -166,6 +168,7 @@ const InlineVideoPlayer = ({ url }: InlineVideoPlayerProps) => {
 const MaterialsTab = () => {
   const { data: materials, isLoading } = useSimpleMaterials();
   const { t, language } = useLanguage();
+  const { user } = useSimpleAuth();
   const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
 
@@ -215,7 +218,8 @@ const MaterialsTab = () => {
         document.body.removeChild(link);
       } else if (newWindow) {
         if (isOfficeDocument(material.title)) {
-          const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-material?path=${encodeURIComponent(path)}`;
+          const token = await requestMaterialToken(path, 'student', user?.id);
+          const proxyUrl = buildProxyUrl(token);
           const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
           newWindow.location.href = viewerUrl;
         } else {

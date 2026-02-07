@@ -25,6 +25,7 @@ import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, ChevronLeft, Fol
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
+import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface TeacherMaterialsManagerProps {
@@ -299,7 +300,8 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
         document.body.removeChild(link);
       } else if (newWindow) {
         if (isOfficeDocument(material.title)) {
-          const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-material?path=${encodeURIComponent(path)}`;
+          const token = await requestMaterialToken(path, 'teacher', teacherId);
+          const proxyUrl = buildProxyUrl(token);
           const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
           newWindow.location.href = viewerUrl;
         } else {
