@@ -32,9 +32,17 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Extract product_id from file path (format: {product_id}/filename or {product_id}/teacher/{teacher_id}/filename)
+    // Extract product_id from file path
+    // Regular: {product_id}/filename
+    // Teacher: teacher-{teacher_id}/{product_id}/filename
     const pathParts = path.split('/');
-    const productId = pathParts[0];
+    let productId: string;
+    
+    if (pathParts[0]?.startsWith('teacher-')) {
+      productId = pathParts[1]; // teacher-{id}/{product_id}/file
+    } else {
+      productId = pathParts[0]; // {product_id}/file
+    }
 
     if (!productId) {
       return new Response(
