@@ -190,6 +190,30 @@ export type Database = {
           },
         ]
       }
+      creator_sessions: {
+        Row: {
+          created_at: string | null
+          creator_name: string
+          expires_at: string
+          id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string | null
+          creator_name: string
+          expires_at: string
+          id?: string
+          token: string
+        }
+        Update: {
+          created_at?: string | null
+          creator_name?: string
+          expires_at?: string
+          id?: string
+          token?: string
+        }
+        Relationships: []
+      }
       materials: {
         Row: {
           allow_download: boolean

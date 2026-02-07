@@ -129,13 +129,39 @@ const CreatorDashboard = () => {
   });
 
   useEffect(() => {
-    const name = localStorage.getItem("creator_name");
-    if (!name) {
-      navigate("/");
-    } else {
-      setCreatorName(name);
-      setIsLoading(false);
-    }
+    const validateSession = async () => {
+      const name = localStorage.getItem("creator_name");
+      const token = localStorage.getItem("creator_token");
+      
+      if (!name || !token) {
+        navigate("/");
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.functions.invoke('validate-creator-session', {
+          body: { token, creatorName: name }
+        });
+
+        if (error || !data?.valid) {
+          console.log('Invalid creator session, redirecting to login');
+          localStorage.removeItem("creator_token");
+          localStorage.removeItem("creator_name");
+          navigate("/");
+          return;
+        }
+
+        setCreatorName(name);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Session validation error:', err);
+        localStorage.removeItem("creator_token");
+        localStorage.removeItem("creator_name");
+        navigate("/");
+      }
+    };
+
+    validateSession();
   }, [navigate]);
 
   if (isLoading) {
