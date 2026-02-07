@@ -1,31 +1,65 @@
 
+# Защита материалов от несанкционированного доступа
 
-# Fix: Creator Materials Dialog on Mobile
+## Что будет сделано
 
-## Problem
-On mobile, the materials dialog is clipped -- action buttons (especially delete) are cut off because the dialog uses a centered overlay with limited width/height, and the row of 4 action buttons overflows on narrow screens.
+### Проблема
+Сейчас функция `proxy-material` отдает файлы **любому**, кто знает путь к файлу — без проверки покупки. Также клиентский код напрямую создает signed URLs через Supabase Storage, что тоже обходит проверку прав.
 
-## Solution
-Two changes to `src/components/creator/ProductMaterialsManager.tsx`:
+### Решение: одноразовые токены доступа
 
-### 1. Full-screen dialog on mobile
-Change the `DialogContent` to be full-screen on mobile (no rounded corners, no margins, fills the viewport), while keeping the current desktop behavior:
+Поскольку `proxy-material` используется для Microsoft Office Viewer (который делает GET-запрос сам и не может передавать userId), добавим систему **одноразовых токенов**:
 
+1. Фронтенд запрашивает токен через edge function, передавая `userId` и `path`
+2. Edge function проверяет покупку и генерирует одноразовый токен
+3. Фронтенд передает токен в URL для proxy-material
+4. proxy-material проверяет токен и только потом отдает файл
+
+### Что изменится (5 файлов)
+
+**1. Новая таблица `material_access_tokens`** (миграция)
+- Хранит одноразовые токены с привязкой к пути файла
+- Токен истекает через 10 минут и может быть использован только 1 раз
+
+**2. `supabase/functions/proxy-material/index.ts`** — добавление проверки
+- Принимает параметр `token` вместо голого `path`
+- Проверяет токен в таблице `material_access_tokens`
+- Помечает токен как использованный
+- Без валидного токена — отказ 403
+
+**3. Новый edge function `create-material-token`**
+- Принимает `userId` и `path`
+- Проверяет что у пользователя есть подтвержденная покупка продукта, к которому относится файл (или пользователь — автор/учитель)
+- Создает одноразовый токен в базе
+
+**4. Фронтенд — 4 компонента** (где используется proxy-material)
+- `ProductMaterialsManager.tsx` — автор (просмотр без проверки покупки — он автор)
+- `MaterialsTab.tsx` — ученик
+- `TeacherMaterialsTab.tsx` — учитель
+- `TeacherMaterialsManager.tsx` — учитель
+
+В каждом: перед открытием Office-документа сначала запрашивается токен через `create-material-token`, а потом URL proxy вызывается с этим токеном.
+
+**5. Пометка исправленных и неисправимых ошибок безопасности**
+- `proxy_material_no_auth` — удалить (исправлено)
+- `materials_storage_public` — удалить (исправлено через токены)
+- `simulated_payment` — игнорировать (бизнес-решение, ручная проверка оплаты)
+- `supabase_permissive_rls_architectural` — игнорировать (требует полной миграции на другую систему входа)
+- `simple_users_phone_exposure` — игнорировать (требует полной миграции на другую систему входа)
+
+### Что НЕ изменится
+- Вся остальная логика приложения
+- Интерфейс пользователя
+- Процесс входа автора
+- Процесс покупки
+
+### Техническая схема
+
+```text
+Раньше:
+  Браузер --> proxy-material?path=file.docx --> файл (без проверки!)
+
+Теперь:
+  Браузер --> create-material-token(userId, path) --> токен
+  Браузер --> proxy-material?token=abc123 --> проверка токена --> файл
 ```
-className="max-w-3xl w-full sm:w-[95vw] max-h-full sm:max-h-[90vh] h-full sm:h-auto
-           overflow-y-auto overflow-x-hidden p-3 sm:p-6 
-           sm:rounded-lg rounded-none inset-0 sm:inset-auto
-           sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%]
-           left-0 top-0 translate-x-0 translate-y-0"
-```
-
-### 2. Action buttons layout on mobile
-For each material row, change the layout so on mobile the action buttons sit on a second line below the title instead of being squeezed into the same row:
-
-- Wrap the entire row in a vertical flex on mobile (`flex-col sm:flex-row`)
-- Action buttons get their own row aligned to the right on small screens
-- This guarantees download, view, edit, and delete buttons are always visible and tappable
-
-### Files to edit
-- `src/components/creator/ProductMaterialsManager.tsx` -- dialog sizing and material row layout
-
