@@ -182,15 +182,17 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
   // Мутация для подтверждения оплаты
   const confirmPayment = useMutation({
     mutationFn: async (purchaseId: string) => {
-      const { error } = await supabase
-        .from("simple_purchases")
-        .update({ 
-          status: "completed",
-          confirmed_at: new Date().toISOString()
-        })
-        .eq("id", purchaseId);
+      const creatorToken = localStorage.getItem("creator_token");
+      const { data, error } = await supabase.functions.invoke('approve-purchase', {
+        body: { 
+          purchaseId, 
+          creatorToken, 
+          creatorName 
+        }
+      });
 
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to approve');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-purchases"] });

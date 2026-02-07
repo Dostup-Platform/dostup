@@ -9,6 +9,12 @@ verify_jwt = false
 [functions.verify-creator-password]
 verify_jwt = false
 
+[functions.validate-creator-session]
+verify_jwt = false
+
+[functions.approve-purchase]
+verify_jwt = false
+
 [functions.upload-material]
 verify_jwt = false
 
