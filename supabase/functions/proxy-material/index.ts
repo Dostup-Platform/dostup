@@ -7,28 +7,65 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
     const url = new URL(req.url);
-    const path = url.searchParams.get('path');
+    const token = url.searchParams.get('token');
 
-    if (!path) {
+    if (!token) {
+      console.log('Rejected: missing token parameter');
       return new Response(
-        JSON.stringify({ error: 'Missing path parameter' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Missing token parameter' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Proxying material:', path);
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Validate token
+    const { data: tokenRecord, error: tokenError } = await supabase
+      .from('material_access_tokens')
+      .select('*')
+      .eq('token', token)
+      .eq('used', false)
+      .maybeSingle();
+
+    if (tokenError || !tokenRecord) {
+      console.log('Rejected: invalid or used token');
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check expiration
+    if (new Date(tokenRecord.expires_at) < new Date()) {
+      console.log('Rejected: token expired at', tokenRecord.expires_at);
+      // Mark as used anyway
+      await supabase
+        .from('material_access_tokens')
+        .update({ used: true })
+        .eq('id', tokenRecord.id);
+
+      return new Response(
+        JSON.stringify({ error: 'Token expired' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Mark token as used
+    await supabase
+      .from('material_access_tokens')
+      .update({ used: true })
+      .eq('id', tokenRecord.id);
+
+    const path = tokenRecord.file_path;
+    console.log('Proxying material with valid token:', path);
 
     // Download the file from storage
     const { data, error } = await supabase.storage
@@ -67,7 +104,6 @@ Deno.serve(async (req) => {
     };
 
     const contentType = contentTypes[ext || ''] || 'application/octet-stream';
-
     console.log('Serving file with content type:', contentType);
 
     return new Response(data, {
