@@ -271,41 +271,64 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     
     try {
       setIsLoadingUrl(true);
+      const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
       
-      const isFullUrl = material.file_url.startsWith('http');
-      const path = isFullUrl 
-        ? material.file_url.split('/materials/')[1] 
-        : material.file_url;
-      
-      if (!path) {
-        newWindow?.close();
-        throw new Error('Invalid file path');
-      }
-      
-      const { data, error } = await supabase.storage
-        .from('materials')
-        .createSignedUrl(path, 3600, { download: action === 'download' ? material.title : false });
-      
-      if (error) {
-        newWindow?.close();
-        throw error;
-      }
-      
-      if (action === 'download') {
-        const link = document.createElement('a');
-        link.href = data.signedUrl;
-        link.download = material.title;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else if (newWindow) {
-        if (isOfficeDocument(material.title)) {
-          const token = await requestMaterialToken(path, 'teacher', teacherId);
-          const proxyUrl = buildProxyUrl(token);
-          const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-          newWindow.location.href = viewerUrl;
-        } else {
-          newWindow.location.href = data.signedUrl;
+      if (isS3Path(material.file_url)) {
+        if (action === 'download') {
+          const url = await getS3DownloadUrl(material.file_url, 'teacher', teacherId, material.title);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = material.title;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else if (newWindow) {
+          if (isOfficeDocument(material.title)) {
+            const token = await requestMaterialToken(material.file_url, 'teacher', teacherId);
+            const proxyUrl = buildProxyUrl(token);
+            const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
+            newWindow.location.href = viewerUrl;
+          } else {
+            const url = await getS3DownloadUrl(material.file_url, 'teacher', teacherId);
+            newWindow.location.href = url;
+          }
+        }
+      } else {
+        const isFullUrl = material.file_url.startsWith('http');
+        const path = isFullUrl 
+          ? material.file_url.split('/materials/')[1] 
+          : material.file_url;
+        
+        if (!path) {
+          newWindow?.close();
+          throw new Error('Invalid file path');
+        }
+        
+        const { data, error } = await supabase.storage
+          .from('materials')
+          .createSignedUrl(path, 3600, { download: action === 'download' ? material.title : false });
+        
+        if (error) {
+          newWindow?.close();
+          throw error;
+        }
+        
+        if (action === 'download') {
+          const link = document.createElement('a');
+          link.href = data.signedUrl;
+          link.download = material.title;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else if (newWindow) {
+          if (isOfficeDocument(material.title)) {
+            const token = await requestMaterialToken(path, 'teacher', teacherId);
+            const proxyUrl = buildProxyUrl(token);
+            const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
+            newWindow.location.href = viewerUrl;
+          } else {
+            newWindow.location.href = data.signedUrl;
+          }
         }
       }
     } catch (err) {

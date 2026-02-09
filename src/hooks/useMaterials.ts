@@ -182,15 +182,15 @@ export const useDeleteMaterial = () => {
 };
 
 export const uploadMaterialFile = async (file: File, productId: string): Promise<string> => {
-  const fileExt = file.name.split(".").pop();
-  const fileName = `${productId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+  // Upload to S3 via edge function
+  const { uploadFileToS3 } = await import("@/lib/s3Helpers");
   
-  const { error: uploadError } = await supabase.storage
-    .from("materials")
-    .upload(fileName, file);
+  // Get creator session from localStorage
+  const creatorToken = localStorage.getItem('creator_session_token') || '';
+  const creatorName = localStorage.getItem('creator_name') || '';
   
-  if (uploadError) throw uploadError;
-  
-  // Return path only, not URL - signed URL will be generated on demand
-  return fileName;
+  return uploadFileToS3(file, productId, 'creator', {
+    creatorToken,
+    creatorName,
+  });
 };
