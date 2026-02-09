@@ -138,14 +138,10 @@ export const useDeleteTeacherMaterial = () => {
 
 // Upload material file for teacher
 export const uploadTeacherMaterialFile = async (file: File, productId: string, teacherId: string): Promise<string> => {
-  const fileExt = file.name.split(".").pop();
-  const fileName = `teacher-${teacherId}/${productId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+  // Upload to S3 via edge function
+  const { uploadFileToS3 } = await import("@/lib/s3Helpers");
   
-  const { error: uploadError } = await supabase.storage
-    .from("materials")
-    .upload(fileName, file);
-  
-  if (uploadError) throw uploadError;
-  
-  return fileName;
+  return uploadFileToS3(file, productId, 'teacher', {
+    teacherId,
+  });
 };
