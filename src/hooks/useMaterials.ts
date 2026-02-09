@@ -186,7 +186,7 @@ export const uploadMaterialFile = async (file: File, productId: string): Promise
   const { uploadFileToS3 } = await import("@/lib/s3Helpers");
   
   // Get creator session from localStorage
-  const creatorToken = localStorage.getItem('creator_session_token') || '';
+  const creatorToken = localStorage.getItem('creator_token') || '';
   const creatorName = localStorage.getItem('creator_name') || '';
   
   return uploadFileToS3(file, productId, 'creator', {
