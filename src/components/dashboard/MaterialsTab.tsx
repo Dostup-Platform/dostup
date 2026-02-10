@@ -192,20 +192,18 @@ const MaterialsTab = () => {
     try {
       const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
       
-      if (isS3Path(material.file_url)) {
+        if (isS3Path(material.file_url)) {
         if (action === 'download') {
           const url = await getS3DownloadUrl(material.file_url, 'student', user?.id);
-          // Fetch as blob to force download (avoids browser playing video inline)
-          const response = await fetch(url);
-          const blob = await response.blob();
-          const blobUrl = URL.createObjectURL(blob);
+          // Use link with download attribute — direct navigation avoids CORS
           const link = document.createElement('a');
-          link.href = blobUrl;
+          link.href = url;
           link.download = material.title;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          URL.revokeObjectURL(blobUrl);
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(material.file_url, 'student', user?.id);
