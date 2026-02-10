@@ -85,13 +85,6 @@ Deno.serve(async (req) => {
     const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY')!;
     const region = Deno.env.get('AWS_S3_REGION')!;
 
-    const queryParams: Record<string, string> = {};
-    if (download) {
-      // Use RFC 5987 encoding for non-ASCII filenames
-      const encodedFilename = encodeURIComponent(download);
-      queryParams['response-content-disposition'] = `attachment; filename*=UTF-8''${encodedFilename}`;
-    }
-
     const url = getSignedUrl({
       accessKeyId,
       secretAccessKey,
@@ -99,7 +92,6 @@ Deno.serve(async (req) => {
       key: '/' + s3Key,
       region,
       expiresIn: 3600,
-      queryParams: Object.keys(queryParams).length > 0 ? queryParams : undefined,
     });
 
     console.log('Generated presigned URL for:', s3Key);
