@@ -5,12 +5,12 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import { 
   playCancellationSound, 
-  showBrowserNotification 
+  playPaymentSound,
 } from "@/hooks/useNotificationPermission";
-import { sendPushNotification } from "@/lib/firebase";
 import { setAppBadge } from "@/lib/appBadge";
 
 export const useRealtimeStudentNotifications = (
+  userId: string | undefined,
   userPhone: string | undefined,
   enabled: boolean = true,
   currentBadgeCount: number = 0
@@ -85,10 +85,51 @@ export const useRealtimeStudentNotifications = (
           queryClient.invalidateQueries({ queryKey: ["all-bookings-for-schedule"] });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "simple_purchases",
+        },
+        async (payload) => {
+          const purchase = payload.new as any;
+          const oldPurchase = payload.old as any;
+          
+          // Only notify when status changes to confirmed/completed
+          if (oldPurchase.status === "pending" && (purchase.status === "confirmed" || purchase.status === "completed")) {
+            // Check if this purchase belongs to current user
+            if (!userId || purchase.simple_user_id !== userId) return;
+
+            playPaymentSound();
+
+            // Fetch product title
+            const { data: product } = await supabase
+              .from("products")
+              .select("title")
+              .eq("id", purchase.product_id)
+              .single();
+
+            const title = language === "ru" ? "Оплата подтверждена! ✅" : "Төлем расталды! ✅";
+            const description = language === "ru"
+              ? `Ваша оплата за "${product?.title || "продукт"}" подтверждена`
+              : `"${product?.title || "өнім"}" төлеміңіз расталды`;
+
+            toast.success(title, { description, duration: 10000 });
+
+            // Update app badge
+            const newBadgeCount = badgeCountRef.current + 1;
+            setAppBadge(newBadgeCount);
+
+            queryClient.invalidateQueries({ queryKey: ["student-purchases"] });
+            queryClient.invalidateQueries({ queryKey: ["simple-purchases"] });
+          }
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [enabled, userPhone, queryClient, language]);
+  }, [enabled, userId, userPhone, queryClient, language]);
 };
