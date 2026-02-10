@@ -83,13 +83,32 @@ serve(async (req) => {
 
       if (!users || users.length === 0) continue;
 
-      // Collect all non-empty phones
-      const phones = users.map(u => u.phone).filter(p => p && p.trim() !== "");
+      // Collect all non-empty phones from simple_users
+      const phonesFromUsers = users.map(u => u.phone).filter(p => p && p.trim() !== "");
       
-      console.log(`Product ${productId}: ${users.length} users, ${phones.length} with phones`);
+      // Also look up push_tokens directly for users with empty phones
+      const usersWithoutPhone = users.filter(u => !u.phone || u.phone.trim() === "");
+      let extraPhones: string[] = [];
+      if (usersWithoutPhone.length > 0) {
+        // Search push_tokens for any token registered for these user IDs (stored as user_phone)
+        const { data: extraTokens } = await supabase
+          .from("push_tokens")
+          .select("user_phone")
+          .eq("user_role", "student");
+        
+        if (extraTokens && extraTokens.length > 0) {
+          const existingPhones = new Set(phonesFromUsers);
+          extraPhones = [...new Set(extraTokens.map(t => t.user_phone))]
+            .filter(p => !existingPhones.has(p));
+        }
+      }
+
+      const phones = [...phonesFromUsers, ...extraPhones];
+      
+      console.log(`Product ${productId}: ${users.length} users, ${phones.length} phones (${phonesFromUsers.length} from users, ${extraPhones.length} from tokens)`);
 
       if (phones.length === 0) {
-        console.log(`No users with phone numbers for product ${productId}, skipping notifications`);
+        console.log(`No push tokens found for product ${productId}, skipping notifications`);
         continue;
       }
 
