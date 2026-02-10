@@ -104,9 +104,10 @@ const TeacherDashboard = () => {
 
   // Register FCM for teacher push notifications
   useFCMRegistration({
+    userId: teacherUser?.id,
     userPhone: teacherUser?.phone,
     userRole: "teacher",
-    enabled: !!teacherUser?.phone,
+    enabled: !!teacherUser?.id,
   });
 
   // Get bookings for notification count - use same key as notification tab

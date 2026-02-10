@@ -6,12 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Cache for access token
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
-/**
- * Get Google OAuth2 access token for FCM v1 API
- */
 async function getAccessToken(): Promise<string> {
   if (cachedAccessToken && Date.now() < cachedAccessToken.expiresAt - 60000) {
     return cachedAccessToken.token;
@@ -25,7 +21,6 @@ async function getAccessToken(): Promise<string> {
   }
 
   const parsedPrivateKey = privateKey.replace(/\\n/g, "\n");
-
   const header = { alg: "RS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
   const claim = {
@@ -101,11 +96,12 @@ async function getAccessToken(): Promise<string> {
 }
 
 /**
- * Send FCM notification to a user by phone
+ * Send FCM notification by user_id + role.
+ * For creators (no user_id), pass userId=null to match by role only.
  */
 async function sendFCMToUser(
   supabase: any,
-  userPhone: string,
+  userId: string | null,
   userRole: string,
   title: string,
   body: string,
@@ -117,14 +113,19 @@ async function sendFCMToUser(
     return 0;
   }
 
-  const { data: tokens, error } = await supabase
+  let query = supabase
     .from("push_tokens")
     .select("id, fcm_token")
-    .eq("user_phone", userPhone)
     .eq("user_role", userRole);
 
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+
+  const { data: tokens, error } = await query;
+
   if (error || !tokens || tokens.length === 0) {
-    console.log(`No tokens for ${userPhone} (${userRole})`);
+    console.log(`No tokens for userId=${userId} (${userRole})`);
     return 0;
   }
 
@@ -164,7 +165,7 @@ async function sendFCMToUser(
 
       if (response.ok) {
         successCount++;
-        console.log(`FCM sent to ${userPhone} (${userRole})`);
+        console.log(`FCM sent to userId=${userId} (${userRole})`);
       } else {
         const errorData = await response.json();
         console.error("FCM error:", errorData);
@@ -201,16 +202,14 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     if (type === "INSERT" && record) {
-      // New purchase - notify creator
       const purchaseId = record.id;
 
-      // Fetch purchase details
       const { data: purchase, error } = await supabase
         .from("simple_purchases")
         .select(`
           *,
           product:products(id, title),
-          user:simple_users(id, name, phone)
+          user:simple_users(id, name)
         `)
         .eq("id", purchaseId)
         .single();
@@ -235,24 +234,15 @@ serve(async (req) => {
         purchaseId: purchaseId
       };
 
-      // Notify creator
-      const { data: creatorTokens } = await supabase
-        .from("push_tokens")
-        .select("user_phone")
-        .eq("user_role", "creator")
-        .limit(1);
-
-      let totalSent = 0;
-      if (creatorTokens && creatorTokens.length > 0) {
-        totalSent = await sendFCMToUser(
-          supabase,
-          creatorTokens[0].user_phone,
-          "creator",
-          title,
-          description,
-          notificationData
-        );
-      }
+      // Notify creator — by role only (no user_id)
+      const totalSent = await sendFCMToUser(
+        supabase,
+        null,
+        "creator",
+        title,
+        description,
+        notificationData
+      );
 
       console.log(`Purchase INSERT: sent ${totalSent} notifications`);
 
@@ -263,35 +253,33 @@ serve(async (req) => {
     }
 
     if (type === "UPDATE" && record && old_record) {
-      // Purchase status changed - notify student when confirmed
       if (old_record.status === "pending" && record.status === "confirmed") {
         const purchaseId = record.id;
+        const studentUserId = record.simple_user_id;
 
         const { data: purchase } = await supabase
           .from("simple_purchases")
           .select(`
             *,
-            product:products(id, title),
-            user:simple_users(id, name, phone)
+            product:products(id, title)
           `)
           .eq("id", purchaseId)
           .single();
 
-        if (purchase?.user?.phone) {
-          const title = "Оплата подтверждена!";
-          const description = `Ваша оплата за "${purchase.product?.title}" подтверждена. Теперь вы можете записаться на занятия.`;
+        // Notify student by user_id
+        const title = "Оплата подтверждена!";
+        const description = `Ваша оплата за "${purchase?.product?.title || "продукт"}" подтверждена. Теперь вы можете записаться на занятия.`;
 
-          const sent = await sendFCMToUser(
-            supabase,
-            purchase.user.phone,
-            "student",
-            title,
-            description,
-            { type: "purchase_confirmed", purchaseId }
-          );
+        const sent = await sendFCMToUser(
+          supabase,
+          studentUserId,
+          "student",
+          title,
+          description,
+          { type: "purchase_confirmed", purchaseId }
+        );
 
-          console.log(`Purchase confirmed: sent ${sent} notifications to student`);
-        }
+        console.log(`Purchase confirmed: sent ${sent} notifications to student userId=${studentUserId}`);
       }
     }
 
