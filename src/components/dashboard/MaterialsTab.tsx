@@ -194,13 +194,18 @@ const MaterialsTab = () => {
       
       if (isS3Path(material.file_url)) {
         if (action === 'download') {
-          const url = await getS3DownloadUrl(material.file_url, 'student', user?.id, material.title);
+          const url = await getS3DownloadUrl(material.file_url, 'student', user?.id);
+          // Fetch as blob to force download (avoids browser playing video inline)
+          const response = await fetch(url);
+          const blob = await response.blob();
+          const blobUrl = URL.createObjectURL(blob);
           const link = document.createElement('a');
-          link.href = url;
+          link.href = blobUrl;
           link.download = material.title;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(material.file_url, 'student', user?.id);
