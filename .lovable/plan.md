@@ -1,97 +1,61 @@
 
 
-# Plan: Notification for Material Unlock (Scheduled Access)
+# Исправление пуш-уведомлений и PWA
 
-When a scheduled material becomes available, students should receive:
-1. An in-platform toast notification (if the app is open)
-2. A notification card in the "Notifications" tab
-3. A push notification (if permitted) -- already partially works
+## Проблема 1: Пуш-уведомления не приходят
 
-## What's Missing
+У студента "Чингиз Хайрулла" пустое поле `phone` в базе данных. Из-за этого:
+- При входе в приложение система НЕ регистрирует FCM-токен (потому что проверяет `phone` и видит пустую строку)
+- При разблокировке материала серверная функция ищет токены по `phone`, не находит совпадений и пропускает отправку
 
-- The `materials` table is not in the Supabase Realtime publication, so the frontend can't detect when `available_at` is set to `null` (unlocked).
-- The realtime hook (`useRealtimeStudentNotifications`) doesn't listen for material changes.
-- The Notifications tab doesn't display material unlock events.
-- The badge count doesn't include material unlocks.
+**Решение**: Исправить студента с пустым `phone` в базе + изменить логику так, чтобы push-токены привязывались к `user_id`, а не к `phone`. Это надёжнее, потому что `id` всегда есть.
 
-## Changes
+### Шаги:
+1. **Миграция БД**: Добавить столбец `user_id` в таблицу `push_tokens` + обновить существующие записи по совпадению `user_phone`
+2. **Исправить данные**: Присвоить `phone` студенту "Чингиз Хайрулла" (у которого пустое поле)
+3. **`useFCMRegistration`**: Передавать `userId` вместо `phone`, регистрировать токен даже если `phone` пустой
+4. **`src/lib/firebase.ts` (`registerPushToken`)**: Сохранять `userId` при регистрации токена
+5. **`manage-push-token` edge function**: Принимать `userId` и сохранять его в `push_tokens`
+6. **`unlock-materials` edge function**: Искать push-токены через `user_id` (JOIN purchases -> push_tokens напрямую по user_id), минуя `phone` полностью
+7. **`send-push-notification` edge function**: Поддержать поиск токенов и по `userId`
 
-### 1. Database: Create a `material_unlocks` log table
+## Проблема 2: PWA показывает "not found" и чёрный экран
 
-Instead of trying to detect `UPDATE` on `materials` (which doesn't tell us who should be notified), create a lightweight log table that the `unlock-materials` edge function writes to after unlocking:
+PWA кэширует старую версию приложения. Когда маршруты или код обновляются, кэш устаревает.
 
-```sql
-CREATE TABLE public.material_unlocks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  material_id UUID REFERENCES materials(id) ON DELETE CASCADE,
-  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
-  material_title TEXT NOT NULL,
-  product_title TEXT NOT NULL,
-  unlocked_at TIMESTAMPTZ DEFAULT now()
-);
+### Шаги:
+1. **`vite.config.ts`**: Добавить `skipWaiting: true` и `clientsClaim: true` в настройки Workbox, чтобы новый service worker активировался сразу
+2. **Увеличить `navigateFallbackDenylist`**: Убедиться что Firebase SW не конфликтует с Workbox SW
+3. **`main.tsx`**: Добавить принудительную перезагрузку при обнаружении ошибки загрузки (стратегия "если не загрузилось -- очистить кэш и перезагрузить")
 
-ALTER TABLE material_unlocks ENABLE ROW LEVEL SECURITY;
+## Технические детали
 
-CREATE POLICY "Students can read material unlocks for their purchased products"
-  ON material_unlocks FOR SELECT
-  USING (
-    product_id IN (
-      SELECT product_id FROM simple_purchases
-      WHERE simple_user_id = (
-        SELECT id FROM simple_users WHERE phone = current_setting('request.headers', true)::json->>'x-user-phone'
-      )
-      AND status IN ('confirmed', 'completed')
-    )
-  );
-
--- Enable realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE public.material_unlocks;
-```
-
-Since students don't use Supabase auth, RLS won't work well for filtering. Instead, the table will be public-read (anon SELECT) and we filter on the frontend by checking if the student has purchased the product.
-
-### 2. Edge Function: `unlock-materials` -- write to log table
-
-After unlocking materials, insert records into `material_unlocks` so students get real-time events. Also simplify the push notification phone lookup -- just query `push_tokens` directly for students who purchased the product.
-
-### 3. Frontend: `useRealtimeStudentNotifications` -- listen for material unlocks
-
-Add a listener on `material_unlocks` (INSERT events). When a new record appears:
-- Check if the student purchased that product
-- Show a toast: "Material '[title]' is now available in '[product]'"
-- Play a sound
-- Increment badge count
-- Invalidate materials queries
-
-### 4. Frontend: `NotificationsTab` -- show material unlock cards
-
-Add a query for `material_unlocks` filtered by the student's purchased product IDs. Display cards with an "Unlock" icon showing material title, product title, and timestamp.
-
-### 5. Frontend: `Dashboard` -- include unlocks in badge count
-
-Query `material_unlocks` for the student's products and count new ones since `lastViewedAt`.
-
-## Technical Details
-
-### material_unlocks table (simple, no RLS complexity)
-- RLS enabled with a permissive SELECT policy for `anon` role (since simple_users don't use Supabase auth)
-- INSERT restricted to service_role only (edge function uses service role key)
-- Frontend filters by matching product_id against student's purchased products
-
-### Realtime flow
+### Новый столбец в push_tokens
 ```text
-Cron -> unlock-materials edge function
-  -> UPDATE materials SET available_at = null
-  -> INSERT INTO material_unlocks (material_id, product_id, ...)
-  -> Supabase Realtime broadcasts INSERT event
-  -> Student's browser receives event via useRealtimeStudentNotifications
-  -> Toast shown + badge incremented + queries invalidated
+push_tokens
+  + user_id UUID (nullable, indexed)
+  
+  INDEX: idx_push_tokens_user_id ON push_tokens(user_id)
 ```
 
-### Files to modify
-- **New migration**: Create `material_unlocks` table with RLS and realtime
-- **`supabase/functions/unlock-materials/index.ts`**: Insert into `material_unlocks` after unlocking; simplify push notification logic
-- **`src/hooks/useRealtimeStudentNotifications.ts`**: Add listener for `material_unlocks` INSERT events
-- **`src/components/dashboard/NotificationsTab.tsx`**: Query and display material unlock notifications
-- **`src/pages/Dashboard.tsx`**: Include material unlocks in badge count
+### Изменённый поток поиска токенов в unlock-materials
+```text
+simple_purchases (product_id, status=completed)
+  -> simple_user_id
+  -> push_tokens WHERE user_id = simple_user_id
+  -> fcm_token -> send notification
+```
+
+Больше не зависит от поля `phone` вообще.
+
+### Файлы для изменения
+- **Новая миграция SQL**: добавить `user_id` в `push_tokens`, индекс, обновить существующие записи, присвоить phone пустому студенту
+- **`supabase/functions/manage-push-token/index.ts`**: сохранять `userId` в `push_tokens`
+- **`supabase/functions/unlock-materials/index.ts`**: искать токены по `user_id` через JOIN
+- **`supabase/functions/send-push-notification/index.ts`**: поддержать поиск по `userId`
+- **`src/lib/firebase.ts`**: передавать `userId` при регистрации
+- **`src/hooks/useFCMRegistration.ts`**: принимать `userId`, не зависеть от `phone`
+- **`src/pages/Dashboard.tsx`**: передавать `user.id` в `useFCMRegistration`
+- **`vite.config.ts`**: добавить `skipWaiting` и `clientsClaim`
+- **`src/main.tsx`**: добавить обработку ошибок загрузки для PWA
 
