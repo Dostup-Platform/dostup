@@ -257,7 +257,9 @@ const MaterialsTab = () => {
       }
     } catch (err) {
       console.error('Error getting file URL:', err);
-      toast.error(language === "ru" ? 'Ошибка при открытии файла' : 'Файлды ашу кезінде қате');
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error('Detail:', errMsg);
+      toast.error(language === "ru" ? `Ошибка при открытии файла: ${errMsg}` : `Файлды ашу кезінде қате: ${errMsg}`);
     }
   }, [language, user?.id]);
 
