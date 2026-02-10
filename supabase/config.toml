@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.s3-download]
 verify_jwt = false
+
+[functions.unlock-materials]
+verify_jwt = false

@@ -1,0 +1,1 @@
+ALTER TABLE public.materials ADD COLUMN available_at timestamp with time zone DEFAULT NULL;

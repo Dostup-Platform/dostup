@@ -16,6 +16,7 @@ interface Material {
   parent_id?: string | null;
   allow_view?: boolean;
   allow_download?: boolean;
+  available_at?: string | null;
 }
 
 export const useMaterials = (productId: string | undefined, options?: { creatorOnly?: boolean }) => {
@@ -98,6 +99,7 @@ interface CreateMaterialInput {
   parent_id?: string | null;
   allow_view?: boolean;
   allow_download?: boolean;
+  available_at?: string | null;
 }
 
 export const useCreateMaterial = () => {
@@ -117,6 +119,7 @@ export const useCreateMaterial = () => {
           parent_id: material.parent_id || null,
           allow_view: material.allow_view !== false,
           allow_download: material.allow_download !== false,
+          available_at: material.available_at || null,
         })
         .select()
         .single();

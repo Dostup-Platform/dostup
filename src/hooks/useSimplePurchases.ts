@@ -116,7 +116,8 @@ export const useSimpleMaterials = () => {
           product_id,
           allow_view,
           allow_download,
-          teacher_id
+          teacher_id,
+          available_at
         `)
         .in("product_id", productIds)
         .is("teacher_id", null)
@@ -151,7 +152,8 @@ export const useSimpleMaterials = () => {
             product_id,
             allow_view,
             allow_download,
-            teacher_id
+            teacher_id,
+            available_at
           `)
           .in("product_id", canChooseTeacherProducts)
           .not("teacher_id", "is", null)
@@ -178,7 +180,8 @@ export const useSimpleMaterials = () => {
             product_id,
             allow_view,
             allow_download,
-            teacher_id
+            teacher_id,
+            available_at
           `)
           .eq("product_id", assignment.product_id)
           .eq("teacher_id", assignment.teacher_id)

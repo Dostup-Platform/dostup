@@ -4,7 +4,7 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSimpleMaterials } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder, User } from "lucide-react";
+import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder, User, Lock, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -292,6 +292,17 @@ const MaterialsTab = () => {
     const isVideo = material.type === "video" && material.file_url;
     const isExpanded = expandedVideos.has(material.id);
     const canPlay = isVideo && canPlayInline(material.file_url!);
+    const isLocked = material.available_at && new Date(material.available_at) > new Date();
+
+    // Format available_at date for display
+    const formatAvailableDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${day}.${month} в ${hours}:${minutes}`;
+    };
 
     return (
       <Card 
@@ -321,7 +332,7 @@ const MaterialsTab = () => {
               )}
             </div>
             
-            {material.type === "file" && material.file_url && (
+            {material.type === "file" && material.file_url && !isLocked && (
              <div className="flex gap-1 flex-shrink-0">
                {material.allow_download !== false && (
                  <Button 
@@ -343,10 +354,10 @@ const MaterialsTab = () => {
                    <ExternalLink className="w-5 h-5" />
                  </Button>
                )}
-             </div>
+              </div>
             )}
             
-            {isVideo && canPlay && (
+            {isVideo && canPlay && !isLocked && (
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -357,7 +368,7 @@ const MaterialsTab = () => {
               </Button>
             )}
 
-            {isVideo && !canPlay && (
+            {isVideo && !canPlay && !isLocked && (
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -368,7 +379,7 @@ const MaterialsTab = () => {
               </Button>
             )}
             
-            {material.type === "link" && material.file_url && (
+            {material.type === "link" && material.file_url && !isLocked && (
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -377,6 +388,15 @@ const MaterialsTab = () => {
               >
                 <ExternalLink className="w-5 h-5" />
               </Button>
+            )}
+
+            {isLocked && (
+              <div className="flex items-center gap-1.5 text-muted-foreground flex-shrink-0">
+                <Lock className="w-4 h-4" />
+                <span className="text-xs whitespace-nowrap">
+                  {formatAvailableDate(material.available_at!)}
+                </span>
+              </div>
             )}
           </div>
         </CardContent>
