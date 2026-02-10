@@ -16,7 +16,8 @@ async function validateIdentity(
   userPhone: string,
   userRole: string,
   creatorToken?: string,
-  creatorName?: string
+  creatorName?: string,
+  userId?: string
 ): Promise<boolean> {
   if (userRole === 'creator') {
     if (!creatorToken || !creatorName) {
@@ -38,18 +39,27 @@ async function validateIdentity(
     return true;
   }
 
-  // For students/teachers: verify user exists in simple_users
-  const { data: user } = await supabase
-    .from('simple_users')
-    .select('id')
-    .eq('phone', userPhone)
-    .maybeSingle();
-  
-  if (!user) {
-    console.log('User not found in simple_users:', userPhone);
-    return false;
+  // For students/teachers: verify user exists in simple_users (by id or phone)
+  if (userId) {
+    const { data: user } = await supabase
+      .from('simple_users')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+    if (user) return true;
   }
-  return true;
+
+  if (userPhone) {
+    const { data: user } = await supabase
+      .from('simple_users')
+      .select('id')
+      .eq('phone', userPhone)
+      .maybeSingle();
+    if (user) return true;
+  }
+
+  console.log('User not found in simple_users:', userId || userPhone);
+  return false;
 }
 
 serve(async (req) => {
@@ -77,7 +87,8 @@ serve(async (req) => {
       userPhone,
       userRole || 'student',
       creatorToken,
-      creatorName
+      creatorName,
+      userId
     );
 
     if (!isValid) {

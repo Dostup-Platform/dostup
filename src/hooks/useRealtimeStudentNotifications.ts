@@ -97,7 +97,7 @@ export const useRealtimeStudentNotifications = (
   }, [enabled, purchasedProductIds, showUnlockToast]);
 
   useEffect(() => {
-    if (!enabled || !userPhone) return;
+    if (!enabled || (!userPhone && !userId)) return;
 
     const channel = supabase
       .channel("student-all-notifications")
