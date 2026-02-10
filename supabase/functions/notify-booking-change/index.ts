@@ -8,7 +8,7 @@ const corsHeaders = {
 
 // Deduplication: track processed booking IDs to prevent duplicate notifications
 const processedBookings = new Map<string, number>();
-const DEDUP_WINDOW_MS = 60000; // 60 seconds
+const DEDUP_WINDOW_MS = 60000;
 
 function isAlreadyProcessed(bookingId: string, eventType: string): boolean {
   const key = `${eventType}:${bookingId}`;
@@ -22,7 +22,6 @@ function isAlreadyProcessed(bookingId: string, eventType: string): boolean {
   
   processedBookings.set(key, now);
   
-  // Cleanup old entries
   for (const [k, time] of processedBookings.entries()) {
     if (now - time > DEDUP_WINDOW_MS) {
       processedBookings.delete(k);
@@ -32,12 +31,8 @@ function isAlreadyProcessed(bookingId: string, eventType: string): boolean {
   return false;
 }
 
-// Cache for access token
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
-/**
- * Get Google OAuth2 access token for FCM v1 API
- */
 async function getAccessToken(): Promise<string> {
   if (cachedAccessToken && Date.now() < cachedAccessToken.expiresAt - 60000) {
     return cachedAccessToken.token;
@@ -51,7 +46,6 @@ async function getAccessToken(): Promise<string> {
   }
 
   const parsedPrivateKey = privateKey.replace(/\\n/g, "\n");
-
   const header = { alg: "RS256", typ: "JWT" };
   const now = Math.floor(Date.now() / 1000);
   const claim = {
@@ -127,11 +121,12 @@ async function getAccessToken(): Promise<string> {
 }
 
 /**
- * Send FCM notification to a user by phone
+ * Send FCM notification to a user by user_id and role.
+ * For creators (no user_id), pass userId=null to match by role only.
  */
 async function sendFCMToUser(
   supabase: any,
-  userPhone: string,
+  userId: string | null,
   userRole: string,
   title: string,
   body: string,
@@ -143,15 +138,19 @@ async function sendFCMToUser(
     return 0;
   }
 
-  // Get tokens for this user and role
-  const { data: tokens, error } = await supabase
+  let query = supabase
     .from("push_tokens")
     .select("id, fcm_token")
-    .eq("user_phone", userPhone)
     .eq("user_role", userRole);
 
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+
+  const { data: tokens, error } = await query;
+
   if (error || !tokens || tokens.length === 0) {
-    console.log(`No tokens for ${userPhone} (${userRole})`);
+    console.log(`No tokens for userId=${userId} (${userRole})`);
     return 0;
   }
 
@@ -191,12 +190,11 @@ async function sendFCMToUser(
 
       if (response.ok) {
         successCount++;
-        console.log(`FCM sent to ${userPhone} (${userRole})`);
+        console.log(`FCM sent to userId=${userId} (${userRole})`);
       } else {
         const errorData = await response.json();
         console.error("FCM error:", errorData);
         
-        // Remove invalid tokens
         if (
           errorData.error?.code === 404 ||
           errorData.error?.details?.some((d: any) => 
@@ -208,7 +206,7 @@ async function sendFCMToUser(
         }
       }
     } catch (err) {
-      console.error(`FCM exception for ${userPhone}:`, err);
+      console.error(`FCM exception for userId=${userId}:`, err);
     }
   }
 
@@ -232,7 +230,6 @@ serve(async (req) => {
     if (type === "INSERT" && record) {
       const bookingId = record.id;
       
-      // Deduplication check
       if (isAlreadyProcessed(bookingId, "INSERT")) {
         return new Response(
           JSON.stringify({ success: true, message: "Already processed (dedup)" }),
@@ -240,7 +237,6 @@ serve(async (req) => {
         );
       }
 
-      // Fetch full booking details
       const { data: booking, error: bookingError } = await supabase
         .from("simple_bookings")
         .select(`
@@ -268,7 +264,6 @@ serve(async (req) => {
       const date = booking.time_slot?.date || "";
       const time = booking.time_slot?.start_time || "";
 
-      // Bilingual notifications (Russian)
       const title = "Новая запись!";
       const description = `${studentName} записался на "${productTitle}" на ${date} в ${time}`;
 
@@ -279,47 +274,29 @@ serve(async (req) => {
 
       let totalSent = 0;
 
-      // 1. Notify teacher if assigned
+      // 1. Notify teacher if assigned — by user_id
       if (booking.schedule?.teacher_id) {
-        const { data: teacher } = await supabase
-          .from("simple_users")
-          .select("phone")
-          .eq("id", booking.schedule.teacher_id)
-          .single();
-
-        if (teacher?.phone) {
-          const sent = await sendFCMToUser(
-            supabase,
-            teacher.phone,
-            "teacher",
-            title,
-            description,
-            notificationData
-          );
-          totalSent += sent;
-        }
-      }
-
-      // 2. Notify creator
-      // Creator phone is stored as "creator_{timestamp}" pattern
-      // We need to find their push token
-      const { data: creatorTokens } = await supabase
-        .from("push_tokens")
-        .select("user_phone")
-        .eq("user_role", "creator")
-        .limit(1);
-
-      if (creatorTokens && creatorTokens.length > 0) {
         const sent = await sendFCMToUser(
           supabase,
-          creatorTokens[0].user_phone,
-          "creator",
+          booking.schedule.teacher_id,
+          "teacher",
           title,
           description,
           notificationData
         );
         totalSent += sent;
       }
+
+      // 2. Notify creator — no user_id, match by role only
+      const sent = await sendFCMToUser(
+        supabase,
+        null,
+        "creator",
+        title,
+        description,
+        notificationData
+      );
+      totalSent += sent;
 
       console.log(`Booking INSERT: sent ${totalSent} notifications`);
 
@@ -332,7 +309,6 @@ serve(async (req) => {
     if (type === "DELETE" && old_record) {
       const bookingId = old_record.id;
       
-      // Deduplication check
       if (isAlreadyProcessed(bookingId, "DELETE")) {
         return new Response(
           JSON.stringify({ success: true, message: "Already processed (dedup)" }),
@@ -340,7 +316,6 @@ serve(async (req) => {
         );
       }
 
-      // Try to get cancellation details
       const { data: cancellation } = await supabase
         .from("booking_cancellations")
         .select("*")
@@ -358,7 +333,6 @@ serve(async (req) => {
       const title = "Запись отменена";
       let description = `${cancellation.user_name} отменил запись на "${cancellation.product_title}" на ${cancellation.slot_date} в ${cancellation.slot_time}`;
 
-      // Add reasons if available
       if (cancellation.cancellation_comment) {
         description += `\n"${cancellation.cancellation_comment}"`;
       } else if (cancellation.cancellation_reasons?.length > 0) {
@@ -374,7 +348,7 @@ serve(async (req) => {
 
       let totalSent = 0;
 
-      // 1. Notify teacher if schedule has one
+      // 1. Notify teacher if schedule has one — by user_id
       if (cancellation.schedule_id) {
         const { data: schedule } = await supabase
           .from("schedules")
@@ -383,44 +357,28 @@ serve(async (req) => {
           .single();
 
         if (schedule?.teacher_id) {
-          const { data: teacher } = await supabase
-            .from("simple_users")
-            .select("phone")
-            .eq("id", schedule.teacher_id)
-            .single();
-
-          if (teacher?.phone) {
-            const sent = await sendFCMToUser(
-              supabase,
-              teacher.phone,
-              "teacher",
-              title,
-              description,
-              notificationData
-            );
-            totalSent += sent;
-          }
+          const sent = await sendFCMToUser(
+            supabase,
+            schedule.teacher_id,
+            "teacher",
+            title,
+            description,
+            notificationData
+          );
+          totalSent += sent;
         }
       }
 
-      // 2. Notify creator
-      const { data: creatorTokens } = await supabase
-        .from("push_tokens")
-        .select("user_phone")
-        .eq("user_role", "creator")
-        .limit(1);
-
-      if (creatorTokens && creatorTokens.length > 0) {
-        const sent = await sendFCMToUser(
-          supabase,
-          creatorTokens[0].user_phone,
-          "creator",
-          title,
-          description,
-          notificationData
-        );
-        totalSent += sent;
-      }
+      // 2. Notify creator — by role only
+      const sent = await sendFCMToUser(
+        supabase,
+        null,
+        "creator",
+        title,
+        description,
+        notificationData
+      );
+      totalSent += sent;
 
       console.log(`Booking DELETE: sent ${totalSent} notifications`);
 

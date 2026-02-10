@@ -21,6 +21,8 @@ export const useRealtimeStudentNotifications = (
   const badgeCountRef = useRef<number>(currentBadgeCount);
   const purchasedProductIdsRef = useRef<string[]>(purchasedProductIds);
   const activeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Dedup: track material IDs for which we already showed a toast
+  const shownUnlockMaterialIdsRef = useRef<Set<string>>(new Set());
   
   useEffect(() => {
     badgeCountRef.current = currentBadgeCount;
@@ -30,8 +32,12 @@ export const useRealtimeStudentNotifications = (
     purchasedProductIdsRef.current = purchasedProductIds;
   }, [purchasedProductIds]);
 
-  // Show unlock toast helper
-  const showUnlockToast = useCallback((materialTitle: string, productTitle: string) => {
+  // Show unlock toast helper — with dedup by materialId
+  const showUnlockToast = useCallback((materialId: string, materialTitle: string, productTitle: string) => {
+    // Dedup: don't show same material toast twice
+    if (shownUnlockMaterialIdsRef.current.has(materialId)) return;
+    shownUnlockMaterialIdsRef.current.add(materialId);
+
     playPaymentSound();
     const title = language === "ru" ? "Материал доступен! 📚" : "Материал қолжетімді! 📚";
     const description = language === "ru"
@@ -54,7 +60,6 @@ export const useRealtimeStudentNotifications = (
       activeTimersRef.current.forEach(timer => clearTimeout(timer));
       activeTimersRef.current.clear();
 
-      // Find materials with available_at in the next 60 minutes
       const now = new Date();
       const sixtyMinutesFromNow = new Date(now.getTime() + 60 * 60 * 1000);
 
@@ -76,7 +81,7 @@ export const useRealtimeStudentNotifications = (
 
         const timer = setTimeout(() => {
           const productTitle = (material as any).product?.title || "курс";
-          showUnlockToast(material.title, productTitle);
+          showUnlockToast(material.id, material.title, productTitle);
           activeTimersRef.current.delete(material.id);
         }, delay);
 
@@ -86,7 +91,6 @@ export const useRealtimeStudentNotifications = (
 
     setupTimers();
 
-    // Re-check every 10 minutes for new scheduled materials
     const interval = setInterval(setupTimers, 10 * 60 * 1000);
 
     return () => {
@@ -97,7 +101,7 @@ export const useRealtimeStudentNotifications = (
   }, [enabled, purchasedProductIds, showUnlockToast]);
 
   useEffect(() => {
-    if (!enabled || (!userPhone && !userId)) return;
+    if (!enabled || !userId) return;
 
     const channel = supabase
       .channel("student-all-notifications")
@@ -112,7 +116,9 @@ export const useRealtimeStudentNotifications = (
           const cancellation = payload.new as any;
           
           if (cancellation.cancelled_by !== "creator" && cancellation.cancelled_by !== "teacher") return;
-          if (cancellation.user_phone !== userPhone) return;
+          // Match by phone if available, otherwise skip cancellation toast
+          if (userPhone && cancellation.user_phone !== userPhone) return;
+          if (!userPhone) return;
 
           playCancellationSound();
 
@@ -163,7 +169,7 @@ export const useRealtimeStudentNotifications = (
           const oldPurchase = payload.old as any;
           
           if (oldPurchase.status === "pending" && (purchase.status === "confirmed" || purchase.status === "completed")) {
-            if (!userId || purchase.simple_user_id !== userId) return;
+            if (purchase.simple_user_id !== userId) return;
 
             playPaymentSound();
 
@@ -198,12 +204,10 @@ export const useRealtimeStudentNotifications = (
         async (payload) => {
           const unlock = payload.new as any;
           
-          // Check if this student purchased the product
           if (!purchasedProductIdsRef.current.includes(unlock.product_id)) return;
 
-          // Check if we already showed a toast via client-side timer (dedup)
-          // The timer already cleared itself, so just show toast from realtime too
-          showUnlockToast(unlock.material_title, unlock.product_title);
+          // Dedup: showUnlockToast checks shownUnlockMaterialIdsRef internally
+          showUnlockToast(unlock.material_id || unlock.id, unlock.material_title, unlock.product_title);
         }
       )
       .subscribe();

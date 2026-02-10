@@ -13,11 +13,12 @@ let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 const sentNotifications = new Map<string, number>();
 const DEDUP_WINDOW_MS = 60000;
 
-function getNotificationKey(userPhone: string, title: string, data?: Record<string, string>): string {
+function getNotificationKey(identifier: string, title: string, data?: Record<string, string>): string {
   const bookingId = data?.bookingId || "";
   const purchaseId = data?.purchaseId || "";
+  const productId = data?.productId || "";
   const type = data?.type || "";
-  return `${userPhone}:${type}:${bookingId}:${purchaseId}`;
+  return `${identifier}:${type}:${bookingId}:${purchaseId}:${productId}`;
 }
 
 function isDuplicate(key: string): boolean {
