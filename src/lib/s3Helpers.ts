@@ -14,10 +14,10 @@ export async function getS3DownloadUrl(
   path: string,
   role: 'student' | 'teacher' | 'creator',
   userId?: string,
-  downloadFilename?: string
+  download?: string | false
 ): Promise<string> {
   const { data, error } = await supabase.functions.invoke('s3-download', {
-    body: { path, role, userId, download: downloadFilename || false },
+    body: { path, role, userId, download: download || false },
   });
 
   if (error) throw error;
