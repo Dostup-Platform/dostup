@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
         .select('id')
         .eq('simple_user_id', userId)
         .eq('product_id', productId)
-        .eq('status', 'confirmed')
+        .eq('status', 'completed')
         .maybeSingle();
 
       if (!purchase) {
