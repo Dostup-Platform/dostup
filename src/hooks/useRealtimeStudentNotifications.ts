@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -20,6 +20,7 @@ export const useRealtimeStudentNotifications = (
   const { language } = useLanguage();
   const badgeCountRef = useRef<number>(currentBadgeCount);
   const purchasedProductIdsRef = useRef<string[]>(purchasedProductIds);
+  const activeTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   
   useEffect(() => {
     badgeCountRef.current = currentBadgeCount;
@@ -28,6 +29,72 @@ export const useRealtimeStudentNotifications = (
   useEffect(() => {
     purchasedProductIdsRef.current = purchasedProductIds;
   }, [purchasedProductIds]);
+
+  // Show unlock toast helper
+  const showUnlockToast = useCallback((materialTitle: string, productTitle: string) => {
+    playPaymentSound();
+    const title = language === "ru" ? "Материал доступен! 📚" : "Материал қолжетімді! 📚";
+    const description = language === "ru"
+      ? `Материал "${materialTitle}" теперь доступен в курсе "${productTitle}"`
+      : `"${materialTitle}" материалы "${productTitle}" курсында қолжетімді`;
+    toast.success(title, { description, duration: 10000 });
+    const newBadgeCount = badgeCountRef.current + 1;
+    setAppBadge(newBadgeCount);
+    queryClient.invalidateQueries({ queryKey: ["student-material-unlocks"] });
+    queryClient.invalidateQueries({ queryKey: ["student-material-unlocks-count"] });
+    queryClient.invalidateQueries({ queryKey: ["materials"] });
+  }, [language, queryClient]);
+
+  // Client-side timers for upcoming material unlocks — gives instant notifications
+  useEffect(() => {
+    if (!enabled || purchasedProductIds.length === 0) return;
+
+    const setupTimers = async () => {
+      // Clear existing timers
+      activeTimersRef.current.forEach(timer => clearTimeout(timer));
+      activeTimersRef.current.clear();
+
+      // Find materials with available_at in the next 60 minutes
+      const now = new Date();
+      const sixtyMinutesFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+
+      const { data: upcomingMaterials } = await supabase
+        .from("materials")
+        .select("id, title, product_id, available_at, product:products(title)")
+        .in("product_id", purchasedProductIds)
+        .not("available_at", "is", null)
+        .gt("available_at", now.toISOString())
+        .lte("available_at", sixtyMinutesFromNow.toISOString());
+
+      if (!upcomingMaterials || upcomingMaterials.length === 0) return;
+
+      for (const material of upcomingMaterials) {
+        const availableAt = new Date(material.available_at!);
+        const delay = availableAt.getTime() - Date.now();
+        
+        if (delay <= 0) continue;
+
+        const timer = setTimeout(() => {
+          const productTitle = (material as any).product?.title || "курс";
+          showUnlockToast(material.title, productTitle);
+          activeTimersRef.current.delete(material.id);
+        }, delay);
+
+        activeTimersRef.current.set(material.id, timer);
+      }
+    };
+
+    setupTimers();
+
+    // Re-check every 10 minutes for new scheduled materials
+    const interval = setInterval(setupTimers, 10 * 60 * 1000);
+
+    return () => {
+      clearInterval(interval);
+      activeTimersRef.current.forEach(timer => clearTimeout(timer));
+      activeTimersRef.current.clear();
+    };
+  }, [enabled, purchasedProductIds, showUnlockToast]);
 
   useEffect(() => {
     if (!enabled || !userPhone) return;
@@ -134,21 +201,9 @@ export const useRealtimeStudentNotifications = (
           // Check if this student purchased the product
           if (!purchasedProductIdsRef.current.includes(unlock.product_id)) return;
 
-          playPaymentSound();
-
-          const title = language === "ru" ? "Материал доступен! 📚" : "Материал қолжетімді! 📚";
-          const description = language === "ru"
-            ? `Материал "${unlock.material_title}" теперь доступен в курсе "${unlock.product_title}"`
-            : `"${unlock.material_title}" материалы "${unlock.product_title}" курсында қолжетімді`;
-
-          toast.success(title, { description, duration: 10000 });
-
-          const newBadgeCount = badgeCountRef.current + 1;
-          setAppBadge(newBadgeCount);
-
-          queryClient.invalidateQueries({ queryKey: ["student-material-unlocks"] });
-          queryClient.invalidateQueries({ queryKey: ["student-material-unlocks-count"] });
-          queryClient.invalidateQueries({ queryKey: ["materials"] });
+          // Check if we already showed a toast via client-side timer (dedup)
+          // The timer already cleared itself, so just show toast from realtime too
+          showUnlockToast(unlock.material_title, unlock.product_title);
         }
       )
       .subscribe();
@@ -156,5 +211,5 @@ export const useRealtimeStudentNotifications = (
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [enabled, userId, userPhone, queryClient, language]);
+  }, [enabled, userId, userPhone, queryClient, language, showUnlockToast]);
 };

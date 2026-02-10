@@ -73,16 +73,15 @@ serve(async (req) => {
 
     if (insertError) {
       console.error("Error inserting material_unlocks:", insertError);
-      // Don't throw - materials are already unlocked, this is for notifications only
     } else {
       console.log(`Inserted ${unlockRecords.length} material_unlock records`);
     }
 
-    // Send push notifications to students who purchased these products
+    // Send push notifications - find tokens directly via simple_users join
     for (const productId of productIds) {
       const materialsForProduct = materialsToUnlock.filter(m => m.product_id === productId);
 
-      // Get all students who purchased this product
+      // Get all students who purchased this product and have push tokens
       const { data: purchases } = await supabase
         .from("simple_purchases")
         .select("simple_user_id")
@@ -93,7 +92,7 @@ serve(async (req) => {
 
       const userIds = [...new Set(purchases.map(p => p.simple_user_id))];
 
-      // Get phones from simple_users
+      // Get phones (identifiers) from simple_users - these match push_tokens.user_phone
       const { data: users } = await supabase
         .from("simple_users")
         .select("id, phone")
@@ -101,11 +100,17 @@ serve(async (req) => {
 
       if (!users || users.length === 0) continue;
 
-      // Collect all phones that have push tokens
-      const allPhones = users.map(u => u.phone).filter(p => p && p.trim() !== "");
+      const userPhones = users.map(u => u.phone).filter(p => p && p.trim() !== "");
 
-      if (allPhones.length === 0) {
-        console.log(`No phones found for product ${productId}, skipping push notifications`);
+      // Also directly query push_tokens for these user phones to ensure we find tokens
+      const { data: tokens } = await supabase
+        .from("push_tokens")
+        .select("user_phone, fcm_token")
+        .eq("user_role", "student")
+        .in("user_phone", userPhones.length > 0 ? userPhones : ["__none__"]);
+
+      if (!tokens || tokens.length === 0) {
+        console.log(`No push tokens found for product ${productId}, skipping push notifications`);
         continue;
       }
 
@@ -114,7 +119,9 @@ serve(async (req) => {
         ? `Материал "${materialsForProduct[0].title}" теперь доступен в "${productTitleMap[productId] || "продукте"}"`
         : `${materialsForProduct.length} новых материала доступны в "${productTitleMap[productId] || "продукте"}"`;
 
-      for (const phone of allPhones) {
+      // Send directly to each token's phone identifier
+      const uniquePhones = [...new Set(tokens.map(t => t.user_phone))];
+      for (const phone of uniquePhones) {
         try {
           const resp = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
             method: "POST",
