@@ -74,7 +74,8 @@ serve(async (req) => {
 
       const userIds = [...new Set(purchases.map(p => p.simple_user_id))];
       
-      // Get phone numbers for these users
+      // Get all push tokens for students who purchased this product
+      // Look up tokens directly by user_phone matching simple_users phone or by finding tokens for these users
       const { data: users } = await supabase
         .from("simple_users")
         .select("id, phone")
@@ -82,23 +83,32 @@ serve(async (req) => {
 
       if (!users || users.length === 0) continue;
 
+      // Collect all non-empty phones
+      const phones = users.map(u => u.phone).filter(p => p && p.trim() !== "");
+      
+      console.log(`Product ${productId}: ${users.length} users, ${phones.length} with phones`);
+
+      if (phones.length === 0) {
+        console.log(`No users with phone numbers for product ${productId}, skipping notifications`);
+        continue;
+      }
+
       // Send push notification to each student
-      const materialTitles = materialsForProduct.map(m => m.title).join(", ");
       const title = "Новый материал доступен! 📚";
       const body = materialsForProduct.length === 1
         ? `Материал "${materialsForProduct[0].title}" теперь доступен в "${product?.title || "продукте"}"`
         : `${materialsForProduct.length} новых материала доступны в "${product?.title || "продукте"}"`;
 
-      for (const user of users) {
+      for (const phone of phones) {
         try {
-          await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+          const resp = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${serviceRoleKey}`,
             },
             body: JSON.stringify({
-              userPhone: user.phone,
+              userPhone: phone,
               title,
               body,
               targetRole: "student",
@@ -108,8 +118,10 @@ serve(async (req) => {
               },
             }),
           });
+          const result = await resp.json();
+          console.log(`Notification to ${phone}: status=${resp.status}`, result);
         } catch (err) {
-          console.error(`Failed to send notification to ${user.phone}:`, err);
+          console.error(`Failed to send notification to ${phone}:`, err);
         }
       }
     }

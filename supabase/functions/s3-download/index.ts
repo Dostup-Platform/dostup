@@ -87,7 +87,9 @@ Deno.serve(async (req) => {
 
     const queryParams: Record<string, string> = {};
     if (download) {
-      queryParams['response-content-disposition'] = `attachment; filename="${download}"`;
+      // Use RFC 5987 encoding for non-ASCII filenames
+      const encodedFilename = encodeURIComponent(download);
+      queryParams['response-content-disposition'] = `attachment; filename*=UTF-8''${encodedFilename}`;
     }
 
     const url = getSignedUrl({
