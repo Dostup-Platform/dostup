@@ -1,62 +1,97 @@
 
 
-# Запланированное открытие доступа к материалам
+# Plan: Notification for Material Unlock (Scheduled Access)
 
-## Что будет сделано
-Автор сможет при добавлении или редактировании материала указать дату и время, когда доступ к нему откроется для учеников. До этого момента ученики будут видеть материал в списке, но не смогут его открыть или скачать — вместо кнопок будет показано сообщение "Откроется [дата] в [время]". Когда наступит указанное время, Cron-задача автоматически откроет доступ и отправит push-уведомление ученикам.
+When a scheduled material becomes available, students should receive:
+1. An in-platform toast notification (if the app is open)
+2. A notification card in the "Notifications" tab
+3. A push notification (if permitted) -- already partially works
 
-## Как это будет работать
+## What's Missing
 
-1. Автор загружает файл и выбирает "Запланировать открытие" вместо "Сразу доступен"
-2. Указывает дату и время открытия
-3. Ученик видит файл в списке материалов, но кнопки "Скачать" и "Открыть" заблокированы, отображается текст "Откроется 10.02 в 00:00"
-4. По наступлении времени Cron-задача обновляет материал (убирает дату блокировки) и отправляет push-уведомление всем купившим этот продукт
-5. Ученик получает уведомление "Новый материал доступен" и может открыть/скачать файл
+- The `materials` table is not in the Supabase Realtime publication, so the frontend can't detect when `available_at` is set to `null` (unlocked).
+- The realtime hook (`useRealtimeStudentNotifications`) doesn't listen for material changes.
+- The Notifications tab doesn't display material unlock events.
+- The badge count doesn't include material unlocks.
 
-## Технический план
+## Changes
 
-### Шаг 1: Миграция БД — добавить колонку `available_at`
-Добавить в таблицу `materials` колонку `available_at` (timestamp with time zone, nullable, default null).
-- Если `null` — материал доступен сразу
-- Если значение в будущем — материал заблокирован до этого времени
+### 1. Database: Create a `material_unlocks` log table
 
-### Шаг 2: Новая Edge Function `unlock-materials`
-Cron-задача (каждые 5 минут), которая:
-1. Находит материалы, где `available_at <= now()` и `available_at IS NOT NULL`
-2. Обнуляет `available_at` (ставит null) — материал становится доступным
-3. Для каждого такого материала находит всех учеников с подтверждённой покупкой этого продукта
-4. Отправляет push-уведомление каждому ученику через `send-push-notification`
+Instead of trying to detect `UPDATE` on `materials` (which doesn't tell us who should be notified), create a lightweight log table that the `unlock-materials` edge function writes to after unlocking:
 
-### Шаг 3: Cron-задача в БД
-Настроить `pg_cron` для вызова `unlock-materials` каждые 5 минут.
+```sql
+CREATE TABLE public.material_unlocks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_id UUID REFERENCES materials(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  material_title TEXT NOT NULL,
+  product_title TEXT NOT NULL,
+  unlocked_at TIMESTAMPTZ DEFAULT now()
+);
 
-### Шаг 4: Обновить `ProductMaterialsManager.tsx` (интерфейс автора)
-- В форму добавления файла добавить переключатель: "Сразу доступен" / "Запланировать открытие"
-- При выборе "Запланировать" — показать выбор даты и времени
-- В форму редактирования — тоже добавить возможность установить/убрать запланированную дату
-- В списке материалов показывать иконку часов и дату открытия для запланированных материалов
+ALTER TABLE material_unlocks ENABLE ROW LEVEL SECURITY;
 
-### Шаг 5: Обновить `MaterialsTab.tsx` (интерфейс ученика)
-- Для материалов с `available_at` в будущем — скрыть кнопки "Скачать" и "Открыть"
-- Вместо них показать текст: "Откроется [дата] в [время]" с иконкой замка
-- Материал остаётся видимым в списке, но недоступным
+CREATE POLICY "Students can read material unlocks for their purchased products"
+  ON material_unlocks FOR SELECT
+  USING (
+    product_id IN (
+      SELECT product_id FROM simple_purchases
+      WHERE simple_user_id = (
+        SELECT id FROM simple_users WHERE phone = current_setting('request.headers', true)::json->>'x-user-phone'
+      )
+      AND status IN ('confirmed', 'completed')
+    )
+  );
 
-### Шаг 6: Обновить `useSimplePurchases.ts` (хук получения материалов ученика)
-- Добавить `available_at` в SELECT запрос материалов, чтобы клиент знал время открытия
+-- Enable realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE public.material_unlocks;
+```
 
-### Шаг 7: Обновить `useMaterials.ts` (хук автора)
-- Добавить `available_at` в тип Material и в мутации создания/обновления
+Since students don't use Supabase auth, RLS won't work well for filtering. Instead, the table will be public-read (anon SELECT) and we filter on the frontend by checking if the student has purchased the product.
 
-### Шаг 8: Обновить `supabase/config.toml`
-- Добавить `[functions.unlock-materials]` с `verify_jwt = false`
+### 2. Edge Function: `unlock-materials` -- write to log table
 
-## Изменяемые/создаваемые файлы
-1. **Миграция БД** — добавление колонки `available_at` в `materials`
-2. `supabase/functions/unlock-materials/index.ts` — новый (Cron-задача)
-3. `supabase/config.toml` — добавить unlock-materials
-4. `src/components/creator/ProductMaterialsManager.tsx` — форма с выбором даты/времени
-5. `src/components/dashboard/MaterialsTab.tsx` — блокировка доступа + отображение даты
-6. `src/hooks/useMaterials.ts` — добавить `available_at` в типы и мутации
-7. `src/hooks/useSimplePurchases.ts` — добавить `available_at` в запрос материалов
-8. **SQL для Cron** — настройка pg_cron для вызова unlock-materials каждые 5 минут
+After unlocking materials, insert records into `material_unlocks` so students get real-time events. Also simplify the push notification phone lookup -- just query `push_tokens` directly for students who purchased the product.
+
+### 3. Frontend: `useRealtimeStudentNotifications` -- listen for material unlocks
+
+Add a listener on `material_unlocks` (INSERT events). When a new record appears:
+- Check if the student purchased that product
+- Show a toast: "Material '[title]' is now available in '[product]'"
+- Play a sound
+- Increment badge count
+- Invalidate materials queries
+
+### 4. Frontend: `NotificationsTab` -- show material unlock cards
+
+Add a query for `material_unlocks` filtered by the student's purchased product IDs. Display cards with an "Unlock" icon showing material title, product title, and timestamp.
+
+### 5. Frontend: `Dashboard` -- include unlocks in badge count
+
+Query `material_unlocks` for the student's products and count new ones since `lastViewedAt`.
+
+## Technical Details
+
+### material_unlocks table (simple, no RLS complexity)
+- RLS enabled with a permissive SELECT policy for `anon` role (since simple_users don't use Supabase auth)
+- INSERT restricted to service_role only (edge function uses service role key)
+- Frontend filters by matching product_id against student's purchased products
+
+### Realtime flow
+```text
+Cron -> unlock-materials edge function
+  -> UPDATE materials SET available_at = null
+  -> INSERT INTO material_unlocks (material_id, product_id, ...)
+  -> Supabase Realtime broadcasts INSERT event
+  -> Student's browser receives event via useRealtimeStudentNotifications
+  -> Toast shown + badge incremented + queries invalidated
+```
+
+### Files to modify
+- **New migration**: Create `material_unlocks` table with RLS and realtime
+- **`supabase/functions/unlock-materials/index.ts`**: Insert into `material_unlocks` after unlocking; simplify push notification logic
+- **`src/hooks/useRealtimeStudentNotifications.ts`**: Add listener for `material_unlocks` INSERT events
+- **`src/components/dashboard/NotificationsTab.tsx`**: Query and display material unlock notifications
+- **`src/pages/Dashboard.tsx`**: Include material unlocks in badge count
 
