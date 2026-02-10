@@ -26,7 +26,7 @@ const isOfficeDocument = (fileName: string): boolean => {
  } from "@/components/ui/alert-dialog";
  import { useProductMaterials, useCreateMaterial, useUpdateMaterial, useDeleteMaterial, uploadMaterialFile } from "@/hooks/useMaterials";
  import { useLanguage } from "@/contexts/LanguageContext";
- import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X } from "lucide-react";
+ import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X, Clock } from "lucide-react";
 import { ExternalLink } from "lucide-react";
  import { toast } from "sonner";
  import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -53,9 +53,10 @@ import { Eye } from "lucide-react";
    file_url: string | null;
    order_index: number;
    created_at: string;
-   parent_id?: string | null;
-  allow_view?: boolean;
-  allow_download?: boolean;
+    parent_id?: string | null;
+   allow_view?: boolean;
+   allow_download?: boolean;
+   available_at?: string | null;
  }
  
 interface FilePermission {
@@ -70,14 +71,16 @@ interface FileEntry {
 }
 
 interface FormData {
-  title: string;
-  itemType: ItemType;
-  files: File[];
-  filePermissions: FilePermission[];
-  fileEntries: FileEntry[];
-  allow_view: boolean;
-  allow_download: boolean;
-}
+   title: string;
+   itemType: ItemType;
+   files: File[];
+   filePermissions: FilePermission[];
+   fileEntries: FileEntry[];
+   allow_view: boolean;
+   allow_download: boolean;
+   scheduleAccess: boolean;
+   availableAt: string;
+ }
  
  const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: ProductMaterialsManagerProps) => {
    const { t } = useLanguage();
@@ -94,15 +97,17 @@ interface FormData {
    const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
    
-   const [formData, setFormData] = useState<FormData>({
-     title: "",
-     itemType: "file",
-     files: [],
-     filePermissions: [],
-     fileEntries: [],
-     allow_view: true,
-     allow_download: true,
-   });
+    const [formData, setFormData] = useState<FormData>({
+      title: "",
+      itemType: "file",
+      files: [],
+      filePermissions: [],
+      fileEntries: [],
+      allow_view: true,
+      allow_download: true,
+      scheduleAccess: false,
+      availableAt: "",
+    });
  
    // Filter materials for current folder level
    const materials = useMemo(() => {
@@ -133,10 +138,10 @@ interface FormData {
      return path;
    };
  
-   const resetForm = () => {
-     setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_view: true, allow_download: true });
-     if (fileInputRef.current) fileInputRef.current.value = "";
-   };
+    const resetForm = () => {
+      setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_view: true, allow_download: true, scheduleAccess: false, availableAt: "" });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    };
  
    const handleAdd = async (e: React.FormEvent) => {
      e.preventDefault();
@@ -188,21 +193,24 @@ interface FormData {
          toast.success(`Папка "${formData.title}" создана!`);
        } else {
          // Upload files
-         for (let i = 0; i < formData.fileEntries.length; i++) {
-           const entry = formData.fileEntries[i];
-           const fileUrl = await uploadMaterialFile(entry.file, productId);
-           await createMaterial.mutateAsync({
-             product_id: productId,
-             title: entry.customName || entry.file.name,
-             type: "file",
-             content: null,
-             file_url: fileUrl,
-             order_index: materials.length + i,
-             parent_id: currentFolderId,
-             allow_view: entry.permissions.allow_view,
-             allow_download: entry.permissions.allow_download,
-           });
-         }
+          for (let i = 0; i < formData.fileEntries.length; i++) {
+            const entry = formData.fileEntries[i];
+            const fileUrl = await uploadMaterialFile(entry.file, productId);
+            await createMaterial.mutateAsync({
+              product_id: productId,
+              title: entry.customName || entry.file.name,
+              type: "file",
+              content: null,
+              file_url: fileUrl,
+              order_index: materials.length + i,
+              parent_id: currentFolderId,
+              allow_view: entry.permissions.allow_view,
+              allow_download: entry.permissions.allow_download,
+              available_at: formData.scheduleAccess && formData.availableAt 
+                ? new Date(formData.availableAt).toISOString() 
+                : null,
+            });
+          }
          toast.success(formData.fileEntries.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");
        }
 
@@ -216,31 +224,36 @@ interface FormData {
      }
    };
  
-   const handleEdit = (material: Material) => {
-     setEditingId(material.id);
-     setFormData({
-       title: material.title,
-       itemType: material.type === "folder" ? "folder" : "file",
-       files: [],
-       filePermissions: [],
-       fileEntries: [],
-       allow_view: material.allow_view !== false,
-       allow_download: material.allow_download !== false,
-     });
-   };
+    const handleEdit = (material: Material) => {
+      setEditingId(material.id);
+      setFormData({
+        title: material.title,
+        itemType: material.type === "folder" ? "folder" : "file",
+        files: [],
+        filePermissions: [],
+        fileEntries: [],
+        allow_view: material.allow_view !== false,
+        allow_download: material.allow_download !== false,
+        scheduleAccess: !!material.available_at,
+        availableAt: material.available_at ? new Date(material.available_at).toISOString().slice(0, 16) : "",
+      });
+    };
  
    const handleUpdate = async (e: React.FormEvent) => {
      e.preventDefault();
      if (!editingId || !formData.title) return;
  
-     try {
-       await updateMaterial.mutateAsync({
-         id: editingId,
-         productId: productId,
-         title: formData.title,
-        allow_view: formData.allow_view,
-        allow_download: formData.allow_download,
-       });
+      try {
+        await updateMaterial.mutateAsync({
+          id: editingId,
+          productId: productId,
+          title: formData.title,
+          allow_view: formData.allow_view,
+          allow_download: formData.allow_download,
+          available_at: formData.scheduleAccess && formData.availableAt 
+            ? new Date(formData.availableAt).toISOString() 
+            : null,
+        });
  
       toast.success("Изменения сохранены!");
        setEditingId(null);
@@ -508,9 +521,30 @@ interface FormData {
              </p>
            </label>
          </div>
-       </div>
- 
-       <div className="flex gap-2 pt-2">
+        </div>
+
+        {/* Schedule access */}
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={formData.scheduleAccess}
+              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, scheduleAccess: !!checked }))}
+            />
+            <Clock className="w-4 h-4" />
+            Запланировать открытие доступа
+          </label>
+          {formData.scheduleAccess && (
+            <Input
+              type="datetime-local"
+              value={formData.availableAt}
+              onChange={(e) => setFormData(prev => ({ ...prev, availableAt: e.target.value }))}
+              min={new Date().toISOString().slice(0, 16)}
+              required={formData.scheduleAccess}
+            />
+          )}
+        </div>
+  
+        <div className="flex gap-2 pt-2">
          <Button
            type="button"
            variant="outline"
@@ -570,11 +604,34 @@ interface FormData {
               <Download className="w-4 h-4" />
               Скачивание файла
             </label>
-          </div>
-        </div>
-      )}
+           </div>
+         </div>
+       )}
 
-       <div className="flex gap-2 pt-2">
+       {/* Schedule access in edit form */}
+       {formData.itemType === "file" && (
+         <div className="space-y-3">
+           <label className="flex items-center gap-2 text-sm cursor-pointer">
+             <Checkbox
+               checked={formData.scheduleAccess}
+               onCheckedChange={(checked) => setFormData(prev => ({ ...prev, scheduleAccess: !!checked }))}
+             />
+             <Clock className="w-4 h-4" />
+             Запланировать открытие доступа
+           </label>
+           {formData.scheduleAccess && (
+             <Input
+               type="datetime-local"
+               value={formData.availableAt}
+               onChange={(e) => setFormData(prev => ({ ...prev, availableAt: e.target.value }))}
+               min={new Date().toISOString().slice(0, 16)}
+               required={formData.scheduleAccess}
+             />
+           )}
+         </div>
+       )}
+
+        <div className="flex gap-2 pt-2">
          <Button
            type="button"
            variant="outline"
@@ -714,7 +771,7 @@ interface FormData {
                                                : material.allow_download !== false 
                                                  ? 'только скач.'
                                                  : 'без доступа'
-                                         }`
+                                         }${material.available_at ? ` • 🕐 ${new Date(material.available_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} ${new Date(material.available_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}`
                                      }
                                    </p>
                                  </div>

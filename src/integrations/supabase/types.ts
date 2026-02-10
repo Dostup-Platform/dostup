@@ -245,6 +245,7 @@ export type Database = {
         Row: {
           allow_download: boolean
           allow_view: boolean
+          available_at: string | null
           content: string | null
           created_at: string
           file_url: string | null
@@ -259,6 +260,7 @@ export type Database = {
         Insert: {
           allow_download?: boolean
           allow_view?: boolean
+          available_at?: string | null
           content?: string | null
           created_at?: string
           file_url?: string | null
@@ -273,6 +275,7 @@ export type Database = {
         Update: {
           allow_download?: boolean
           allow_view?: boolean
+          available_at?: string | null
           content?: string | null
           created_at?: string
           file_url?: string | null
