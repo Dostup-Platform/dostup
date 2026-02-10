@@ -49,19 +49,38 @@ serve(async (req) => {
       throw updateError;
     }
 
-    // Get unique product IDs
+    // Get unique product IDs and fetch product titles
     const productIds = [...new Set(materialsToUnlock.map(m => m.product_id))];
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, title")
+      .in("id", productIds);
 
-    // For each product, find all students with confirmed purchases and send notifications
+    const productTitleMap: Record<string, string> = {};
+    (products || []).forEach((p: any) => { productTitleMap[p.id] = p.title; });
+
+    // Insert into material_unlocks log table for realtime notifications
+    const unlockRecords = materialsToUnlock.map(m => ({
+      material_id: m.id,
+      product_id: m.product_id,
+      material_title: m.title,
+      product_title: productTitleMap[m.product_id] || "Продукт",
+    }));
+
+    const { error: insertError } = await supabase
+      .from("material_unlocks")
+      .insert(unlockRecords);
+
+    if (insertError) {
+      console.error("Error inserting material_unlocks:", insertError);
+      // Don't throw - materials are already unlocked, this is for notifications only
+    } else {
+      console.log(`Inserted ${unlockRecords.length} material_unlock records`);
+    }
+
+    // Send push notifications to students who purchased these products
     for (const productId of productIds) {
       const materialsForProduct = materialsToUnlock.filter(m => m.product_id === productId);
-      
-      // Get product title
-      const { data: product } = await supabase
-        .from("products")
-        .select("title")
-        .eq("id", productId)
-        .single();
 
       // Get all students who purchased this product
       const { data: purchases } = await supabase
@@ -73,9 +92,8 @@ serve(async (req) => {
       if (!purchases || purchases.length === 0) continue;
 
       const userIds = [...new Set(purchases.map(p => p.simple_user_id))];
-      
-      // Get all push tokens for students who purchased this product
-      // Look up tokens directly by user_phone matching simple_users phone or by finding tokens for these users
+
+      // Get phones from simple_users
       const { data: users } = await supabase
         .from("simple_users")
         .select("id, phone")
@@ -83,42 +101,20 @@ serve(async (req) => {
 
       if (!users || users.length === 0) continue;
 
-      // Collect all non-empty phones from simple_users
-      const phonesFromUsers = users.map(u => u.phone).filter(p => p && p.trim() !== "");
-      
-      // Also look up push_tokens directly for users with empty phones
-      const usersWithoutPhone = users.filter(u => !u.phone || u.phone.trim() === "");
-      let extraPhones: string[] = [];
-      if (usersWithoutPhone.length > 0) {
-        // Search push_tokens for any token registered for these user IDs (stored as user_phone)
-        const { data: extraTokens } = await supabase
-          .from("push_tokens")
-          .select("user_phone")
-          .eq("user_role", "student");
-        
-        if (extraTokens && extraTokens.length > 0) {
-          const existingPhones = new Set(phonesFromUsers);
-          extraPhones = [...new Set(extraTokens.map(t => t.user_phone))]
-            .filter(p => !existingPhones.has(p));
-        }
-      }
+      // Collect all phones that have push tokens
+      const allPhones = users.map(u => u.phone).filter(p => p && p.trim() !== "");
 
-      const phones = [...phonesFromUsers, ...extraPhones];
-      
-      console.log(`Product ${productId}: ${users.length} users, ${phones.length} phones (${phonesFromUsers.length} from users, ${extraPhones.length} from tokens)`);
-
-      if (phones.length === 0) {
-        console.log(`No push tokens found for product ${productId}, skipping notifications`);
+      if (allPhones.length === 0) {
+        console.log(`No phones found for product ${productId}, skipping push notifications`);
         continue;
       }
 
-      // Send push notification to each student
       const title = "Новый материал доступен! 📚";
       const body = materialsForProduct.length === 1
-        ? `Материал "${materialsForProduct[0].title}" теперь доступен в "${product?.title || "продукте"}"`
-        : `${materialsForProduct.length} новых материала доступны в "${product?.title || "продукте"}"`;
+        ? `Материал "${materialsForProduct[0].title}" теперь доступен в "${productTitleMap[productId] || "продукте"}"`
+        : `${materialsForProduct.length} новых материала доступны в "${productTitleMap[productId] || "продукте"}"`;
 
-      for (const phone of phones) {
+      for (const phone of allPhones) {
         try {
           const resp = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
             method: "POST",

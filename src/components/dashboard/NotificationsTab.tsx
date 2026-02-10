@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Calendar, Clock, CheckCircle } from "lucide-react";
+import { Bell, Calendar, Clock, CheckCircle, Unlock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,11 +29,20 @@ interface ConfirmedPurchase {
   product_title: string;
 }
 
-interface NotificationsTabProps {
-  lastViewedAt?: Date | null;
+interface MaterialUnlock {
+  id: string;
+  material_title: string;
+  product_title: string;
+  product_id: string;
+  unlocked_at: string;
 }
 
-const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
+interface NotificationsTabProps {
+  lastViewedAt?: Date | null;
+  purchasedProductIds?: string[];
+}
+
+const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: NotificationsTabProps) => {
   const { t, language } = useLanguage();
   const { user } = useSimpleAuth();
   const queryClient = useQueryClient();
@@ -80,6 +89,23 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
     enabled: !!user?.id,
   });
 
+  // Получить разблокированные материалы
+  const { data: materialUnlocks = [], isLoading: loadingUnlocks } = useQuery({
+    queryKey: ["student-material-unlocks", purchasedProductIds],
+    queryFn: async () => {
+      if (purchasedProductIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("material_unlocks")
+        .select("*")
+        .in("product_id", purchasedProductIds)
+        .order("unlocked_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data || []) as MaterialUnlock[];
+    },
+    enabled: purchasedProductIds.length > 0,
+  });
+
   // Realtime для обновления
   useEffect(() => {
     if (!user?.id) return;
@@ -88,11 +114,7 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
       .channel("student-notifications-realtime")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "booking_cancellations",
-        },
+        { event: "INSERT", schema: "public", table: "booking_cancellations" },
         () => {
           queryClient.invalidateQueries({ queryKey: ["student-cancellations"] });
           queryClient.invalidateQueries({ queryKey: ["student-cancellations-count"] });
@@ -100,13 +122,17 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
       )
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "simple_purchases",
-        },
+        { event: "UPDATE", schema: "public", table: "simple_purchases" },
         () => {
           queryClient.invalidateQueries({ queryKey: ["student-confirmed-purchases"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "material_unlocks" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["student-material-unlocks"] });
+          queryClient.invalidateQueries({ queryKey: ["student-material-unlocks-count"] });
         }
       )
       .subscribe();
@@ -126,7 +152,7 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
 
   const locale = language === "ru" ? ru : kk;
 
-  const isLoading = loadingCancellations || loadingPurchases;
+  const isLoading = loadingCancellations || loadingPurchases || loadingUnlocks;
 
   if (isLoading) {
     return (
@@ -139,11 +165,13 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
   // Merge all notifications into a single timeline
   type NotificationItem = 
     | { type: "cancellation"; date: string; data: BookingCancellation }
-    | { type: "purchase_confirmed"; date: string; data: ConfirmedPurchase };
+    | { type: "purchase_confirmed"; date: string; data: ConfirmedPurchase }
+    | { type: "material_unlock"; date: string; data: MaterialUnlock };
 
   const allNotifications: NotificationItem[] = [
     ...cancellations.map(c => ({ type: "cancellation" as const, date: c.cancelled_at, data: c })),
     ...confirmedPurchases.map(p => ({ type: "purchase_confirmed" as const, date: p.confirmed_at, data: p })),
+    ...materialUnlocks.map(u => ({ type: "material_unlock" as const, date: u.unlocked_at, data: u })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const hasNotifications = allNotifications.length > 0;
@@ -165,8 +193,46 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
       ) : (
         <div className="space-y-3">
           {allNotifications.map((item) => {
+            if (item.type === "material_unlock") {
+              const unlock = item.data as MaterialUnlock;
+              return (
+                <Card key={`unlock-${unlock.id}`} className="relative overflow-hidden">
+                  {isNew(unlock.unlocked_at) && (
+                    <div className="absolute top-0 right-0">
+                      <Badge className="rounded-none rounded-bl-lg bg-primary text-primary-foreground text-xs px-2 py-1">
+                        {t("new")}
+                      </Badge>
+                    </div>
+                  )}
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                        <Unlock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-medium text-foreground">
+                          {language === "ru" ? "Материал доступен" : "Материал қолжетімді"}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {unlock.material_title} • {unlock.product_title}
+                        </p>
+                        <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+                          <span>
+                            {formatDistanceToNow(new Date(unlock.unlocked_at), {
+                              addSuffix: true,
+                              locale,
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
+
             if (item.type === "purchase_confirmed") {
-              const purchase = item.data;
+              const purchase = item.data as ConfirmedPurchase;
               return (
                 <Card key={`purchase-${purchase.id}`} className="relative overflow-hidden">
                   {isNew(purchase.confirmed_at) && (
