@@ -53,7 +53,7 @@ serve(async (req) => {
       .select('id')
       .eq('simple_user_id', userId)
       .eq('product_id', material.product_id)
-      .eq('status', 'confirmed')
+      .eq('status', 'completed')
       .single()
 
     // Also check if the user is the creator

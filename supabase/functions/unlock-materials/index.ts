@@ -68,7 +68,7 @@ serve(async (req) => {
         .from("simple_purchases")
         .select("simple_user_id")
         .eq("product_id", productId)
-        .eq("status", "completed");
+        .in("status", ["completed", "confirmed"]);
 
       if (!purchases || purchases.length === 0) continue;
 
