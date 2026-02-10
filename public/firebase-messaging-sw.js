@@ -24,25 +24,8 @@ const messaging = firebase.messaging();
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message:', payload);
-
-  const notificationTitle = payload.notification?.title || 'Dostup';
-  const notificationOptions = {
-    body: payload.notification?.body || '',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    tag: payload.data?.type || 'default',
-    data: payload.data,
-    vibrate: [200, 100, 200],
-    requireInteraction: true,
-    actions: [
-      {
-        action: 'open',
-        title: 'Открыть'
-      }
-    ]
-  };
-
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  // FCM SDK automatically shows the notification when payload contains
+  // a "notification" field. No manual showNotification() needed.
 });
 
 // Handle notification click
