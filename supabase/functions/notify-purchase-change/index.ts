@@ -264,7 +264,7 @@ serve(async (req) => {
 
     if (type === "UPDATE" && record && old_record) {
       // Purchase status changed - notify student when confirmed
-      if (old_record.status === "pending" && record.status === "confirmed") {
+      if (record.status === "completed" && old_record.status !== "completed") {
         const purchaseId = record.id;
 
         const { data: purchase } = await supabase
