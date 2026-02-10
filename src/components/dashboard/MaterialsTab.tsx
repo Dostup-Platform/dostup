@@ -194,15 +194,9 @@ const MaterialsTab = () => {
       
         if (isS3Path(material.file_url)) {
         if (action === 'download') {
-          const url = await getS3DownloadUrl(material.file_url, 'student', user?.id);
-          // Use link with download attribute — direct navigation avoids CORS
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = material.title;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          const url = await getS3DownloadUrl(material.file_url, 'student', user?.id, 'attachment');
+          // Navigate directly — S3 will return Content-Disposition: attachment
+          window.location.href = url;
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(material.file_url, 'student', user?.id);

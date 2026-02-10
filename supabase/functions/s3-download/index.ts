@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { path, role, userId, download } = await req.json();
+    const { path, role, userId, download: forceDownload } = await req.json();
 
     if (!path || !role) {
       return new Response(
@@ -85,14 +85,23 @@ Deno.serve(async (req) => {
     const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY')!;
     const region = Deno.env.get('AWS_S3_REGION')!;
 
-    const url = getSignedUrl({
+    const signOptions: Record<string, unknown> = {
       accessKeyId,
       secretAccessKey,
       bucket,
       key: '/' + s3Key,
       region,
       expiresIn: 3600,
-    });
+    };
+
+    // When download is requested, add response-content-disposition
+    if (forceDownload) {
+      signOptions.queryParams = {
+        'response-content-disposition': 'attachment',
+      };
+    }
+
+    const url = getSignedUrl(signOptions as Parameters<typeof getSignedUrl>[0]);
 
     console.log('Generated presigned URL for:', s3Key);
 
