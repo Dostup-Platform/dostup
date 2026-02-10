@@ -36,7 +36,6 @@ const Dashboard = () => {
     queryKey: ["student-cancellations-count", user?.phone],
     queryFn: async () => {
       if (!user?.phone) return [];
-
       const { data, error } = await supabase
         .from("booking_cancellations")
         .select("id, cancelled_at")
@@ -44,21 +43,40 @@ const Dashboard = () => {
         .in("cancelled_by", ["creator", "teacher"])
         .order("cancelled_at", { ascending: false })
         .limit(50);
-
       if (error) throw error;
       return data || [];
     },
     enabled: !!user?.phone,
   });
 
+  const { data: confirmedPurchases = [] } = useQuery({
+    queryKey: ["student-confirmed-purchases-count", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("simple_purchases")
+        .select("id, confirmed_at")
+        .eq("simple_user_id", user.id)
+        .in("status", ["confirmed", "completed"])
+        .not("confirmed_at", "is", null)
+        .order("confirmed_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
   // Подсчёт новых уведомлений
   const newNotificationsCount = useMemo(() => {
     const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
-    return cancellations.filter(c => new Date(c.cancelled_at) > compareDate).length;
-  }, [cancellations, lastViewedAt]);
+    const newCancellations = cancellations.filter(c => new Date(c.cancelled_at) > compareDate).length;
+    const newPurchases = confirmedPurchases.filter(p => p.confirmed_at && new Date(p.confirmed_at) > compareDate).length;
+    return newCancellations + newPurchases;
+  }, [cancellations, confirmedPurchases, lastViewedAt]);
 
   // Realtime уведомления (звуки и push) с badge count
-  useRealtimeStudentNotifications(user?.phone, !!user, newNotificationsCount);
+  useRealtimeStudentNotifications(user?.id, user?.phone, !!user, newNotificationsCount);
 
   // Register FCM token for push notifications
   useFCMRegistration({

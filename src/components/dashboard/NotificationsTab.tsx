@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Calendar, Clock } from "lucide-react";
+import { Bell, Calendar, Clock, CheckCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,13 @@ interface BookingCancellation {
   cancellation_comment: string | null;
 }
 
+interface ConfirmedPurchase {
+  id: string;
+  product_id: string;
+  confirmed_at: string;
+  product_title: string;
+}
+
 interface NotificationsTabProps {
   lastViewedAt?: Date | null;
 }
@@ -31,12 +38,11 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
   const { user } = useSimpleAuth();
   const queryClient = useQueryClient();
 
-  // Получить отменённые записи для пользователя (cancelled_by = 'creator')
-  const { data: cancellations = [], isLoading } = useQuery({
+  // Получить отменённые записи
+  const { data: cancellations = [], isLoading: loadingCancellations } = useQuery({
     queryKey: ["student-cancellations", user?.phone],
     queryFn: async () => {
       if (!user?.phone) return [];
-
       const { data, error } = await supabase
         .from("booking_cancellations")
         .select("*")
@@ -44,19 +50,42 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
         .in("cancelled_by", ["creator", "teacher"])
         .order("cancelled_at", { ascending: false })
         .limit(50);
-
       if (error) throw error;
       return (data || []) as BookingCancellation[];
     },
     enabled: !!user?.phone,
   });
 
+  // Получить подтверждённые покупки
+  const { data: confirmedPurchases = [], isLoading: loadingPurchases } = useQuery({
+    queryKey: ["student-confirmed-purchases", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("simple_purchases")
+        .select("id, product_id, confirmed_at, product:products(title)")
+        .eq("simple_user_id", user.id)
+        .in("status", ["confirmed", "completed"])
+        .not("confirmed_at", "is", null)
+        .order("confirmed_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data || []).map((p: any) => ({
+        id: p.id,
+        product_id: p.product_id,
+        confirmed_at: p.confirmed_at,
+        product_title: p.product?.title || "",
+      })) as ConfirmedPurchase[];
+    },
+    enabled: !!user?.id,
+  });
+
   // Realtime для обновления
   useEffect(() => {
-    if (!user?.phone) return;
+    if (!user?.id) return;
 
     const channel = supabase
-      .channel("student-cancellations-realtime")
+      .channel("student-notifications-realtime")
       .on(
         "postgres_changes",
         {
@@ -69,23 +98,35 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
           queryClient.invalidateQueries({ queryKey: ["student-cancellations-count"] });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "simple_purchases",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["student-confirmed-purchases"] });
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.phone, queryClient]);
+  }, [user?.id, queryClient]);
 
-  const isNew = (cancelledAt: string) => {
+  const isNew = (dateStr: string) => {
     if (!lastViewedAt) {
-      // Если никогда не просматривали, считаем новыми последние 24 часа
       const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      return new Date(cancelledAt) > dayAgo;
+      return new Date(dateStr) > dayAgo;
     }
-    return new Date(cancelledAt) > lastViewedAt;
+    return new Date(dateStr) > lastViewedAt;
   };
 
   const locale = language === "ru" ? ru : kk;
+
+  const isLoading = loadingCancellations || loadingPurchases;
 
   if (isLoading) {
     return (
@@ -95,7 +136,17 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
     );
   }
 
-  const hasNotifications = cancellations.length > 0;
+  // Merge all notifications into a single timeline
+  type NotificationItem = 
+    | { type: "cancellation"; date: string; data: BookingCancellation }
+    | { type: "purchase_confirmed"; date: string; data: ConfirmedPurchase };
+
+  const allNotifications: NotificationItem[] = [
+    ...cancellations.map(c => ({ type: "cancellation" as const, date: c.cancelled_at, data: c })),
+    ...confirmedPurchases.map(p => ({ type: "purchase_confirmed" as const, date: p.confirmed_at, data: p })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const hasNotifications = allNotifications.length > 0;
 
   return (
     <div className="space-y-4">
@@ -113,14 +164,48 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
         </Card>
       ) : (
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
-            {t("cancelledBookings")}
-          </h3>
+          {allNotifications.map((item) => {
+            if (item.type === "purchase_confirmed") {
+              const purchase = item.data;
+              return (
+                <Card key={`purchase-${purchase.id}`} className="relative overflow-hidden">
+                  {isNew(purchase.confirmed_at) && (
+                    <div className="absolute top-0 right-0">
+                      <Badge className="rounded-none rounded-bl-lg bg-primary text-primary-foreground text-xs px-2 py-1">
+                        {t("new")}
+                      </Badge>
+                    </div>
+                  )}
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                        <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-medium text-foreground">
+                          {language === "ru" ? "Оплата подтверждена" : "Төлем расталды"}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {purchase.product_title}
+                        </p>
+                        <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+                          <span>
+                            {formatDistanceToNow(new Date(purchase.confirmed_at), {
+                              addSuffix: true,
+                              locale,
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
 
-          <div className="space-y-3">
-            {cancellations.map((cancellation) => (
-              <Card key={cancellation.id} className="relative overflow-hidden">
+            const cancellation = item.data as BookingCancellation;
+            return (
+              <Card key={`cancel-${cancellation.id}`} className="relative overflow-hidden">
                 {isNew(cancellation.cancelled_at) && (
                   <div className="absolute top-0 right-0">
                     <Badge className="rounded-none rounded-bl-lg bg-primary text-primary-foreground text-xs px-2 py-1">
@@ -144,7 +229,6 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
                         {cancellation.schedule_title && ` • ${cancellation.schedule_title}`}
                       </p>
                       
-                      {/* Причины отмены от автора */}
                       {((cancellation.cancellation_reasons && cancellation.cancellation_reasons.length > 0) || cancellation.cancellation_comment) && (
                         <div className="mt-2 p-2 bg-destructive/5 rounded-md">
                           {cancellation.cancellation_reasons && cancellation.cancellation_reasons.length > 0 && (
@@ -184,8 +268,8 @@ const NotificationsTab = ({ lastViewedAt }: NotificationsTabProps) => {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
     </div>
