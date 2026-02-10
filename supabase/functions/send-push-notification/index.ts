@@ -215,17 +215,18 @@ serve(async (req) => {
       );
     }
 
-    const { userPhone, title, body, data, targetRole } = await req.json();
+    const { userPhone, userId, title, body, data, targetRole } = await req.json();
 
-    if (!userPhone || !title || !body) {
+    const identifier = userId || userPhone;
+    if (!identifier || !title || !body) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: userPhone, title, body" }),
+        JSON.stringify({ error: "Missing required fields: (userPhone or userId), title, body" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Check for duplicate notifications
-    const dedupKey = getNotificationKey(userPhone, title, data);
+    const dedupKey = getNotificationKey(identifier, title, data);
     if (isDuplicate(dedupKey)) {
       console.log(`Duplicate notification blocked: ${dedupKey}`);
       return new Response(
@@ -235,15 +236,21 @@ serve(async (req) => {
     }
     markAsSent(dedupKey);
 
-    console.log(`Sending push notification to ${userPhone} (role: ${targetRole || 'any'}): ${title}`);
+    console.log(`Sending push notification to ${identifier} (role: ${targetRole || 'any'}): ${title}`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     let query = supabase
       .from("push_tokens")
-      .select("id, fcm_token, user_role")
-      .eq("user_phone", userPhone);
+      .select("id, fcm_token, user_role");
+
+    // Prefer user_id lookup, fallback to user_phone
+    if (userId) {
+      query = query.eq("user_id", userId);
+    } else {
+      query = query.eq("user_phone", userPhone);
+    }
     
     if (targetRole) {
       query = query.eq("user_role", targetRole);
@@ -260,14 +267,14 @@ serve(async (req) => {
     }
 
     if (!tokens || tokens.length === 0) {
-      console.log(`No push tokens found for user: ${userPhone} with role: ${targetRole || 'any'}`);
+      console.log(`No push tokens found for user: ${identifier} with role: ${targetRole || 'any'}`);
       return new Response(
         JSON.stringify({ message: "No tokens registered", sent: 0 }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Found ${tokens.length} tokens for user ${userPhone}`);
+    console.log(`Found ${tokens.length} tokens for user ${identifier}`);
 
     const results = await Promise.all(
       tokens.map(async (tokenRecord) => {

@@ -16,9 +16,11 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: "autoUpdate",
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
         navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api/, /^\/functions/],
+        navigateFallbackDenylist: [/^\/api/, /^\/functions/, /^\/firebase-messaging-sw\.js/],
         runtimeCaching: [
           {
             // Supabase REST API

@@ -541,6 +541,7 @@ export type Database = {
           fcm_token: string
           id: string
           updated_at: string
+          user_id: string | null
           user_phone: string
           user_role: string
         }
@@ -550,6 +551,7 @@ export type Database = {
           fcm_token: string
           id?: string
           updated_at?: string
+          user_id?: string | null
           user_phone: string
           user_role?: string
         }
@@ -559,6 +561,7 @@ export type Database = {
           fcm_token?: string
           id?: string
           updated_at?: string
+          user_id?: string | null
           user_phone?: string
           user_role?: string
         }
