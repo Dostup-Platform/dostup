@@ -91,7 +91,8 @@ export const getFCMToken = async (): Promise<string | null> => {
  */
 export const registerPushToken = async (
   userPhone: string,
-  userRole: "creator" | "student" | "teacher"
+  userRole: "creator" | "student" | "teacher",
+  userId?: string
 ): Promise<boolean> => {
   try {
     const fcmToken = await getFCMToken();
@@ -104,9 +105,10 @@ export const registerPushToken = async (
     const deviceInfo = `${navigator.userAgent.substring(0, 100)}`;
 
     // Build request body with session credentials for identity validation
-    const body: Record<string, string | null> = {
+    const body: Record<string, string | null | undefined> = {
       action: "register",
       userPhone,
+      userId,
       userRole,
       fcmToken,
       deviceInfo

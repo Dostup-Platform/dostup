@@ -77,11 +77,11 @@ serve(async (req) => {
       console.log(`Inserted ${unlockRecords.length} material_unlock records`);
     }
 
-    // Send push notifications - find tokens directly via simple_users join
+    // Send push notifications - find tokens via user_id (not phone)
     for (const productId of productIds) {
       const materialsForProduct = materialsToUnlock.filter(m => m.product_id === productId);
 
-      // Get all students who purchased this product and have push tokens
+      // Get all students who purchased this product
       const { data: purchases } = await supabase
         .from("simple_purchases")
         .select("simple_user_id")
@@ -90,24 +90,14 @@ serve(async (req) => {
 
       if (!purchases || purchases.length === 0) continue;
 
-      const userIds = [...new Set(purchases.map(p => p.simple_user_id))];
+      const studentIds = [...new Set(purchases.map(p => p.simple_user_id))];
 
-      // Get phones (identifiers) from simple_users - these match push_tokens.user_phone
-      const { data: users } = await supabase
-        .from("simple_users")
-        .select("id, phone")
-        .in("id", userIds);
-
-      if (!users || users.length === 0) continue;
-
-      const userPhones = users.map(u => u.phone).filter(p => p && p.trim() !== "");
-
-      // Also directly query push_tokens for these user phones to ensure we find tokens
+      // Find push tokens directly by user_id - no phone dependency
       const { data: tokens } = await supabase
         .from("push_tokens")
-        .select("user_phone, fcm_token")
+        .select("fcm_token, user_id")
         .eq("user_role", "student")
-        .in("user_phone", userPhones.length > 0 ? userPhones : ["__none__"]);
+        .in("user_id", studentIds);
 
       if (!tokens || tokens.length === 0) {
         console.log(`No push tokens found for product ${productId}, skipping push notifications`);
@@ -119,9 +109,9 @@ serve(async (req) => {
         ? `Материал "${materialsForProduct[0].title}" теперь доступен в "${productTitleMap[productId] || "продукте"}"`
         : `${materialsForProduct.length} новых материала доступны в "${productTitleMap[productId] || "продукте"}"`;
 
-      // Send directly to each token's phone identifier
-      const uniquePhones = [...new Set(tokens.map(t => t.user_phone))];
-      for (const phone of uniquePhones) {
+      // Send to each unique user_id
+      const uniqueUserIds = [...new Set(tokens.map(t => t.user_id))];
+      for (const userId of uniqueUserIds) {
         try {
           const resp = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
             method: "POST",
@@ -130,7 +120,7 @@ serve(async (req) => {
               "Authorization": `Bearer ${serviceRoleKey}`,
             },
             body: JSON.stringify({
-              userPhone: phone,
+              userId,
               title,
               body,
               targetRole: "student",
@@ -141,9 +131,9 @@ serve(async (req) => {
             }),
           });
           const result = await resp.json();
-          console.log(`Notification to ${phone}: status=${resp.status}`, result);
+          console.log(`Notification to userId ${userId}: status=${resp.status}`, result);
         } catch (err) {
-          console.error(`Failed to send notification to ${phone}:`, err);
+          console.error(`Failed to send notification to userId ${userId}:`, err);
         }
       }
     }

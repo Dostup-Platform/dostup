@@ -114,9 +114,10 @@ const Dashboard = () => {
 
   // Register FCM token for push notifications
   useFCMRegistration({
+    userId: user?.id,
     userPhone: user?.phone,
     userRole: "student",
-    enabled: !!user?.phone
+    enabled: !!user?.id
   });
 
   // Set initial app badge based on notification count

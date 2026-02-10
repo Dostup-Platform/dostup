@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { initializeFirebaseMessaging, registerPushToken, onForegroundMessage } from "@/lib/firebase";
 
 interface UseFCMRegistrationOptions {
-  userPhone: string | undefined;
+  userId?: string;
+  userPhone?: string;
   userRole: "creator" | "student" | "teacher";
   enabled?: boolean;
 }
 
 export const useFCMRegistration = ({
+  userId,
   userPhone,
   userRole,
   enabled = true
@@ -17,7 +19,8 @@ export const useFCMRegistration = ({
   const registrationAttempted = useRef(false);
 
   useEffect(() => {
-    if (!enabled || !userPhone || registrationAttempted.current) return;
+    // Need at least userId or userPhone to register
+    if (!enabled || (!userId && !userPhone) || registrationAttempted.current) return;
 
     const registerFCM = async () => {
       // Check if notifications are supported
@@ -39,11 +42,11 @@ export const useFCMRegistration = ({
         }
 
         // Register push token
-        const success = await registerPushToken(userPhone, userRole);
+        const success = await registerPushToken(userPhone || userId || "", userRole, userId);
         setIsRegistered(success);
 
         if (success) {
-          console.log(`FCM registered for ${userRole}: ${userPhone}`);
+          console.log(`FCM registered for ${userRole}: ${userId || userPhone}`);
         }
       } catch (error) {
         console.error("Error registering FCM:", error);
@@ -55,7 +58,7 @@ export const useFCMRegistration = ({
     // Delay registration to not block initial render
     const timeout = setTimeout(registerFCM, 2000);
     return () => clearTimeout(timeout);
-  }, [enabled, userPhone, userRole]);
+  }, [enabled, userId, userPhone, userRole]);
 
   // Set up foreground message handler
   // NOTE: We don't show toast here because realtime hooks already show toasts

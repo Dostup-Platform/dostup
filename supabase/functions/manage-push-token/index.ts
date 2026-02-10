@@ -58,11 +58,11 @@ serve(async (req) => {
   }
 
   try {
-    const { action, userPhone, userRole, fcmToken, deviceInfo, creatorToken, creatorName } = await req.json()
+    const { action, userPhone, userId, userRole, fcmToken, deviceInfo, creatorToken, creatorName } = await req.json()
 
-    if (!action || !userPhone) {
+    if (!action || (!userPhone && !userId)) {
       return new Response(
-        JSON.stringify({ error: 'Missing action or userPhone' }),
+        JSON.stringify({ error: 'Missing action or user identifier' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -102,16 +102,26 @@ serve(async (req) => {
           .delete()
           .eq('fcm_token', fcmToken)
 
-        await supabase
-          .from('push_tokens')
-          .delete()
-          .eq('user_phone', userPhone)
-          .eq('user_role', userRole || 'student')
+        // Delete old tokens for this user (by user_id or user_phone)
+        if (userId) {
+          await supabase
+            .from('push_tokens')
+            .delete()
+            .eq('user_id', userId)
+            .eq('user_role', userRole || 'student')
+        } else if (userPhone) {
+          await supabase
+            .from('push_tokens')
+            .delete()
+            .eq('user_phone', userPhone)
+            .eq('user_role', userRole || 'student')
+        }
 
         const { error } = await supabase
           .from('push_tokens')
           .insert({
-            user_phone: userPhone,
+            user_phone: userPhone || userId || 'unknown',
+            user_id: userId || null,
             user_role: userRole || 'student',
             fcm_token: fcmToken,
             device_info: deviceInfo || null,
@@ -126,7 +136,7 @@ serve(async (req) => {
           )
         }
 
-        console.log(`Token registered for ${userPhone} (${userRole})`)
+        console.log(`Token registered for ${userId || userPhone} (${userRole})`)
         return new Response(
           JSON.stringify({ success: true }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
