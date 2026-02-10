@@ -241,6 +241,48 @@ export type Database = {
         }
         Relationships: []
       }
+      material_unlocks: {
+        Row: {
+          id: string
+          material_id: string | null
+          material_title: string
+          product_id: string | null
+          product_title: string
+          unlocked_at: string | null
+        }
+        Insert: {
+          id?: string
+          material_id?: string | null
+          material_title: string
+          product_id?: string | null
+          product_title: string
+          unlocked_at?: string | null
+        }
+        Update: {
+          id?: string
+          material_id?: string | null
+          material_title?: string
+          product_id?: string | null
+          product_title?: string
+          unlocked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_unlocks_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_unlocks_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       materials: {
         Row: {
           allow_download: boolean
