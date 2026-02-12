@@ -67,8 +67,29 @@ export const useFCMRegistration = ({
     if (!isRegistered) return;
 
     const unsubscribe = onForegroundMessage((payload) => {
-      // Log foreground message but don't show toast - realtime hooks handle that
-      console.log("FCM foreground message received (toast handled by realtime hooks):", payload.title);
+      console.log("FCM foreground message received:", payload.title);
+      
+      // Show system notification even when app is in foreground
+      if (Notification.permission === "granted" && payload.title) {
+        try {
+          new Notification(payload.title, {
+            body: payload.body || "",
+            icon: "/icon-192.png",
+            badge: "/icon-192.png",
+            tag: payload.data?.type || "default",
+          });
+        } catch (e) {
+          // Fallback for environments where new Notification() isn't supported
+          navigator.serviceWorker?.ready.then((reg) => {
+            reg.showNotification(payload.title!, {
+              body: payload.body || "",
+              icon: "/icon-192.png",
+              badge: "/icon-192.png",
+              tag: payload.data?.type || "default",
+            });
+          });
+        }
+      }
     });
 
     return unsubscribe;
