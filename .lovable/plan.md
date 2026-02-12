@@ -1,62 +1,72 @@
 
 
-# Fix: Push notification not appearing when app is in foreground
+# Раздельные разрешения для учителей и учеников
 
-## Root Cause
+## Что меняется
 
-When the student has the app **open on their phone**, FCM delivers the message to the foreground handler (`onMessage`), NOT as a system push notification. Currently the foreground handler only logs the message:
+Сейчас у каждого материала одни и те же настройки `allow_view` и `allow_download` для всех. Нужно разделить:
 
-```text
-App in background --> SW onBackgroundMessage --> system notification appears (OK)
-App in foreground --> onMessage handler --> only logs, no notification (BROKEN)
-```
+- **Учитель**: только галочка "Скачивание" (просмотр в браузере всегда доступен, запланированное открытие не действует на учителя)
+- **Ученик**: галочка "Скачивание" + запланированное открытие доступа (просмотр в браузере всегда доступен, но блокируется если материал ещё заблокирован по времени)
+- **Просмотр в браузере**: убирается из UI как опция -- всегда включён для всех
 
-The toast notification works because it comes from the Supabase Realtime subscription (separate system). But push doesn't appear because FCM foreground messages are intentionally silent by design -- the app must explicitly show a notification.
+## Изменения в базе данных
 
-## Solution
+Добавить колонку `teacher_allow_download` (boolean, default true) в таблицу `materials`. Существующая колонка `allow_download` будет означать разрешение для ученика. Колонка `allow_view` остаётся в базе, но всегда будет true (для обратной совместимости).
 
-In `src/hooks/useFCMRegistration.ts`, update the foreground message handler to show a browser system notification using the Notifications API (`new Notification()`). This way the student gets exactly **1 push notification** regardless of whether the app is open or closed.
+## Изменения в файлах
 
-## File Changes
+### 1. Миграция базы данных
+- Добавить колонку `teacher_allow_download boolean NOT NULL DEFAULT true`
 
-### `src/hooks/useFCMRegistration.ts`
-Update the `onForegroundMessage` callback (lines 69-72) to show a system notification:
+### 2. `src/components/creator/ProductMaterialsManager.tsx` (форма добавления и редактирования)
 
-```typescript
-const unsubscribe = onForegroundMessage((payload) => {
-  console.log("FCM foreground message received:", payload.title);
-  
-  // Show system notification even when app is in foreground
-  if (Notification.permission === "granted" && payload.title) {
-    try {
-      new Notification(payload.title, {
-        body: payload.body || "",
-        icon: "/icon-192.png",
-        badge: "/icon-192.png",
-        tag: payload.data?.type || "default", // tag prevents duplicates
-      });
-    } catch (e) {
-      // Fallback for environments where new Notification() isn't supported
-      navigator.serviceWorker?.ready.then((reg) => {
-        reg.showNotification(payload.title!, {
-          body: payload.body || "",
-          icon: "/icon-192.png",
-          badge: "/icon-192.png",
-          tag: payload.data?.type || "default",
-        });
-      });
-    }
-  }
-});
-```
+**Форма добавления (renderAddForm):**
+- Убрать галочку "Просмотр" из пермишенов каждого файла (FileEntry)
+- Разделить пермишены на две секции:
+  - "Для учителя": галочка "Скачивание"
+  - "Для ученика": галочка "Скачивание" + "Запланировать открытие доступа"
+- Всегда ставить `allow_view: true`
 
-The `tag` field ensures that if somehow the same notification type fires twice, the browser replaces it instead of showing a duplicate.
+**Форма редактирования (renderEditForm):**
+- Убрать галочку "Просмотр в браузере"
+- Разделить на секции "Для учителя" и "Для ученика"
+- Учитель: только "Скачивание"
+- Ученик: "Скачивание" + запланированное открытие
 
-## Result
+**Список материалов (подпись доступа):**
+- Обновить текст статуса: показывать раздельно для учителя и ученика
 
-```text
-App in background --> FCM auto-displays notification (1 push)
-App in foreground --> onMessage --> new Notification() (1 push)
-```
+### 3. `src/hooks/useMaterials.ts`
+- В `useCreateMaterial` и `useUpdateMaterial` добавить передачу `teacher_allow_download`
+- Убрать логику `allow_view` (всегда true)
 
-One push notification in both scenarios. Toast continues to work separately via Realtime.
+### 4. `src/hooks/useTeacherMaterials.ts`
+- В `useCreateTeacherMaterial` всегда ставить `allow_view: true`
+
+### 5. `src/components/dashboard/MaterialsTab.tsx` (интерфейс ученика)
+- Убрать проверку `allow_view !== false` -- кнопка "Открыть в браузере" всегда видна (кроме заблокированных по времени)
+- Кнопка "Скачать" зависит от `allow_download`
+- Если `available_at` ещё не наступило -- ни скачать, ни открыть нельзя (как сейчас)
+
+### 6. `src/components/teacher/TeacherMaterialsTab.tsx` (интерфейс учителя - материалы автора)
+- Кнопка "Открыть в браузере" всегда видна (учитель не ограничен по времени)
+- Кнопка "Скачать" зависит от `teacher_allow_download` (нужно загружать это поле)
+- Убрать проверку `allow_view`
+
+### 7. `src/components/teacher/TeacherMaterialsManager.tsx` (учитель загружает свои материалы)
+- Убрать галочку "Просмотр" из формы добавления и редактирования
+- Оставить только галочку "Скачивание" (это для учеников учителя)
+- Всегда ставить `allow_view: true`
+
+### 8. FormData и интерфейсы
+- Добавить `teacher_allow_download` в FormData и FilePermission в ProductMaterialsManager
+- Убрать `allow_view` из FilePermission (всегда true)
+
+## Логика доступа (итог)
+
+| Роль | Просмотр в браузере | Скачивание | Запланированный доступ |
+|------|---------------------|------------|----------------------|
+| Учитель | Всегда да | Настраивается автором (`teacher_allow_download`) | Не действует |
+| Ученик | Всегда да (но блокируется до `available_at`) | Настраивается автором (`allow_download`, блокируется до `available_at`) | Да (`available_at`) |
+
