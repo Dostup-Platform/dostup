@@ -1,27 +1,62 @@
 
-# Исправление дублирования пуш-уведомлений на телефоне
 
-## Причина
+# Fix: Push notification not appearing when app is in foreground
 
-Сервер отправляет **1 FCM-сообщение**, но на устройстве ученика появляется **2 уведомления**:
+## Root Cause
 
-1. **FCM автоматически** показывает системное уведомление (потому что в payload есть поле `notification`)
-2. **Service Worker** в обработчике `onBackgroundMessage` вызывает `self.registration.showNotification()` -- это создает **второе** уведомление
+When the student has the app **open on their phone**, FCM delivers the message to the foreground handler (`onMessage`), NOT as a system push notification. Currently the foreground handler only logs the message:
 
-## Решение
+```text
+App in background --> SW onBackgroundMessage --> system notification appears (OK)
+App in foreground --> onMessage handler --> only logs, no notification (BROKEN)
+```
 
-Убрать `self.registration.showNotification()` из service worker. FCM SDK уже сам показывает уведомление когда есть поле `notification` в payload. Обработчик `onBackgroundMessage` нужен только для логирования.
+The toast notification works because it comes from the Supabase Realtime subscription (separate system). But push doesn't appear because FCM foreground messages are intentionally silent by design -- the app must explicitly show a notification.
 
-## Файлы для изменения
+## Solution
 
-### `public/firebase-messaging-sw.js`
-- Убрать вызов `self.registration.showNotification()` из `onBackgroundMessage`
-- Оставить только логирование
+In `src/hooks/useFCMRegistration.ts`, update the foreground message handler to show a browser system notification using the Notifications API (`new Notification()`). This way the student gets exactly **1 push notification** regardless of whether the app is open or closed.
 
-### Больше ничего менять не нужно
-- Серверная часть (`unlock-materials`) уже работает правильно -- отправляет 1 сообщение
-- Токенов в базе тоже 1 для этого ученика
+## File Changes
 
-## Техническое пояснение
+### `src/hooks/useFCMRegistration.ts`
+Update the `onForegroundMessage` callback (lines 69-72) to show a system notification:
 
-Когда FCM-сообщение содержит поле `notification`, браузер автоматически показывает уведомление. Поле `webpush.notification` в payload уже содержит иконку, badge и настройки вибрации. Вызов `showNotification()` в SW дублирует это поведение.
+```typescript
+const unsubscribe = onForegroundMessage((payload) => {
+  console.log("FCM foreground message received:", payload.title);
+  
+  // Show system notification even when app is in foreground
+  if (Notification.permission === "granted" && payload.title) {
+    try {
+      new Notification(payload.title, {
+        body: payload.body || "",
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag: payload.data?.type || "default", // tag prevents duplicates
+      });
+    } catch (e) {
+      // Fallback for environments where new Notification() isn't supported
+      navigator.serviceWorker?.ready.then((reg) => {
+        reg.showNotification(payload.title!, {
+          body: payload.body || "",
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          tag: payload.data?.type || "default",
+        });
+      });
+    }
+  }
+});
+```
+
+The `tag` field ensures that if somehow the same notification type fires twice, the browser replaces it instead of showing a duplicate.
+
+## Result
+
+```text
+App in background --> FCM auto-displays notification (1 push)
+App in foreground --> onMessage --> new Notification() (1 push)
+```
+
+One push notification in both scenarios. Toast continues to work separately via Realtime.
