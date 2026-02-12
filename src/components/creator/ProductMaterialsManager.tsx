@@ -33,7 +33,7 @@ import { ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye } from "lucide-react";
+
  
  interface ProductMaterialsManagerProps {
    productId: string;
@@ -44,24 +44,25 @@ import { Eye } from "lucide-react";
  
  type ItemType = "file" | "folder";
  
- interface Material {
-   id: string;
-   product_id: string;
-   title: string;
-   type: string;
-   content: string | null;
-   file_url: string | null;
-   order_index: number;
-   created_at: string;
-    parent_id?: string | null;
-   allow_view?: boolean;
-   allow_download?: boolean;
-   available_at?: string | null;
- }
+  interface Material {
+    id: string;
+    product_id: string;
+    title: string;
+    type: string;
+    content: string | null;
+    file_url: string | null;
+    order_index: number;
+    created_at: string;
+     parent_id?: string | null;
+    allow_view?: boolean;
+    allow_download?: boolean;
+    available_at?: string | null;
+    teacher_allow_download?: boolean;
+  }
  
 interface FilePermission {
-  allow_view: boolean;
   allow_download: boolean;
+  teacher_allow_download: boolean;
 }
 
 interface FileEntry {
@@ -76,8 +77,8 @@ interface FormData {
    files: File[];
    filePermissions: FilePermission[];
    fileEntries: FileEntry[];
-   allow_view: boolean;
    allow_download: boolean;
+   teacher_allow_download: boolean;
    scheduleAccess: boolean;
    availableAt: string;
  }
@@ -103,8 +104,8 @@ interface FormData {
       files: [],
       filePermissions: [],
       fileEntries: [],
-      allow_view: true,
       allow_download: true,
+      teacher_allow_download: true,
       scheduleAccess: false,
       availableAt: "",
     });
@@ -139,7 +140,7 @@ interface FormData {
    };
  
     const resetForm = () => {
-      setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_view: true, allow_download: true, scheduleAccess: false, availableAt: "" });
+      setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true, teacher_allow_download: true, scheduleAccess: false, availableAt: "" });
       if (fileInputRef.current) fileInputRef.current.value = "";
     };
  
@@ -179,14 +180,15 @@ interface FormData {
              await createMaterial.mutateAsync({
                product_id: productId,
                title: entry.customName || entry.file.name,
-               type: "file",
-               content: null,
-               file_url: fileUrl,
-               order_index: i,
-               parent_id: folder.id,
-               allow_view: entry.permissions.allow_view,
-               allow_download: entry.permissions.allow_download,
-             });
+                type: "file",
+                content: null,
+                file_url: fileUrl,
+                order_index: i,
+                parent_id: folder.id,
+                allow_view: true,
+                allow_download: entry.permissions.allow_download,
+                teacher_allow_download: entry.permissions.teacher_allow_download,
+              });
            }
          }
 
@@ -202,14 +204,15 @@ interface FormData {
               type: "file",
               content: null,
               file_url: fileUrl,
-              order_index: materials.length + i,
-              parent_id: currentFolderId,
-              allow_view: entry.permissions.allow_view,
-              allow_download: entry.permissions.allow_download,
-              available_at: formData.scheduleAccess && formData.availableAt 
-                ? new Date(formData.availableAt).toISOString() 
-                : null,
-            });
+               order_index: materials.length + i,
+               parent_id: currentFolderId,
+               allow_view: true,
+               allow_download: entry.permissions.allow_download,
+               teacher_allow_download: entry.permissions.teacher_allow_download,
+               available_at: formData.scheduleAccess && formData.availableAt 
+                 ? new Date(formData.availableAt).toISOString() 
+                 : null,
+             });
           }
          toast.success(formData.fileEntries.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");
        }
@@ -226,17 +229,17 @@ interface FormData {
  
     const handleEdit = (material: Material) => {
       setEditingId(material.id);
-      setFormData({
-        title: material.title,
-        itemType: material.type === "folder" ? "folder" : "file",
-        files: [],
-        filePermissions: [],
-        fileEntries: [],
-        allow_view: material.allow_view !== false,
-        allow_download: material.allow_download !== false,
-        scheduleAccess: !!material.available_at,
-        availableAt: material.available_at ? new Date(material.available_at).toISOString().slice(0, 16) : "",
-      });
+       setFormData({
+         title: material.title,
+         itemType: material.type === "folder" ? "folder" : "file",
+         files: [],
+         filePermissions: [],
+         fileEntries: [],
+         allow_download: material.allow_download !== false,
+         teacher_allow_download: material.teacher_allow_download !== false,
+         scheduleAccess: !!material.available_at,
+         availableAt: material.available_at ? new Date(material.available_at).toISOString().slice(0, 16) : "",
+       });
     };
  
    const handleUpdate = async (e: React.FormEvent) => {
@@ -244,16 +247,17 @@ interface FormData {
      if (!editingId || !formData.title) return;
  
       try {
-        await updateMaterial.mutateAsync({
-          id: editingId,
-          productId: productId,
-          title: formData.title,
-          allow_view: formData.allow_view,
-          allow_download: formData.allow_download,
-          available_at: formData.scheduleAccess && formData.availableAt 
-            ? new Date(formData.availableAt).toISOString() 
-            : null,
-        });
+         await updateMaterial.mutateAsync({
+           id: editingId,
+           productId: productId,
+           title: formData.title,
+           allow_view: true,
+           allow_download: formData.allow_download,
+           teacher_allow_download: formData.teacher_allow_download,
+           available_at: formData.scheduleAccess && formData.availableAt 
+             ? new Date(formData.availableAt).toISOString() 
+             : null,
+         });
  
       toast.success("Изменения сохранены!");
        setEditingId(null);
@@ -450,24 +454,26 @@ interface FormData {
                       <X className="w-4 h-4" />
                     </Button>
                    </div>
-                  <div className="flex items-center gap-4 pl-6">
+                  <div className="pl-6 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Для учителя:</p>
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox
-                        checked={entry.permissions.allow_view}
+                        checked={entry.permissions.teacher_allow_download}
                         onCheckedChange={(checked) => {
                           setFormData(prev => {
                             const newEntries = [...prev.fileEntries];
                             newEntries[index] = { 
                               ...newEntries[index], 
-                              permissions: { ...newEntries[index].permissions, allow_view: !!checked }
+                              permissions: { ...newEntries[index].permissions, teacher_allow_download: !!checked }
                             };
                             return { ...prev, fileEntries: newEntries };
                           });
                         }}
                       />
-                      <Eye className="w-3 h-3" />
-                      Просмотр
+                      <Download className="w-3 h-3" />
+                      Скачивание
                     </label>
+                    <p className="text-xs font-medium text-muted-foreground mt-2">Для ученика:</p>
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox
                         checked={entry.permissions.allow_download}
@@ -499,11 +505,11 @@ interface FormData {
              multiple
              onChange={(e) => {
                if (e.target.files && e.target.files.length > 0) {
-                 const newEntries: FileEntry[] = Array.from(e.target.files).map(file => ({
-                   file,
-                   customName: "",
-                   permissions: { allow_view: true, allow_download: true }
-                 }));
+                  const newEntries: FileEntry[] = Array.from(e.target.files).map(file => ({
+                    file,
+                    customName: "",
+                    permissions: { allow_download: true, teacher_allow_download: true }
+                  }));
                  setFormData(prev => ({ 
                    ...prev, 
                    fileEntries: [...prev.fileEntries, ...newEntries]
@@ -586,16 +592,18 @@ interface FormData {
  
       {formData.itemType === "file" && (
         <div className="space-y-3">
-          <Label>Доступ для учеников/учителей</Label>
+          <Label>Доступ</Label>
           <div className="flex flex-col gap-2">
+            <p className="text-xs font-medium text-muted-foreground">Для учителя:</p>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox
-                checked={formData.allow_view}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, allow_view: !!checked }))}
+                checked={formData.teacher_allow_download}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, teacher_allow_download: !!checked }))}
               />
-              <Eye className="w-4 h-4" />
-              Просмотр в браузере
+              <Download className="w-4 h-4" />
+              Скачивание файла
             </label>
+            <p className="text-xs font-medium text-muted-foreground mt-2">Для ученика:</p>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox
                 checked={formData.allow_download}
@@ -763,15 +771,7 @@ interface FormData {
                                    <p className="text-xs text-muted-foreground truncate">
                                      {material.type === "folder" 
                                        ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
-                                       : `Файл • ${
-                                           material.allow_view !== false && material.allow_download !== false 
-                                             ? 'просм. и скач.'
-                                             : material.allow_view !== false 
-                                               ? 'только просмотр'
-                                               : material.allow_download !== false 
-                                                 ? 'только скач.'
-                                                 : 'без доступа'
-                                         }${material.available_at ? ` • 🕐 ${new Date(material.available_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} ${new Date(material.available_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}`
+                                       : `Файл • уч: ${material.allow_download !== false ? 'скач.' : '—'} • учит: ${material.teacher_allow_download !== false ? 'скач.' : '—'}${material.available_at ? ` • 🕐 ${new Date(material.available_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} ${new Date(material.available_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}`
                                      }
                                    </p>
                                  </div>

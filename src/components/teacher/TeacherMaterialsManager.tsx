@@ -21,7 +21,7 @@ import {
   uploadTeacherMaterialFile,
 } from "@/hooks/useTeacherMaterials";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, ChevronLeft, FolderOpen, Download, X, ExternalLink, Eye } from "lucide-react";
+import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, ChevronLeft, FolderOpen, Download, X, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,7 +52,6 @@ interface Material {
 }
 
 interface FilePermission {
-  allow_view: boolean;
   allow_download: boolean;
 }
 
@@ -68,7 +67,6 @@ interface FormData {
   files: File[];
   filePermissions: FilePermission[];
   fileEntries: FileEntry[];
-  allow_view: boolean;
   allow_download: boolean;
 }
 
@@ -97,7 +95,6 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     files: [],
     filePermissions: [],
     fileEntries: [],
-    allow_view: true,
     allow_download: true,
   });
 
@@ -115,7 +112,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   }, [allMaterials, currentFolderId]);
 
   const resetForm = () => {
-    setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_view: true, allow_download: true });
+    setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -160,7 +157,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
               file_url: fileUrl,
               order_index: i,
               parent_id: folder.id,
-              allow_view: entry.permissions.allow_view,
+              allow_view: true,
               allow_download: entry.permissions.allow_download,
             });
           }
@@ -180,7 +177,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
             file_url: fileUrl,
             order_index: materials.length + i,
             parent_id: currentFolderId,
-            allow_view: entry.permissions.allow_view,
+            allow_view: true,
             allow_download: entry.permissions.allow_download,
           });
         }
@@ -207,7 +204,6 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       files: [],
       filePermissions: [],
       fileEntries: [],
-      allow_view: material.allow_view !== false,
       allow_download: material.allow_download !== false,
     });
   };
@@ -221,7 +217,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
         id: editingId,
         teacherId: teacherId,
         title: formData.title,
-        allow_view: formData.allow_view,
+        allow_view: true,
         allow_download: formData.allow_download,
       });
 
@@ -340,13 +336,10 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   };
 
   const getAccessLabel = (material: Material) => {
-    const canView = material.allow_view !== false;
     const canDownload = material.allow_download !== false;
-    
-    if (canView && canDownload) return language === "ru" ? "просмотр и скачивание" : "көру және жүктеу";
-    if (canView) return language === "ru" ? "только просмотр" : "тек көру";
-    if (canDownload) return language === "ru" ? "только скачивание" : "тек жүктеу";
-    return language === "ru" ? "без доступа" : "қол жетімсіз";
+    return canDownload 
+      ? (language === "ru" ? "скачивание разрешено" : "жүктеуге рұқсат") 
+      : (language === "ru" ? "только просмотр" : "тек көру");
   };
 
   if (isLoading) {
@@ -473,23 +466,6 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                         <div className="flex items-center gap-4 pl-6">
                           <label className="flex items-center gap-2 text-xs cursor-pointer">
                             <Checkbox
-                              checked={entry.permissions.allow_view}
-                              onCheckedChange={(checked) => {
-                                setFormData(prev => {
-                                  const newEntries = [...prev.fileEntries];
-                                  newEntries[index] = { 
-                                    ...newEntries[index], 
-                                    permissions: { ...newEntries[index].permissions, allow_view: !!checked }
-                                  };
-                                  return { ...prev, fileEntries: newEntries };
-                                });
-                              }}
-                            />
-                            <Eye className="w-3 h-3" />
-                            {language === "ru" ? "Просмотр" : "Көру"}
-                          </label>
-                          <label className="flex items-center gap-2 text-xs cursor-pointer">
-                            <Checkbox
                               checked={entry.permissions.allow_download}
                               onCheckedChange={(checked) => {
                                 setFormData(prev => {
@@ -521,7 +497,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                         const newEntries: FileEntry[] = Array.from(e.target.files).map(file => ({
                           file,
                           customName: "",
-                          permissions: { allow_view: true, allow_download: true }
+                          permissions: { allow_download: true }
                         }));
                         setFormData(prev => ({ 
                           ...prev, 
@@ -593,14 +569,6 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                       <div className="flex items-center gap-4">
                         <label className="flex items-center gap-2 text-xs cursor-pointer">
                           <Checkbox
-                            checked={formData.allow_view}
-                            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, allow_view: !!checked }))}
-                          />
-                          <Eye className="w-3 h-3" />
-                          {language === "ru" ? "Просмотр" : "Көру"}
-                        </label>
-                        <label className="flex items-center gap-2 text-xs cursor-pointer">
-                          <Checkbox
                             checked={formData.allow_download}
                             onCheckedChange={(checked) => setFormData(prev => ({ ...prev, allow_download: !!checked }))}
                           />
@@ -647,18 +615,16 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                               <Download className="w-4 h-4" />
                             </Button>
                           )}
-                          {material.allow_view !== false && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleOpenFile(material, 'view')}
-                              disabled={isLoadingUrl}
-                              title={language === "ru" ? "Открыть" : "Ашу"}
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleOpenFile(material, 'view')}
+                            disabled={isLoadingUrl}
+                            title={language === "ru" ? "Открыть" : "Ашу"}
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
                         </>
                       )}
                       <Button
