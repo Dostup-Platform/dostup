@@ -29,6 +29,7 @@ interface Material {
   product?: { title: string };
   allow_view?: boolean;
   allow_download?: boolean;
+  teacher_allow_download?: boolean;
 }
 
 const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabProps) => {
@@ -75,7 +76,7 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
 
       const { data, error } = await supabase
         .from("materials")
-        .select("id, title, type, content, file_url, product_id, allow_view, allow_download")
+        .select("id, title, type, content, file_url, product_id, allow_view, allow_download, teacher_allow_download")
         .in("product_id", productIds)
         .is("teacher_id", null)
         .order("order_index");
@@ -272,7 +273,7 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
                             )}
                             {material.type === "file" && material.file_url && (
                               <>
-                                {material.allow_download !== false && (
+                                {material.teacher_allow_download !== false && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -282,16 +283,14 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
                                     <Download className="w-4 h-4" />
                                   </Button>
                                 )}
-                                {material.allow_view !== false && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'view')}
-                                    title={language === "ru" ? "Открыть в браузере" : "Браузерде ашу"}
-                                  >
-                                    <ExternalLink className="w-4 h-4" />
-                                  </Button>
-                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'view')}
+                                  title={language === "ru" ? "Открыть в браузере" : "Браузерде ашу"}
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </Button>
                               </>
                             )}
                             {material.type === "video" && material.file_url && (

@@ -342,16 +342,14 @@ const MaterialsTab = () => {
                    <Download className="w-5 h-5" />
                  </Button>
                )}
-               {material.allow_view !== false && (
-                 <Button 
-                   variant="ghost" 
-                   size="icon"
-                   onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'view')}
-                   title={language === "ru" ? "Открыть в браузере" : "Браузерде ашу"}
-                 >
-                   <ExternalLink className="w-5 h-5" />
-                 </Button>
-               )}
+               <Button 
+                 variant="ghost" 
+                 size="icon"
+                 onClick={() => handleOpenFile({ file_url: material.file_url!, title: material.title }, 'view')}
+                 title={language === "ru" ? "Открыть в браузере" : "Браузерде ашу"}
+               >
+                 <ExternalLink className="w-5 h-5" />
+               </Button>
               </div>
             )}
             

@@ -17,6 +17,7 @@ interface Material {
   allow_view?: boolean;
   allow_download?: boolean;
   available_at?: string | null;
+  teacher_allow_download?: boolean;
 }
 
 export const useMaterials = (productId: string | undefined, options?: { creatorOnly?: boolean }) => {
@@ -100,6 +101,7 @@ interface CreateMaterialInput {
   allow_view?: boolean;
   allow_download?: boolean;
   available_at?: string | null;
+  teacher_allow_download?: boolean;
 }
 
 export const useCreateMaterial = () => {
@@ -117,9 +119,10 @@ export const useCreateMaterial = () => {
           file_url: material.file_url || null,
           order_index: material.order_index || 0,
           parent_id: material.parent_id || null,
-          allow_view: material.allow_view !== false,
+          allow_view: true,
           allow_download: material.allow_download !== false,
           available_at: material.available_at || null,
+          teacher_allow_download: material.teacher_allow_download !== false,
         })
         .select()
         .single();

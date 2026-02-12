@@ -295,6 +295,7 @@ export type Database = {
           order_index: number
           parent_id: string | null
           product_id: string
+          teacher_allow_download: boolean
           teacher_id: string | null
           title: string
           type: Database["public"]["Enums"]["material_type"]
@@ -310,6 +311,7 @@ export type Database = {
           order_index?: number
           parent_id?: string | null
           product_id: string
+          teacher_allow_download?: boolean
           teacher_id?: string | null
           title: string
           type?: Database["public"]["Enums"]["material_type"]
@@ -325,6 +327,7 @@ export type Database = {
           order_index?: number
           parent_id?: string | null
           product_id?: string
+          teacher_allow_download?: boolean
           teacher_id?: string | null
           title?: string
           type?: Database["public"]["Enums"]["material_type"]
