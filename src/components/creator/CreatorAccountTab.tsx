@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { User, LogOut, Download } from "lucide-react";
+import { User, LogOut, Download, Globe } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate, Link } from "react-router-dom";
@@ -27,7 +27,7 @@ interface CreatorAccountTabProps {
 
 const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [createdAt, setCreatedAt] = useState<Date | null>(null);
   const isAppInstalled = usePWADetection();
@@ -89,7 +89,17 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
       <NotificationPreferences userPhone={creatorName} />
 
       {/* Language Switcher */}
-      <LanguageSwitcher />
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe className="w-4 h-4" />
+            {language === "ru" ? "Язык приложения" : "Қолданба тілі"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LanguageSwitcher />
+        </CardContent>
+      </Card>
 
       {/* Install App - only show if not installed */}
       {!isAppInstalled && (
