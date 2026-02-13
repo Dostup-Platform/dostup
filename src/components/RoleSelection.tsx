@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 import { Loader2, GraduationCap, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,9 +32,8 @@ const RoleSelection = () => {
 
   return (
     <div className="min-h-screen bg-gradient-hero flex flex-col">
-      <div className="absolute top-4 right-4 z-20">
-        <LanguageSwitcher />
-      </div>
+
+
 
       <main className="flex-1 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md space-y-4">

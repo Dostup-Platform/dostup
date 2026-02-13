@@ -6,7 +6,7 @@ import { FileText, Calendar, User, Bell, Loader2 } from "lucide-react";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 import MaterialsTab from "@/components/dashboard/MaterialsTab";
 import ScheduleTab from "@/components/dashboard/ScheduleTab";
 import AccountTab from "@/components/dashboard/AccountTab";
@@ -162,7 +162,7 @@ const Dashboard = () => {
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold text-foreground">{t("myDashboard")}</h1>
-          <LanguageSwitcher />
+          
         </div>
       </header>
 

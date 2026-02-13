@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProduct } from "@/hooks/useProducts";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Download } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -306,9 +306,8 @@ const ProductPurchasePage = () => {
             <span>{t("back")}</span>
           </button>
         </div>
-        <div className="absolute top-4 right-4 z-20">
-          <LanguageSwitcher />
-        </div>
+
+
 
         <main className="flex-1 flex items-center justify-center px-4 py-8">
           <Card className="w-full max-w-md text-center animate-fade-in">
@@ -355,7 +354,6 @@ const ProductPurchasePage = () => {
             <ArrowLeft className="w-5 h-5" />
             <span>{t("back")}</span>
           </button>
-          <LanguageSwitcher />
         </div>
 
         {/* Order Summary */}

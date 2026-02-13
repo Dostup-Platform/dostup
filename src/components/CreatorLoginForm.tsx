@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 import { Loader2, ArrowLeft, Eye, EyeOff, User } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -136,9 +136,8 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
 
   return (
     <div className="min-h-screen bg-gradient-hero flex flex-col">
-      <div className="absolute top-4 right-4 z-20">
-        <LanguageSwitcher />
-      </div>
+
+
 
       <main className="flex-1 flex items-center justify-center px-4 py-8">
         <Card className="w-full max-w-md animate-fade-in">

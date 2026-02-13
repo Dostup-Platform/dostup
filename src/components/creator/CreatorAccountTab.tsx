@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
 import NotificationPreferences from "@/components/NotificationPreferences";
 import { usePWADetection } from "@/hooks/usePWADetection";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,6 +87,9 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
 
       {/* Notification Preferences */}
       <NotificationPreferences userPhone={creatorName} />
+
+      {/* Language Switcher */}
+      <LanguageSwitcher />
 
       {/* Install App - only show if not installed */}
       {!isAppInstalled && (

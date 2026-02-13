@@ -11,6 +11,7 @@ import { useState } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
 import NotificationPreferences from "@/components/NotificationPreferences";
 import { usePWADetection } from "@/hooks/usePWADetection";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -128,6 +129,9 @@ const AccountTab = () => {
 
       {/* Notification Preferences */}
       {user.phone && <NotificationPreferences userPhone={user.phone} />}
+
+      {/* Language Switcher */}
+      <LanguageSwitcher />
 
       {/* Install App - only show if not installed */}
       {!isAppInstalled && (

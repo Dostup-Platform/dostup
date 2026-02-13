@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 import { ArrowLeft, Lock, Loader2, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -109,7 +109,7 @@ const CheckoutPage = () => {
             <ArrowLeft className="w-5 h-5" />
             <span>{t("back")}</span>
           </button>
-          <LanguageSwitcher />
+          
         </div>
 
         {/* Order Summary */}
