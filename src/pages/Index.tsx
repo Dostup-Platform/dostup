@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 import CreatorLoginForm from "@/components/CreatorLoginForm";
 import RoleSelection from "@/components/RoleSelection";
 import { Loader2, BookOpen, User, X, Download, GraduationCap } from "lucide-react";
@@ -241,9 +241,6 @@ const Index = () => {
     
     return (
       <div className="min-h-screen bg-gradient-hero flex flex-col">
-        <div className="absolute top-4 right-4 z-20">
-          <LanguageSwitcher />
-        </div>
         <div className="absolute top-4 left-4 z-20">
           <Button
             variant="ghost"
@@ -366,10 +363,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-hero flex flex-col">
-      {/* Language Switcher */}
-      <div className="absolute top-4 right-4 z-20">
-        <LanguageSwitcher />
-      </div>
 
       {/* Back Button - показывается когда форма регистрации открыта */}
       {lastUserId && lastUserName && showRegistrationForm && (

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, FileText, Bell, User, Loader2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 import { useTeacherProducts } from "@/hooks/useProductTeachers";
 import { useIsMobile } from "@/hooks/use-mobile";
 import TeacherScheduleTab from "@/components/teacher/TeacherScheduleTab";
@@ -205,7 +205,7 @@ const TeacherDashboard = () => {
             </h1>
             <p className="text-sm text-muted-foreground">{teacherName}</p>
           </div>
-          <LanguageSwitcher />
+          
         </div>
       </header>
 

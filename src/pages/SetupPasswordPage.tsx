@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { CheckCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -128,9 +128,6 @@ const SetupPasswordPage = () => {
 
   return (
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
-      <div className="absolute top-4 right-4">
-        <LanguageSwitcher />
-      </div>
       
       <div className="max-w-md w-full">
         {/* Success message */}

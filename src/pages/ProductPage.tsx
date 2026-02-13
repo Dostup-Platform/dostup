@@ -2,7 +2,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 import { Loader2 } from "lucide-react";
 import heroBackground from "@/assets/hero-background.jpg";
 
@@ -47,11 +47,6 @@ const ProductPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Language Switcher */}
-      <div className="absolute top-4 right-4 z-20">
-        <LanguageSwitcher />
-      </div>
-
       {/* Hero Image */}
       <div className="relative w-full aspect-[4/3] md:aspect-[16/9] max-h-[50vh]">
         <img

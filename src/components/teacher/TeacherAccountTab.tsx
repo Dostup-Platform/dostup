@@ -7,6 +7,7 @@ import { User, LogOut, Loader2, Download } from "lucide-react";
 import { unregisterPushToken } from "@/lib/firebase";
 import NotificationPreferences from "@/components/NotificationPreferences";
 import { usePWADetection } from "@/hooks/usePWADetection";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,6 +70,9 @@ const TeacherAccountTab = ({ teacherName, teacherPhone }: TeacherAccountTabProps
 
       {/* Notification Preferences */}
       {teacherPhone && <NotificationPreferences userPhone={teacherPhone} />}
+
+      {/* Language Switcher */}
+      <LanguageSwitcher />
 
       {/* Install App - only show if not installed */}
       {!isAppInstalled && (

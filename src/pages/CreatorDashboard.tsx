@@ -8,7 +8,7 @@ import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
 import CreatorNotificationsTab from "@/components/creator/CreatorNotificationsTab";
 import CreatorAccountTab from "@/components/creator/CreatorAccountTab";
 import { useLanguage } from "@/contexts/LanguageContext";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
 import { useRealtimeBookingNotifications } from "@/hooks/useRealtimeBookings";
@@ -183,7 +183,7 @@ const CreatorDashboard = () => {
             <h1 className="text-xl font-bold text-foreground">{t("creatorDashboard")}</h1>
             <p className="text-sm text-muted-foreground">{creatorName}</p>
           </div>
-          <LanguageSwitcher />
+          
         </div>
       </header>
 

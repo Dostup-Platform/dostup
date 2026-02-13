@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useDeviceDetection, DeviceType } from "@/hooks/useDeviceDetection";
 import { ArrowLeft, Smartphone, Monitor, ChevronDown, ChevronUp, Share, MoreVertical, Download } from "lucide-react";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+
 
 const InstallPage = () => {
   const navigate = useNavigate();
@@ -99,11 +99,6 @@ const InstallPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Language Switcher */}
-      <div className="absolute top-4 right-4 z-20">
-        <LanguageSwitcher />
-      </div>
-
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container flex items-center h-14 px-4">
