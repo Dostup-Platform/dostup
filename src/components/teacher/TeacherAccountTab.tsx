@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { User, LogOut, Loader2, Download } from "lucide-react";
+import { User, LogOut, Loader2, Download, Globe } from "lucide-react";
 import { unregisterPushToken } from "@/lib/firebase";
 import NotificationPreferences from "@/components/NotificationPreferences";
 import { usePWADetection } from "@/hooks/usePWADetection";
@@ -72,7 +72,17 @@ const TeacherAccountTab = ({ teacherName, teacherPhone }: TeacherAccountTabProps
       {teacherPhone && <NotificationPreferences userPhone={teacherPhone} />}
 
       {/* Language Switcher */}
-      <LanguageSwitcher />
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe className="w-4 h-4" />
+            {language === "ru" ? "Язык приложения" : "Қолданба тілі"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LanguageSwitcher />
+        </CardContent>
+      </Card>
 
       {/* Install App - only show if not installed */}
       {!isAppInstalled && (

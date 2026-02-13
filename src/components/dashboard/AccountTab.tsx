@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useSimplePurchases } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { User, Package, LogOut, Loader2, Download } from "lucide-react";
+import { User, Package, LogOut, Loader2, Download, Globe } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate, Link } from "react-router-dom";
@@ -34,7 +34,7 @@ const formatPrice = (price: number) => {
 const AccountTab = () => {
   const navigate = useNavigate();
   const { user, logout } = useSimpleAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
   const isAppInstalled = usePWADetection();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -131,7 +131,17 @@ const AccountTab = () => {
       {user.phone && <NotificationPreferences userPhone={user.phone} />}
 
       {/* Language Switcher */}
-      <LanguageSwitcher />
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe className="w-4 h-4" />
+            {language === "ru" ? "Язык приложения" : "Қолданба тілі"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LanguageSwitcher />
+        </CardContent>
+      </Card>
 
       {/* Install App - only show if not installed */}
       {!isAppInstalled && (
