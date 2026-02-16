@@ -18,6 +18,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
+import { useAppResume } from "@/hooks/useAppResume";
 
 const LAST_VIEWED_KEY = "creator_notifications_last_viewed";
 
@@ -29,6 +30,7 @@ const CreatorDashboard = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  useAppResume();
   
   // Load last viewed timestamp from localStorage
   useEffect(() => {

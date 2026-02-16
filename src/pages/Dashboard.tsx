@@ -14,6 +14,7 @@ import NotificationsTab from "@/components/dashboard/NotificationsTab";
 import { useRealtimeStudentNotifications } from "@/hooks/useRealtimeStudentNotifications";
 import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
+import { useAppResume } from "@/hooks/useAppResume";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("materials");
@@ -22,6 +23,7 @@ const Dashboard = () => {
   const { user, loading } = useSimpleAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  useAppResume();
 
   // Загрузить lastViewedAt из localStorage
   useEffect(() => {
