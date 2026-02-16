@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,70 +10,72 @@ const APP_URL = "https://dostup.lovable.app";
 const DEFAULT_IMAGE =
   "https://storage.googleapis.com/gpt-engineer-file-uploads/YKkA8PHzyuUKyN7SwYoPKfgTbjI3/social-images/social-1770454720368-1200_на_700.png";
 
-Deno.serve(async (req) => {
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeJs(str: string): string {
+  return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const url = new URL(req.url);
-  const productId = url.searchParams.get("id");
-  const teacher = url.searchParams.get("teacher");
+  try {
+    const url = new URL(req.url);
+    const productId = url.searchParams.get("id");
+    const teacher = url.searchParams.get("teacher");
 
-  // Build redirect URL
-  let redirectUrl = `${APP_URL}/product/${productId || ""}`;
-  if (teacher) {
-    redirectUrl += `?teacher=${encodeURIComponent(teacher)}`;
-  }
+    let redirectUrl = `${APP_URL}/product/${productId || ""}`;
+    if (teacher) {
+      redirectUrl += `?teacher=${encodeURIComponent(teacher)}`;
+    }
 
-  // If no product id, redirect to app
-  if (!productId) {
-    return new Response(null, {
-      status: 302,
-      headers: { Location: redirectUrl, ...corsHeaders },
-    });
-  }
+    if (!productId) {
+      return new Response(null, {
+        status: 302,
+        headers: { Location: redirectUrl, ...corsHeaders },
+      });
+    }
 
-  // Fetch product from DB
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  let product: any = null;
+    let product: any = null;
 
-  // Try slug first, then id
-  const { data: bySlug } = await supabase
-    .from("products")
-    .select("title, headline, description, price, image_url")
-    .eq("slug", productId)
-    .eq("is_active", true)
-    .maybeSingle();
+    // Try by slug first
+    const slugRes = await fetch(
+      `${supabaseUrl}/rest/v1/products?slug=eq.${encodeURIComponent(productId)}&is_active=eq.true&select=title,headline,description,price,image_url&limit=1`,
+      { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+    );
+    const slugData = await slugRes.json();
+    if (Array.isArray(slugData) && slugData.length > 0) {
+      product = slugData[0];
+    } else {
+      // Try by id
+      const idRes = await fetch(
+        `${supabaseUrl}/rest/v1/products?id=eq.${encodeURIComponent(productId)}&is_active=eq.true&select=title,headline,description,price,image_url&limit=1`,
+        { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+      );
+      const idData = await idRes.json();
+      if (Array.isArray(idData) && idData.length > 0) {
+        product = idData[0];
+      }
+    }
 
-  if (bySlug) {
-    product = bySlug;
-  } else {
-    const { data: byId } = await supabase
-      .from("products")
-      .select("title, headline, description, price, image_url")
-      .eq("id", productId)
-      .eq("is_active", true)
-      .maybeSingle();
-    product = byId;
-  }
+    const title = product?.title || "Dostup";
+    const description = product?.headline || product?.description || "Доступ к вашим цифровым продуктам и курсам!";
+    const image = product?.image_url || DEFAULT_IMAGE;
+    const price = product?.price ? `${new Intl.NumberFormat("ru-RU").format(product.price)} ₸` : "";
+    const ogDescription = price ? `${description} — ${price}` : description;
 
-  const title = product?.title || "Dostup";
-  const description =
-    product?.headline ||
-    product?.description ||
-    "Доступ к вашим цифровым продуктам и курсам!";
-  const image = product?.image_url || DEFAULT_IMAGE;
-  const price = product?.price
-    ? `${new Intl.NumberFormat("ru-RU").format(product.price)} ₸`
-    : "";
-  const ogDescription = price
-    ? `${description} — ${price}`
-    : description;
-
-  const html = `<!DOCTYPE html>
+    const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8"/>
@@ -95,23 +97,11 @@ Deno.serve(async (req) => {
 </body>
 </html>`;
 
-  return new Response(html, {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "public, max-age=300",
-      ...corsHeaders,
-    },
-  });
+    return new Response(html, {
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=300", ...corsHeaders },
+    });
+  } catch (err) {
+    console.error("og-product error:", err);
+    return new Response("Internal error", { status: 500, headers: corsHeaders });
+  }
 });
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-function escapeJs(str: string): string {
-  return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
