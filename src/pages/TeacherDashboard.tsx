@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { useRealtimeTeacherNotifications } from "@/hooks/useRealtimeTeacherNotifications";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
+import { useAppResume } from "@/hooks/useAppResume";
 
 const LAST_VIEWED_KEY = "teacher_notifications_last_viewed";
 
@@ -26,6 +27,7 @@ const TeacherDashboard = () => {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  useAppResume();
 
   // Load teacher data from localStorage
   useEffect(() => {

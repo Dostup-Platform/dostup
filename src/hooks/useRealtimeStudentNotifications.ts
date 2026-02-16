@@ -52,6 +52,7 @@ export const useRealtimeStudentNotifications = (
   }, [language, queryClient]);
 
   // Client-side timers for upcoming material unlocks — gives instant notifications
+  // Re-runs on visibility change to recover from iOS freeze
   useEffect(() => {
     if (!enabled || purchasedProductIds.length === 0) return;
 
@@ -63,12 +64,15 @@ export const useRealtimeStudentNotifications = (
       const now = new Date();
       const sixtyMinutesFromNow = new Date(now.getTime() + 60 * 60 * 1000);
 
+      // Also check for materials that JUST became available (up to 5 min ago) for missed unlocks
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
       const { data: upcomingMaterials } = await supabase
         .from("materials")
         .select("id, title, product_id, available_at, product:products(title)")
         .in("product_id", purchasedProductIds)
         .not("available_at", "is", null)
-        .gt("available_at", now.toISOString())
+        .gt("available_at", fiveMinutesAgo.toISOString())
         .lte("available_at", sixtyMinutesFromNow.toISOString());
 
       if (!upcomingMaterials || upcomingMaterials.length === 0) return;
@@ -77,7 +81,12 @@ export const useRealtimeStudentNotifications = (
         const availableAt = new Date(material.available_at!);
         const delay = availableAt.getTime() - Date.now();
         
-        if (delay <= 0) continue;
+        // If already available (delay <= 0), show toast immediately for recently unlocked
+        if (delay <= 0) {
+          const productTitle = (material as any).product?.title || "курс";
+          showUnlockToast(material.id, material.title, productTitle);
+          continue;
+        }
 
         const timer = setTimeout(() => {
           const productTitle = (material as any).product?.title || "курс";
@@ -91,9 +100,18 @@ export const useRealtimeStudentNotifications = (
 
     setupTimers();
 
+    // Re-setup timers when app resumes from background
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        setupTimers();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     const interval = setInterval(setupTimers, 10 * 60 * 1000);
 
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
       clearInterval(interval);
       activeTimersRef.current.forEach(timer => clearTimeout(timer));
       activeTimersRef.current.clear();
