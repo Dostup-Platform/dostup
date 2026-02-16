@@ -537,7 +537,8 @@ interface FormData {
               onCheckedChange={(checked) => {
                 const now = new Date();
                 now.setMinutes(now.getMinutes() + 30);
-                const defaultTime = now.toISOString().slice(0, 16);
+                const pad = (n: number) => String(n).padStart(2, '0');
+                const defaultTime = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
                 setFormData(prev => ({ ...prev, scheduleAccess: !!checked, availableAt: checked ? (prev.availableAt || defaultTime) : prev.availableAt }));
               }}
             />
@@ -549,7 +550,7 @@ interface FormData {
               type="datetime-local"
               value={formData.availableAt}
               onChange={(e) => setFormData(prev => ({ ...prev, availableAt: e.target.value }))}
-              min={new Date().toISOString().slice(0, 16)}
+              min={(() => { const n = new Date(); const p = (v: number) => String(v).padStart(2,'0'); return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}T${p(n.getHours())}:${p(n.getMinutes())}`; })()}
               required={formData.scheduleAccess}
             />
           )}
@@ -630,7 +631,8 @@ interface FormData {
                 onCheckedChange={(checked) => {
                   const now = new Date();
                   now.setMinutes(now.getMinutes() + 30);
-                  const defaultTime = now.toISOString().slice(0, 16);
+                  const pad = (n: number) => String(n).padStart(2, '0');
+                  const defaultTime = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
                   setFormData(prev => ({ ...prev, scheduleAccess: !!checked, availableAt: checked ? (prev.availableAt || defaultTime) : prev.availableAt }));
                 }}
              />
@@ -642,7 +644,7 @@ interface FormData {
                type="datetime-local"
                value={formData.availableAt}
                onChange={(e) => setFormData(prev => ({ ...prev, availableAt: e.target.value }))}
-               min={new Date().toISOString().slice(0, 16)}
+               min={(() => { const n = new Date(); const p = (v: number) => String(v).padStart(2,'0'); return `${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}T${p(n.getHours())}:${p(n.getMinutes())}`; })()}
                required={formData.scheduleAccess}
              />
            )}
