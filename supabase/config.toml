@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.unlock-materials]
 verify_jwt = false
+
+[functions.og-product]
+verify_jwt = false

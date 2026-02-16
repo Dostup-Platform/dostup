@@ -34,17 +34,16 @@ const ShareLinkDialog = ({ productId, productTitle, isOpen, onClose }: ShareLink
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherOption>("author");
 
   const generateLink = () => {
-    let link = `${window.location.origin}/product/${productId}`;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const params = new URLSearchParams({ id: productId });
     
     if (selectedTeacher === "student_choice") {
-      link += "?teacher=choice";
+      params.set("teacher", "choice");
     } else if (selectedTeacher !== "author") {
-      // Encode teacher name for URL
-      link += `?teacher=${encodeURIComponent(selectedTeacher)}`;
+      params.set("teacher", selectedTeacher);
     }
-    // "author" = no param, student sees author's schedule
     
-    return link;
+    return `${supabaseUrl}/functions/v1/og-product?${params.toString()}`;
   };
 
   const handleCopyLink = () => {
