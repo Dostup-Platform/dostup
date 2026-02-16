@@ -534,7 +534,12 @@ interface FormData {
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <Checkbox
               checked={formData.scheduleAccess}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, scheduleAccess: !!checked }))}
+              onCheckedChange={(checked) => {
+                const now = new Date();
+                now.setMinutes(now.getMinutes() + 30);
+                const defaultTime = now.toISOString().slice(0, 16);
+                setFormData(prev => ({ ...prev, scheduleAccess: !!checked, availableAt: checked ? (prev.availableAt || defaultTime) : prev.availableAt }));
+              }}
             />
             <Clock className="w-4 h-4" />
             Запланировать открытие доступа
@@ -622,7 +627,12 @@ interface FormData {
            <label className="flex items-center gap-2 text-sm cursor-pointer">
              <Checkbox
                checked={formData.scheduleAccess}
-               onCheckedChange={(checked) => setFormData(prev => ({ ...prev, scheduleAccess: !!checked }))}
+                onCheckedChange={(checked) => {
+                  const now = new Date();
+                  now.setMinutes(now.getMinutes() + 30);
+                  const defaultTime = now.toISOString().slice(0, 16);
+                  setFormData(prev => ({ ...prev, scheduleAccess: !!checked, availableAt: checked ? (prev.availableAt || defaultTime) : prev.availableAt }));
+                }}
              />
              <Clock className="w-4 h-4" />
              Запланировать открытие доступа
