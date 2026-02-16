@@ -34,16 +34,15 @@ const ShareLinkDialog = ({ productId, productTitle, isOpen, onClose }: ShareLink
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherOption>("author");
 
   const generateLink = () => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const params = new URLSearchParams({ id: productId });
+    let url = `https://dostup.lovable.app/product/${productId}`;
     
     if (selectedTeacher === "student_choice") {
-      params.set("teacher", "choice");
+      url += `?teacher=choice`;
     } else if (selectedTeacher !== "author") {
-      params.set("teacher", selectedTeacher);
+      url += `?teacher=${encodeURIComponent(selectedTeacher)}`;
     }
     
-    return `${supabaseUrl}/functions/v1/ogproduct?${params.toString()}`;
+    return url;
   };
 
   const handleCopyLink = () => {
