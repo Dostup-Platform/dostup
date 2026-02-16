@@ -43,7 +43,7 @@ const ShareLinkDialog = ({ productId, productTitle, isOpen, onClose }: ShareLink
       params.set("teacher", selectedTeacher);
     }
     
-    return `${supabaseUrl}/functions/v1/og-product?${params.toString()}`;
+    return `${supabaseUrl}/functions/v1/ogproduct?${params.toString()}`;
   };
 
   const handleCopyLink = () => {
