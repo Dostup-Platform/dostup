@@ -103,11 +103,7 @@ const InstallPage = () => {
       <header className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container flex items-center h-14 px-4">
           <Button variant="ghost" size="sm" onClick={() => {
-            try {
-              navigate("/", { replace: true });
-            } catch {
-              window.location.href = "/";
-            }
+            navigate("/", { replace: true });
           }}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             {t("back")}

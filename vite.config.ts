@@ -70,10 +70,12 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
+        id: "/",
         name: "Dostup",
         short_name: "Dostup",
         description: "Доступ к курсам и материалам",
-        start_url: "/",
+        start_url: "/?standalone=true",
+        scope: "/",
         display: "standalone",
         background_color: "#ffffff",
         theme_color: "#f97316",
