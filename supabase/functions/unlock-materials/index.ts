@@ -124,14 +124,35 @@ serve(async (req) => {
         if (sentKeys.has(key)) continue;
         sentKeys.add(key);
 
-        // Get tokens directly — no intermediate edge function call
-        const { data: tokens } = await supabase
+        // Try to get tokens by user_id first
+        let { data: tokens } = await supabase
           .from("push_tokens")
           .select("id, fcm_token")
           .eq("user_id", studentId)
           .eq("user_role", "student");
 
-        if (!tokens || tokens.length === 0) continue;
+        // Fallback: if no tokens by user_id, try by user_phone
+        if (!tokens || tokens.length === 0) {
+          const { data: studentUser } = await supabase
+            .from("simple_users")
+            .select("phone")
+            .eq("id", studentId)
+            .single();
+
+          if (studentUser?.phone) {
+            const { data: phoneTokens } = await supabase
+              .from("push_tokens")
+              .select("id, fcm_token")
+              .eq("user_phone", studentUser.phone)
+              .eq("user_role", "student");
+            tokens = phoneTokens;
+          }
+        }
+
+        if (!tokens || tokens.length === 0) {
+          console.log(`No push tokens for student ${studentId}`);
+          continue;
+        }
 
         // Send FCM directly to avoid double-hop dedup issues
         const projectId = Deno.env.get("FCM_PROJECT_ID");
