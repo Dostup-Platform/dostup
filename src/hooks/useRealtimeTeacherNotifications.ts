@@ -38,7 +38,6 @@ const cleanupProcessedIds = (set: Set<string>, id: string) => {
 
 export const useRealtimeTeacherNotifications = (
   teacherName: string | null,
-  teacherPhone: string | undefined,
   scheduleIds: string[],
   enabled: boolean = true,
   currentBadgeCount: number = 0
@@ -292,6 +291,6 @@ export const useRealtimeTeacherNotifications = (
       console.log("Cleaning up teacher realtime subscription");
       supabase.removeChannel(channel);
     };
-  }, [enabled, teacherName, teacherPhone, scheduleIds, fetchBookingDetails, queryClient, language]);
+  }, [enabled, teacherName, scheduleIds, fetchBookingDetails, queryClient, language]);
 };
 

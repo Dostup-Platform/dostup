@@ -125,7 +125,7 @@ const CreatorDashboard = () => {
 
   // Register FCM token for push notifications
   useFCMRegistration({
-    userPhone: creatorName || undefined,
+    userId: creatorName || undefined,
     userRole: "creator",
     enabled: !!creatorName
   });

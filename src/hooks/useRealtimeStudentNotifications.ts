@@ -11,7 +11,6 @@ import { setAppBadge } from "@/lib/appBadge";
 
 export const useRealtimeStudentNotifications = (
   userId: string | undefined,
-  userPhone: string | undefined,
   enabled: boolean = true,
   currentBadgeCount: number = 0,
   purchasedProductIds: string[] = []
@@ -134,9 +133,9 @@ export const useRealtimeStudentNotifications = (
           const cancellation = payload.new as any;
           
           if (cancellation.cancelled_by !== "creator" && cancellation.cancelled_by !== "teacher") return;
-          // Match by phone if available, otherwise skip cancellation toast
-          if (userPhone && cancellation.user_phone !== userPhone) return;
-          if (!userPhone) return;
+          // Match by simple_user_id or user_phone (backward compat)
+          if (cancellation.simple_user_id && cancellation.simple_user_id !== userId) return;
+          if (!cancellation.simple_user_id && cancellation.user_phone !== userId) return;
 
           playCancellationSound();
 
@@ -233,5 +232,5 @@ export const useRealtimeStudentNotifications = (
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [enabled, userId, userPhone, queryClient, language, showUnlockToast]);
+  }, [enabled, userId, queryClient, language, showUnlockToast]);
 };

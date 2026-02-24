@@ -72,7 +72,7 @@ serve(async (req) => {
 
     if (!action || (!userPhone && !userId)) {
       return new Response(
-        JSON.stringify({ error: 'Missing action or user identifier' }),
+        JSON.stringify({ error: 'Missing action or user identifier (userId or userPhone)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

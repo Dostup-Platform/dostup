@@ -21,10 +21,10 @@ import {
 
 interface TeacherAccountTabProps {
   teacherName: string;
-  teacherPhone?: string;
+  teacherId?: string;
 }
 
-const TeacherAccountTab = ({ teacherName, teacherPhone }: TeacherAccountTabProps) => {
+const TeacherAccountTab = ({ teacherName, teacherId }: TeacherAccountTabProps) => {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -34,7 +34,9 @@ const TeacherAccountTab = ({ teacherName, teacherPhone }: TeacherAccountTabProps
   const handleLogout = async () => {
     setIsLoggingOut(true);
     // Удаляем push-токены при выходе
-    await unregisterPushToken(teacherName).catch(console.error);
+    if (teacherId) {
+      await unregisterPushToken(teacherId).catch(console.error);
+    }
     
     localStorage.removeItem("teacher_data");
     localStorage.removeItem("teacher_notifications_last_viewed");
@@ -69,7 +71,7 @@ const TeacherAccountTab = ({ teacherName, teacherPhone }: TeacherAccountTabProps
       </Card>
 
       {/* Notification Preferences */}
-      {teacherPhone && <NotificationPreferences userPhone={teacherPhone} />}
+      {teacherId && <NotificationPreferences userId={teacherId} />}
 
       {/* Language Switcher */}
       <Card>

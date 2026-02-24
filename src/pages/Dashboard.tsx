@@ -51,20 +51,20 @@ const Dashboard = () => {
 
   // Получить отменённые записи для подсчёта бейджа
   const { data: cancellations = [] } = useQuery({
-    queryKey: ["student-cancellations-count", user?.phone],
+    queryKey: ["student-cancellations-count", user?.id],
     queryFn: async () => {
-      if (!user?.phone) return [];
+      if (!user?.id) return [];
       const { data, error } = await supabase
         .from("booking_cancellations")
         .select("id, cancelled_at")
-        .eq("user_phone", user.phone)
+        .or(`simple_user_id.eq.${user.id},user_phone.eq.${user.phone}`)
         .in("cancelled_by", ["creator", "teacher"])
         .order("cancelled_at", { ascending: false })
         .limit(50);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.phone,
+    enabled: !!user?.id,
   });
 
   const { data: confirmedPurchases = [] } = useQuery({
@@ -112,12 +112,11 @@ const Dashboard = () => {
   }, [cancellations, confirmedPurchases, materialUnlocks, lastViewedAt]);
 
   // Realtime уведомления (звуки и push) с badge count
-  useRealtimeStudentNotifications(user?.id, user?.phone, !!user, newNotificationsCount, purchasedProductIds);
+  useRealtimeStudentNotifications(user?.id, !!user, newNotificationsCount, purchasedProductIds);
 
   // Register FCM token for push notifications
   useFCMRegistration({
     userId: user?.id,
-    userPhone: user?.phone,
     userRole: "student",
     enabled: !!user?.id
   });

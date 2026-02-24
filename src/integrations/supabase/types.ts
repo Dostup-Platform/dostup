@@ -47,6 +47,7 @@ export type Database = {
           product_title: string
           schedule_id: string | null
           schedule_title: string | null
+          simple_user_id: string | null
           slot_date: string
           slot_time: string
           user_name: string
@@ -63,6 +64,7 @@ export type Database = {
           product_title: string
           schedule_id?: string | null
           schedule_title?: string | null
+          simple_user_id?: string | null
           slot_date: string
           slot_time: string
           user_name: string
@@ -79,6 +81,7 @@ export type Database = {
           product_title?: string
           schedule_id?: string | null
           schedule_title?: string | null
+          simple_user_id?: string | null
           slot_date?: string
           slot_time?: string
           user_name?: string
@@ -110,6 +113,7 @@ export type Database = {
           reminder_type: string
           scheduled_at: string
           sent_at: string | null
+          simple_user_id: string | null
           slot_date: string | null
           slot_time: string | null
           user_phone: string
@@ -122,6 +126,7 @@ export type Database = {
           reminder_type: string
           scheduled_at: string
           sent_at?: string | null
+          simple_user_id?: string | null
           slot_date?: string | null
           slot_time?: string | null
           user_phone: string
@@ -134,6 +139,7 @@ export type Database = {
           reminder_type?: string
           scheduled_at?: string
           sent_at?: string | null
+          simple_user_id?: string | null
           slot_date?: string | null
           slot_time?: string | null
           user_phone?: string
@@ -365,6 +371,7 @@ export type Database = {
           reminder_2h: boolean
           reminder_morning: boolean
           updated_at: string
+          user_id: string | null
           user_phone: string
         }
         Insert: {
@@ -375,6 +382,7 @@ export type Database = {
           reminder_2h?: boolean
           reminder_morning?: boolean
           updated_at?: string
+          user_id?: string | null
           user_phone: string
         }
         Update: {
@@ -385,6 +393,7 @@ export type Database = {
           reminder_2h?: boolean
           reminder_morning?: boolean
           updated_at?: string
+          user_id?: string | null
           user_phone?: string
         }
         Relationships: []

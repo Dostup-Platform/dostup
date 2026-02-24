@@ -221,7 +221,7 @@ serve(async (req) => {
     const identifier = userId || userPhone;
     if (!identifier || !title || !body) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: (userPhone or userId), title, body" }),
+        JSON.stringify({ error: "Missing required fields: (userId or userPhone), title, body" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

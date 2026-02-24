@@ -49,20 +49,20 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
 
   // Получить отменённые записи
   const { data: cancellations = [], isLoading: loadingCancellations } = useQuery({
-    queryKey: ["student-cancellations", user?.phone],
+    queryKey: ["student-cancellations", user?.id],
     queryFn: async () => {
-      if (!user?.phone) return [];
+      if (!user?.id) return [];
       const { data, error } = await supabase
         .from("booking_cancellations")
         .select("*")
-        .eq("user_phone", user.phone)
+        .or(`simple_user_id.eq.${user.id},user_phone.eq.${user.phone}`)
         .in("cancelled_by", ["creator", "teacher"])
         .order("cancelled_at", { ascending: false })
         .limit(50);
       if (error) throw error;
       return (data || []) as BookingCancellation[];
     },
-    enabled: !!user?.phone,
+    enabled: !!user?.id,
   });
 
   // Получить подтверждённые покупки
