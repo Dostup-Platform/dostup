@@ -107,7 +107,6 @@ const TeacherDashboard = () => {
   // Register FCM for teacher push notifications
   useFCMRegistration({
     userId: teacherUser?.id,
-    userPhone: teacherUser?.phone,
     userRole: "teacher",
     enabled: !!teacherUser?.id,
   });
@@ -161,7 +160,6 @@ const TeacherDashboard = () => {
   // Real-time notifications for teacher bookings/cancellations (with badge count)
   useRealtimeTeacherNotifications(
     teacherName,
-    teacherUser?.phone,
     scheduleIds,
     scheduleIds.length > 0,
     newNotificationsCount
@@ -255,7 +253,7 @@ const TeacherDashboard = () => {
             />
           </TabsContent>
           <TabsContent value="account" className="mt-0 animate-fade-in">
-            <TeacherAccountTab teacherName={teacherName} teacherPhone={teacherUser?.phone} />
+            <TeacherAccountTab teacherName={teacherName} teacherId={teacherUser?.id} />
           </TabsContent>
         </Tabs>
       </main>

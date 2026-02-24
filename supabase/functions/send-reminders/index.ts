@@ -10,6 +10,7 @@ interface Reminder {
   id: string;
   booking_id: string | null;
   user_phone: string;
+  simple_user_id: string | null;
   reminder_type: string;
   scheduled_at: string;
   product_title: string | null;
@@ -83,10 +84,11 @@ serve(async (req) => {
             : `"${reminder.product_title}" 2 сағаттан кейін басталады`;
         }
 
-        // Call send-push-notification function
+        // Call send-push-notification function - prefer userId over userPhone
         const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
           body: {
-            userPhone: reminder.user_phone,
+            userId: reminder.simple_user_id || undefined,
+            userPhone: !reminder.simple_user_id ? reminder.user_phone : undefined,
             title,
             body,
             data: {
@@ -117,15 +119,16 @@ serve(async (req) => {
       }
     }
 
-    // Process morning reminders - group by user and send ONE consolidated notification
+    // Process morning reminders - group by user (prefer simple_user_id, fallback user_phone)
     const morningByUser = new Map<string, Reminder[]>();
     for (const reminder of morningReminders) {
-      const existing = morningByUser.get(reminder.user_phone) || [];
+      const key = reminder.simple_user_id || reminder.user_phone;
+      const existing = morningByUser.get(key) || [];
       existing.push(reminder);
-      morningByUser.set(reminder.user_phone, existing);
+      morningByUser.set(key, existing);
     }
 
-    for (const [userPhone, userReminders] of morningByUser) {
+    for (const [userKey, userReminders] of morningByUser) {
       try {
         const isRussian = true;
 
@@ -159,10 +162,12 @@ serve(async (req) => {
             : `Бүгінгі сабақтарыңыз: ${times}`;
         }
 
-        // Send single consolidated notification
+        // Send single consolidated notification - prefer userId
+        const firstReminder = userReminders[0];
         const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
           body: {
-            userPhone,
+            userId: firstReminder.simple_user_id || undefined,
+            userPhone: !firstReminder.simple_user_id ? firstReminder.user_phone : undefined,
             title,
             body,
             data: {
@@ -174,7 +179,7 @@ serve(async (req) => {
         });
 
         if (pushError) {
-          console.error(`Error sending morning digest to ${userPhone}:`, pushError);
+          console.error(`Error sending morning digest to ${userKey}:`, pushError);
           failCount += userReminders.length;
           continue;
         }
@@ -187,9 +192,9 @@ serve(async (req) => {
           .in("id", reminderIds);
 
         successCount += userReminders.length;
-        console.log(`Sent morning digest to ${userPhone} with ${userReminders.length} lessons`);
+        console.log(`Sent morning digest to ${userKey} with ${userReminders.length} lessons`);
       } catch (error) {
-        console.error(`Exception processing morning digest for ${userPhone}:`, error);
+        console.error(`Exception processing morning digest for ${userKey}:`, error);
         failCount += userReminders.length;
       }
     }

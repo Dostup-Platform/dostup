@@ -86,7 +86,7 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
       </Card>
 
       {/* Notification Preferences */}
-      <NotificationPreferences userPhone={creatorName} />
+      <NotificationPreferences userId={creatorName} />
 
       {/* Language Switcher */}
       <Card>

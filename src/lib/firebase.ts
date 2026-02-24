@@ -90,9 +90,8 @@ export const getFCMToken = async (): Promise<string | null> => {
  * Register FCM token on the server
  */
 export const registerPushToken = async (
-  userPhone: string,
-  userRole: "creator" | "student" | "teacher",
-  userId?: string
+  userId: string,
+  userRole: "creator" | "student" | "teacher"
 ): Promise<boolean> => {
   try {
     const fcmToken = await getFCMToken();
@@ -107,7 +106,7 @@ export const registerPushToken = async (
     // Build request body with session credentials for identity validation
     const body: Record<string, string | null | undefined> = {
       action: "register",
-      userPhone,
+      userPhone: userId, // keep userPhone populated for backward compat in DB
       userId,
       userRole,
       fcmToken,
@@ -141,13 +140,13 @@ export const registerPushToken = async (
 /**
  * Unregister FCM token from the server (removes ALL tokens for user)
  */
-export const unregisterPushToken = async (userPhone: string): Promise<boolean> => {
+export const unregisterPushToken = async (userId: string): Promise<boolean> => {
   try {
-    // Remove all tokens for this user (don't need specific token)
-    // Build body with identity info
+    // Remove all tokens for this user
     const body: Record<string, string | null> = {
       action: "unregister",
-      userPhone
+      userPhone: userId, // backward compat
+      userId
     };
 
     // For creators, include session token
@@ -168,7 +167,7 @@ export const unregisterPushToken = async (userPhone: string): Promise<boolean> =
       return false;
     }
 
-    console.log("Push tokens unregistered for", userPhone);
+    console.log("Push tokens unregistered for", userId);
     return true;
   } catch (error) {
     console.error("Error in unregisterPushToken:", error);

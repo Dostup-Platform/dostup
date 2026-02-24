@@ -15,16 +15,16 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   reminder_2h: true,
 };
 
-export const useNotificationPreferences = (userPhone: string | undefined) => {
+export const useNotificationPreferences = (userId: string | undefined) => {
   return useQuery({
-    queryKey: ["notification-preferences", userPhone],
+    queryKey: ["notification-preferences", userId],
     queryFn: async () => {
-      if (!userPhone) return DEFAULT_PREFERENCES;
+      if (!userId) return DEFAULT_PREFERENCES;
 
       const { data, error } = await supabase
         .from("notification_preferences")
         .select("*")
-        .eq("user_phone", userPhone)
+        .or(`user_id.eq.${userId},user_phone.eq.${userId}`)
         .maybeSingle();
 
       if (error) throw error;
@@ -38,6 +38,6 @@ export const useNotificationPreferences = (userPhone: string | undefined) => {
         reminder_2h: data.reminder_2h,
       } as NotificationPreferences;
     },
-    enabled: !!userPhone,
+    enabled: !!userId,
   });
 };

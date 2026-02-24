@@ -41,7 +41,7 @@ self.addEventListener('notificationclick', (event) => {
   // Determine where to navigate based on notification type
   if (data.type === 'booking' || data.type === 'cancellation' || data.type === 'payment') {
     targetUrl = '/creator';
-  } else if (data.type === 'creator_cancellation' || data.type === 'reminder') {
+  } else if (data.type === 'creator_cancellation' || data.type === 'reminder' || data.type === 'material_unlocked') {
     targetUrl = '/dashboard';
   }
 

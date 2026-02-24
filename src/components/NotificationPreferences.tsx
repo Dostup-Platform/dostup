@@ -10,7 +10,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 
 interface NotificationPreferencesProps {
-  userPhone: string;
+  userId: string;
 }
 
 interface Preferences {
@@ -31,7 +31,7 @@ const MORNING_TIMES = [
   "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00"
 ];
 
-const NotificationPreferences = ({ userPhone }: NotificationPreferencesProps) => {
+const NotificationPreferences = ({ userId }: NotificationPreferencesProps) => {
   const { language } = useLanguage();
   const queryClient = useQueryClient();
   const [localPrefs, setLocalPrefs] = useState<Preferences>(DEFAULT_PREFERENCES);
@@ -66,18 +66,19 @@ const NotificationPreferences = ({ userPhone }: NotificationPreferencesProps) =>
 
   // Fetch existing preferences
   const { data: existingPrefs, isLoading } = useQuery({
-    queryKey: ["notification-preferences", userPhone],
+    queryKey: ["notification-preferences", userId],
     queryFn: async () => {
+      // Try by user_id first, fallback to user_phone for backward compat
       const { data, error } = await supabase
         .from("notification_preferences")
         .select("*")
-        .eq("user_phone", userPhone)
+        .or(`user_id.eq.${userId},user_phone.eq.${userId}`)
         .maybeSingle();
 
       if (error) throw error;
       return data;
     },
-    enabled: !!userPhone,
+    enabled: !!userId,
   });
 
   // Update local state when data loads
@@ -97,21 +98,43 @@ const NotificationPreferences = ({ userPhone }: NotificationPreferencesProps) =>
   // Save preferences mutation
   const saveMutation = useMutation({
     mutationFn: async (prefs: Preferences) => {
-      const { error } = await supabase
+      // Check if record exists
+      const { data: existing } = await supabase
         .from("notification_preferences")
-        .upsert({
-          user_phone: userPhone,
-          reminder_24h: prefs.reminder_24h,
-          reminder_morning: prefs.reminder_morning,
-          morning_time: prefs.morning_time,
-          reminder_2h: prefs.reminder_2h,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "user_phone" });
+        .select("id")
+        .or(`user_id.eq.${userId},user_phone.eq.${userId}`)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (existing) {
+        const { error } = await supabase
+          .from("notification_preferences")
+          .update({
+            user_id: userId,
+            user_phone: userId,
+            reminder_24h: prefs.reminder_24h,
+            reminder_morning: prefs.reminder_morning,
+            morning_time: prefs.morning_time,
+            reminder_2h: prefs.reminder_2h,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("notification_preferences")
+          .insert({
+            user_id: userId,
+            user_phone: userId,
+            reminder_24h: prefs.reminder_24h,
+            reminder_morning: prefs.reminder_morning,
+            morning_time: prefs.morning_time,
+            reminder_2h: prefs.reminder_2h,
+          });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notification-preferences", userPhone] });
+      queryClient.invalidateQueries({ queryKey: ["notification-preferences", userId] });
       toast.success(t.saved);
     },
     onError: () => {

@@ -1,26 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { initializeFirebaseMessaging, registerPushToken, onForegroundMessage } from "@/lib/firebase";
 
 interface UseFCMRegistrationOptions {
   userId?: string;
-  userPhone?: string;
   userRole: "creator" | "student" | "teacher";
   enabled?: boolean;
 }
 
 export const useFCMRegistration = ({
   userId,
-  userPhone,
   userRole,
   enabled = true
 }: UseFCMRegistrationOptions) => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
-  const registrationAttempted = useRef(false);
 
   useEffect(() => {
-    // Need at least userId or userPhone to register
-    if (!enabled || (!userId && !userPhone) || registrationAttempted.current) return;
+    if (!enabled || !userId) return;
 
     const registerFCM = async () => {
       // Check if notifications are supported
@@ -29,7 +25,6 @@ export const useFCMRegistration = ({
         return;
       }
 
-      registrationAttempted.current = true;
       setIsRegistering(true);
 
       try {
@@ -42,11 +37,11 @@ export const useFCMRegistration = ({
         }
 
         // Register push token
-        const success = await registerPushToken(userPhone || userId || "", userRole, userId);
+        const success = await registerPushToken(userId, userRole);
         setIsRegistered(success);
 
         if (success) {
-          console.log(`FCM registered for ${userRole}: ${userId || userPhone}`);
+          console.log(`FCM registered for ${userRole}: ${userId}`);
         }
       } catch (error) {
         console.error("Error registering FCM:", error);
@@ -58,7 +53,7 @@ export const useFCMRegistration = ({
     // Delay registration to not block initial render
     const timeout = setTimeout(registerFCM, 2000);
     return () => clearTimeout(timeout);
-  }, [enabled, userId, userPhone, userRole]);
+  }, [enabled, userId, userRole]);
 
   // Set up foreground message handler
   // NOTE: We don't show toast here because realtime hooks already show toasts

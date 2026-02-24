@@ -41,8 +41,8 @@ const AccountTab = () => {
 
   const handleLogout = async () => {
     // Удаляем push-токены при выходе
-    if (user?.phone) {
-      await unregisterPushToken(user.phone).catch(console.error);
+    if (user?.id) {
+      await unregisterPushToken(user.id).catch(console.error);
     }
     logout(); // logout уже сохраняет данные пользователя для повторного входа
     navigate("/");
@@ -128,7 +128,7 @@ const AccountTab = () => {
       </Card>
 
       {/* Notification Preferences */}
-      {user.phone && <NotificationPreferences userPhone={user.phone} />}
+      <NotificationPreferences userId={user.id} />
 
       {/* Language Switcher */}
       <Card>
