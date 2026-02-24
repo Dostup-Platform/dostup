@@ -216,15 +216,16 @@ serve(async (req) => {
       );
     }
 
-    const { userPhone, userId, title, body, data, targetRole } = await req.json();
+    const { userId, title, body, data, targetRole } = await req.json();
 
-    const identifier = userId || userPhone;
-    if (!identifier || !title || !body) {
+    if (!userId || !title || !body) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: (userId or userPhone), title, body" }),
+        JSON.stringify({ error: "Missing required fields: userId, title, body" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const identifier = userId;
 
     // Check for duplicate notifications
     const dedupKey = getNotificationKey(identifier, title, data);
@@ -246,12 +247,7 @@ serve(async (req) => {
       .from("push_tokens")
       .select("id, fcm_token, user_role");
 
-    // Prefer user_id lookup, fallback to user_phone
-    if (userId) {
-      query = query.eq("user_id", userId);
-    } else {
-      query = query.eq("user_phone", userPhone);
-    }
+    query = query.eq("user_id", userId);
     
     if (targetRole) {
       query = query.eq("user_role", targetRole);

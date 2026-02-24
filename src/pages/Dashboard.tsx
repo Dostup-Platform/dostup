@@ -57,7 +57,7 @@ const Dashboard = () => {
       const { data, error } = await supabase
         .from("booking_cancellations")
         .select("id, cancelled_at")
-        .or(`simple_user_id.eq.${user.id},user_phone.eq.${user.phone}`)
+        .eq("simple_user_id", user.id)
         .in("cancelled_by", ["creator", "teacher"])
         .order("cancelled_at", { ascending: false })
         .limit(50);

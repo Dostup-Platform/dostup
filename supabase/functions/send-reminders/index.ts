@@ -84,11 +84,10 @@ serve(async (req) => {
             : `"${reminder.product_title}" 2 сағаттан кейін басталады`;
         }
 
-        // Call send-push-notification function - prefer userId over userPhone
+        // Call send-push-notification function
         const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
           body: {
-            userId: reminder.simple_user_id || undefined,
-            userPhone: !reminder.simple_user_id ? reminder.user_phone : undefined,
+            userId: reminder.simple_user_id,
             title,
             body,
             data: {
@@ -112,7 +111,7 @@ serve(async (req) => {
           .eq("id", reminder.id);
 
         successCount++;
-        console.log(`Sent regular reminder ${reminder.id} to ${reminder.user_phone}`);
+        console.log(`Sent regular reminder ${reminder.id} to ${reminder.simple_user_id}`);
       } catch (error) {
         console.error(`Exception processing reminder ${reminder.id}:`, error);
         failCount++;
@@ -162,12 +161,11 @@ serve(async (req) => {
             : `Бүгінгі сабақтарыңыз: ${times}`;
         }
 
-        // Send single consolidated notification - prefer userId
+        // Send single consolidated notification
         const firstReminder = userReminders[0];
         const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
           body: {
-            userId: firstReminder.simple_user_id || undefined,
-            userPhone: !firstReminder.simple_user_id ? firstReminder.user_phone : undefined,
+            userId: firstReminder.simple_user_id,
             title,
             body,
             data: {

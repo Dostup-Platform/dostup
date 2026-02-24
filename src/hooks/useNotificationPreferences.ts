@@ -24,7 +24,7 @@ export const useNotificationPreferences = (userId: string | undefined) => {
       const { data, error } = await supabase
         .from("notification_preferences")
         .select("*")
-        .or(`user_id.eq.${userId},user_phone.eq.${userId}`)
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (error) throw error;
