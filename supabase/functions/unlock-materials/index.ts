@@ -159,10 +159,10 @@ serve(async (req) => {
                   notification: {
                     icon: "/icon-192.png",
                     badge: "/icon-192.png",
-                    vibrate: [200, 100, 200],
+                    tag: `material_unlock_${productId}`,
                     requireInteraction: true
                   },
-                  fcm_options: { link: "/" }
+                  fcm_options: { link: "https://dostup.lovable.app/dashboard" }
                 }
               }
             };

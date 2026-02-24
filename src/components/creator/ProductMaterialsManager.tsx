@@ -536,7 +536,6 @@ interface FormData {
               checked={formData.scheduleAccess}
               onCheckedChange={(checked) => {
                 const now = new Date();
-                now.setMinutes(now.getMinutes() + 30);
                 const pad = (n: number) => String(n).padStart(2, '0');
                 const defaultTime = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
                 setFormData(prev => ({ ...prev, scheduleAccess: !!checked, availableAt: checked ? (prev.availableAt || defaultTime) : prev.availableAt }));
@@ -629,10 +628,9 @@ interface FormData {
              <Checkbox
                checked={formData.scheduleAccess}
                 onCheckedChange={(checked) => {
-                  const now = new Date();
-                  now.setMinutes(now.getMinutes() + 30);
-                  const pad = (n: number) => String(n).padStart(2, '0');
-                  const defaultTime = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                   const now = new Date();
+                   const pad = (n: number) => String(n).padStart(2, '0');
+                   const defaultTime = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
                   setFormData(prev => ({ ...prev, scheduleAccess: !!checked, availableAt: checked ? (prev.availableAt || defaultTime) : prev.availableAt }));
                 }}
              />
