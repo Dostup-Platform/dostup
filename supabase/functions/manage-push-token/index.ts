@@ -9,11 +9,10 @@ const corsHeaders = {
 /**
  * Validate caller identity:
  * - For creators: check creator_sessions table
- * - For students/teachers: check simple_users table
+ * - For students/teachers: check simple_users table by userId
  */
 async function validateIdentity(
   supabase: any,
-  userPhone: string,
   userRole: string,
   creatorToken?: string,
   creatorName?: string,
@@ -39,7 +38,7 @@ async function validateIdentity(
     return true;
   }
 
-  // For students/teachers: verify user exists in simple_users (by id or phone)
+  // For students/teachers: verify user exists in simple_users by id
   if (userId) {
     const { data: user } = await supabase
       .from('simple_users')
@@ -49,16 +48,7 @@ async function validateIdentity(
     if (user) return true;
   }
 
-  if (userPhone) {
-    const { data: user } = await supabase
-      .from('simple_users')
-      .select('id')
-      .eq('phone', userPhone)
-      .maybeSingle();
-    if (user) return true;
-  }
-
-  console.log('User not found in simple_users:', userId || userPhone);
+  console.log('User not found in simple_users:', userId);
   return false;
 }
 
@@ -68,11 +58,11 @@ serve(async (req) => {
   }
 
   try {
-    const { action, userPhone, userId, userRole, fcmToken, deviceInfo, creatorToken, creatorName } = await req.json()
+    const { action, userId, userRole, fcmToken, deviceInfo, creatorToken, creatorName } = await req.json()
 
-    if (!action || (!userPhone && !userId)) {
+    if (!action || !userId) {
       return new Response(
-        JSON.stringify({ error: 'Missing action or user identifier (userId or userPhone)' }),
+        JSON.stringify({ error: 'Missing action or userId' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -84,7 +74,6 @@ serve(async (req) => {
     // --- Validate caller identity ---
     const isValid = await validateIdentity(
       supabase,
-      userPhone,
       userRole || 'student',
       creatorToken,
       creatorName,
@@ -92,7 +81,7 @@ serve(async (req) => {
     );
 
     if (!isValid) {
-      console.warn(`Unauthorized manage-push-token call for ${userPhone} (role: ${userRole})`);
+      console.warn(`Unauthorized manage-push-token call for ${userId} (role: ${userRole})`);
       return new Response(
         JSON.stringify({ error: 'Unauthorized - identity validation failed' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -108,31 +97,24 @@ serve(async (req) => {
           )
         }
 
+        // Delete any existing token with this fcm_token (device reuse)
         await supabase
           .from('push_tokens')
           .delete()
           .eq('fcm_token', fcmToken)
 
-        // Delete old tokens for this user (by user_id or user_phone)
-        if (userId) {
-          await supabase
-            .from('push_tokens')
-            .delete()
-            .eq('user_id', userId)
-            .eq('user_role', userRole || 'student')
-        } else if (userPhone) {
-          await supabase
-            .from('push_tokens')
-            .delete()
-            .eq('user_phone', userPhone)
-            .eq('user_role', userRole || 'student')
-        }
+        // Delete old tokens for this user
+        await supabase
+          .from('push_tokens')
+          .delete()
+          .eq('user_id', userId)
+          .eq('user_role', userRole || 'student')
 
         const { error } = await supabase
           .from('push_tokens')
           .insert({
-            user_phone: userPhone || userId || 'unknown',
-            user_id: userId || null,
+            user_phone: userId, // backward compat - column is NOT NULL
+            user_id: userId,
             user_role: userRole || 'student',
             fcm_token: fcmToken,
             device_info: deviceInfo || null,
@@ -147,7 +129,7 @@ serve(async (req) => {
           )
         }
 
-        console.log(`Token registered for ${userId || userPhone} (${userRole})`)
+        console.log(`Token registered for ${userId} (${userRole})`)
         return new Response(
           JSON.stringify({ success: true }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -160,7 +142,7 @@ serve(async (req) => {
         if (fcmToken) {
           deleteQuery = deleteQuery.eq('fcm_token', fcmToken)
         } else {
-          deleteQuery = deleteQuery.eq('user_phone', userPhone)
+          deleteQuery = deleteQuery.eq('user_id', userId)
         }
 
         const { error } = await deleteQuery
@@ -173,7 +155,7 @@ serve(async (req) => {
           )
         }
 
-        console.log(`Token(s) unregistered for ${userPhone}`)
+        console.log(`Token(s) unregistered for ${userId}`)
         return new Response(
           JSON.stringify({ success: true }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

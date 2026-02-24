@@ -106,7 +106,6 @@ export const registerPushToken = async (
     // Build request body with session credentials for identity validation
     const body: Record<string, string | null | undefined> = {
       action: "register",
-      userPhone: userId, // keep userPhone populated for backward compat in DB
       userId,
       userRole,
       fcmToken,
@@ -145,7 +144,6 @@ export const unregisterPushToken = async (userId: string): Promise<boolean> => {
     // Remove all tokens for this user
     const body: Record<string, string | null> = {
       action: "unregister",
-      userPhone: userId, // backward compat
       userId
     };
 

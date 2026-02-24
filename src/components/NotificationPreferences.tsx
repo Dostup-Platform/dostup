@@ -68,11 +68,10 @@ const NotificationPreferences = ({ userId }: NotificationPreferencesProps) => {
   const { data: existingPrefs, isLoading } = useQuery({
     queryKey: ["notification-preferences", userId],
     queryFn: async () => {
-      // Try by user_id first, fallback to user_phone for backward compat
       const { data, error } = await supabase
         .from("notification_preferences")
         .select("*")
-        .or(`user_id.eq.${userId},user_phone.eq.${userId}`)
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (error) throw error;
@@ -102,7 +101,7 @@ const NotificationPreferences = ({ userId }: NotificationPreferencesProps) => {
       const { data: existing } = await supabase
         .from("notification_preferences")
         .select("id")
-        .or(`user_id.eq.${userId},user_phone.eq.${userId}`)
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (existing) {
@@ -110,7 +109,6 @@ const NotificationPreferences = ({ userId }: NotificationPreferencesProps) => {
           .from("notification_preferences")
           .update({
             user_id: userId,
-            user_phone: userId,
             reminder_24h: prefs.reminder_24h,
             reminder_morning: prefs.reminder_morning,
             morning_time: prefs.morning_time,
@@ -124,7 +122,7 @@ const NotificationPreferences = ({ userId }: NotificationPreferencesProps) => {
           .from("notification_preferences")
           .insert({
             user_id: userId,
-            user_phone: userId,
+            user_phone: userId, // NOT NULL column, backward compat
             reminder_24h: prefs.reminder_24h,
             reminder_morning: prefs.reminder_morning,
             morning_time: prefs.morning_time,
