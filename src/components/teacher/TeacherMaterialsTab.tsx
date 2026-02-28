@@ -122,6 +122,7 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
     if (!material.file_url) return;
     
     const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
+    const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     
     try {
       const isFullUrl = material.file_url.startsWith('http');
@@ -163,6 +164,8 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
     } catch (err) {
       console.error('Error getting file URL:', err);
       toast.error(language === "ru" ? 'Ошибка при открытии файла' : 'Файлды ашу кезінде қате');
+    } finally {
+      toast.dismiss(loadingToast);
     }
   }, [language]);
 

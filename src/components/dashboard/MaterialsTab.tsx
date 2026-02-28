@@ -188,6 +188,7 @@ const MaterialsTab = () => {
     if (!material.file_url) return;
     
     const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
+    const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     
     try {
       const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
@@ -251,6 +252,8 @@ const MaterialsTab = () => {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('Detail:', errMsg);
       toast.error(language === "ru" ? `Ошибка при открытии файла: ${errMsg}` : `Файлды ашу кезінде қате: ${errMsg}`);
+    } finally {
+      toast.dismiss(loadingToast);
     }
   }, [language, user?.id]);
 
