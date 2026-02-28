@@ -302,6 +302,7 @@ interface FormData {
     if (!material.file_url) return;
     
     const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
+    const loadingToast = toast.loading("Подготовка файла...");
     
     try {
       setIsLoadingUrl(true);
@@ -373,6 +374,7 @@ interface FormData {
       toast.error('Ошибка при открытии файла');
     } finally {
       setIsLoadingUrl(false);
+      toast.dismiss(loadingToast);
     }
   };
 
