@@ -1,20 +1,15 @@
 
-# Добавить уведомление "Подготовка файла..." при скачивании
+
+# Исправить открытие/скачивание файлов учителем
 
 ## Проблема
-При нажатии на кнопку скачивания ничего визуально не происходит несколько секунд, пока файл подготавливается на сервере. Пользователь не понимает, загружается файл или нет.
+В `TeacherMaterialsTab.tsx` функция `handleOpenFile` не проверяет S3-пути (`s3://...`). Она всегда использует `supabase.storage.createSignedUrl()`, который не работает для S3-файлов. Поэтому все файлы автора (которые хранятся в S3) выдают ошибку.
 
 ## Решение
-Добавить `toast.loading("Подготовка файла...")` во все три роли при скачивании/открытии файла. Тост автоматически закрывается после завершения операции.
+Обновить `handleOpenFile` в `TeacherMaterialsTab.tsx` (строки 121-170), добавив проверку S3 — аналогично тому, как это уже сделано в `TeacherMaterialsManager.tsx` (строки 263-330).
 
-## Изменения (3 файла)
+## Изменение (1 файл)
 
-### 1. `src/components/dashboard/MaterialsTab.tsx` (ученик)
-- В `handleOpenFile`: добавить `const loadingToast = toast.loading(...)` перед try
-- В конце добавить `finally { toast.dismiss(loadingToast); }`
+### `src/components/teacher/TeacherMaterialsTab.tsx`
+Заменить `handleOpenFile` (строки 121-170): добавить `import("@/lib/s3Helpers")`, проверку `isS3Path()`, и вызов `getS3DownloadUrl()` для S3-файлов. Для не-S3 файлов оставить текущую логику с `supabase.storage`.
 
-### 2. `src/components/teacher/TeacherMaterialsTab.tsx` (учитель)
-- Аналогично: `toast.loading` перед try, `toast.dismiss` в finally
-
-### 3. `src/components/creator/ProductMaterialsManager.tsx` (автор)
-- Аналогично: `toast.loading` перед try, `toast.dismiss` в finally (рядом с существующим `setIsLoadingUrl`)
