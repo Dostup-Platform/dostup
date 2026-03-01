@@ -790,7 +790,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                   <div className="text-xs font-medium flex items-center justify-center gap-1">
                     {format(day, "EEE", { locale: ru })}
                     {hasSlots && (
-                      <span className={`w-1.5 h-1.5 rounded-full ${getDotColor()}`} />
+                      <span className={`w-2 h-2 rounded-full ${getDotColor()}`} />
                     )}
                   </div>
                   <div className="text-lg font-bold">{format(day, "d")}</div>
