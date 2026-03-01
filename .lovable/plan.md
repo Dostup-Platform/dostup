@@ -1,36 +1,17 @@
 
 
-# Авто-установка времени окончания при изменении начала
+# Fix: Default end time and auto-calculation
 
-## Что сейчас
-При создании слотов в форме время начала рабочего дня по умолчанию 09:00, окончания 18:00. При изменении времени начала — время окончания не обновляется.
+## Problem
+The default `endTime` is `18:00` (representing a full work day), but the user expects it to be `startTime + slotDuration` (e.g., `09:00` → `10:00`). The auto-calculation onChange handler was added correctly, but the initial default doesn't match this logic.
 
-## Что нужно
-При изменении времени начала (`startTime`) в форме создания слотов — автоматически подставлять `endTime = startTime + slotDuration` (по умолчанию 60 минут). Пользователь сможет вручную поменять время окончания.
+## Changes
 
-## Изменения
+### File 1: `src/components/creator/CreatorScheduleTab.tsx`
+- Change default `endTime` from `"18:00"` to `"10:00"` (line 124) — so initial state is 09:00-10:00 (1 hour)
 
-### Файл 1: `src/components/creator/CreatorScheduleTab.tsx`
-- В обработчике `onChange` поля `startTime` (~строка 1119) — при изменении значения автоматически вычислять `endTime` как `startTime + slotDuration` минут и обновлять оба поля в `slotsForm`
+### File 2: `src/components/teacher/TeacherScheduleTab.tsx`
+- Same change: default `endTime` from `"18:00"` to `"10:00"` (line 124)
 
-### Файл 2: `src/components/teacher/TeacherScheduleTab.tsx`
-- Аналогичное изменение в обработчике `onChange` поля `startTime` (~строка 1171)
-
-### Логика
-```typescript
-// При изменении startTime:
-const addMinutes = (time, mins) => {
-  const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m + mins;
-  return `${String(Math.floor(total/60)%24).padStart(2,"0")}:${String(total%60).padStart(2,"0")}`;
-};
-
-onChange={(e) => setSlotsForm({
-  ...slotsForm,
-  startTime: e.target.value,
-  endTime: addMinutes(e.target.value, Number(slotsForm.slotDuration))
-})}
-```
-
-Два файла, минимальное изменение в каждом.
+The onChange handler from the previous edit already handles recalculating endTime when startTime changes. The only issue was the initial default value.
 
