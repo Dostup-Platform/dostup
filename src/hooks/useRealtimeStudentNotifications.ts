@@ -251,6 +251,36 @@ export const useRealtimeStudentNotifications = (
       .on(
         "postgres_changes",
         {
+          event: "INSERT",
+          schema: "public",
+          table: "reschedule_requests",
+        },
+        async (payload) => {
+          const newRequest = payload.new as any;
+          
+          // Only show toast for incoming requests from creator/teacher
+          if (newRequest.simple_user_id !== userId) return;
+          if (!newRequest.requested_by || newRequest.requested_by === "student") return;
+
+          playCancellationSound();
+
+          const title = language === "ru" ? "Запрос на перенос от преподавателя" : "Мұғалімнен ауыстыру сұранысы";
+          const description = language === "ru"
+            ? `Преподаватель просит перенести "${newRequest.product_title}" на ${newRequest.new_date} ${newRequest.new_time?.slice(0, 5)}`
+            : `Мұғалім "${newRequest.product_title}" сабағын ${newRequest.new_date} ${newRequest.new_time?.slice(0, 5)} уақытына ауыстыруды сұрайды`;
+
+          toast.info(title, { description, duration: 10000 });
+
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
+
+          queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
+          queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
           event: "UPDATE",
           schema: "public",
           table: "reschedule_requests",
@@ -263,6 +293,8 @@ export const useRealtimeStudentNotifications = (
           if (oldRequest.status !== "pending") return;
           if (request.simple_user_id !== userId) return;
           if (request.status !== "approved" && request.status !== "rejected") return;
+          // Only show response toast for student's OWN requests (requested_by=student)
+          if (request.requested_by && request.requested_by !== "student") return;
 
           const isApproved = request.status === "approved";
           

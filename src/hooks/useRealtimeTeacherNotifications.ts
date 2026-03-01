@@ -293,11 +293,12 @@ export const useRealtimeTeacherNotifications = (
         async (payload) => {
           const newRequest = payload.new as any;
           
+          // Only show for student requests to this teacher's schedules
           if (!scheduleIdsRef.current.includes(newRequest.schedule_id)) return;
+          if (newRequest.requested_by && newRequest.requested_by !== "student") return;
 
           playBookingSound();
 
-          // Fetch student name
           let studentName = language === "ru" ? "Ученик" : "Оқушы";
           if (newRequest.simple_user_id) {
             const { data: student } = await supabase
@@ -319,6 +320,43 @@ export const useRealtimeTeacherNotifications = (
           setAppBadge(newBadgeCount);
 
           queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-requests"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "reschedule_requests",
+        },
+        async (payload) => {
+          const request = payload.new as any;
+          const oldRequest = payload.old as any;
+          
+          // Only show for teacher's own outgoing requests that got a response
+          if (oldRequest.status !== "pending") return;
+          if (request.requested_by !== "teacher") return;
+          if (!scheduleIdsRef.current.includes(request.schedule_id)) return;
+          if (request.status !== "approved" && request.status !== "rejected") return;
+
+          const isApproved = request.status === "approved";
+          if (isApproved) { playBookingSound(); } else { playCancellationSound(); }
+
+          const title = isApproved
+            ? (language === "ru" ? "Ученик подтвердил перенос ✅" : "Оқушы ауыстыруды растады ✅")
+            : (language === "ru" ? "Ученик отклонил перенос ❌" : "Оқушы ауыстыруды қабылдамады ❌");
+          const description = language === "ru"
+            ? `"${request.product_title}" ${isApproved ? `перенесён на ${request.new_date} ${request.new_time?.slice(0, 5)}` : "перенос отклонён"}`
+            : `"${request.product_title}" ${isApproved ? `${request.new_date} ${request.new_time?.slice(0, 5)} күніне ауыстырылды` : "ауыстыру қабылданбады"}`;
+
+          toast[isApproved ? "success" : "warning"](title, { description, duration: 10000 });
+
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
+
+          queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-requests"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
+          queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
         }
       )
       .on(

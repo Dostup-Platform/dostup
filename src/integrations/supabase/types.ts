@@ -634,11 +634,13 @@ export type Database = {
           product_id: string
           product_title: string
           reasons: string[] | null
+          requested_by: string
           responded_at: string | null
           response_comment: string | null
           schedule_id: string | null
           simple_user_id: string | null
           status: string
+          teacher_id: string | null
         }
         Insert: {
           booking_id: string
@@ -652,11 +654,13 @@ export type Database = {
           product_id: string
           product_title: string
           reasons?: string[] | null
+          requested_by?: string
           responded_at?: string | null
           response_comment?: string | null
           schedule_id?: string | null
           simple_user_id?: string | null
           status?: string
+          teacher_id?: string | null
         }
         Update: {
           booking_id?: string
@@ -670,11 +674,13 @@ export type Database = {
           product_id?: string
           product_title?: string
           reasons?: string[] | null
+          requested_by?: string
           responded_at?: string | null
           response_comment?: string | null
           schedule_id?: string | null
           simple_user_id?: string | null
           status?: string
+          teacher_id?: string | null
         }
         Relationships: []
       }
