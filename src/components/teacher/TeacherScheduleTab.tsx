@@ -122,7 +122,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
     startDate: format(new Date(), "yyyy-MM-dd"),
     endDate: format(addDays(new Date(), 7), "yyyy-MM-dd"),
     startTime: "09:00",
-    endTime: "18:00",
+    endTime: "10:00",
     slotDuration: "60",
     breakDuration: "0",
   });
