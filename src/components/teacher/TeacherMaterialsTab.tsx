@@ -125,40 +125,61 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
     const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     
     try {
-      const isFullUrl = material.file_url.startsWith('http');
-      const path = isFullUrl 
-        ? material.file_url.split('/materials/')[1] 
-        : material.file_url;
-      
-      if (!path) {
-        newWindow?.close();
-        throw new Error('Invalid file path');
-      }
-      
-      const { data, error } = await supabase.storage
-        .from('materials')
-        .createSignedUrl(path, 3600, { download: action === 'download' ? material.title : false });
-      
-      if (error) {
-        newWindow?.close();
-        throw error;
-      }
-      
-      if (action === 'download') {
-        const link = document.createElement('a');
-        link.href = data.signedUrl;
-        link.download = material.title;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else if (newWindow) {
-        if (isOfficeDocument(material.title)) {
-          const token = await requestMaterialToken(path, 'teacher', teacherUser?.id);
-          const proxyUrl = buildProxyUrl(token);
-          const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-          newWindow.location.href = viewerUrl;
-        } else {
-          newWindow.location.href = data.signedUrl;
+      const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
+
+      if (isS3Path(material.file_url)) {
+        // S3 file
+        if (action === 'download') {
+          const url = await getS3DownloadUrl(material.file_url, 'teacher', teacherUser?.id, material.title);
+          window.location.href = url;
+        } else if (newWindow) {
+          if (isOfficeDocument(material.title)) {
+            const token = await requestMaterialToken(material.file_url, 'teacher', teacherUser?.id);
+            const proxyUrl = buildProxyUrl(token);
+            const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
+            newWindow.location.href = viewerUrl;
+          } else {
+            const url = await getS3DownloadUrl(material.file_url, 'teacher', teacherUser?.id);
+            newWindow.location.href = url;
+          }
+        }
+      } else {
+        // Legacy Supabase Storage file
+        const isFullUrl = material.file_url.startsWith('http');
+        const path = isFullUrl 
+          ? material.file_url.split('/materials/')[1] 
+          : material.file_url;
+        
+        if (!path) {
+          newWindow?.close();
+          throw new Error('Invalid file path');
+        }
+        
+        const { data, error } = await supabase.storage
+          .from('materials')
+          .createSignedUrl(path, 3600, { download: action === 'download' ? material.title : false });
+        
+        if (error) {
+          newWindow?.close();
+          throw error;
+        }
+        
+        if (action === 'download') {
+          const link = document.createElement('a');
+          link.href = data.signedUrl;
+          link.download = material.title;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else if (newWindow) {
+          if (isOfficeDocument(material.title)) {
+            const token = await requestMaterialToken(path, 'teacher', teacherUser?.id);
+            const proxyUrl = buildProxyUrl(token);
+            const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
+            newWindow.location.href = viewerUrl;
+          } else {
+            newWindow.location.href = data.signedUrl;
+          }
         }
       }
     } catch (err) {
@@ -167,7 +188,7 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
     } finally {
       toast.dismiss(loadingToast);
     }
-  }, [language]);
+  }, [language, teacherUser?.id]);
 
   if (creatorLoading) {
     return (
