@@ -147,15 +147,34 @@ const TeacherDashboard = () => {
     enabled: productIds.length > 0,
   });
 
+  // Get pending reschedule requests for badge count
+  const { data: rescheduleRequests = [] } = useQuery({
+    queryKey: ["teacher-reschedule-requests-count", scheduleIds],
+    queryFn: async () => {
+      if (!scheduleIds.length) return [];
+      
+      const { data, error } = await supabase
+        .from("reschedule_requests")
+        .select("id, created_at")
+        .in("schedule_id", scheduleIds)
+        .eq("status", "pending");
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: scheduleIds.length > 0,
+  });
+
   // Count new notifications
   const newNotificationsCount = useMemo(() => {
     const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
     
     const newBookingsCount = bookings.filter(b => new Date(b.created_at) > compareDate).length;
     const newCancellationsCount = cancellations.filter(c => new Date(c.cancelled_at) > compareDate).length;
+    const newRescheduleCount = rescheduleRequests.filter(r => new Date(r.created_at) > compareDate).length;
     
-    return newBookingsCount + newCancellationsCount;
-  }, [bookings, cancellations, lastViewedAt]);
+    return newBookingsCount + newCancellationsCount + newRescheduleCount;
+  }, [bookings, cancellations, rescheduleRequests, lastViewedAt]);
 
   // Real-time notifications for teacher bookings/cancellations (with badge count)
   useRealtimeTeacherNotifications(
