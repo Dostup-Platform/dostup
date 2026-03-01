@@ -14,12 +14,11 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export const CANCELLATION_REASONS = {
-  plans_changed: { ru: "Срочно изменились планы", kk: "Жоспарлар шұғыл өзгерді" },
+  plans_changed: { ru: "Изменились планы", kk: "Жоспарлар өзгерді" },
   felt_unwell: { ru: "Стало плохо", kk: "Жаман болды" },
-  got_sick: { ru: "Заболел(-а)", kk: "Ауырып қалдым" },
   family: { ru: "Семейные обстоятельства", kk: "Отбасылық жағдайлар" },
-  reschedule: { ru: "Хочу перенести запись", kk: "Жазбаны ауыстырғым келеді" },
   schedule_changed: { ru: "Поменялся график", kk: "Кестем өзгерді" },
+  reschedule: { ru: "Хочу перенести запись", kk: "Жазбаны ауыстырғым келеді" },
 };
 
 export type CancellationReasonKey = keyof typeof CANCELLATION_REASONS;
