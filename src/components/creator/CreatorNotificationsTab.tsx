@@ -739,7 +739,7 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                 return (
                   <div 
                     key={booking.id} 
-                    className={`p-4 transition-colors ${isNewBooking ? "bg-primary/5" : ""}`}
+                    className={`p-3 transition-colors ${isNewBooking ? "bg-primary/5" : ""}`}
                   >
                     <div className="flex items-start gap-3">
                       <div className={`p-2 rounded-full flex-shrink-0 ${isNewBooking ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
@@ -830,16 +830,16 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                 return (
                   <div 
                     key={cancellation.id} 
-                    className={`p-4 transition-colors ${isNewCancellation ? "bg-destructive/5" : ""}`}
+                    className={`p-3 transition-colors ${isNewCancellation ? "bg-destructive/5" : ""}`}
                   >
                     <div className="flex items-start gap-3">
-                      <div className="p-2.5 rounded-full flex-shrink-0 bg-destructive/10 text-destructive">
-                        <XCircle className="w-5 h-5" />
+                      <div className="p-2 rounded-full flex-shrink-0 bg-destructive/10 text-destructive">
+                        <XCircle className="w-4 h-4" />
                       </div>
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-base font-medium text-foreground">
+                          <span className="text-sm font-medium text-foreground">
                             {cancellation.user_name || t("student")}
                           </span>
                           <span className="text-sm text-muted-foreground">

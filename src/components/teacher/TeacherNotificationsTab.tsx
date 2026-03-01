@@ -341,14 +341,14 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
             const booking = notification.data as any;
             return (
               <Card key={`booking-${notification.id}`} className={isNew ? "border-primary/50 bg-primary/5" : ""}>
-                <CardContent className="p-4">
+                <CardContent className="p-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center flex-shrink-0">
                       <User className="w-5 h-5 text-success" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-base font-medium truncate">{booking.user?.name || "—"}</p>
+                        <p className="text-sm font-medium truncate">{booking.user?.name || "—"}</p>
                         {isNew && <Badge variant="default" className="text-xs px-2 py-0.5">{language === "ru" ? "Новое" : "Жаңа"}</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
@@ -367,14 +367,14 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
             const cancellation = notification.data as any;
             return (
               <Card key={`cancel-${notification.id}`} className={isNew ? "border-destructive/50 bg-destructive/5" : ""}>
-                <CardContent className="p-4">
+                <CardContent className="p-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
                       <X className="w-5 h-5 text-destructive" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-base font-medium truncate">{cancellation.user_name}</p>
+                        <p className="text-sm font-medium truncate">{cancellation.user_name}</p>
                         {isNew && <Badge variant="destructive" className="text-xs px-2 py-0.5">{language === "ru" ? "Новое" : "Жаңа"}</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1 line-clamp-1">

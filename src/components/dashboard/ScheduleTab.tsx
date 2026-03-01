@@ -357,14 +357,14 @@ const ScheduleTab = () => {
             {upcomingBookings.map((booking) => (
               <div
                 key={booking.id}
-                className="p-4 rounded-xl border border-green-500/30 bg-green-500/5"
+                className="p-3 sm:p-4 rounded-xl border border-green-500/30 bg-green-500/5"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="font-medium text-foreground">
                       {booking.product?.title || booking.schedule?.title}
                     </div>
-                    <div className="text-sm text-muted-foreground flex items-center gap-3 mt-1">
+                    <div className="text-sm text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" />
                         {booking.time_slot?.date && format(parseISO(booking.time_slot.date), "d MMM", { locale: ru })}
