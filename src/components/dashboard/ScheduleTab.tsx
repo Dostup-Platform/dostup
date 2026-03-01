@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import StudentRescheduleDialog from "@/components/StudentRescheduleDialog";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -32,6 +32,20 @@ const ScheduleTab = () => {
   const { user } = useSimpleAuth();
   const createBooking = useCreateSimpleBooking();
   const cancelBooking = useCancelSimpleBooking();
+  const queryClient = useQueryClient();
+
+  const { data: pendingReschedules = [] } = useQuery({
+    queryKey: ["student-pending-reschedules", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("reschedule_requests")
+        .select("id, booking_id, new_date, new_time, status")
+        .eq("simple_user_id", user?.id)
+        .eq("status", "pending");
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
   
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -89,6 +103,7 @@ const ScheduleTab = () => {
     onSuccess: () => {
       toast.success(language === "ru" ? "Запрос на перенос отправлен" : "Ауыстыру сұранысы жіберілді");
       setRescheduleBooking(null);
+      queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
     },
     onError: () => {
       toast.error(language === "ru" ? "Ошибка при отправке запроса" : "Сұраныс жіберу қатесі");
@@ -414,6 +429,12 @@ const ScheduleTab = () => {
                     >
                       {booking.time_slot.lesson_link}
                     </a>
+                  </div>
+                )}
+                {pendingReschedules.some(r => r.booking_id === booking.id) && (
+                  <div className="mt-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    {language === "ru" ? "Ожидание подтверждения переноса..." : "Ауыстыруды растауды күтуде..."}
                   </div>
                 )}
               </div>
