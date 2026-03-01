@@ -42,11 +42,19 @@ const RescheduleSlotDialog = ({
   const [reasonType, setReasonType] = useState<"cant_make_it" | "own">("cant_make_it");
   const [comment, setComment] = useState("");
 
+  const addMinutes = (time: string, mins: number) => {
+    const [h, m] = time.split(":").map(Number);
+    const total = h * 60 + m + mins;
+    const newH = Math.floor(total / 60) % 24;
+    const newM = total % 60;
+    return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+  };
+
   const handleOpen = (open: boolean) => {
     if (open && slot) {
       setNewDate(slot.date);
-      setNewStartTime(slot.start_time.slice(0, 5));
-      setNewEndTime(slot.end_time.slice(0, 5));
+      setNewStartTime(addMinutes(slot.start_time.slice(0, 5), 30));
+      setNewEndTime(addMinutes(slot.end_time.slice(0, 5), 30));
       setReasonType("cant_make_it");
       setComment("");
     }
