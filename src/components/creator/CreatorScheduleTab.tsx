@@ -8,7 +8,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil, UserPlus, Link, Copy } from "lucide-react";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import RescheduleSlotDialog from "@/components/RescheduleSlotDialog";
-import { useCreatorCancelBooking, useRescheduleSlot } from "@/hooks/useSimplePurchases";
+import EditSlotTimeDialog from "@/components/EditSlotTimeDialog";
+import { useCreatorCancelBooking, useRescheduleSlot, useEditSlotTime } from "@/hooks/useSimplePurchases";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -100,6 +101,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
   const [deletingSlotWithBookings, setDeletingSlotWithBookings] = useState<TimeSlot | null>(null);
   const [expandingSlot, setExpandingSlot] = useState<{ slot: TimeSlot; schedule: Schedule } | null>(null);
   const [reschedulingSlot, setReschedulingSlot] = useState<{ slot: TimeSlot; schedule: Schedule } | null>(null);
+  const [editingSlotTime, setEditingSlotTime] = useState<TimeSlot | null>(null);
   
   // Lesson link states
   const [isAddingLink, setIsAddingLink] = useState(false);
@@ -321,6 +323,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
   // Cancel booking mutation using shared hook
   const creatorCancelBooking = useCreatorCancelBooking();
   const rescheduleSlotMutation = useRescheduleSlot();
+  const editSlotTimeMutation = useEditSlotTime();
 
   const handleCancelBookingWithReason = async (reasons: string[], comment: string) => {
     if (!cancelingBooking) return;
@@ -903,15 +906,26 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                           )}
                           {/* Delete slot button - always visible */}
                           {slotBookings.length === 0 ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setDeletingSlot(slot)}
-                              title={language === "ru" ? "Удалить слот" : "Слотты жою"}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                onClick={() => setEditingSlotTime(slot)}
+                                title={t("editTime")}
+                              >
+                                <Clock className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeletingSlot(slot)}
+                                title={language === "ru" ? "Удалить слот" : "Слотты жою"}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
                           ) : (
                             <>
                               <Button
@@ -1853,6 +1867,27 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
         }}
         slot={reschedulingSlot?.slot || null}
         isPending={rescheduleSlotMutation.isPending}
+      />
+      {/* Edit Slot Time Dialog (unbooked) */}
+      <EditSlotTimeDialog
+        isOpen={!!editingSlotTime}
+        onClose={() => setEditingSlotTime(null)}
+        onConfirm={async (data) => {
+          if (!editingSlotTime) return;
+          try {
+            await editSlotTimeMutation.mutateAsync({
+              slotId: editingSlotTime.id,
+              newStartTime: data.newStartTime,
+              newEndTime: data.newEndTime,
+            });
+            toast.success(t("timeUpdated"));
+            setEditingSlotTime(null);
+          } catch {
+            toast.error(language === "ru" ? "Ошибка" : "Қате");
+          }
+        }}
+        slot={editingSlotTime}
+        isPending={editSlotTimeMutation.isPending}
       />
     </div>
   );

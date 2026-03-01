@@ -252,6 +252,8 @@ export const translations = {
     reschedule: "Перенести",
     rescheduleLesson: "Перенести урок",
     lessonRescheduled: "Урок перенесён!",
+    editTime: "Изменить время",
+    timeUpdated: "Время обновлено!",
   },
   kk: {
     // Common
@@ -504,6 +506,8 @@ export const translations = {
     reschedule: "Ауыстыру",
     rescheduleLesson: "Сабақты ауыстыру",
     lessonRescheduled: "Сабақ ауыстырылды!",
+    editTime: "Уақытты өзгерту",
+    timeUpdated: "Уақыт жаңартылды!",
   },
 } as const;
 
