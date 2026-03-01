@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -9,6 +10,7 @@ import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 import { useEffect } from "react";
+import RejectRescheduleDialog from "@/components/RejectRescheduleDialog";
 
 interface RescheduleRequest {
   id: string;
@@ -38,6 +40,7 @@ interface TeacherNotificationsTabProps {
 const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: TeacherNotificationsTabProps) => {
   const { language } = useLanguage();
   const queryClient = useQueryClient();
+  const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
 
   // Get teacher's user ID
   const { data: teacherData } = useQuery({
@@ -185,16 +188,16 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
 
   // Reject reschedule
   const rejectReschedule = useMutation({
-    mutationFn: async (requestId: string) => {
-      const defaultComment = "К сожалению, я не могу перенести урок на другое время. Если у вас не получится, то можете пожалуйста отменить запись и записаться на другой день?";
+    mutationFn: async ({ requestId, comment }: { requestId: string; comment: string }) => {
       const { error } = await supabase
         .from("reschedule_requests")
-        .update({ status: "rejected", response_comment: defaultComment, responded_at: new Date().toISOString() } as any)
+        .update({ status: "rejected", response_comment: comment, responded_at: new Date().toISOString() } as any)
         .eq("id", requestId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-requests"] });
+      setRejectingRequestId(null);
       toast.success(language === "ru" ? "Запрос отклонён" : "Сұраныс қабылданбады");
     },
     onError: () => {
@@ -294,7 +297,7 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
                         <Button size="sm" onClick={() => approveReschedule.mutate(request)} disabled={approveReschedule.isPending || rejectReschedule.isPending} className="h-7 text-xs px-2">
                           {approveReschedule.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Check className="w-3.5 h-3.5 mr-1" />{language === "ru" ? "Подтвердить" : "Растау"}</>}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => rejectReschedule.mutate(request.id)} disabled={approveReschedule.isPending || rejectReschedule.isPending} className="h-7 text-xs px-2 text-destructive border-destructive/30">
+                        <Button size="sm" variant="outline" onClick={() => setRejectingRequestId(request.id)} disabled={approveReschedule.isPending || rejectReschedule.isPending} className="h-7 text-xs px-2 text-destructive border-destructive/30">
                           {rejectReschedule.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><X className="w-3.5 h-3.5 mr-1" />{language === "ru" ? "Отклонить" : "Қабылдамау"}</>}
                         </Button>
                       </div>
@@ -386,6 +389,16 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
         })}
         </div>
       )}
+      <RejectRescheduleDialog
+        isOpen={!!rejectingRequestId}
+        onClose={() => setRejectingRequestId(null)}
+        onConfirm={(comment) => {
+          if (rejectingRequestId) {
+            rejectReschedule.mutate({ requestId: rejectingRequestId, comment });
+          }
+        }}
+        isPending={rejectReschedule.isPending}
+      />
     </div>
   );
 };
