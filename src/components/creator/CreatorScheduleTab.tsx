@@ -1282,6 +1282,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                               type="button"
                               variant={isSelected ? "default" : "outline"}
                               size="sm"
+                              className={!isSelected ? "hover:bg-background hover:text-foreground" : ""}
                               onClick={() => {
                                 if (isSelected) {
                                   setSlotsToDeleteDates(prev => prev.filter(d => d !== date));
