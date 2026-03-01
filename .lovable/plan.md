@@ -1,46 +1,47 @@
 
 
-# Отмена запроса на перенос учеником
+# Исправление: end_time не пересчитывается при подтверждении переноса
 
-## Что делаем
+## Проблема
+При подтверждении переноса `end_time` ставится равным `new_time` (start). Было 9:00-10:00, перенесли на 11:00 — стало 11:00-11:00 вместо 11:00-12:00.
 
-1. **ScheduleTab.tsx** — добавить кнопку "✕" рядом с оранжевым текстом "Ожидание подтверждения переноса на 10:00". По клику удаляем запрос из `reschedule_requests` (DELETE по id, status=pending). Инвалидируем `student-pending-reschedules`.
+## Решение
+Вычислять длительность урока (old_end - old_start) и прибавлять к новому start_time.
 
-2. **Realtime у автора (`useRealtimeBookings.ts`)** — добавить подписку на DELETE событие таблицы `reschedule_requests`. При удалении — инвалидировать `creator-reschedule-requests` и `creator-reschedule-requests-count`, чтобы запрос исчез из списка и бейдж обновился.
+### Файл 1: `src/components/creator/CreatorNotificationsTab.tsx` (строки 210-219)
 
-3. **Realtime у учителя** — нужно найти аналогичный хук для учителя и добавить такую же подписку на DELETE `reschedule_requests`. Инвалидировать соответствующие query keys.
+Перед обновлением time_slot — получить текущий end_time и start_time слота, вычислить разницу, применить к new_time:
 
-## Технические детали
-
-**ScheduleTab — мутация отмены:**
 ```typescript
-const cancelRescheduleRequest = useMutation({
-  mutationFn: async (requestId: string) => {
-    const { error } = await supabase
-      .from("reschedule_requests")
-      .delete()
-      .eq("id", requestId)
-      .eq("status", "pending");
-    if (error) throw error;
-  },
-  onSuccess: () => {
-    toast.success(language === "ru" ? "Запрос отменён" : "Сұраныс болдырмалды");
-    queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
-  },
-});
+if (booking?.time_slot_id) {
+  // Get current slot to calculate duration
+  const { data: currentSlot } = await supabase
+    .from("time_slots")
+    .select("start_time, end_time")
+    .eq("id", booking.time_slot_id)
+    .single();
+
+  let newEndTime = request.new_time;
+  if (currentSlot) {
+    const [sh, sm] = currentSlot.start_time.split(":").map(Number);
+    const [eh, em] = currentSlot.end_time.split(":").map(Number);
+    const durationMin = (eh * 60 + em) - (sh * 60 + sm);
+    const [nh, nm] = request.new_time.split(":").map(Number);
+    const endTotal = nh * 60 + nm + durationMin;
+    newEndTime = `${String(Math.floor(endTotal / 60) % 24).padStart(2, "0")}:${String(endTotal % 60).padStart(2, "0")}:00`;
+  }
+
+  await supabase.from("time_slots").update({
+    date: request.new_date,
+    start_time: request.new_time,
+    end_time: newEndTime,
+  }).eq("id", booking.time_slot_id);
+}
 ```
 
-**ScheduleTab — UI (строки 434-444):** добавить кнопку X рядом с текстом ожидания.
+### Файл 2: `src/components/teacher/TeacherNotificationsTab.tsx` (строки 158-164)
 
-**useRealtimeBookings.ts** — в существующий channel добавить:
-```typescript
-.on("postgres_changes", { event: "DELETE", schema: "public", table: "reschedule_requests" }, () => {
-  queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
-  queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests-count"] });
-})
-```
+Аналогичное изменение — вычислить длительность и прибавить к новому start_time.
 
-**Учитель** — аналогичная подписка в хуке realtime учителя (useRealtimeTeacherBookings или похожий).
-
-Итого: 3 файла изменены. Без миграций — DELETE уже разрешён в RLS для `reschedule_requests`.
+Итого: 2 файла, одинаковая логика в обоих.
 
