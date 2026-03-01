@@ -462,7 +462,7 @@ export const useCancelSimpleBooking = () => {
         await supabase.from("booking_cancellations").insert({
           booking_id: bookingId,
           user_name: user.name,
-          user_phone: user.phone,
+          simple_user_id: user.id,
           product_title: (booking as any).schedule?.product?.title || "",
           product_id: (booking as any).schedule?.product_id,
           schedule_id: (booking as any).schedule?.id,
@@ -525,7 +525,7 @@ export const useCreatorCancelBooking = () => {
         await supabase.from("booking_cancellations").insert({
           booking_id: bookingId,
           user_name: user?.name || "Ученик",
-          user_phone: user?.phone,
+          simple_user_id: (booking as any).simple_user_id,
           product_title: (booking as any).schedule?.product?.title || "",
           product_id: (booking as any).schedule?.product_id,
           schedule_id: (booking as any).schedule?.id,

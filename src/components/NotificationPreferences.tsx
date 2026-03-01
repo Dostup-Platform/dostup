@@ -122,7 +122,6 @@ const NotificationPreferences = ({ userId }: NotificationPreferencesProps) => {
           .from("notification_preferences")
           .insert({
             user_id: userId,
-            user_phone: userId, // NOT NULL column, backward compat
             reminder_24h: prefs.reminder_24h,
             reminder_morning: prefs.reminder_morning,
             morning_time: prefs.morning_time,
