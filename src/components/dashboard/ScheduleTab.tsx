@@ -454,7 +454,6 @@ const ScheduleTab = () => {
                     
                     // Цвета точки: красный - все свободны, оранжевый - частично, зеленый - все заняты
                     const getDotColor = () => {
-                      if (isSameDay(day, selectedDate)) return "bg-primary-foreground";
                       switch (dayStatus) {
                         case "full": return "bg-green-500";
                         case "partial": return "bg-orange-500";
@@ -466,18 +465,18 @@ const ScheduleTab = () => {
                       <button
                         key={day.toISOString()}
                         onClick={() => setSelectedDate(day)}
-                        className={`flex-shrink-0 p-3 rounded-xl text-center min-w-[72px] transition-all ${
+                        className={`flex-shrink-0 p-3 rounded-xl text-center min-w-[72px] transition-all relative ${
                           isSameDay(day, selectedDate)
                             ? "bg-primary text-primary-foreground"
                             : "bg-card border border-border hover:border-primary/50"
                         }`}
                       >
-                        <div className="text-xs opacity-80">
+                        {dayHasSlots && (
+                          <span className={`absolute top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${getDotColor()}`} />
+                        )}
+                        <div className="text-xs opacity-80 mt-2">
                           {format(day, "EEE", { locale: ru })}
                         </div>
-                        {dayHasSlots && (
-                          <span className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${getDotColor()}`} />
-                        )}
                         <div className="text-lg font-bold">{format(day, "d")}</div>
                         <div className="text-xs opacity-80">{format(day, "MMM", { locale: ru })}</div>
                       </button>
