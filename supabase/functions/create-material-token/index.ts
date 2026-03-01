@@ -33,9 +33,17 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Extract product_id from file path
+    // Strip s3://bucket/ prefix if present
+    let relativePath = path;
+    if (relativePath.startsWith('s3://')) {
+      const withoutPrefix = relativePath.substring(5); // remove 's3://'
+      const slashIndex = withoutPrefix.indexOf('/');
+      relativePath = withoutPrefix.substring(slashIndex + 1);
+    }
+    
     // Regular: {product_id}/filename
     // Teacher: teacher-{teacher_id}/{product_id}/filename
-    const pathParts = path.split('/');
+    const pathParts = relativePath.split('/');
     let productId: string;
     
     if (pathParts[0]?.startsWith('teacher-')) {
