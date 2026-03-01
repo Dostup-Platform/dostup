@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,11 +39,14 @@ const EditSlotTimeDialog = ({
     return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
   };
 
-  const handleOpen = (open: boolean) => {
-    if (open && slot) {
+  useEffect(() => {
+    if (isOpen && slot) {
       setNewStartTime(addMinutes(slot.start_time.slice(0, 5), 30));
       setNewEndTime(addMinutes(slot.end_time.slice(0, 5), 30));
     }
+  }, [isOpen, slot]);
+
+  const handleOpen = (open: boolean) => {
     if (!open) handleClose();
   };
 
