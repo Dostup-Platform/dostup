@@ -214,6 +214,45 @@ export const useRealtimeStudentNotifications = (
         {
           event: "INSERT",
           schema: "public",
+          table: "booking_reschedules",
+        },
+        async (payload) => {
+          const reschedule = payload.new as any;
+          
+          if (reschedule.simple_user_id !== userId) return;
+
+          playCancellationSound();
+
+          let reasonText = "";
+          if (reschedule.comment) {
+            reasonText = reschedule.comment;
+          } else if (reschedule.reasons?.length > 0) {
+            reasonText = reschedule.reasons.join(", ");
+          }
+
+          const title = language === "ru" ? "Урок перенесён" : "Сабақ ауыстырылды";
+          let description = language === "ru"
+            ? `Урок "${reschedule.product_title}" перенесён с ${reschedule.old_date} ${reschedule.old_time?.slice(0, 5)} на ${reschedule.new_date} ${reschedule.new_time?.slice(0, 5)}`
+            : `"${reschedule.product_title}" сабағы ${reschedule.old_date} ${reschedule.old_time?.slice(0, 5)} күнінен ${reschedule.new_date} ${reschedule.new_time?.slice(0, 5)} күніне ауыстырылды`;
+          
+          if (reasonText) {
+            description += language === "ru" ? `. Причина: ${reasonText}` : `. Себебі: ${reasonText}`;
+          }
+
+          toast.warning(title, { description, duration: 10000 });
+
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
+
+          queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
           table: "material_unlocks",
         },
         async (payload) => {

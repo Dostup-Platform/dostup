@@ -585,6 +585,102 @@ export const useCreatorCancelBooking = () => {
   });
 };
 
+// Перенести время слота
+export const useRescheduleSlot = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      slotId,
+      scheduleId,
+      newDate,
+      newStartTime,
+      newEndTime,
+      reasons,
+      comment,
+      rescheduledBy,
+    }: {
+      slotId: string;
+      scheduleId: string;
+      newDate: string;
+      newStartTime: string;
+      newEndTime: string;
+      reasons: string[];
+      comment: string;
+      rescheduledBy: "creator" | "teacher";
+    }) => {
+      // Get current slot data before updating
+      const { data: slot } = await supabase
+        .from("time_slots")
+        .select("date, start_time, end_time, schedule_id")
+        .eq("id", slotId)
+        .single();
+
+      if (!slot) throw new Error("Slot not found");
+
+      const oldDate = slot.date;
+      const oldTime = slot.start_time;
+
+      // Update the time slot
+      const { error: updateError } = await supabase
+        .from("time_slots")
+        .update({
+          date: newDate,
+          start_time: newStartTime,
+          end_time: newEndTime,
+        })
+        .eq("id", slotId);
+
+      if (updateError) throw updateError;
+
+      // Get bookings for this slot
+      const { data: bookings } = await supabase
+        .from("simple_bookings")
+        .select("id, simple_user_id, schedule_id")
+        .eq("time_slot_id", slotId)
+        .eq("status", "confirmed");
+
+      if (!bookings?.length) return;
+
+      // Get schedule info for product_title
+      const { data: schedule } = await supabase
+        .from("schedules")
+        .select("id, product_id, product:products(id, title)")
+        .eq("id", scheduleId)
+        .single();
+
+      const productTitle = (schedule as any)?.product?.title || "";
+      const productId = (schedule as any)?.product_id || "";
+
+      // Insert reschedule record for each student
+      for (const booking of bookings) {
+        await supabase.from("booking_reschedules" as any).insert({
+          booking_id: booking.id,
+          simple_user_id: booking.simple_user_id,
+          schedule_id: scheduleId,
+          product_id: productId,
+          product_title: productTitle,
+          old_date: oldDate,
+          old_time: oldTime,
+          new_date: newDate,
+          new_time: newStartTime,
+          rescheduled_by: rescheduledBy,
+          reasons: reasons,
+          comment: comment || null,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-week-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
+      queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
+    },
+  });
+};
+
 // Получить все бронирования для создателя (для уведомлений)
 // Показываем ТОЛЬКО бронирования на расписания автора (где teacher_id IS NULL)
 export const useCreatorSimpleBookings = (productIds: string[]) => {

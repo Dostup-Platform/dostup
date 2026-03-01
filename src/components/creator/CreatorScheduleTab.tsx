@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil, UserPlus, Link, Copy } from "lucide-react";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
-import { useCreatorCancelBooking } from "@/hooks/useSimplePurchases";
+import RescheduleSlotDialog from "@/components/RescheduleSlotDialog";
+import { useCreatorCancelBooking, useRescheduleSlot } from "@/hooks/useSimplePurchases";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -98,6 +99,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
   const [editScheduleTitle, setEditScheduleTitle] = useState("");
   const [deletingSlotWithBookings, setDeletingSlotWithBookings] = useState<TimeSlot | null>(null);
   const [expandingSlot, setExpandingSlot] = useState<{ slot: TimeSlot; schedule: Schedule } | null>(null);
+  const [reschedulingSlot, setReschedulingSlot] = useState<{ slot: TimeSlot; schedule: Schedule } | null>(null);
   
   // Lesson link states
   const [isAddingLink, setIsAddingLink] = useState(false);
@@ -318,6 +320,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
 
   // Cancel booking mutation using shared hook
   const creatorCancelBooking = useCreatorCancelBooking();
+  const rescheduleSlotMutation = useRescheduleSlot();
 
   const handleCancelBookingWithReason = async (reasons: string[], comment: string) => {
     if (!cancelingBooking) return;
@@ -910,15 +913,26 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           ) : (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => setDeletingSlotWithBookings(slot)}
-                              title={language === "ru" ? "Удалить слот" : "Слотты жою"}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                onClick={() => setReschedulingSlot({ slot, schedule })}
+                                title={language === "ru" ? "Перенести" : "Ауыстыру"}
+                              >
+                                <Clock className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeletingSlotWithBookings(slot)}
+                                title={language === "ru" ? "Удалить слот" : "Слотты жою"}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -1814,6 +1828,32 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Reschedule Slot Dialog */}
+      <RescheduleSlotDialog
+        isOpen={!!reschedulingSlot}
+        onClose={() => setReschedulingSlot(null)}
+        onConfirm={async (data) => {
+          if (!reschedulingSlot) return;
+          try {
+            await rescheduleSlotMutation.mutateAsync({
+              slotId: reschedulingSlot.slot.id,
+              scheduleId: reschedulingSlot.schedule.id,
+              newDate: data.newDate,
+              newStartTime: data.newStartTime,
+              newEndTime: data.newEndTime,
+              reasons: data.reasons,
+              comment: data.comment,
+              rescheduledBy: "creator",
+            });
+            toast.success(language === "ru" ? "Урок перенесён!" : "Сабақ ауыстырылды!");
+            setReschedulingSlot(null);
+          } catch {
+            toast.error(language === "ru" ? "Ошибка при переносе" : "Ауыстыру кезінде қате");
+          }
+        }}
+        slot={reschedulingSlot?.slot || null}
+        isPending={rescheduleSlotMutation.isPending}
+      />
     </div>
   );
 };
