@@ -1,24 +1,21 @@
 
 
-# Edit time for unbooked slots
+# Сдвиг времени на +30 минут от текущего
 
-## What to do
-Add a button (Clock icon) next to the delete button for slots with **no bookings**, allowing the creator/teacher to change start and end time of that slot. Since nobody is booked, no reason or notification is needed — just a simple time edit dialog.
+Сейчас при открытии диалога редактирования времени незабронированного слота подставляется текущее время слота. Нужно чтобы подставлялось время, сдвинутое на +30 минут. Например: слот 16:30–17:30 → в диалоге сразу стоит 17:00–18:00.
 
-## Changes
+## Изменение
 
-### 1. New component `EditSlotTimeDialog.tsx`
-Simple dialog with only two fields: start time and end time (24h format). No date, no reason. Props: `isOpen, onClose, onConfirm, slot, isPending`.
+**Файл: `src/components/EditSlotTimeDialog.tsx`**
 
-### 2. Mutation for updating slot time
-Add `useEditSlotTime` in `useSimplePurchases.ts` — updates `time_slots` (start_time, end_time) by slot id. Invalidates slot caches.
+В `handleOpen` — при инициализации значений вместо текущего времени слота использовать `addMinutes(slot.start_time, 30)` и `addMinutes(slot.end_time, 30)`:
 
-### 3. `CreatorScheduleTab.tsx` — add edit button for unbooked slots
-In the `slotBookings.length === 0` branch (line 905), add a Clock button before the Trash button. State: `editingSlotTime`. Wire up the dialog.
+```typescript
+if (open && slot) {
+  setNewStartTime(addMinutes(slot.start_time.slice(0, 5), 30));
+  setNewEndTime(addMinutes(slot.end_time.slice(0, 5), 30));
+}
+```
 
-### 4. `TeacherScheduleTab.tsx` — same change
-Mirror the same button and dialog integration.
-
-### 5. Translations
-Add key `editTime` ("Изменить время" / "Уақытты өзгерту").
+Одно изменение в одном файле — 2 строки.
 
