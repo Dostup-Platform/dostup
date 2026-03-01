@@ -1,21 +1,34 @@
 
-# Исправление: тост на казахском вместо русского
+
+# Удаление старых запросов при создании нового
 
 ## Проблема
-В `ScheduleTab.tsx` строки 82 и 86 используют `t("language") === "ru"` для определения языка. Но `t("language")` возвращает **перевод** слова "language" (например, "Тіл" на казахском), а не код языка `"ru"`. Поэтому условие всегда false и показывается казахский текст.
+Когда ученик отправляет второй/третий запрос на перенос того же бронирования, старые pending-запросы остаются и отображаются у автора/учителя вместе с новым.
 
 ## Решение
+Перед вставкой нового запроса удалять все предыдущие pending-запросы от того же ученика на то же бронирование.
+
+## Изменение
 
 ### Файл: `src/components/dashboard/ScheduleTab.tsx`
 
-1. Добавить `language` в деструктуризацию `useLanguage()` (строка 31):
-   ```typescript
-   const { t, language } = useLanguage();
-   ```
+В `mutationFn` (строки 64-78), перед `insert` добавить удаление старых pending-запросов:
 
-2. Заменить `t("language")` на `language` в строках 82 и 86:
-   ```typescript
-   toast.success(language === "ru" ? "Запрос на перенос отправлен" : "Ауыстыру сұранысы жіберілді");
-   // ...
-   toast.error(language === "ru" ? "Ошибка при отправке запроса" : "Сұраныс жіберу қатесі");
-   ```
+```typescript
+mutationFn: async (data) => {
+  // Delete previous pending requests for the same booking
+  await supabase
+    .from("reschedule_requests")
+    .delete()
+    .eq("booking_id", data.bookingId)
+    .eq("simple_user_id", user?.id)
+    .eq("status", "pending");
+
+  // Insert new request
+  const { error } = await supabase.from("reschedule_requests").insert({...});
+  if (error) throw error;
+},
+```
+
+Одно изменение в одном файле.
+
