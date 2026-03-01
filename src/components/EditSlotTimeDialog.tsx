@@ -31,12 +31,25 @@ const EditSlotTimeDialog = ({
   const [newStartTime, setNewStartTime] = useState("");
   const [newEndTime, setNewEndTime] = useState("");
 
+  const addMinutes = (time: string, mins: number) => {
+    const [h, m] = time.split(":").map(Number);
+    const total = h * 60 + m + mins;
+    const newH = Math.floor(total / 60) % 24;
+    const newM = total % 60;
+    return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+  };
+
   const handleOpen = (open: boolean) => {
     if (open && slot) {
       setNewStartTime(slot.start_time.slice(0, 5));
       setNewEndTime(slot.end_time.slice(0, 5));
     }
     if (!open) handleClose();
+  };
+
+  const handleStartTimeChange = (value: string) => {
+    setNewStartTime(value);
+    setNewEndTime(addMinutes(value, 30));
   };
 
   const handleClose = () => {
@@ -76,7 +89,7 @@ const EditSlotTimeDialog = ({
             <Input
               type="time"
               value={newStartTime}
-              onChange={(e) => setNewStartTime(e.target.value)}
+              onChange={(e) => handleStartTimeChange(e.target.value)}
             />
           </div>
           <div className="space-y-2">
