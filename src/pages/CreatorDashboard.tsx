@@ -87,6 +87,21 @@ const CreatorDashboard = () => {
     },
     enabled: productIds.length > 0,
   });
+
+  // Получаем запросы на перенос для подсчёта бейджа
+  const { data: rescheduleRequests } = useQuery({
+    queryKey: ["creator-reschedule-requests-count", productIds],
+    queryFn: async () => {
+      if (!productIds.length) return [];
+      const { data } = await supabase
+        .from("reschedule_requests")
+        .select("id, created_at")
+        .in("product_id", productIds)
+        .eq("status", "pending");
+      return data || [];
+    },
+    enabled: productIds.length > 0,
+  });
   
   // Подсчёт новых записей, покупок и отменённых записей после последнего просмотра
   const newNotificationsCount = useMemo(() => {
@@ -107,9 +122,14 @@ const CreatorDashboard = () => {
       const cancelledAt = new Date((c as any).cancelled_at);
       return cancelledAt > compareDate;
     }).length || 0;
+
+    const newRescheduleCount = rescheduleRequests?.filter(r => {
+      const createdAt = new Date(r.created_at);
+      return createdAt > compareDate;
+    }).length || 0;
     
-    return newBookingsCount + newPurchasesCount + newCancellationsCount;
-  }, [bookings, pendingPurchases, cancellations, lastViewedAt]);
+    return newBookingsCount + newPurchasesCount + newCancellationsCount + newRescheduleCount;
+  }, [bookings, pendingPurchases, cancellations, rescheduleRequests, lastViewedAt]);
 
   // Set initial app badge based on notification count
   useEffect(() => {

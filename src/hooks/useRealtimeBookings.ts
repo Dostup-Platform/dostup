@@ -292,6 +292,56 @@ export const useRealtimeBookingNotifications = (
           queryClient.invalidateQueries({ queryKey: ["time-slots"] });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "reschedule_requests",
+        },
+        async (payload) => {
+          const newRequest = payload.new as any;
+
+          // Only handle reschedule requests for creator's products (schedules without teacher_id)
+          if (!productIdsRef.current.includes(newRequest.product_id)) return;
+
+          // Check if this is for creator's schedule (no teacher_id)
+          if (newRequest.schedule_id) {
+            const { data: schedule } = await supabase
+              .from("schedules")
+              .select("teacher_id")
+              .eq("id", newRequest.schedule_id)
+              .single();
+            if (schedule?.teacher_id) return; // This is for a teacher, not creator
+          }
+
+          playBookingSound();
+
+          // Fetch student name
+          let studentName = language === "ru" ? "Ученик" : "Оқушы";
+          if (newRequest.simple_user_id) {
+            const { data: student } = await supabase
+              .from("simple_users")
+              .select("name")
+              .eq("id", newRequest.simple_user_id)
+              .single();
+            if (student) studentName = student.name;
+          }
+
+          const title = language === "ru" ? "Запрос на перенос" : "Ауыстыру сұранысы";
+          const description = language === "ru"
+            ? `${studentName} просит перенести "${newRequest.product_title}" с ${newRequest.old_time?.slice(0, 5)} на ${newRequest.new_time?.slice(0, 5)}`
+            : `${studentName} "${newRequest.product_title}" сабағын ${newRequest.old_time?.slice(0, 5)} уақытынан ${newRequest.new_time?.slice(0, 5)} уақытына ауыстыруды сұрайды`;
+
+          toast.info(title, { description, duration: 10000 });
+
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
+
+          queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
+          queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests-count"] });
+        }
+      )
       .subscribe((status) => {
         console.log("Realtime subscription status:", status);
       });
