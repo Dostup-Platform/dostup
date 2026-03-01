@@ -321,6 +321,17 @@ export const useRealtimeTeacherNotifications = (
           queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-requests"] });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "reschedule_requests",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-requests"] });
+        }
+      )
       .subscribe((status) => {
         console.log("Teacher realtime subscription status:", status);
       });

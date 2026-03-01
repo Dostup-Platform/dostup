@@ -342,6 +342,18 @@ export const useRealtimeBookingNotifications = (
           queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests-count"] });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "reschedule_requests",
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
+          queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests-count"] });
+        }
+      )
       .subscribe((status) => {
         console.log("Realtime subscription status:", status);
       });
