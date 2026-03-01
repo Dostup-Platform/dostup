@@ -1038,7 +1038,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{language === "ru" ? "Время начала" : "Басталу уақыты"}</Label>
+                <Label>{language === "ru" ? "Время начала (24ч)" : "Басталу уақыты (24с)"}</Label>
                 <Input
                   type="time"
                   value={slotsForm.startTime}
@@ -1046,7 +1046,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>{language === "ru" ? "Время окончания" : "Аяқталу уақыты"}</Label>
+                <Label>{language === "ru" ? "Время окончания (24ч)" : "Аяқталу уақыты (24с)"}</Label>
                 <Input
                   type="time"
                   value={slotsForm.endTime}
