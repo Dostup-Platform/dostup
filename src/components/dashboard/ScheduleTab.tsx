@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import StudentRescheduleDialog from "@/components/StudentRescheduleDialog";
+import RejectRescheduleDialog from "@/components/RejectRescheduleDialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Select,
@@ -54,10 +55,10 @@ const ScheduleTab = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from("reschedule_requests")
-        .select("id, booking_id, new_date, new_time, status")
+        .select("id, booking_id, new_date, new_time, status, old_date, old_time, product_title, reasons, comment, requested_by, schedule_id, product_id")
         .eq("simple_user_id", user?.id)
         .eq("status", "pending");
-      return data || [];
+      return (data || []) as any[];
     },
     enabled: !!user?.id,
   });
@@ -68,6 +69,7 @@ const ScheduleTab = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [canChooseTeacher, setCanChooseTeacher] = useState(false);
+  const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
   const [rescheduleBooking, setRescheduleBooking] = useState<{
     id: string;
     productTitle: string;
@@ -77,6 +79,81 @@ const ScheduleTab = () => {
     startTime: string;
     endTime: string;
   } | null>(null);
+
+  // Approve reschedule request from creator/teacher
+  const approveIncomingReschedule = useMutation({
+    mutationFn: async (request: any) => {
+      // 1. Update reschedule_requests status
+      const { error: updateError } = await supabase
+        .from("reschedule_requests")
+        .update({ status: "approved", responded_at: new Date().toISOString() } as any)
+        .eq("id", request.id);
+      if (updateError) throw updateError;
+
+      // 2. Find and update time_slot
+      const { data: booking } = await supabase
+        .from("simple_bookings")
+        .select("time_slot_id")
+        .eq("id", request.booking_id)
+        .single();
+
+      if (booking?.time_slot_id) {
+        const { data: currentSlot } = await supabase
+          .from("time_slots")
+          .select("start_time, end_time")
+          .eq("id", booking.time_slot_id)
+          .single();
+
+        let newEndTime = request.new_time;
+        if (currentSlot) {
+          const [sh, sm] = currentSlot.start_time.split(":").map(Number);
+          const [eh, em] = currentSlot.end_time.split(":").map(Number);
+          const durationMin = (eh * 60 + em) - (sh * 60 + sm);
+          const [nh, nm] = request.new_time.split(":").map(Number);
+          const endTotal = nh * 60 + nm + durationMin;
+          newEndTime = `${String(Math.floor(endTotal / 60) % 24).padStart(2, "0")}:${String(endTotal % 60).padStart(2, "0")}:00`;
+        }
+
+        await supabase.from("time_slots").update({
+          date: request.new_date,
+          start_time: request.new_time,
+          end_time: newEndTime,
+        }).eq("id", booking.time_slot_id);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
+      queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
+      toast.success(language === "ru" ? "Перенос подтверждён" : "Ауыстыру расталды");
+    },
+    onError: () => {
+      toast.error(language === "ru" ? "Ошибка при подтверждении" : "Растау қатесі");
+    },
+  });
+
+  // Reject reschedule request from creator/teacher
+  const rejectIncomingReschedule = useMutation({
+    mutationFn: async ({ requestId, comment }: { requestId: string; comment: string }) => {
+      const { error } = await supabase
+        .from("reschedule_requests")
+        .update({
+          status: "rejected",
+          response_comment: comment,
+          responded_at: new Date().toISOString(),
+        } as any)
+        .eq("id", requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
+      setRejectingRequestId(null);
+      toast.success(language === "ru" ? "Запрос отклонён" : "Сұраныс қабылданбады");
+    },
+    onError: () => {
+      toast.error(language === "ru" ? "Ошибка" : "Қате");
+    },
+  });
 
   const rescheduleRequest = useMutation({
     mutationFn: async (data: {
@@ -449,6 +526,51 @@ const ScheduleTab = () => {
                 {(() => {
                   const pendingReq = pendingReschedules.find(r => r.booking_id === booking.id);
                   if (!pendingReq) return null;
+                  
+                  const isFromTeacherOrCreator = pendingReq.requested_by === "creator" || pendingReq.requested_by === "teacher";
+                  
+                  if (isFromTeacherOrCreator) {
+                    // Incoming request from creator/teacher — show approve/reject
+                    return (
+                      <div className="mt-2 p-3 rounded-lg border border-orange-300 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-700 space-y-2">
+                        <div className="text-orange-600 dark:text-orange-400 text-sm font-medium">
+                          {language === "ru"
+                            ? `Преподаватель просит перенести на ${pendingReq.new_date} ${pendingReq.new_time?.slice(0, 5)}`
+                            : `Мұғалім ${pendingReq.new_date} ${pendingReq.new_time?.slice(0, 5)} уақытына ауыстыруды сұрайды`}
+                        </div>
+                        {((pendingReq.reasons?.length > 0) || pendingReq.comment) && (
+                          <div className="text-xs text-muted-foreground italic">
+                            {pendingReq.comment || pendingReq.reasons?.join(", ")}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => approveIncomingReschedule.mutate(pendingReq)}
+                            disabled={approveIncomingReschedule.isPending || rejectIncomingReschedule.isPending}
+                            className="h-7 text-xs px-3"
+                          >
+                            {approveIncomingReschedule.isPending ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <><Check className="w-3.5 h-3.5 mr-1" />{language === "ru" ? "Подтвердить" : "Растау"}</>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setRejectingRequestId(pendingReq.id)}
+                            disabled={approveIncomingReschedule.isPending || rejectIncomingReschedule.isPending}
+                            className="h-7 text-xs px-3 text-destructive border-destructive/30"
+                          >
+                            <X className="w-3.5 h-3.5 mr-1" />{language === "ru" ? "Отклонить" : "Қабылдамау"}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Student's own outgoing request — show pending status
                   return (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-orange-500 text-sm font-medium">
@@ -727,6 +849,17 @@ const ScheduleTab = () => {
             comment: data.comment,
           });
         }}
+      />
+
+      {/* Reject Incoming Reschedule Dialog */}
+      <RejectRescheduleDialog
+        isOpen={!!rejectingRequestId}
+        onClose={() => setRejectingRequestId(null)}
+        onConfirm={(comment) => {
+          if (!rejectingRequestId) return;
+          rejectIncomingReschedule.mutate({ requestId: rejectingRequestId, comment });
+        }}
+        isPending={rejectIncomingReschedule.isPending}
       />
     </div>
   );

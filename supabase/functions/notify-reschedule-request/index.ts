@@ -93,50 +93,131 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: false }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Get student name
-    let studentName = "Ученик";
-    if (record.simple_user_id) {
-      const { data: studentData } = await supabase
-        .from("simple_users")
-        .select("name")
-        .eq("id", record.simple_user_id)
-        .single();
-      if (studentData) studentName = studentData.name;
-    }
+    const requestedBy = record.requested_by || "student";
+    
+    let title: string;
+    let body: string;
+    let targetLink: string;
 
-    // Determine who to notify: if schedule has a teacher_id, notify the teacher; otherwise notify the creator
-    let targetUserId: string | null = null;
-    let targetRole = "creator";
-
-    if (record.schedule_id) {
-      const { data: schedule } = await supabase
-        .from("schedules")
-        .select("teacher_id, product_id")
-        .eq("id", record.schedule_id)
-        .single();
-
-      if (schedule?.teacher_id) {
-        targetUserId = schedule.teacher_id;
-        targetRole = "teacher";
+    if (requestedBy === "student") {
+      // Student requests reschedule → notify teacher/creator
+      let studentName = "Ученик";
+      if (record.simple_user_id) {
+        const { data: studentData } = await supabase
+          .from("simple_users")
+          .select("name")
+          .eq("id", record.simple_user_id)
+          .single();
+        if (studentData) studentName = studentData.name;
       }
-    }
 
-    // Build notification
-    const title = "Запрос на перенос";
-    const body = `${studentName} просит перенести "${record.product_title}" с ${record.old_date} ${record.old_time?.slice(0, 5)} на ${record.new_date} ${record.new_time?.slice(0, 5)}`;
+      title = "Запрос на перенос";
+      body = `${studentName} просит перенести "${record.product_title}" с ${record.old_date} ${record.old_time?.slice(0, 5)} на ${record.new_date} ${record.new_time?.slice(0, 5)}`;
 
-    const accessToken = await getAccessToken();
-    let totalSent = 0;
+      // Determine who to notify: teacher or creator
+      let targetUserId: string | null = null;
+      let targetRole = "creator";
 
-    // Send to target (teacher or creator)
-    const sendToRole = async (userId: string | null, role: string) => {
-      const query = supabase.from("push_tokens").select("id, fcm_token").eq("user_role", role);
-      if (userId) query.eq("user_id", userId);
+      if (record.schedule_id) {
+        const { data: schedule } = await supabase
+          .from("schedules")
+          .select("teacher_id")
+          .eq("id", record.schedule_id)
+          .single();
 
-      const { data: tokens } = await query;
-      if (!tokens?.length) return 0;
+        if (schedule?.teacher_id) {
+          targetUserId = schedule.teacher_id;
+          targetRole = "teacher";
+        }
+      }
 
+      targetLink = targetRole === "teacher" ? "/teacher" : "/creator";
+
+      const accessToken = await getAccessToken();
+      let totalSent = 0;
+
+      const sendToRole = async (userId: string | null, role: string) => {
+        const query = supabase.from("push_tokens").select("id, fcm_token").eq("user_role", role);
+        if (userId) query.eq("user_id", userId);
+        const { data: tokens } = await query;
+        if (!tokens?.length) return 0;
+
+        let sent = 0;
+        for (const tokenRecord of tokens) {
+          try {
+            const response = await fetch(
+              `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+              {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  message: {
+                    token: tokenRecord.fcm_token,
+                    notification: { title, body },
+                    data: { type: "reschedule_request", rescheduleRequestId: record.id },
+                    webpush: {
+                      notification: {
+                        icon: "/icon-192.png", badge: "/icon-192.png",
+                        vibrate: [200, 100, 200], requireInteraction: true,
+                        tag: `reschedule-request-${record.id}`
+                      },
+                      fcm_options: { link: targetLink }
+                    }
+                  }
+                })
+              }
+            );
+            if (response.ok) { sent++; }
+            else {
+              const errorData = await response.json();
+              console.error("FCM error:", errorData);
+              if (errorData.error?.code === 404 || errorData.error?.details?.some((d: any) =>
+                d.errorCode === "UNREGISTERED" || d.errorCode === "INVALID_ARGUMENT"
+              )) {
+                await supabase.from("push_tokens").delete().eq("id", tokenRecord.id);
+              }
+            }
+          } catch (err) { console.error("FCM exception:", err); }
+        }
+        return sent;
+      };
+
+      totalSent = await sendToRole(targetUserId, targetRole);
+      if (!targetUserId && targetRole === "creator") {
+        totalSent += await sendToRole(null, "creator");
+      }
+
+      console.log(`Reschedule request (from student): sent ${totalSent} notifications`);
+      return new Response(JSON.stringify({ success: true, sent: totalSent }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    } else {
+      // Creator/Teacher requests reschedule → notify student
+      const studentUserId = record.simple_user_id;
+      if (!studentUserId) {
+        return new Response(JSON.stringify({ success: true, message: "No student to notify" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      title = "Запрос на перенос от преподавателя";
+      body = `Преподаватель просит перенести "${record.product_title}" с ${record.old_date} ${record.old_time?.slice(0, 5)} на ${record.new_date} ${record.new_time?.slice(0, 5)}`;
+      targetLink = "/dashboard";
+
+      const { data: tokens } = await supabase
+        .from("push_tokens")
+        .select("id, fcm_token")
+        .eq("user_id", studentUserId)
+        .eq("user_role", "student");
+
+      if (!tokens?.length) {
+        console.log(`No tokens for student ${studentUserId}`);
+        return new Response(JSON.stringify({ success: true, sent: 0 }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const accessToken = await getAccessToken();
       let sent = 0;
+
       for (const tokenRecord of tokens) {
         try {
           const response = await fetch(
@@ -148,14 +229,14 @@ serve(async (req) => {
                 message: {
                   token: tokenRecord.fcm_token,
                   notification: { title, body },
-                  data: { type: "reschedule_request", rescheduleRequestId: record.id },
+                  data: { type: "reschedule_request_from_teacher", rescheduleRequestId: record.id },
                   webpush: {
                     notification: {
                       icon: "/icon-192.png", badge: "/icon-192.png",
                       vibrate: [200, 100, 200], requireInteraction: true,
                       tag: `reschedule-request-${record.id}`
                     },
-                    fcm_options: { link: targetRole === "teacher" ? "/teacher" : "/creator" }
+                    fcm_options: { link: targetLink }
                   }
                 }
               })
@@ -173,19 +254,11 @@ serve(async (req) => {
           }
         } catch (err) { console.error("FCM exception:", err); }
       }
-      return sent;
-    };
 
-    totalSent = await sendToRole(targetUserId, targetRole);
-
-    // If no teacher, also try sending to creator (null user_id, role=creator)
-    if (!targetUserId && targetRole === "creator") {
-      totalSent += await sendToRole(null, "creator");
+      console.log(`Reschedule request (from ${requestedBy}): sent ${sent} to student ${studentUserId}`);
+      return new Response(JSON.stringify({ success: true, sent }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-
-    console.log(`Reschedule request: sent ${totalSent} notifications`);
-    return new Response(JSON.stringify({ success: true, sent: totalSent }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     console.error("Error in notify-reschedule-request:", error);

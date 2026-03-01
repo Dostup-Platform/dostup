@@ -67,12 +67,6 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const studentUserId = record.simple_user_id;
-    if (!studentUserId) {
-      return new Response(JSON.stringify({ success: true, message: "No student to notify" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -82,24 +76,70 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: false }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    const requestedBy = record.requested_by || "student";
     const isApproved = record.status === "approved";
-    const title = isApproved ? "Перенос подтверждён ✅" : "Перенос отклонён ❌";
-    let body = isApproved
-      ? `Урок "${record.product_title}" перенесён на ${record.new_date} ${record.new_time?.slice(0, 5)}`
-      : `Запрос на перенос "${record.product_title}" отклонён`;
+
+    let title: string;
+    let body: string;
+    let targetUserId: string | null = null;
+    let targetRole: string;
+    let targetLink: string;
+
+    if (requestedBy === "student") {
+      // Student's request was responded to → notify the student
+      targetUserId = record.simple_user_id;
+      targetRole = "student";
+      targetLink = "/dashboard";
+
+      title = isApproved ? "Перенос подтверждён ✅" : "Перенос отклонён ❌";
+      body = isApproved
+        ? `Урок "${record.product_title}" перенесён на ${record.new_date} ${record.new_time?.slice(0, 5)}`
+        : `Запрос на перенос "${record.product_title}" отклонён`;
+
+    } else {
+      // Creator/Teacher's request was responded to by student → notify creator/teacher
+      if (record.teacher_id) {
+        targetUserId = record.teacher_id;
+        targetRole = "teacher";
+        targetLink = "/teacher";
+      } else {
+        targetUserId = null;
+        targetRole = "creator";
+        targetLink = "/creator";
+      }
+
+      // Get student name
+      let studentName = "Ученик";
+      if (record.simple_user_id) {
+        const { data: studentData } = await supabase
+          .from("simple_users")
+          .select("name")
+          .eq("id", record.simple_user_id)
+          .single();
+        if (studentData) studentName = studentData.name;
+      }
+
+      title = isApproved ? "Перенос подтверждён учеником ✅" : "Перенос отклонён учеником ❌";
+      body = isApproved
+        ? `${studentName} подтвердил перенос "${record.product_title}" на ${record.new_date} ${record.new_time?.slice(0, 5)}`
+        : `${studentName} отклонил запрос на перенос "${record.product_title}"`;
+    }
 
     if (record.response_comment) {
       body += `. ${record.response_comment}`;
     }
 
-    const { data: tokens } = await supabase
-      .from("push_tokens")
-      .select("id, fcm_token")
-      .eq("user_id", studentUserId)
-      .eq("user_role", "student");
+    if (!targetUserId && targetRole !== "creator") {
+      return new Response(JSON.stringify({ success: true, message: "No target to notify" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const query = supabase.from("push_tokens").select("id, fcm_token").eq("user_role", targetRole);
+    if (targetUserId) query.eq("user_id", targetUserId);
+    const { data: tokens } = await query;
 
     if (!tokens?.length) {
-      console.log(`No tokens for student ${studentUserId}`);
+      console.log(`No tokens for ${targetRole} ${targetUserId || "all"}`);
       return new Response(JSON.stringify({ success: true, sent: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -125,7 +165,7 @@ serve(async (req) => {
                     vibrate: [200, 100, 200], requireInteraction: true,
                     tag: `reschedule-response-${record.id}`
                   },
-                  fcm_options: { link: "/dashboard" }
+                  fcm_options: { link: targetLink }
                 }
               }
             })
@@ -144,7 +184,7 @@ serve(async (req) => {
       } catch (err) { console.error("FCM exception:", err); }
     }
 
-    console.log(`Reschedule response: sent ${sent} to student ${studentUserId}`);
+    console.log(`Reschedule response: sent ${sent} to ${targetRole} ${targetUserId || "all"}`);
     return new Response(JSON.stringify({ success: true, sent }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: unknown) {

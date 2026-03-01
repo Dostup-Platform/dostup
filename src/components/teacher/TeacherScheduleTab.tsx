@@ -9,7 +9,7 @@ import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import RescheduleSlotDialog from "@/components/RescheduleSlotDialog";
 import EditSlotTimeDialog from "@/components/EditSlotTimeDialog";
-import { useCreatorCancelBooking, useRescheduleSlot, useEditSlotTime } from "@/hooks/useSimplePurchases";
+import { useCreatorCancelBooking, useEditSlotTime, useCreatorRescheduleRequest } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -369,7 +369,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
 
   // Cancel booking mutation using shared hook
   const teacherCancelBooking = useCreatorCancelBooking();
-  const rescheduleSlotMutation = useRescheduleSlot();
+  const rescheduleRequestMutation = useCreatorRescheduleRequest();
   const editSlotTimeMutation = useEditSlotTime();
 
   const handleCancelBookingWithReason = async (reasons: string[], comment: string) => {
@@ -1951,7 +1951,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
         onConfirm={async (data) => {
           if (!reschedulingSlot) return;
           try {
-            await rescheduleSlotMutation.mutateAsync({
+            await rescheduleRequestMutation.mutateAsync({
               slotId: reschedulingSlot.slot.id,
               scheduleId: reschedulingSlot.schedule.id,
               newDate: data.newDate,
@@ -1959,16 +1959,17 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
               newEndTime: data.newEndTime,
               reasons: data.reasons,
               comment: data.comment,
-              rescheduledBy: "teacher",
+              requestedBy: "teacher",
+              teacherId: teacherId,
             });
-            toast.success(language === "ru" ? "Урок перенесён!" : "Сабақ ауыстырылды!");
+            toast.success(language === "ru" ? "Запрос на перенос отправлен ученику" : "Ауыстыру сұранысы оқушыға жіберілді");
             setReschedulingSlot(null);
           } catch {
-            toast.error(language === "ru" ? "Ошибка при переносе" : "Ауыстыру кезінде қате");
+            toast.error(language === "ru" ? "Ошибка при отправке запроса" : "Сұраныс жіберу кезінде қате");
           }
         }}
         slot={reschedulingSlot?.slot || null}
-        isPending={rescheduleSlotMutation.isPending}
+        isPending={rescheduleRequestMutation.isPending}
       />
       {/* Edit Slot Time Dialog (unbooked) */}
       <EditSlotTimeDialog

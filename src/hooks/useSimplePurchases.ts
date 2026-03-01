@@ -681,6 +681,98 @@ export const useRescheduleSlot = () => {
   });
 };
 
+// Отправить запрос на перенос от автора/учителя ученику
+export const useCreatorRescheduleRequest = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      slotId,
+      scheduleId,
+      newDate,
+      newStartTime,
+      newEndTime,
+      reasons,
+      comment,
+      requestedBy,
+      teacherId,
+    }: {
+      slotId: string;
+      scheduleId: string;
+      newDate: string;
+      newStartTime: string;
+      newEndTime: string;
+      reasons: string[];
+      comment: string;
+      requestedBy: "creator" | "teacher";
+      teacherId?: string | null;
+    }) => {
+      // Get current slot data
+      const { data: slot } = await supabase
+        .from("time_slots")
+        .select("date, start_time, end_time, schedule_id")
+        .eq("id", slotId)
+        .single();
+
+      if (!slot) throw new Error("Slot not found");
+
+      // Get bookings for this slot
+      const { data: bookings } = await supabase
+        .from("simple_bookings")
+        .select("id, simple_user_id, schedule_id")
+        .eq("time_slot_id", slotId)
+        .eq("status", "confirmed");
+
+      if (!bookings?.length) throw new Error("No bookings to reschedule");
+
+      // Get schedule info for product_title
+      const { data: schedule } = await supabase
+        .from("schedules")
+        .select("id, product_id, product:products(id, title)")
+        .eq("id", scheduleId)
+        .single();
+
+      const productTitle = (schedule as any)?.product?.title || "";
+      const productId = (schedule as any)?.product_id || "";
+
+      // Insert reschedule request for each booking
+      for (const booking of bookings) {
+        // Delete previous pending requests for the same booking from this role
+        await supabase
+          .from("reschedule_requests")
+          .delete()
+          .eq("booking_id", booking.id)
+          .eq("status", "pending");
+
+        await supabase.from("reschedule_requests").insert({
+          booking_id: booking.id,
+          simple_user_id: booking.simple_user_id,
+          schedule_id: scheduleId,
+          product_id: productId,
+          product_title: productTitle,
+          old_date: slot.date,
+          old_time: slot.start_time,
+          new_date: newDate,
+          new_time: newStartTime,
+          reasons: reasons,
+          comment: comment || null,
+          status: "pending",
+          requested_by: requestedBy,
+          teacher_id: teacherId || null,
+        } as any);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-week-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-requests"] });
+    },
+  });
+};
+
 // Изменить время незабронированного слота
 export const useEditSlotTime = () => {
   const queryClient = useQueryClient();
