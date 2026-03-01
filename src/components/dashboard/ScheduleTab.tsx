@@ -34,6 +34,21 @@ const ScheduleTab = () => {
   const cancelBooking = useCancelSimpleBooking();
   const queryClient = useQueryClient();
 
+  const cancelRescheduleRequest = useMutation({
+    mutationFn: async (requestId: string) => {
+      const { error } = await supabase
+        .from("reschedule_requests")
+        .delete()
+        .eq("id", requestId)
+        .eq("status", "pending");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(language === "ru" ? "Запрос отменён" : "Сұраныс болдырмалды");
+      queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
+    },
+  });
+
   const { data: pendingReschedules = [] } = useQuery({
     queryKey: ["student-pending-reschedules", user?.id],
     queryFn: async () => {
@@ -435,10 +450,20 @@ const ScheduleTab = () => {
                   const pendingReq = pendingReschedules.find(r => r.booking_id === booking.id);
                   if (!pendingReq) return null;
                   return (
-                    <div className="mt-2 text-orange-500 text-sm font-medium">
-                      {language === "ru"
-                        ? `Ожидание подтверждения переноса на ${pendingReq.new_time?.slice(0, 5)}`
-                        : `Ауыстыруды растауды күтуде: ${pendingReq.new_time?.slice(0, 5)}`}
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-orange-500 text-sm font-medium">
+                        {language === "ru"
+                          ? `Ожидание подтверждения переноса на ${pendingReq.new_time?.slice(0, 5)}`
+                          : `Ауыстыруды растауды күтуде: ${pendingReq.new_time?.slice(0, 5)}`}
+                      </span>
+                      <button
+                        onClick={() => cancelRescheduleRequest.mutate(pendingReq.id)}
+                        disabled={cancelRescheduleRequest.isPending}
+                        className="text-orange-500 hover:text-destructive transition-colors p-0.5 rounded-full hover:bg-muted"
+                        title={language === "ru" ? "Отменить запрос" : "Сұранысты болдырмау"}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                   );
                 })()}
