@@ -88,6 +88,9 @@ serve(async (req) => {
       )
     }
 
+    // Check if userId is a valid UUID (creators use string names)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+
     switch (action) {
       case 'register': {
         if (!fcmToken) {
@@ -96,9 +99,6 @@ serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
-
-        // Check if userId is a valid UUID (creators use string names like "курс")
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
 
         // Delete any existing token with this fcm_token (device reuse)
         await supabase
@@ -114,27 +114,23 @@ serve(async (req) => {
             .eq('user_id', userId)
             .eq('user_role', userRole || 'student')
         } else {
+          // For creators (non-UUID), delete by role only
           await supabase
             .from('push_tokens')
             .delete()
-            .eq('user_phone', userId)
-            .eq('user_role', userRole || 'student')
-        }
-
-        const insertData: Record<string, any> = {
-          user_phone: userId,
-          user_role: userRole || 'student',
-          fcm_token: fcmToken,
-          device_info: deviceInfo || null,
-          updated_at: new Date().toISOString()
-        };
-        if (isUuid) {
-          insertData.user_id = userId;
+            .eq('user_role', 'creator')
+            .eq('device_info', deviceInfo || '')
         }
 
         const { error } = await supabase
           .from('push_tokens')
-          .insert(insertData)
+          .insert({
+            user_id: isUuid ? userId : null,
+            user_role: userRole || 'student',
+            fcm_token: fcmToken,
+            device_info: deviceInfo || null,
+            updated_at: new Date().toISOString()
+          })
 
         if (error) {
           console.error('Error registering push token:', error)
@@ -152,15 +148,14 @@ serve(async (req) => {
       }
 
       case 'unregister': {
-        const isUuidUnreg = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
         let deleteQuery = supabase.from('push_tokens').delete()
         
         if (fcmToken) {
           deleteQuery = deleteQuery.eq('fcm_token', fcmToken)
-        } else if (isUuidUnreg) {
+        } else if (isUuid) {
           deleteQuery = deleteQuery.eq('user_id', userId)
         } else {
-          deleteQuery = deleteQuery.eq('user_phone', userId)
+          deleteQuery = deleteQuery.eq('user_role', 'creator')
         }
 
         const { error } = await deleteQuery

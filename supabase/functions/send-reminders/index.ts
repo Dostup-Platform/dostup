@@ -9,7 +9,6 @@ const corsHeaders = {
 interface Reminder {
   id: string;
   booking_id: string | null;
-  user_phone: string;
   simple_user_id: string | null;
   reminder_type: string;
   scheduled_at: string;
@@ -118,10 +117,11 @@ serve(async (req) => {
       }
     }
 
-    // Process morning reminders - group by user (prefer simple_user_id, fallback user_phone)
+    // Process morning reminders - group by simple_user_id
     const morningByUser = new Map<string, Reminder[]>();
     for (const reminder of morningReminders) {
-      const key = reminder.simple_user_id || reminder.user_phone;
+      const key = reminder.simple_user_id;
+      if (!key) continue;
       const existing = morningByUser.get(key) || [];
       existing.push(reminder);
       morningByUser.set(key, existing);

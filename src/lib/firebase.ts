@@ -203,7 +203,7 @@ export const onForegroundMessage = (
  * @param targetRole - Optional: filter by user role ('creator' | 'student' | 'teacher')
  */
 export const sendPushNotification = async (
-  userPhone: string,
+  userId: string,
   title: string,
   body: string,
   data?: Record<string, string>,
@@ -212,7 +212,7 @@ export const sendPushNotification = async (
   try {
     const { error } = await supabase.functions.invoke("send-push-notification", {
       body: {
-        userPhone,
+        userId,
         title,
         body,
         data,

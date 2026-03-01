@@ -35,7 +35,6 @@ interface PendingPurchase {
 interface BookingCancellation {
   id: string;
   user_name: string;
-  user_phone: string | null;
   product_title: string;
   product_id: string;
   schedule_id: string | null;

@@ -133,9 +133,7 @@ export const useRealtimeStudentNotifications = (
           const cancellation = payload.new as any;
           
           if (cancellation.cancelled_by !== "creator" && cancellation.cancelled_by !== "teacher") return;
-          // Match by simple_user_id or user_phone (backward compat)
-          if (cancellation.simple_user_id && cancellation.simple_user_id !== userId) return;
-          if (!cancellation.simple_user_id && cancellation.user_phone !== userId) return;
+          if (cancellation.simple_user_id !== userId) return;
 
           playCancellationSound();
 
