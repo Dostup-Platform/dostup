@@ -1168,7 +1168,15 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                 <Input
                   type="time"
                   value={slotsForm.startTime}
-                  onChange={(e) => setSlotsForm({ ...slotsForm, startTime: e.target.value })}
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    const [h, m] = newStart.split(":").map(Number);
+                    const total = h * 60 + m + Number(slotsForm.slotDuration);
+                    const endH = Math.floor(total / 60) % 24;
+                    const endM = total % 60;
+                    const newEnd = `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
+                    setSlotsForm({ ...slotsForm, startTime: newStart, endTime: newEnd });
+                  }}
                 />
               </div>
               <div className="space-y-2">
