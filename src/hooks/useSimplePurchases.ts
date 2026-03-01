@@ -681,6 +681,34 @@ export const useRescheduleSlot = () => {
   });
 };
 
+// Изменить время незабронированного слота
+export const useEditSlotTime = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      slotId,
+      newStartTime,
+      newEndTime,
+    }: {
+      slotId: string;
+      newStartTime: string;
+      newEndTime: string;
+    }) => {
+      const { error } = await supabase
+        .from("time_slots")
+        .update({ start_time: newStartTime, end_time: newEndTime })
+        .eq("id", slotId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-week-slots"] });
+      queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
+    },
+  });
+};
+
 // Получить все бронирования для создателя (для уведомлений)
 // Показываем ТОЛЬКО бронирования на расписания автора (где teacher_id IS NULL)
 export const useCreatorSimpleBookings = (productIds: string[]) => {
