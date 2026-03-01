@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -45,8 +45,8 @@ const StudentRescheduleDialog = ({
   const [reasonType, setReasonType] = useState<"cant_make_it" | "own">("cant_make_it");
   const [comment, setComment] = useState("");
 
-  const handleOpen = (open: boolean) => {
-    if (open && booking) {
+  useEffect(() => {
+    if (isOpen && booking) {
       setNewDate(booking.date);
       const [h, m] = (booking.startTime || "00:00").slice(0, 5).split(":").map(Number);
       const total = h * 60 + m + 60;
@@ -56,6 +56,9 @@ const StudentRescheduleDialog = ({
       setReasonType("cant_make_it");
       setComment("");
     }
+  }, [isOpen, booking]);
+
+  const handleOpen = (open: boolean) => {
     if (!open) handleClose();
   };
 
