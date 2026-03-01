@@ -156,10 +156,26 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
         .single();
 
       if (booking?.time_slot_id) {
+        const { data: currentSlot } = await supabase
+          .from("time_slots")
+          .select("start_time, end_time")
+          .eq("id", booking.time_slot_id)
+          .single();
+
+        let newEndTime = request.new_time;
+        if (currentSlot) {
+          const [sh, sm] = currentSlot.start_time.split(":").map(Number);
+          const [eh, em] = currentSlot.end_time.split(":").map(Number);
+          const durationMin = (eh * 60 + em) - (sh * 60 + sm);
+          const [nh, nm] = request.new_time.split(":").map(Number);
+          const endTotal = nh * 60 + nm + durationMin;
+          newEndTime = `${String(Math.floor(endTotal / 60) % 24).padStart(2, "0")}:${String(endTotal % 60).padStart(2, "0")}:00`;
+        }
+
         await supabase.from("time_slots").update({
           date: request.new_date,
           start_time: request.new_time,
-          end_time: request.new_time,
+          end_time: newEndTime,
         }).eq("id", booking.time_slot_id);
       }
 
