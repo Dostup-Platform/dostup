@@ -62,6 +62,14 @@ const ScheduleTab = () => {
       reasons: string[];
       comment: string;
     }) => {
+      // Delete previous pending requests for the same booking
+      await supabase
+        .from("reschedule_requests")
+        .delete()
+        .eq("booking_id", data.bookingId)
+        .eq("simple_user_id", user?.id)
+        .eq("status", "pending");
+
       const { error } = await supabase.from("reschedule_requests").insert({
         booking_id: data.bookingId,
         simple_user_id: user?.id,
