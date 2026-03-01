@@ -331,10 +331,10 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
                         <p className="text-sm text-muted-foreground mt-1">
                           {rejection.product_title}
                         </p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                          <span>{rejection.old_date} {rejection.old_time?.slice(0, 5)}</span>
-                          <span>→</span>
-                          <span>{rejection.new_date} {rejection.new_time?.slice(0, 5)}</span>
+                        <div className="flex items-center gap-2 text-xs mt-1">
+                          <span className="font-medium text-orange-500">{rejection.old_time?.slice(0, 5)}</span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className="font-medium text-orange-500">{rejection.new_time?.slice(0, 5)}</span>
                         </div>
                         {rejection.response_comment && (
                           <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-md">

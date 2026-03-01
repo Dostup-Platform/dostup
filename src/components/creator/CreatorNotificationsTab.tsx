@@ -633,12 +633,12 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                         {language === "ru" ? "просит перенести" : "ауыстыруды сұрайды"}: <span className="font-medium text-foreground">{request.product_title}</span>
                       </p>
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="text-muted-foreground">
-                          {request.old_date} {request.old_time?.slice(0, 5)}
+                        <span className="font-medium text-orange-500">
+                          {request.old_time?.slice(0, 5)}
                         </span>
-                        <span className="text-foreground">→</span>
-                        <span className="font-medium text-primary">
-                          {request.new_date} {request.new_time?.slice(0, 5)}
+                        <span className="text-muted-foreground">→</span>
+                        <span className="font-medium text-orange-500">
+                          {request.new_time?.slice(0, 5)}
                         </span>
                       </div>
 
