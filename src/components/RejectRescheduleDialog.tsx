@@ -20,8 +20,8 @@ const RejectRescheduleDialog = ({ isOpen, onClose, onConfirm, isPending }: Rejec
   const [customComment, setCustomComment] = useState("");
 
   const defaultReason = language === "ru"
-    ? "К сожалению, я не могу перенести урок на другое время. Если у вас не получится, то можете пожалуйста отменить запись и записаться на другой день?"
-    : "Өкінішке орай, сабақты басқа уақытқа ауыстыра алмаймын. Егер сізге қолайсыз болса, жазбаңызды болдырмап, басқа күнге жазыла аласыз.";
+    ? "Не могу перенести"
+    : "Ауыстыра алмаймын";
 
   const handleConfirm = () => {
     const comment = reasonType === "cant" ? defaultReason : customComment.trim();
