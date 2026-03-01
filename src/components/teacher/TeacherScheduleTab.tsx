@@ -781,7 +781,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                     </p>
                   </div>
                 </div>
-                <div className={`flex gap-1 ${isMobile ? "pl-10" : ""}`}>
+                <div className={`flex flex-wrap gap-1 ${isMobile ? "justify-center mt-2" : ""}`}>
                   <Button
                     variant="outline"
                     size="sm"
