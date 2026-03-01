@@ -292,6 +292,10 @@ const ScheduleTab = () => {
                         )}
                         {booking.schedule?.event_type === "group" ? t("group") : t("individual")}
                       </span>
+                      <span className="flex items-center gap-1">
+                        <GraduationCap className="w-3.5 h-3.5" />
+                        {booking.schedule?.teacher_name || t("author")}
+                      </span>
                     </div>
                   </div>
                   <Button
@@ -403,6 +407,9 @@ const ScheduleTab = () => {
                           }`}
                         >
                           <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {schedule.teacher_name || t("author")}
+                          </p>
                           {schedule.max_participants && (
                             <p className="text-xs text-muted-foreground mt-1">
                               {t("upToParticipants").replace("{count}", String(schedule.max_participants))}
@@ -433,6 +440,9 @@ const ScheduleTab = () => {
                           }`}
                         >
                           <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {schedule.teacher_name || t("author")}
+                          </p>
                         </button>
                       ))}
                     </div>

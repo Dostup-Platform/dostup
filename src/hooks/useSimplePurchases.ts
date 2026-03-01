@@ -240,7 +240,23 @@ export const useSimpleSchedules = () => {
         .in("product_id", productIds);
 
       if (error) throw error;
-      return data || [];
+      if (!data?.length) return [];
+
+      // Подгрузить имена учителей
+      const teacherIds = [...new Set(data.filter(s => s.teacher_id).map(s => s.teacher_id!))];
+      let teachersMap: Record<string, string> = {};
+      if (teacherIds.length > 0) {
+        const { data: teachers } = await supabase
+          .from("simple_users")
+          .select("id, name")
+          .in("id", teacherIds);
+        teachersMap = (teachers || []).reduce((acc, t) => ({ ...acc, [t.id]: t.name }), {});
+      }
+
+      return data.map(schedule => ({
+        ...schedule,
+        teacher_name: schedule.teacher_id ? (teachersMap[schedule.teacher_id] || null) : null,
+      }));
     },
     enabled: !!purchases?.length,
   });
@@ -388,8 +404,19 @@ export const useSimpleBookings = () => {
       const scheduleIds = bookings.map(b => b.schedule_id);
       const { data: schedules } = await supabase
         .from("schedules")
-        .select("id, title, event_type, product_id")
+        .select("id, title, event_type, product_id, teacher_id")
         .in("id", scheduleIds);
+
+      // Подгрузить имена учителей для расписаний
+      const teacherIds = [...new Set((schedules || []).filter(s => s.teacher_id).map(s => s.teacher_id!))];
+      let teachersMap: Record<string, string> = {};
+      if (teacherIds.length > 0) {
+        const { data: teachers } = await supabase
+          .from("simple_users")
+          .select("id, name")
+          .in("id", teacherIds);
+        teachersMap = (teachers || []).reduce((acc, t) => ({ ...acc, [t.id]: t.name }), {});
+      }
 
       // Получить products
       const productIds = schedules?.map(s => s.product_id) || [];
@@ -398,12 +425,15 @@ export const useSimpleBookings = () => {
         .select("id, title")
         .in("id", productIds);
 
-      return bookings.map(booking => ({
-        ...booking,
-        time_slot: slots?.find(s => s.id === booking.time_slot_id),
-        schedule: schedules?.find(s => s.id === booking.schedule_id),
-        product: products?.find(p => p.id === schedules?.find(s => s.id === booking.schedule_id)?.product_id),
-      }));
+      return bookings.map(booking => {
+        const schedule = schedules?.find(s => s.id === booking.schedule_id);
+        return {
+          ...booking,
+          time_slot: slots?.find(s => s.id === booking.time_slot_id),
+          schedule: schedule ? { ...schedule, teacher_name: schedule.teacher_id ? (teachersMap[schedule.teacher_id] || null) : null } : undefined,
+          product: products?.find(p => p.id === schedule?.product_id),
+        };
+      });
     },
     enabled: !!user,
   });
