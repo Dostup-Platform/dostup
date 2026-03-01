@@ -1284,9 +1284,9 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                               size="sm"
                               onClick={() => {
                                 if (isSelected) {
-                                  setSlotsToDeleteDates(slotsToDeleteDates.filter(d => d !== date));
+                                  setSlotsToDeleteDates(prev => prev.filter(d => d !== date));
                                 } else {
-                                  setSlotsToDeleteDates([...slotsToDeleteDates, date]);
+                                  setSlotsToDeleteDates(prev => [...prev, date]);
                                 }
                               }}
                             >
