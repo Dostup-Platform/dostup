@@ -28,7 +28,7 @@ const ScheduleTab = () => {
   const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
   const { data: schedules, isLoading: schedulesLoading } = useSimpleSchedules();
   const { data: bookings, isLoading: bookingsLoading } = useSimpleBookings();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useSimpleAuth();
   const createBooking = useCreateSimpleBooking();
   const cancelBooking = useCancelSimpleBooking();
@@ -79,11 +79,11 @@ const ScheduleTab = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(t("language") === "ru" ? "Запрос на перенос отправлен" : "Ауыстыру сұранысы жіберілді");
+      toast.success(language === "ru" ? "Запрос на перенос отправлен" : "Ауыстыру сұранысы жіберілді");
       setRescheduleBooking(null);
     },
     onError: () => {
-      toast.error(t("language") === "ru" ? "Ошибка при отправке запроса" : "Сұраныс жіберу қатесі");
+      toast.error(language === "ru" ? "Ошибка при отправке запроса" : "Сұраныс жіберу қатесі");
     },
   });
 
