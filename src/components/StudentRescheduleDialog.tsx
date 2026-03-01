@@ -47,8 +47,12 @@ const StudentRescheduleDialog = ({
 
   const handleOpen = (open: boolean) => {
     if (open && booking) {
-      setNewDate("");
-      setNewTime("");
+      setNewDate(booking.date);
+      const [h, m] = (booking.startTime || "00:00").slice(0, 5).split(":").map(Number);
+      const total = h * 60 + m + 60;
+      const newH = Math.floor(total / 60) % 24;
+      const newM = total % 60;
+      setNewTime(`${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`);
       setReasonType("cant_make_it");
       setComment("");
     }
