@@ -295,6 +295,7 @@ export const useRealtimeStudentNotifications = (
 
           queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
           queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
+          queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
         }
       )
       .on(
