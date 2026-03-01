@@ -249,6 +249,9 @@ export const translations = {
     accessRevoked: "Доступ закрыт",
     lessonLink: "Ссылка на урок",
     copy: "Копировать",
+    reschedule: "Перенести",
+    rescheduleLesson: "Перенести урок",
+    lessonRescheduled: "Урок перенесён!",
   },
   kk: {
     // Common
@@ -498,6 +501,9 @@ export const translations = {
     accessRevoked: "Қол жеткізу жабылды",
     lessonLink: "Сабаққа сілтеме",
     copy: "Көшіру",
+    reschedule: "Ауыстыру",
+    rescheduleLesson: "Сабақты ауыстыру",
+    lessonRescheduled: "Сабақ ауыстырылды!",
   },
 } as const;
 

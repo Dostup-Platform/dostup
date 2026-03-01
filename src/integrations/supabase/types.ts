@@ -151,6 +151,57 @@ export type Database = {
           },
         ]
       }
+      booking_reschedules: {
+        Row: {
+          booking_id: string
+          comment: string | null
+          created_at: string
+          id: string
+          new_date: string
+          new_time: string
+          old_date: string
+          old_time: string
+          product_id: string
+          product_title: string
+          reasons: string[] | null
+          rescheduled_by: string
+          schedule_id: string | null
+          simple_user_id: string | null
+        }
+        Insert: {
+          booking_id: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          new_date: string
+          new_time: string
+          old_date: string
+          old_time: string
+          product_id: string
+          product_title: string
+          reasons?: string[] | null
+          rescheduled_by?: string
+          schedule_id?: string | null
+          simple_user_id?: string | null
+        }
+        Update: {
+          booking_id?: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          new_date?: string
+          new_time?: string
+          old_date?: string
+          old_time?: string
+          product_id?: string
+          product_title?: string
+          reasons?: string[] | null
+          rescheduled_by?: string
+          schedule_id?: string | null
+          simple_user_id?: string | null
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           created_at: string
