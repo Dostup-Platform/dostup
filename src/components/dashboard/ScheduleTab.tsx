@@ -1,13 +1,16 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSimplePurchases, useSimpleSchedules, useSimpleTimeSlots, useSimpleBookings, useCreateSimpleBooking, useCancelSimpleBooking, useAllBookingsForSchedule } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck, GraduationCap, Link as LinkIcon, Copy } from "lucide-react";
+import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck, GraduationCap, Link as LinkIcon, Copy, Timer } from "lucide-react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
+import StudentRescheduleDialog from "@/components/StudentRescheduleDialog";
+import { useMutation } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -26,6 +29,7 @@ const ScheduleTab = () => {
   const { data: schedules, isLoading: schedulesLoading } = useSimpleSchedules();
   const { data: bookings, isLoading: bookingsLoading } = useSimpleBookings();
   const { t } = useLanguage();
+  const { user } = useSimpleAuth();
   const createBooking = useCreateSimpleBooking();
   const cancelBooking = useCancelSimpleBooking();
   
@@ -35,6 +39,53 @@ const ScheduleTab = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [canChooseTeacher, setCanChooseTeacher] = useState(false);
+  const [rescheduleBooking, setRescheduleBooking] = useState<{
+    id: string;
+    productTitle: string;
+    productId: string;
+    scheduleId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
+
+  const rescheduleRequest = useMutation({
+    mutationFn: async (data: {
+      bookingId: string;
+      productId: string;
+      productTitle: string;
+      scheduleId: string;
+      oldDate: string;
+      oldTime: string;
+      newDate: string;
+      newTime: string;
+      reasons: string[];
+      comment: string;
+    }) => {
+      const { error } = await supabase.from("reschedule_requests").insert({
+        booking_id: data.bookingId,
+        simple_user_id: user?.id,
+        schedule_id: data.scheduleId,
+        product_id: data.productId,
+        product_title: data.productTitle,
+        old_date: data.oldDate,
+        old_time: data.oldTime,
+        new_date: data.newDate,
+        new_time: data.newTime,
+        reasons: data.reasons,
+        comment: data.comment || null,
+        status: "pending",
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("language") === "ru" ? "Запрос на перенос отправлен" : "Ауыстыру сұранысы жіберілді");
+      setRescheduleBooking(null);
+    },
+    onError: () => {
+      toast.error(t("language") === "ru" ? "Ошибка при отправке запроса" : "Сұраныс жіберу қатесі");
+    },
+  });
 
   const { data: timeSlots, isLoading: timeSlotsLoading } = useSimpleTimeSlots(selectedScheduleId || undefined);
   const { data: allBookingsForSchedule } = useAllBookingsForSchedule(selectedScheduleId || undefined);
@@ -298,15 +349,33 @@ const ScheduleTab = () => {
                       </span>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setBookingToCancel(booking.id)}
-                    disabled={cancelBooking.isPending}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRescheduleBooking({
+                        id: booking.id,
+                        productTitle: booking.product?.title || booking.schedule?.title || "",
+                        productId: booking.product?.id || "",
+                        scheduleId: booking.schedule?.id || "",
+                        date: booking.time_slot?.date || "",
+                        startTime: booking.time_slot?.start_time || "",
+                        endTime: booking.time_slot?.end_time || "",
+                      })}
+                      className="text-muted-foreground hover:text-primary hover:bg-primary/10"
+                    >
+                      <Timer className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setBookingToCancel(booking.id)}
+                      disabled={cancelBooking.isPending}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
                 {/* Lesson link if available */}
                 {booking.time_slot?.lesson_link && (
@@ -576,6 +645,29 @@ const ScheduleTab = () => {
         onClose={() => setBookingToCancel(null)}
         onConfirm={handleCancelBooking}
         isPending={cancelBooking.isPending}
+      />
+
+      {/* Student Reschedule Request Dialog */}
+      <StudentRescheduleDialog
+        isOpen={!!rescheduleBooking}
+        onClose={() => setRescheduleBooking(null)}
+        booking={rescheduleBooking}
+        isPending={rescheduleRequest.isPending}
+        onConfirm={(data) => {
+          if (!rescheduleBooking) return;
+          rescheduleRequest.mutate({
+            bookingId: rescheduleBooking.id,
+            productId: rescheduleBooking.productId,
+            productTitle: rescheduleBooking.productTitle,
+            scheduleId: rescheduleBooking.scheduleId,
+            oldDate: rescheduleBooking.date,
+            oldTime: rescheduleBooking.startTime,
+            newDate: data.newDate,
+            newTime: data.newTime,
+            reasons: data.reasons,
+            comment: data.comment,
+          });
+        }}
       />
     </div>
   );

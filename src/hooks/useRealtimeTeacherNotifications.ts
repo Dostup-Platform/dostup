@@ -283,6 +283,44 @@ export const useRealtimeTeacherNotifications = (
           queryClient.invalidateQueries({ queryKey: ["time-slots"] });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "reschedule_requests",
+        },
+        async (payload) => {
+          const newRequest = payload.new as any;
+          
+          if (!scheduleIdsRef.current.includes(newRequest.schedule_id)) return;
+
+          playBookingSound();
+
+          // Fetch student name
+          let studentName = language === "ru" ? "Ученик" : "Оқушы";
+          if (newRequest.simple_user_id) {
+            const { data: student } = await supabase
+              .from("simple_users")
+              .select("name")
+              .eq("id", newRequest.simple_user_id)
+              .single();
+            if (student) studentName = student.name;
+          }
+
+          const title = language === "ru" ? "Запрос на перенос" : "Ауыстыру сұранысы";
+          const description = language === "ru"
+            ? `${studentName} просит перенести "${newRequest.product_title}" с ${newRequest.old_date} ${newRequest.old_time?.slice(0, 5)} на ${newRequest.new_date} ${newRequest.new_time?.slice(0, 5)}`
+            : `${studentName} "${newRequest.product_title}" сабағын ${newRequest.old_date} ${newRequest.old_time?.slice(0, 5)} күнінен ${newRequest.new_date} ${newRequest.new_time?.slice(0, 5)} күніне ауыстыруды сұрайды`;
+
+          toast.info(title, { description, duration: 10000 });
+
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
+
+          queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-requests"] });
+        }
+      )
       .subscribe((status) => {
         console.log("Teacher realtime subscription status:", status);
       });

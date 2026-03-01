@@ -53,3 +53,9 @@ verify_jwt = false
 
 [functions.ogproduct]
 verify_jwt = false
+
+[functions.notify-reschedule-request]
+verify_jwt = false
+
+[functions.notify-reschedule-response]
+verify_jwt = false
