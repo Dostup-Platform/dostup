@@ -435,10 +435,10 @@ const ScheduleTab = () => {
                   const pendingReq = pendingReschedules.find(r => r.booking_id === booking.id);
                   if (!pendingReq) return null;
                   return (
-                    <div className="mt-2 text-amber-600 dark:text-amber-400 text-sm">
+                    <div className="mt-2 text-orange-500 text-sm font-medium">
                       {language === "ru"
-                        ? `Ожидание подтверждения переноса на ${pendingReq.new_date} ${pendingReq.new_time}`
-                        : `Ауыстыруды растауды күтуде: ${pendingReq.new_date} ${pendingReq.new_time}`}
+                        ? `Ожидание подтверждения переноса на ${pendingReq.new_time?.slice(0, 5)}`
+                        : `Ауыстыруды растауды күтуде: ${pendingReq.new_time?.slice(0, 5)}`}
                     </div>
                   );
                 })()}
