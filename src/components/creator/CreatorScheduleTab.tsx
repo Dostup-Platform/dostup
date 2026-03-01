@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, X, Pencil, UserPlus, Link, Copy } from "lucide-react";
+import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, Pencil, UserPlus, Link, Copy } from "lucide-react";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import RescheduleSlotDialog from "@/components/RescheduleSlotDialog";
 import EditSlotTimeDialog from "@/components/EditSlotTimeDialog";
@@ -360,7 +360,61 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
 
   // Delete time slot with bookings (force delete)
   const deleteSlotWithBookings = useMutation({
-    mutationFn: async (slotId: string) => {
+    mutationFn: async ({ slotId, reasons, comment }: { slotId: string; reasons: string[]; comment: string }) => {
+      // Get slot info
+      const { data: slotData } = await supabase
+        .from("time_slots")
+        .select("date, start_time, schedule_id")
+        .eq("id", slotId)
+        .single();
+
+      // Get bookings for this slot
+      const { data: slotBookingsData } = await supabase
+        .from("simple_bookings")
+        .select("id, simple_user_id")
+        .eq("time_slot_id", slotId);
+
+      if (slotBookingsData?.length && slotData) {
+        // Get schedule + product info
+        const { data: scheduleData } = await supabase
+          .from("schedules")
+          .select("id, title, product_id, product:products(title)")
+          .eq("id", slotData.schedule_id)
+          .single();
+
+        // Get user info
+        const userIds = slotBookingsData.map(b => b.simple_user_id);
+        const { data: usersData } = await supabase
+          .from("simple_users")
+          .select("id, name, phone")
+          .in("id", userIds);
+
+        // Create cancellation records
+        const cancellationRecords = slotBookingsData.map(b => {
+          const user = usersData?.find(u => u.id === b.simple_user_id);
+          return {
+            booking_id: b.id,
+            product_id: scheduleData?.product_id || "",
+            product_title: (scheduleData?.product as any)?.title || "",
+            schedule_id: scheduleData?.id || null,
+            schedule_title: scheduleData?.title || null,
+            simple_user_id: b.simple_user_id,
+            user_name: user?.name || "—",
+            user_phone: user?.phone || null,
+            slot_date: slotData.date,
+            slot_time: slotData.start_time,
+            cancelled_by: "creator",
+            cancellation_reasons: reasons,
+            cancellation_comment: comment || null,
+          };
+        });
+
+        const { error: cancError } = await supabase
+          .from("booking_cancellations")
+          .insert(cancellationRecords);
+        if (cancError) throw cancError;
+      }
+
       const { error: bookingsError } = await supabase
         .from("simple_bookings")
         .delete()
@@ -959,14 +1013,6 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                               <span className={`text-sm ${styles.text}`}>
                                 {booking.user?.name || "—"}
                               </span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => setCancelingBooking(booking)}
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </Button>
                             </div>
                           ))}
                         </div>
@@ -1210,28 +1256,21 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Time Slot WITH Bookings Confirmation */}
-      <AlertDialog open={!!deletingSlotWithBookings} onOpenChange={(open) => { if (!open) setDeletingSlotWithBookings(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{language === "ru" ? "Удалить слот с записями?" : "Жазбалары бар слотты жою керек пе?"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {language === "ru"
-                ? `Вы уверены, что хотите удалить слот ${deletingSlotWithBookings?.start_time.slice(0, 5)} - ${deletingSlotWithBookings?.end_time.slice(0, 5)}? Все записи учеников на этот слот будут также удалены!`
-                : `${deletingSlotWithBookings?.start_time.slice(0, 5)} - ${deletingSlotWithBookings?.end_time.slice(0, 5)} слотын жойғыңыз келетініне сенімдісіз бе? Осы слотқа оқушылардың барлық жазбалары да жойылады!`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deletingSlotWithBookings && deleteSlotWithBookings.mutate(deletingSlotWithBookings.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteSlotWithBookings.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Delete Time Slot WITH Bookings - CancellationReasonDialog */}
+      <CancellationReasonDialog
+        isOpen={!!deletingSlotWithBookings}
+        onClose={() => setDeletingSlotWithBookings(null)}
+        onConfirm={(reasons, comment) => {
+          if (deletingSlotWithBookings) {
+            deleteSlotWithBookings.mutate({ slotId: deletingSlotWithBookings.id, reasons, comment });
+          }
+        }}
+        isPending={deleteSlotWithBookings.isPending}
+        title={language === "ru" ? "Отменить записи и удалить слот?" : "Жазбаларды жойып, слотты өшіру керек пе?"}
+        description={language === "ru"
+          ? `Слот ${deletingSlotWithBookings?.start_time.slice(0, 5)} - ${deletingSlotWithBookings?.end_time.slice(0, 5)} будет удалён вместе со всеми записями. Укажите причину отмены.`
+          : `${deletingSlotWithBookings?.start_time.slice(0, 5)} - ${deletingSlotWithBookings?.end_time.slice(0, 5)} слоты барлық жазбалармен бірге жойылады. Бас тарту себебін көрсетіңіз.`}
+      />
 
       {/* Expand Slot Confirmation */}
       <AlertDialog open={!!expandingSlot} onOpenChange={(open) => { if (!open) setExpandingSlot(null); }}>
