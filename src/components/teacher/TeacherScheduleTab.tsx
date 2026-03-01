@@ -818,7 +818,6 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
               const dayStatus = getDayStatus(day);
               
               const getDotColor = () => {
-                if (isSelected) return "bg-primary-foreground";
                 switch (dayStatus) {
                   case "full": return "bg-green-500";
                   case "partial": return "bg-orange-500";
@@ -838,12 +837,12 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                         : "hover:bg-muted"
                   }`}
                 >
-                  <div className="text-xs font-medium">
+                  {hasSlots && (
+                    <span className={`absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${getDotColor()}`} />
+                  )}
+                  <div className="text-xs font-medium mt-2">
                     {format(day, "EEE", { locale: ru })}
                   </div>
-                  {hasSlots && (
-                    <span className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${getDotColor()}`} />
-                  )}
                   <div className="text-lg font-bold">{format(day, "d")}</div>
                   {bookedSessionsCount > 0 && (
                     <div className="flex justify-center mt-1">
