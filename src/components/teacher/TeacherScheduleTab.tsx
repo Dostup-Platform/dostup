@@ -838,12 +838,12 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                         : "hover:bg-muted"
                   }`}
                 >
-                  <div className="text-xs font-medium flex items-center justify-center gap-1">
+                  <div className="text-xs font-medium">
                     {format(day, "EEE", { locale: ru })}
-                    {hasSlots && (
-                      <span className={`w-2.5 h-2.5 sm:w-2 sm:h-2 rounded-full ${getDotColor()}`} />
-                    )}
                   </div>
+                  {hasSlots && (
+                    <span className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${getDotColor()}`} />
+                  )}
                   <div className="text-lg font-bold">{format(day, "d")}</div>
                   {bookedSessionsCount > 0 && (
                     <div className="flex justify-center mt-1">

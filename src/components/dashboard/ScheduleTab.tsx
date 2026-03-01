@@ -472,12 +472,12 @@ const ScheduleTab = () => {
                             : "bg-card border border-border hover:border-primary/50"
                         }`}
                       >
-                        <div className="text-xs opacity-80 flex items-center justify-center gap-1">
+                        <div className="text-xs opacity-80">
                           {format(day, "EEE", { locale: ru })}
-                          {dayHasSlots && (
-                            <span className={`w-2.5 h-2.5 sm:w-2 sm:h-2 rounded-full ${getDotColor()}`} />
-                          )}
                         </div>
+                        {dayHasSlots && (
+                          <span className={`absolute top-0.5 right-0.5 w-2 h-2 rounded-full ${getDotColor()}`} />
+                        )}
                         <div className="text-lg font-bold">{format(day, "d")}</div>
                         <div className="text-xs opacity-80">{format(day, "MMM", { locale: ru })}</div>
                       </button>
