@@ -102,14 +102,33 @@ const Dashboard = () => {
     enabled: purchasedProductIds.length > 0,
   });
 
+  // Rejected reschedule requests count
+  const { data: rejectedReschedules = [] } = useQuery({
+    queryKey: ["student-rejected-reschedules-count", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("reschedule_requests")
+        .select("id, responded_at")
+        .eq("simple_user_id", user.id)
+        .eq("status", "rejected")
+        .order("responded_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
   // Подсчёт новых уведомлений
   const newNotificationsCount = useMemo(() => {
     const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
     const newCancellations = cancellations.filter(c => new Date(c.cancelled_at) > compareDate).length;
     const newPurchases = confirmedPurchases.filter(p => p.confirmed_at && new Date(p.confirmed_at) > compareDate).length;
     const newUnlocks = materialUnlocks.filter(u => new Date(u.unlocked_at) > compareDate).length;
-    return newCancellations + newPurchases + newUnlocks;
-  }, [cancellations, confirmedPurchases, materialUnlocks, lastViewedAt]);
+    const newRejections = rejectedReschedules.filter(r => r.responded_at && new Date(r.responded_at) > compareDate).length;
+    return newCancellations + newPurchases + newUnlocks + newRejections;
+  }, [cancellations, confirmedPurchases, materialUnlocks, rejectedReschedules, lastViewedAt]);
 
   // Realtime уведомления (звуки и push) с badge count
   useRealtimeStudentNotifications(user?.id, !!user, newNotificationsCount, purchasedProductIds);

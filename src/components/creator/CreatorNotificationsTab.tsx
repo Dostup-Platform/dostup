@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
+import RejectRescheduleDialog from "@/components/RejectRescheduleDialog";
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("ru-RU", {
@@ -88,6 +89,9 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     slotDate?: string;
     slotTime?: string;
   } | null>(null);
+
+  // State for reject reschedule dialog
+  const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
 
   const dateLocale = language === "kk" ? kk : ru;
 
@@ -243,13 +247,12 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
   });
 
   const rejectReschedule = useMutation({
-    mutationFn: async (requestId: string) => {
-      const defaultComment = "К сожалению, я не могу перенести урок на другое время. Если у вас не получится, то можете пожалуйста отменить запись и записаться на другой день?";
+    mutationFn: async ({ requestId, comment }: { requestId: string; comment: string }) => {
       const { error } = await supabase
         .from("reschedule_requests")
         .update({
           status: "rejected",
-          response_comment: defaultComment,
+          response_comment: comment,
           responded_at: new Date().toISOString(),
         } as any)
         .eq("id", requestId);
@@ -257,6 +260,7 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
+      setRejectingRequestId(null);
       toast.success(language === "ru" ? "Запрос отклонён" : "Сұраныс қабылданбады");
     },
     onError: () => {
@@ -674,7 +678,7 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => rejectReschedule.mutate(request.id)}
+                          onClick={() => setRejectingRequestId(request.id)}
                           disabled={approveReschedule.isPending || rejectReschedule.isPending}
                           className="h-7 text-xs px-2 text-destructive border-destructive/30"
                         >
@@ -898,6 +902,16 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
         description={language === "ru"
           ? `Вы отменяете запись ученика "${cancelingBooking?.userName || "—"}". Укажите причину.`
           : `"${cancelingBooking?.userName || "—"}" оқушысының жазбасын бас тартасыз. Себебін көрсетіңіз.`}
+      />
+      <RejectRescheduleDialog
+        isOpen={!!rejectingRequestId}
+        onClose={() => setRejectingRequestId(null)}
+        onConfirm={(comment) => {
+          if (rejectingRequestId) {
+            rejectReschedule.mutate({ requestId: rejectingRequestId, comment });
+          }
+        }}
+        isPending={rejectReschedule.isPending}
       />
       {/* Empty state if no notifications */}
       {!hasNotifications && (

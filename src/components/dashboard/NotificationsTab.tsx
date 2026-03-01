@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Calendar, Clock, CheckCircle, Unlock } from "lucide-react";
+import { Bell, Calendar, Clock, CheckCircle, Unlock, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +35,17 @@ interface MaterialUnlock {
   product_title: string;
   product_id: string;
   unlocked_at: string;
+}
+
+interface RejectedReschedule {
+  id: string;
+  product_title: string;
+  old_date: string;
+  old_time: string;
+  new_date: string;
+  new_time: string;
+  response_comment: string | null;
+  responded_at: string;
 }
 
 interface NotificationsTabProps {
@@ -106,6 +117,24 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
     enabled: purchasedProductIds.length > 0,
   });
 
+  // Получить отклонённые запросы на перенос
+  const { data: rejectedReschedules = [], isLoading: loadingRejected } = useQuery({
+    queryKey: ["student-rejected-reschedules", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("reschedule_requests")
+        .select("id, product_title, old_date, old_time, new_date, new_time, response_comment, responded_at")
+        .eq("simple_user_id", user.id)
+        .eq("status", "rejected")
+        .order("responded_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data || []) as RejectedReschedule[];
+    },
+    enabled: !!user?.id,
+  });
+
   // Realtime для обновления
   useEffect(() => {
     if (!user?.id) return;
@@ -135,6 +164,14 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
           queryClient.invalidateQueries({ queryKey: ["student-material-unlocks-count"] });
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "reschedule_requests" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["student-rejected-reschedules"] });
+          queryClient.invalidateQueries({ queryKey: ["student-rejected-reschedules-count"] });
+        }
+      )
       .subscribe();
 
     return () => {
@@ -152,7 +189,7 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
 
   const locale = language === "ru" ? ru : kk;
 
-  const isLoading = loadingCancellations || loadingPurchases || loadingUnlocks;
+  const isLoading = loadingCancellations || loadingPurchases || loadingUnlocks || loadingRejected;
 
   if (isLoading) {
     return (
@@ -166,12 +203,14 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
   type NotificationItem = 
     | { type: "cancellation"; date: string; data: BookingCancellation }
     | { type: "purchase_confirmed"; date: string; data: ConfirmedPurchase }
-    | { type: "material_unlock"; date: string; data: MaterialUnlock };
+    | { type: "material_unlock"; date: string; data: MaterialUnlock }
+    | { type: "reschedule_rejected"; date: string; data: RejectedReschedule };
 
   const allNotifications: NotificationItem[] = [
     ...cancellations.map(c => ({ type: "cancellation" as const, date: c.cancelled_at, data: c })),
     ...confirmedPurchases.map(p => ({ type: "purchase_confirmed" as const, date: p.confirmed_at, data: p })),
     ...materialUnlocks.map(u => ({ type: "material_unlock" as const, date: u.unlocked_at, data: u })),
+    ...rejectedReschedules.map(r => ({ type: "reschedule_rejected" as const, date: r.responded_at, data: r })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const hasNotifications = allNotifications.length > 0;
@@ -257,6 +296,56 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
                         <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
                           <span>
                             {formatDistanceToNow(new Date(purchase.confirmed_at), {
+                              addSuffix: true,
+                              locale,
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            if (item.type === "reschedule_rejected") {
+              const rejection = item.data as RejectedReschedule;
+              return (
+                <Card key={`reject-${rejection.id}`} className="relative overflow-hidden">
+                  {isNew(rejection.responded_at) && (
+                    <div className="absolute top-0 right-0">
+                      <Badge className="rounded-none rounded-bl-lg bg-primary text-primary-foreground text-xs px-2 py-1">
+                        {t("new")}
+                      </Badge>
+                    </div>
+                  )}
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                        <XCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-medium text-foreground">
+                          {language === "ru" ? "Перенос отклонён" : "Ауыстыру қабылданбады"}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {rejection.product_title}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                          <span>{rejection.old_date} {rejection.old_time?.slice(0, 5)}</span>
+                          <span>→</span>
+                          <span>{rejection.new_date} {rejection.new_time?.slice(0, 5)}</span>
+                        </div>
+                        {rejection.response_comment && (
+                          <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-md">
+                            <p className="text-sm text-muted-foreground italic">
+                              "{rejection.response_comment}"
+                            </p>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+                          <span>
+                            {formatDistanceToNow(new Date(rejection.responded_at), {
                               addSuffix: true,
                               locale,
                             })}
