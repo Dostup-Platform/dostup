@@ -104,16 +104,11 @@ const CancellationReasonDialog = ({
             <Textarea
               placeholder={
                 language === "ru"
-                  ? "Свой комментарий"
-                  : "Өз түсініктемеңіз"
+                  ? "Дополнительный комментарий"
+                  : "Қосымша түсініктеме"
               }
               value={comment}
-              onChange={(e) => {
-                setComment(e.target.value);
-                if (e.target.value.length > 0) {
-                  setSelectedReasons([]);
-                }
-              }}
+              onChange={(e) => setComment(e.target.value)}
               rows={3}
               className="resize-none"
             />
