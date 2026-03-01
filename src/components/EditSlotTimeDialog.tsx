@@ -41,8 +41,8 @@ const EditSlotTimeDialog = ({
 
   const handleOpen = (open: boolean) => {
     if (open && slot) {
-      setNewStartTime(slot.start_time.slice(0, 5));
-      setNewEndTime(slot.end_time.slice(0, 5));
+      setNewStartTime(addMinutes(slot.start_time.slice(0, 5), 30));
+      setNewEndTime(addMinutes(slot.end_time.slice(0, 5), 30));
     }
     if (!open) handleClose();
   };
