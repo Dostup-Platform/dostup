@@ -431,12 +431,17 @@ const ScheduleTab = () => {
                     </a>
                   </div>
                 )}
-                {pendingReschedules.some(r => r.booking_id === booking.id) && (
-                  <div className="mt-2 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    {language === "ru" ? "Ожидание подтверждения переноса..." : "Ауыстыруды растауды күтуде..."}
-                  </div>
-                )}
+                {(() => {
+                  const pendingReq = pendingReschedules.find(r => r.booking_id === booking.id);
+                  if (!pendingReq) return null;
+                  return (
+                    <div className="mt-2 text-amber-600 dark:text-amber-400 text-sm">
+                      {language === "ru"
+                        ? `Ожидание подтверждения переноса на ${pendingReq.new_date} ${pendingReq.new_time}`
+                        : `Ауыстыруды растауды күтуде: ${pendingReq.new_date} ${pendingReq.new_time}`}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
