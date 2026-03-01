@@ -1,24 +1,29 @@
 
 
-# Исправить исчезающие заголовки в материалах учителя
+# Исправить залипание выбора дат при удалении слотов
 
 ## Проблема
-В `TeacherMaterialsTab.tsx` кнопки-заголовки "Мои материалы" и "Материалы автора" используют `variant="ghost"` с `hover:bg-transparent`. Ghost variant добавляет `hover:text-accent-foreground` (белый цвет текста) + `hover:bg-accent` (оранжевый фон). Но `hover:bg-transparent` перезаписывает фон на прозрачный, а текст остается белым — белый текст на белом фоне = невидимый.
+Баг вызван **stale closure** — классической ошибкой React. При быстром нажатии на кнопки дат, каждый `onClick` использует **старое значение** `slotsToDeleteDates` из момента рендера, а не актуальное. Поэтому при быстром снятии нескольких дат после "Выбрать все" — одни даты не снимаются или снимаются с задержкой.
 
-## Решение
-Убрать `variant="ghost"` и `hover:bg-transparent`, заменив на простую стилизацию без смены цвета текста при наведении.
-
-## Изменение (1 файл)
-
-### `src/components/teacher/TeacherMaterialsTab.tsx`
-В двух CollapsibleTrigger (строки ~168 и ~195) заменить:
-```
-<Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
-```
-на:
-```
-<Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent hover:text-foreground">
+Текущий код:
+```typescript
+setSlotsToDeleteDates(slotsToDeleteDates.filter(d => d !== date));
+setSlotsToDeleteDates([...slotsToDeleteDates, date]);
 ```
 
-Добавление `hover:text-foreground` перезапишет белый цвет текста из ghost variant, оставив текст видимым.
+Нужно заменить на **функциональное обновление состояния**:
+```typescript
+setSlotsToDeleteDates(prev => prev.filter(d => d !== date));
+setSlotsToDeleteDates(prev => [...prev, date]);
+```
+
+## Изменения (2 файла)
+
+### 1. `src/components/creator/CreatorScheduleTab.tsx`
+Строки ~1285-1290: заменить `onClick` обработчик кнопок дат на функциональное обновление `setSlotsToDeleteDates(prev => ...)`.
+
+### 2. `src/components/teacher/TeacherScheduleTab.tsx`
+Строки ~1374-1379: аналогичная замена на `setSlotsToDeleteDates(prev => ...)`.
+
+Оба файла — одинаковое изменение в одном месте каждый.
 
