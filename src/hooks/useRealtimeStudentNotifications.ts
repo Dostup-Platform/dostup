@@ -251,6 +251,55 @@ export const useRealtimeStudentNotifications = (
       .on(
         "postgres_changes",
         {
+          event: "UPDATE",
+          schema: "public",
+          table: "reschedule_requests",
+        },
+        async (payload) => {
+          const request = payload.new as any;
+          const oldRequest = payload.old as any;
+          
+          // Only notify when status changes from pending
+          if (oldRequest.status !== "pending") return;
+          if (request.simple_user_id !== userId) return;
+          if (request.status !== "approved" && request.status !== "rejected") return;
+
+          const isApproved = request.status === "approved";
+          
+          if (isApproved) {
+            playPaymentSound();
+          } else {
+            playCancellationSound();
+          }
+
+          const title = isApproved
+            ? (language === "ru" ? "Перенос подтверждён ✅" : "Ауыстыру расталды ✅")
+            : (language === "ru" ? "Перенос отклонён ❌" : "Ауыстыру қабылданбады ❌");
+          
+          let description = isApproved
+            ? (language === "ru"
+              ? `Урок "${request.product_title}" перенесён на ${request.new_date} ${request.new_time?.slice(0, 5)}`
+              : `"${request.product_title}" сабағы ${request.new_date} ${request.new_time?.slice(0, 5)} күніне ауыстырылды`)
+            : (language === "ru"
+              ? `Запрос на перенос "${request.product_title}" отклонён`
+              : `"${request.product_title}" ауыстыру сұранысы қабылданбады`);
+
+          if (request.response_comment) {
+            description += `\n${request.response_comment}`;
+          }
+
+          toast[isApproved ? "success" : "warning"](title, { description, duration: 10000 });
+
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
+
+          queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["simple-time-slots"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
           event: "INSERT",
           schema: "public",
           table: "material_unlocks",

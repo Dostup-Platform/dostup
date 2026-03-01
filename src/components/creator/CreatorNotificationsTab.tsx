@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, Calendar, Clock, X, Check, ShoppingCart, Loader2, XCircle } from "lucide-react";
+import { Bell, Calendar, Clock, X, Check, ShoppingCart, Loader2, XCircle, Timer } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings, useCreatorCancelBooking } from "@/hooks/useSimplePurchases";
@@ -45,6 +45,26 @@ interface BookingCancellation {
   cancelled_by: string;
   cancellation_reasons: string[] | null;
   cancellation_comment: string | null;
+}
+
+interface RescheduleRequest {
+  id: string;
+  booking_id: string;
+  simple_user_id: string | null;
+  schedule_id: string | null;
+  product_id: string;
+  product_title: string;
+  old_date: string;
+  old_time: string;
+  new_date: string;
+  new_time: string;
+  reasons: string[] | null;
+  comment: string | null;
+  status: string;
+  response_comment: string | null;
+  created_at: string;
+  responded_at: string | null;
+  user_name?: string;
 }
 
 interface CreatorNotificationsTabProps {
@@ -128,7 +148,143 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     enabled: productIds.length > 0 && authorScheduleIds.length > 0,
   });
 
-  // Realtime подписка для обновления отменённых записей
+  // Получить запросы на перенос от учеников
+  const { data: rescheduleRequests = [], isLoading: rescheduleLoading } = useQuery<RescheduleRequest[]>({
+    queryKey: ["creator-reschedule-requests", productIds, authorScheduleIds],
+    queryFn: async () => {
+      if (!productIds.length) return [];
+
+      const { data } = await supabase
+        .from("reschedule_requests")
+        .select("*")
+        .in("product_id", productIds)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (!data?.length) return [];
+
+      // Filter to author's schedules only
+      const filtered = (data as any[]).filter((r: any) => {
+        if (r.schedule_id) return authorScheduleIds.includes(r.schedule_id);
+        return true; // If no schedule_id, show to creator
+      });
+
+      // Fetch user names
+      const userIds = [...new Set(filtered.map((r: any) => r.simple_user_id).filter(Boolean))];
+      const { data: users } = await supabase
+        .from("simple_users")
+        .select("id, name")
+        .in("id", userIds);
+
+      return filtered.map((r: any) => ({
+        ...r,
+        user_name: users?.find((u: any) => u.id === r.simple_user_id)?.name || "Ученик",
+      })) as RescheduleRequest[];
+    },
+    enabled: productIds.length > 0,
+  });
+
+  // Мутации для подтверждения/отклонения запросов на перенос
+  const approveReschedule = useMutation({
+    mutationFn: async (request: RescheduleRequest) => {
+      // 1. Update reschedule_requests status
+      const { error: updateError } = await supabase
+        .from("reschedule_requests")
+        .update({ status: "approved", responded_at: new Date().toISOString() } as any)
+        .eq("id", request.id);
+      if (updateError) throw updateError;
+
+      // 2. Update time_slot date/time
+      // Find the time_slot for the booking
+      const { data: booking } = await supabase
+        .from("simple_bookings")
+        .select("time_slot_id")
+        .eq("id", request.booking_id)
+        .single();
+
+      if (booking?.time_slot_id) {
+        const { error: slotError } = await supabase
+          .from("time_slots")
+          .update({
+            date: request.new_date,
+            start_time: request.new_time,
+            end_time: request.new_time, // Will be same - student only provides start time
+          })
+          .eq("id", booking.time_slot_id);
+        if (slotError) throw slotError;
+      }
+
+      // 3. Create booking_reschedules record for student notification
+      const { error: rescheduleError } = await supabase
+        .from("booking_reschedules")
+        .insert({
+          booking_id: request.booking_id,
+          simple_user_id: request.simple_user_id,
+          schedule_id: request.schedule_id,
+          product_id: request.product_id,
+          product_title: request.product_title,
+          old_date: request.old_date,
+          old_time: request.old_time,
+          new_date: request.new_date,
+          new_time: request.new_time,
+          rescheduled_by: "creator",
+          reasons: ["Запрос ученика подтверждён"],
+        });
+      if (rescheduleError) throw rescheduleError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
+      toast.success(language === "ru" ? "Перенос подтверждён" : "Ауыстыру расталды");
+    },
+    onError: () => {
+      toast.error(language === "ru" ? "Ошибка при подтверждении" : "Растау қатесі");
+    },
+  });
+
+  const rejectReschedule = useMutation({
+    mutationFn: async (requestId: string) => {
+      const defaultComment = "К сожалению, я не могу перенести урок на другое время. Если у вас не получится, то можете пожалуйста отменить запись и записаться на другой день?";
+      const { error } = await supabase
+        .from("reschedule_requests")
+        .update({
+          status: "rejected",
+          response_comment: defaultComment,
+          responded_at: new Date().toISOString(),
+        } as any)
+        .eq("id", requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
+      toast.success(language === "ru" ? "Запрос отклонён" : "Сұраныс қабылданбады");
+    },
+    onError: () => {
+      toast.error(language === "ru" ? "Ошибка" : "Қате");
+    },
+  });
+
+  // Realtime for reschedule requests
+  useEffect(() => {
+    if (!productIds.length) return;
+
+    const channel = supabase
+      .channel("creator-reschedule-requests-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "reschedule_requests" },
+        (payload) => {
+          const newRequest = payload.new as any;
+          if (productIds.includes(newRequest.product_id)) {
+            queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [productIds, queryClient]);
+
   // ВАЖНО: только для расписаний автора (где teacher_id = null)
   useEffect(() => {
     if (!productIds.length || !authorScheduleIds.length) return;
@@ -332,7 +488,7 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     return format(created, "d MMM", { locale: dateLocale });
   };
 
-  const isLoading = bookingsLoading || purchasesLoading || cancellationsLoading;
+  const isLoading = bookingsLoading || purchasesLoading || cancellationsLoading || rescheduleLoading;
 
   if (isLoading) {
     return (
@@ -348,7 +504,7 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     );
   }
 
-  const hasNotifications = sortedBookings.length > 0 || pendingPurchases.length > 0 || cancellations.length > 0;
+  const hasNotifications = sortedBookings.length > 0 || pendingPurchases.length > 0 || cancellations.length > 0 || rescheduleRequests.length > 0;
 
   return (
     <div className="space-y-4">
@@ -417,6 +573,117 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                             <>
                               <Check className="w-3.5 h-3.5 mr-1" />
                               {t("confirmPayment")}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reschedule Requests Section */}
+      {rescheduleRequests.length > 0 && (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-2 px-3 pt-3">
+            <CardTitle className="text-base flex items-center gap-2 text-primary">
+              <Timer className="w-4 h-4" />
+              {language === "ru" ? "Запросы на перенос" : "Ауыстыру сұраныстары"} ({rescheduleRequests.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {rescheduleRequests.map((request) => {
+                const isNewRequest = isNew(request.created_at);
+                return (
+                  <div key={request.id} className={`p-3 transition-colors ${isNewRequest ? "bg-primary/5" : ""}`}>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="p-1.5 rounded-full flex-shrink-0 bg-primary/10 text-primary">
+                          <Timer className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-foreground truncate">
+                              {request.user_name}
+                            </span>
+                            {isNewRequest && (
+                              <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                                {t("new")}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                        {getTimeAgo(request.created_at)}
+                      </span>
+                    </div>
+                    
+                    <div className="pl-8 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        {language === "ru" ? "просит перенести" : "ауыстыруды сұрайды"}: <span className="font-medium text-foreground">{request.product_title}</span>
+                      </p>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground">
+                          {request.old_date} {request.old_time?.slice(0, 5)}
+                        </span>
+                        <span className="text-foreground">→</span>
+                        <span className="font-medium text-primary">
+                          {request.new_date} {request.new_time?.slice(0, 5)}
+                        </span>
+                      </div>
+
+                      {((request.reasons && request.reasons.length > 0) || request.comment) && (
+                        <div className="p-2 bg-muted/50 rounded text-xs">
+                          {request.reasons && request.reasons.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {request.reasons.map((reason, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs px-1.5 py-0">
+                                  {reason}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {request.comment && (
+                            <p className="text-muted-foreground mt-1 italic">"{request.comment}"</p>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center gap-2 mt-2">
+                        <Button
+                          size="sm"
+                          onClick={() => approveReschedule.mutate(request)}
+                          disabled={approveReschedule.isPending || rejectReschedule.isPending}
+                          className="h-7 text-xs px-2"
+                        >
+                          {approveReschedule.isPending ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5 mr-1" />
+                              {language === "ru" ? "Подтвердить" : "Растау"}
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => rejectReschedule.mutate(request.id)}
+                          disabled={approveReschedule.isPending || rejectReschedule.isPending}
+                          className="h-7 text-xs px-2 text-destructive border-destructive/30"
+                        >
+                          {rejectReschedule.isPending ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <X className="w-3.5 h-3.5 mr-1" />
+                              {language === "ru" ? "Отклонить" : "Қабылдамау"}
                             </>
                           )}
                         </Button>

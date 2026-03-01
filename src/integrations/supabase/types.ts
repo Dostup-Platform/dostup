@@ -621,6 +621,63 @@ export type Database = {
         }
         Relationships: []
       }
+      reschedule_requests: {
+        Row: {
+          booking_id: string
+          comment: string | null
+          created_at: string | null
+          id: string
+          new_date: string
+          new_time: string
+          old_date: string
+          old_time: string
+          product_id: string
+          product_title: string
+          reasons: string[] | null
+          responded_at: string | null
+          response_comment: string | null
+          schedule_id: string | null
+          simple_user_id: string | null
+          status: string
+        }
+        Insert: {
+          booking_id: string
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          new_date: string
+          new_time: string
+          old_date: string
+          old_time: string
+          product_id: string
+          product_title: string
+          reasons?: string[] | null
+          responded_at?: string | null
+          response_comment?: string | null
+          schedule_id?: string | null
+          simple_user_id?: string | null
+          status?: string
+        }
+        Update: {
+          booking_id?: string
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          new_date?: string
+          new_time?: string
+          old_date?: string
+          old_time?: string
+          product_id?: string
+          product_title?: string
+          reasons?: string[] | null
+          responded_at?: string | null
+          response_comment?: string | null
+          schedule_id?: string | null
+          simple_user_id?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       schedules: {
         Row: {
           created_at: string
