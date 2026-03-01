@@ -208,12 +208,29 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
         .single();
 
       if (booking?.time_slot_id) {
+        // Get current slot to calculate duration
+        const { data: currentSlot } = await supabase
+          .from("time_slots")
+          .select("start_time, end_time")
+          .eq("id", booking.time_slot_id)
+          .single();
+
+        let newEndTime = request.new_time;
+        if (currentSlot) {
+          const [sh, sm] = currentSlot.start_time.split(":").map(Number);
+          const [eh, em] = currentSlot.end_time.split(":").map(Number);
+          const durationMin = (eh * 60 + em) - (sh * 60 + sm);
+          const [nh, nm] = request.new_time.split(":").map(Number);
+          const endTotal = nh * 60 + nm + durationMin;
+          newEndTime = `${String(Math.floor(endTotal / 60) % 24).padStart(2, "0")}:${String(endTotal % 60).padStart(2, "0")}:00`;
+        }
+
         const { error: slotError } = await supabase
           .from("time_slots")
           .update({
             date: request.new_date,
             start_time: request.new_time,
-            end_time: request.new_time, // Will be same - student only provides start time
+            end_time: newEndTime,
           })
           .eq("id", booking.time_slot_id);
         if (slotError) throw slotError;
