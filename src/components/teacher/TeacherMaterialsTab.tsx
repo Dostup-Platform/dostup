@@ -203,7 +203,7 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
       {/* My Materials Section - Teacher can manage */}
       <Collapsible open={myMaterialsOpen} onOpenChange={setMyMaterialsOpen}>
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+            <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent hover:text-foreground">
             <h2 className="text-lg font-semibold">
               {language === "ru" ? "Мои материалы" : "Менің материалдарым"}
             </h2>
@@ -245,7 +245,7 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
       {/* Creator Materials Section - Read only */}
       <Collapsible open={creatorMaterialsOpen} onOpenChange={setCreatorMaterialsOpen}>
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+            <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent hover:text-foreground">
             <h2 className="text-lg font-semibold">
               {language === "ru" ? "Материалы автора" : "Автор материалдары"}
             </h2>
