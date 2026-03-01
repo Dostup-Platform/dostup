@@ -767,6 +767,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
               const dayStatus = getDayStatus(day);
               
               const getDotColor = () => {
+                if (isSelected) return "bg-primary-foreground";
                 switch (dayStatus) {
                   case "full": return "bg-green-500";
                   case "partial": return "bg-orange-500";
@@ -787,7 +788,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                   }`}
                 >
                   {hasSlots && (
-                    <span className={`absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${getDotColor()}`} />
+                    <span className={`absolute top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${getDotColor()}`} />
                   )}
                   <div className="text-xs font-medium mt-2">
                     {format(day, "EEE", { locale: ru })}

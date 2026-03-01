@@ -454,6 +454,7 @@ const ScheduleTab = () => {
                     
                     // Цвета точки: красный - все свободны, оранжевый - частично, зеленый - все заняты
                     const getDotColor = () => {
+                      if (isSameDay(day, selectedDate)) return "bg-primary-foreground";
                       switch (dayStatus) {
                         case "full": return "bg-green-500";
                         case "partial": return "bg-orange-500";
@@ -472,7 +473,7 @@ const ScheduleTab = () => {
                         }`}
                       >
                         {dayHasSlots && (
-                          <span className={`absolute top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${getDotColor()}`} />
+                          <span className={`absolute top-1.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${getDotColor()}`} />
                         )}
                         <div className="text-xs opacity-80 mt-2">
                           {format(day, "EEE", { locale: ru })}
