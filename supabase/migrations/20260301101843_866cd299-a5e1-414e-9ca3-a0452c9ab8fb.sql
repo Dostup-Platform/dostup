@@ -1,0 +1,2 @@
+ALTER TABLE public.booking_reminders DROP CONSTRAINT booking_reminders_reminder_type_check;
+ALTER TABLE public.booking_reminders ADD CONSTRAINT booking_reminders_reminder_type_check CHECK (reminder_type = ANY (ARRAY['24h'::text, '2h'::text, 'morning'::text]));
