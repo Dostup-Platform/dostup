@@ -1,18 +1,25 @@
 
 
-# Унифицировать диалог переноса для автора/учителя с диалогом ученика
+# Исправление автозаполнения даты и времени в RescheduleSlotDialog
 
-## Что нужно сделать
-Заменить в `RescheduleSlotDialog.tsx` два поля времени (начало/конец) на одно поле "Желаемое время" как у ученика. Время автозаполняется на +1 час (вместо текущих +30 мин). Конец рассчитывается автоматически, сохраняя длительность урока.
+## Проблема
+`handleOpen` вызывается через `onOpenChange` диалога, но когда `isOpen` управляется извне (пропсом от родителя), этот callback **не срабатывает** при открытии. Поэтому дата и время остаются пустыми.
 
-## Изменения — 1 файл: `src/components/RescheduleSlotDialog.tsx`
+## Решение
+Один файл: `src/components/RescheduleSlotDialog.tsx`
 
-1. Убрать state `newEndTime`, оставить только `newStartTime` (переименовать в `newTime`)
-2. Заменить `grid grid-cols-2` с двумя полями time на одно поле "Желаемое время (24ч)"
-3. В `handleOpen`: заполнять `newTime` = start_time + 60 минут (вместо +30)
-4. В `handleConfirm`: автоматически рассчитывать `newEndTime` из `newTime` + длительность оригинального слота
-5. Добавить `mobileFullScreen` к `DialogContent`
-6. Заменить заголовок на "Запрос на перенос" и кнопку на "Отправить запрос" — как у ученика
+Заменить логику инициализации в `handleOpen` на `useEffect`, который следит за `isOpen` и `slot` — точно как сделано в `StudentRescheduleDialog`:
 
-Интерфейс `onConfirm` остаётся прежним (newStartTime + newEndTime), просто endTime вычисляется из длительности слота.
+```typescript
+useEffect(() => {
+  if (isOpen && slot) {
+    setNewDate(slot.date);
+    setNewTime(addMinutes(slot.start_time.slice(0, 5), 60));
+    setReasonType("cant_make_it");
+    setComment("");
+  }
+}, [isOpen, slot]);
+```
+
+Из `handleOpen` убрать блок `if (open && slot)`, оставив только закрытие.
 
