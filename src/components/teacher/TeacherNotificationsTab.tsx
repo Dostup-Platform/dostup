@@ -125,6 +125,7 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
         .select("*")
         .in("schedule_id", scheduleIds)
         .eq("status", "pending")
+        .eq("requested_by", "student")
         .order("created_at", { ascending: false })
         .limit(50);
       if (!data?.length) return [];
