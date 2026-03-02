@@ -37,8 +37,7 @@ const RescheduleSlotDialog = ({
 }: RescheduleSlotDialogProps) => {
   const { language } = useLanguage();
   const [newDate, setNewDate] = useState("");
-  const [newStartTime, setNewStartTime] = useState("");
-  const [newEndTime, setNewEndTime] = useState("");
+  const [newTime, setNewTime] = useState("");
   const [reasonType, setReasonType] = useState<"cant_make_it" | "own">("cant_make_it");
   const [comment, setComment] = useState("");
 
@@ -50,11 +49,17 @@ const RescheduleSlotDialog = ({
     return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
   };
 
+  const getSlotDuration = () => {
+    if (!slot) return 60;
+    const [sh, sm] = slot.start_time.slice(0, 5).split(":").map(Number);
+    const [eh, em] = slot.end_time.slice(0, 5).split(":").map(Number);
+    return (eh * 60 + em) - (sh * 60 + sm);
+  };
+
   const handleOpen = (open: boolean) => {
     if (open && slot) {
       setNewDate(slot.date);
-      setNewStartTime(addMinutes(slot.start_time.slice(0, 5), 30));
-      setNewEndTime(addMinutes(slot.end_time.slice(0, 5), 30));
+      setNewTime(addMinutes(slot.start_time.slice(0, 5), 60));
       setReasonType("cant_make_it");
       setComment("");
     }
@@ -63,8 +68,7 @@ const RescheduleSlotDialog = ({
 
   const handleClose = () => {
     setNewDate("");
-    setNewStartTime("");
-    setNewEndTime("");
+    setNewTime("");
     setReasonType("cant_make_it");
     setComment("");
     onClose();
@@ -80,9 +84,12 @@ const RescheduleSlotDialog = ({
       finalComment = comment.trim();
     }
 
+    const duration = getSlotDuration();
+    const newEndTime = addMinutes(newTime, duration);
+
     onConfirm({
       newDate,
-      newStartTime: newStartTime + ":00",
+      newStartTime: newTime + ":00",
       newEndTime: newEndTime + ":00",
       reasons,
       comment: finalComment,
@@ -91,27 +98,28 @@ const RescheduleSlotDialog = ({
 
   const isValid =
     newDate &&
-    newStartTime &&
-    newEndTime &&
+    newTime &&
     (reasonType === "cant_make_it" || comment.trim().length > 0);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpen}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" mobileFullScreen>
         <DialogHeader>
           <DialogTitle>
-            {language === "ru" ? "Перенести урок" : "Сабақты ауыстыру"}
+            {language === "ru" ? "Запрос на перенос" : "Ауыстыру сұранысы"}
           </DialogTitle>
           <DialogDescription>
-            {language === "ru"
-              ? `Текущее время: ${slot?.date} ${slot?.start_time.slice(0, 5)} - ${slot?.end_time.slice(0, 5)}`
-              : `Ағымдағы уақыт: ${slot?.date} ${slot?.start_time.slice(0, 5)} - ${slot?.end_time.slice(0, 5)}`}
+            {slot && (
+              language === "ru"
+                ? `Текущее время: ${slot.date} ${slot.start_time.slice(0, 5)} - ${slot.end_time.slice(0, 5)}`
+                : `Ағымдағы уақыт: ${slot.date} ${slot.start_time.slice(0, 5)} - ${slot.end_time.slice(0, 5)}`
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>{language === "ru" ? "Новая дата" : "Жаңа күн"}</Label>
+            <Label>{language === "ru" ? "Желаемая дата" : "Қалаған күн"}</Label>
             <Input
               type="date"
               value={newDate}
@@ -119,27 +127,13 @@ const RescheduleSlotDialog = ({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>
-                {language === "ru" ? "Начало (24ч)" : "Басталуы (24с)"}
-              </Label>
-              <Input
-                type="time"
-                value={newStartTime}
-                onChange={(e) => setNewStartTime(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>
-                {language === "ru" ? "Конец (24ч)" : "Аяқталуы (24с)"}
-              </Label>
-              <Input
-                type="time"
-                value={newEndTime}
-                onChange={(e) => setNewEndTime(e.target.value)}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>{language === "ru" ? "Желаемое время" : "Қалаған уақыт"}</Label>
+            <Input
+              type="time"
+              value={newTime}
+              onChange={(e) => setNewTime(e.target.value)}
+            />
           </div>
 
           <div className="space-y-3">
@@ -180,14 +174,9 @@ const RescheduleSlotDialog = ({
           <Button variant="outline" onClick={handleClose} disabled={isPending}>
             {language === "ru" ? "Отмена" : "Бас тарту"}
           </Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={isPending || !isValid}
-          >
-            {isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : null}
-            {language === "ru" ? "Перенести" : "Ауыстыру"}
+          <Button onClick={handleConfirm} disabled={isPending || !isValid}>
+            {isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+            {language === "ru" ? "Отправить запрос" : "Сұраныс жіберу"}
           </Button>
         </div>
       </DialogContent>
