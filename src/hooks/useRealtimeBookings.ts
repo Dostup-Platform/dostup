@@ -305,6 +305,9 @@ export const useRealtimeBookingNotifications = (
           // Only handle reschedule requests for creator's products (schedules without teacher_id)
           if (!productIdsRef.current.includes(newRequest.product_id)) return;
 
+          // Only show for student requests, not creator's own outgoing requests
+          if (newRequest.requested_by && newRequest.requested_by !== "student") return;
+
           // Check if this is for creator's schedule (no teacher_id)
           if (newRequest.schedule_id) {
             const { data: schedule } = await supabase
@@ -334,6 +337,56 @@ export const useRealtimeBookingNotifications = (
             : `${studentName} "${newRequest.product_title}" сабағын ${newRequest.old_time?.slice(0, 5)} уақытынан ${newRequest.new_time?.slice(0, 5)} уақытына ауыстыруды сұрайды`;
 
           toast.info(title, { description, duration: 10000 });
+
+          const newBadgeCount = badgeCountRef.current + 1;
+          setAppBadge(newBadgeCount);
+
+          queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
+          queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests-count"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "reschedule_requests",
+        },
+        async (payload) => {
+          const updated = payload.new as any;
+
+          // Only handle responses to creator's own outgoing requests
+          if (updated.requested_by !== "creator" && updated.requested_by !== "teacher") return;
+          if (!productIdsRef.current.includes(updated.product_id)) return;
+          if (updated.status === "pending") return;
+
+          // Fetch student name
+          let studentName = language === "ru" ? "Ученик" : "Оқушы";
+          if (updated.simple_user_id) {
+            const { data: student } = await supabase
+              .from("simple_users")
+              .select("name")
+              .eq("id", updated.simple_user_id)
+              .single();
+            if (student) studentName = student.name;
+          }
+
+          playBookingSound();
+
+          if (updated.status === "approved") {
+            const title = language === "ru" ? "Перенос подтверждён" : "Ауыстыру расталды";
+            const description = language === "ru"
+              ? `${studentName} подтвердил перенос "${updated.product_title}" на ${updated.new_time?.slice(0, 5)}`
+              : `${studentName} "${updated.product_title}" сабағын ${updated.new_time?.slice(0, 5)} уақытына ауыстыруды растады`;
+            toast.success(title, { description, duration: 10000 });
+          } else if (updated.status === "rejected") {
+            const title = language === "ru" ? "Перенос отклонён" : "Ауыстыру қабылданбады";
+            const responseComment = updated.response_comment || "";
+            const description = language === "ru"
+              ? `${studentName} отклонил перенос "${updated.product_title}"${responseComment ? `: "${responseComment}"` : ""}`
+              : `${studentName} "${updated.product_title}" ауыстыруды қабылдамады${responseComment ? `: "${responseComment}"` : ""}`;
+            toast.warning(title, { description, duration: 10000 });
+          }
 
           const newBadgeCount = badgeCountRef.current + 1;
           setAppBadge(newBadgeCount);
