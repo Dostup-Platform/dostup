@@ -163,6 +163,7 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
         .select("*")
         .in("product_id", productIds)
         .eq("status", "pending")
+        .eq("requested_by", "student")
         .order("created_at", { ascending: false })
         .limit(50);
 
