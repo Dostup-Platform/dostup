@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -56,13 +56,16 @@ const RescheduleSlotDialog = ({
     return (eh * 60 + em) - (sh * 60 + sm);
   };
 
-  const handleOpen = (open: boolean) => {
-    if (open && slot) {
+  useEffect(() => {
+    if (isOpen && slot) {
       setNewDate(slot.date);
       setNewTime(addMinutes(slot.start_time.slice(0, 5), 60));
       setReasonType("cant_make_it");
       setComment("");
     }
+  }, [isOpen, slot]);
+
+  const handleOpen = (open: boolean) => {
     if (!open) handleClose();
   };
 
