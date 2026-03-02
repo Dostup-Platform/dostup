@@ -1,25 +1,20 @@
 
 
-# Исправление автозаполнения даты и времени в RescheduleSlotDialog
+# Исправление: уведомление о переносе приходит не тому получателю
 
 ## Проблема
-`handleOpen` вызывается через `onOpenChange` диалога, но когда `isOpen` управляется извне (пропсом от родителя), этот callback **не срабатывает** при открытии. Поэтому дата и время остаются пустыми.
+В `src/hooks/useRealtimeBookings.ts` (хук автора) подписка на INSERT в `reschedule_requests` (строка 302) **не фильтрует по `requested_by`**. Когда автор сам отправляет запрос (`requested_by = "creator"`), хук обрабатывает его как входящий запрос от ученика и показывает тост "Ученик просит перенести".
 
-## Решение
-Один файл: `src/components/RescheduleSlotDialog.tsx`
+Аналогичная проблема может быть в `useRealtimeTeacherNotifications.ts`, но там уже есть фильтр `if (newRequest.requested_by && newRequest.requested_by !== "student") return;` — значит у учителя всё корректно.
 
-Заменить логику инициализации в `handleOpen` на `useEffect`, который следит за `isOpen` и `slot` — точно как сделано в `StudentRescheduleDialog`:
+## Решение — 1 файл
 
+### `src/hooks/useRealtimeBookings.ts`
+Добавить фильтр в обработчик INSERT `reschedule_requests` (после строки 306):
 ```typescript
-useEffect(() => {
-  if (isOpen && slot) {
-    setNewDate(slot.date);
-    setNewTime(addMinutes(slot.start_time.slice(0, 5), 60));
-    setReasonType("cant_make_it");
-    setComment("");
-  }
-}, [isOpen, slot]);
+// Only show for student requests, not creator's own outgoing requests
+if (newRequest.requested_by && newRequest.requested_by !== "student") return;
 ```
 
-Из `handleOpen` убрать блок `if (open && slot)`, оставив только закрытие.
+Также добавить подписку на UPDATE `reschedule_requests` для отображения ответов ученика на исходящие запросы автора (когда `requested_by = "creator"` и статус меняется на approved/rejected).
 
