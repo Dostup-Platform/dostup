@@ -1,20 +1,25 @@
 
 
-# Исправление: уведомление о переносе приходит не тому получателю
+# Исправление: исходящие запросы на перенос отображаются в уведомлениях автора
 
 ## Проблема
-В `src/hooks/useRealtimeBookings.ts` (хук автора) подписка на INSERT в `reschedule_requests` (строка 302) **не фильтрует по `requested_by`**. Когда автор сам отправляет запрос (`requested_by = "creator"`), хук обрабатывает его как входящий запрос от ученика и показывает тост "Ученик просит перенести".
-
-Аналогичная проблема может быть в `useRealtimeTeacherNotifications.ts`, но там уже есть фильтр `if (newRequest.requested_by && newRequest.requested_by !== "student") return;` — значит у учителя всё корректно.
+В `CreatorNotificationsTab.tsx` (строка 161-167) запрос `reschedule_requests` загружает **все** pending запросы для продуктов автора, без фильтрации по `requested_by`. Поэтому когда автор сам отправляет запрос на перенос (`requested_by = "creator"`), он появляется в списке уведомлений автора как входящий запрос от ученика.
 
 ## Решение — 1 файл
 
-### `src/hooks/useRealtimeBookings.ts`
-Добавить фильтр в обработчик INSERT `reschedule_requests` (после строки 306):
+### `src/components/creator/CreatorNotificationsTab.tsx`
+Добавить фильтр `.eq("requested_by", "student")` в запрос на строке ~165, чтобы загружать только запросы, отправленные учениками:
+
 ```typescript
-// Only show for student requests, not creator's own outgoing requests
-if (newRequest.requested_by && newRequest.requested_by !== "student") return;
+const { data } = await supabase
+  .from("reschedule_requests")
+  .select("*")
+  .in("product_id", productIds)
+  .eq("status", "pending")
+  .eq("requested_by", "student")  // <-- добавить
+  .order("created_at", { ascending: false })
+  .limit(50);
 ```
 
-Также добавить подписку на UPDATE `reschedule_requests` для отображения ответов ученика на исходящие запросы автора (когда `requested_by = "creator"` и статус меняется на approved/rejected).
+Также нужно проверить аналогичный хук в `TeacherNotificationsTab.tsx` — если там такая же проблема, добавить тот же фильтр.
 
