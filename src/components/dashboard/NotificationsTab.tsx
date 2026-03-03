@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Calendar, Clock, CheckCircle, Unlock, XCircle } from "lucide-react";
+import { Bell, Calendar, Clock, CheckCircle, Unlock, XCircle, ArrowRightLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,6 +46,19 @@ interface RejectedReschedule {
   new_time: string;
   response_comment: string | null;
   responded_at: string;
+}
+
+interface IncomingReschedule {
+  id: string;
+  product_title: string;
+  old_date: string;
+  old_time: string;
+  new_date: string;
+  new_time: string;
+  comment: string | null;
+  reasons: string[] | null;
+  requested_by: string;
+  created_at: string;
 }
 
 interface NotificationsTabProps {
@@ -135,6 +148,25 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
     enabled: !!user?.id,
   });
 
+  // Получить входящие запросы на перенос от автора/учителя
+  const { data: incomingReschedules = [], isLoading: loadingIncoming } = useQuery({
+    queryKey: ["student-incoming-reschedules", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("reschedule_requests")
+        .select("id, product_title, old_date, old_time, new_date, new_time, comment, reasons, requested_by, created_at")
+        .eq("simple_user_id", user.id)
+        .eq("status", "pending")
+        .neq("requested_by", "student")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data || []) as IncomingReschedule[];
+    },
+    enabled: !!user?.id,
+  });
+
   // Realtime для обновления
   useEffect(() => {
     if (!user?.id) return;
@@ -166,10 +198,12 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "reschedule_requests" },
+        { event: "*", schema: "public", table: "reschedule_requests" },
         () => {
           queryClient.invalidateQueries({ queryKey: ["student-rejected-reschedules"] });
           queryClient.invalidateQueries({ queryKey: ["student-rejected-reschedules-count"] });
+          queryClient.invalidateQueries({ queryKey: ["student-incoming-reschedules"] });
+          queryClient.invalidateQueries({ queryKey: ["student-incoming-reschedules-count"] });
         }
       )
       .subscribe();
@@ -189,7 +223,7 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
 
   const locale = language === "ru" ? ru : kk;
 
-  const isLoading = loadingCancellations || loadingPurchases || loadingUnlocks || loadingRejected;
+  const isLoading = loadingCancellations || loadingPurchases || loadingUnlocks || loadingRejected || loadingIncoming;
 
   if (isLoading) {
     return (
@@ -204,13 +238,15 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
     | { type: "cancellation"; date: string; data: BookingCancellation }
     | { type: "purchase_confirmed"; date: string; data: ConfirmedPurchase }
     | { type: "material_unlock"; date: string; data: MaterialUnlock }
-    | { type: "reschedule_rejected"; date: string; data: RejectedReschedule };
+    | { type: "reschedule_rejected"; date: string; data: RejectedReschedule }
+    | { type: "incoming_reschedule"; date: string; data: IncomingReschedule };
 
   const allNotifications: NotificationItem[] = [
     ...cancellations.map(c => ({ type: "cancellation" as const, date: c.cancelled_at, data: c })),
     ...confirmedPurchases.map(p => ({ type: "purchase_confirmed" as const, date: p.confirmed_at, data: p })),
     ...materialUnlocks.map(u => ({ type: "material_unlock" as const, date: u.unlocked_at, data: u })),
     ...rejectedReschedules.map(r => ({ type: "reschedule_rejected" as const, date: r.responded_at, data: r })),
+    ...incomingReschedules.map(r => ({ type: "incoming_reschedule" as const, date: r.created_at, data: r })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const hasNotifications = allNotifications.length > 0;
@@ -346,6 +382,66 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
                         <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
                           <span>
                             {formatDistanceToNow(new Date(rejection.responded_at), {
+                              addSuffix: true,
+                              locale,
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            if (item.type === "incoming_reschedule") {
+              const reschedule = item.data as IncomingReschedule;
+              return (
+                <Card key={`incoming-${reschedule.id}`} className="relative overflow-hidden">
+                  {isNew(reschedule.created_at) && (
+                    <div className="absolute top-0 right-0">
+                      <Badge className="rounded-none rounded-bl-lg bg-primary text-primary-foreground text-xs px-2 py-1">
+                        {t("new")}
+                      </Badge>
+                    </div>
+                  )}
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center flex-shrink-0">
+                        <ArrowRightLeft className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-medium text-foreground">
+                          {reschedule.requested_by === "teacher"
+                            ? (language === "ru" ? "Запрос на перенос от учителя" : "Мұғалімнен ауыстыру сұрауы")
+                            : (language === "ru" ? "Запрос на перенос от автора" : "Автордан ауыстыру сұрауы")}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {reschedule.product_title}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs mt-1">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {format(new Date(reschedule.old_date), "d MMM", { locale })}
+                          </span>
+                          <span className="font-medium text-orange-500">{reschedule.old_time?.slice(0, 5)}</span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {format(new Date(reschedule.new_date), "d MMM", { locale })}
+                          </span>
+                          <span className="font-medium text-orange-500">{reschedule.new_time?.slice(0, 5)}</span>
+                        </div>
+                        {reschedule.comment && (
+                          <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 rounded-md">
+                            <p className="text-sm text-muted-foreground italic">
+                              "{reschedule.comment}"
+                            </p>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+                          <span>
+                            {formatDistanceToNow(new Date(reschedule.created_at), {
                               addSuffix: true,
                               locale,
                             })}
