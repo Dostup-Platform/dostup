@@ -166,6 +166,25 @@ const TeacherDashboard = () => {
     enabled: scheduleIds.length > 0,
   });
 
+  // Get reschedule responses (teacher requested, student responded) for badge count
+  const { data: rescheduleResponses = [] } = useQuery({
+    queryKey: ["teacher-reschedule-responses-count", scheduleIds],
+    queryFn: async () => {
+      if (!scheduleIds.length) return [];
+      
+      const { data, error } = await supabase
+        .from("reschedule_requests")
+        .select("id, responded_at")
+        .in("schedule_id", scheduleIds)
+        .in("status", ["approved", "rejected"])
+        .eq("requested_by", "teacher");
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: scheduleIds.length > 0,
+  });
+
   // Count new notifications
   const newNotificationsCount = useMemo(() => {
     const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -173,9 +192,10 @@ const TeacherDashboard = () => {
     const newBookingsCount = bookings.filter(b => new Date(b.created_at) > compareDate).length;
     const newCancellationsCount = cancellations.filter(c => new Date(c.cancelled_at) > compareDate).length;
     const newRescheduleCount = rescheduleRequests.filter(r => new Date(r.created_at) > compareDate).length;
+    const newResponsesCount = rescheduleResponses.filter(r => r.responded_at && new Date(r.responded_at) > compareDate).length;
     
-    return newBookingsCount + newCancellationsCount + newRescheduleCount;
-  }, [bookings, cancellations, rescheduleRequests, lastViewedAt]);
+    return newBookingsCount + newCancellationsCount + newRescheduleCount + newResponsesCount;
+  }, [bookings, cancellations, rescheduleRequests, rescheduleResponses, lastViewedAt]);
 
   // Real-time notifications for teacher bookings/cancellations (with badge count)
   useRealtimeTeacherNotifications(
