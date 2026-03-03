@@ -186,27 +186,31 @@ const MaterialsTab = () => {
 
   const handleOpenFile = useCallback(async (material: { file_url: string; title: string }, action: 'view' | 'download') => {
     if (!material.file_url) return;
-    
-    // Open blank window synchronously for BOTH view and download to avoid iOS Safari flickering
-    const newWindow = window.open('about:blank', '_blank');
+     
+    // Detect standalone PWA mode (iOS opens about:blank inside the app webview, not Safari)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || (navigator as any).standalone === true;
+    const newWindow = isStandalone ? null : window.open('about:blank', '_blank');
     const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     
     try {
       const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
       
+      const nav = (url: string) => { if (newWindow) newWindow.location.href = url; else window.location.href = url; };
+
       if (isS3Path(material.file_url)) {
         if (action === 'download') {
           const url = await getS3DownloadUrl(material.file_url, 'student', user?.id, 'attachment');
-          if (newWindow) newWindow.location.href = url;
-        } else if (newWindow) {
+          nav(url);
+        } else {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(material.file_url, 'student', user?.id);
             const proxyUrl = buildProxyUrl(token);
             const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-            newWindow.location.href = viewerUrl;
+            nav(viewerUrl);
           } else {
             const url = await getS3DownloadUrl(material.file_url, 'student', user?.id);
-            newWindow.location.href = url;
+            nav(url);
           }
         }
       } else {
@@ -230,15 +234,15 @@ const MaterialsTab = () => {
         }
         
         if (action === 'download') {
-          if (newWindow) newWindow.location.href = data.signedUrl;
-        } else if (newWindow) {
+          nav(data.signedUrl);
+        } else {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(path, 'student', user?.id);
             const proxyUrl = buildProxyUrl(token);
             const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-            newWindow.location.href = viewerUrl;
+            nav(viewerUrl);
           } else {
-            newWindow.location.href = data.signedUrl;
+            nav(data.signedUrl);
           }
         }
       }
