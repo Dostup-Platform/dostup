@@ -39,20 +39,29 @@ const EditSlotTimeDialog = ({
     return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
   };
 
+  const getSlotDuration = () => {
+    if (!slot) return 60;
+    const [sh, sm] = slot.start_time.slice(0, 5).split(":").map(Number);
+    const [eh, em] = slot.end_time.slice(0, 5).split(":").map(Number);
+    return (eh * 60 + em) - (sh * 60 + sm);
+  };
+
   useEffect(() => {
     if (isOpen && slot) {
-      setNewStartTime(addMinutes(slot.start_time.slice(0, 5), 60));
-      setNewEndTime(addMinutes(slot.end_time.slice(0, 5), 60));
+      const duration = getSlotDuration();
+      setNewStartTime(addMinutes(slot.start_time.slice(0, 5), duration));
+      setNewEndTime(addMinutes(slot.end_time.slice(0, 5), duration));
     }
   }, [isOpen, slot]);
 
-  const handleOpen = (open: boolean) => {
-    if (!open) handleClose();
-  };
-
   const handleStartTimeChange = (value: string) => {
     setNewStartTime(value);
-    setNewEndTime(addMinutes(value, 30));
+    const duration = getSlotDuration();
+    setNewEndTime(addMinutes(value, duration));
+  };
+
+  const handleOpen = (open: boolean) => {
+    if (!open) handleClose();
   };
 
   const handleClose = () => {
