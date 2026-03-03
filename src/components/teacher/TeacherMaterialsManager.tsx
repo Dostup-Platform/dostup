@@ -263,10 +263,13 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   const handleOpenFile = async (material: Material, action: 'view' | 'download') => {
     if (!material.file_url) return;
      
-    // Detect standalone PWA mode (iOS opens about:blank inside the app webview, not Safari)
+    // Detect standalone PWA mode and mobile devices
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
       || (navigator as any).standalone === true;
-    const newWindow = isStandalone ? null : window.open('about:blank', '_blank');
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // Don't open blank window on mobile - it causes flickering
+    const newWindow = (isStandalone || isMobile) ? null : window.open('about:blank', '_blank');
     const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     
     try {
@@ -274,7 +277,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
       
       const nav = async (url: string) => {
-        if (isStandalone && action === 'download') {
+        if (isMobile && action === 'download') {
           try {
             const response = await fetch(url);
             const blob = await response.blob();
