@@ -17,8 +17,6 @@ import { useRealtimeTeacherNotifications } from "@/hooks/useRealtimeTeacherNotif
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 import { useAppResume } from "@/hooks/useAppResume";
 
-const LAST_VIEWED_KEY = "teacher_notifications_last_viewed";
-
 const TeacherDashboard = () => {
   const [activeTab, setActiveTab] = useState("schedule");
   const [teacherName, setTeacherName] = useState<string | null>(null);
@@ -45,13 +43,17 @@ const TeacherDashboard = () => {
     }
   }, [navigate]);
 
+  // Per-user localStorage key for last viewed notifications
+  const lastViewedKey = teacherName ? `teacher_notifications_last_viewed_${teacherName}` : null;
+
   // Load last viewed timestamp
   useEffect(() => {
-    const stored = localStorage.getItem(LAST_VIEWED_KEY);
+    if (!lastViewedKey) return;
+    const stored = localStorage.getItem(lastViewedKey);
     if (stored) {
       setLastViewedAt(new Date(stored));
     }
-  }, []);
+  }, [lastViewedKey]);
 
   // Get products where this teacher has access
   const { data: teacherProducts = [], isLoading: productsLoading } = useTeacherProducts(teacherName || undefined);
@@ -214,14 +216,14 @@ const TeacherDashboard = () => {
 
   // Handle tab change - update last viewed when entering OR leaving notifications
   const handleTabChange = useCallback((value: string) => {
-    if (value === "notifications" || (activeTab === "notifications" && value !== "notifications")) {
+    if (lastViewedKey && (value === "notifications" || (activeTab === "notifications" && value !== "notifications"))) {
       const now = new Date();
-      localStorage.setItem(LAST_VIEWED_KEY, now.toISOString());
+      localStorage.setItem(lastViewedKey, now.toISOString());
       setLastViewedAt(now);
       clearAppBadge();
     }
     setActiveTab(value);
-  }, [activeTab]);
+  }, [activeTab, lastViewedKey]);
 
   if (isLoading || productsLoading) {
     return (
