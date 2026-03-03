@@ -157,7 +157,8 @@ const TeacherDashboard = () => {
         .from("reschedule_requests")
         .select("id, created_at")
         .in("schedule_id", scheduleIds)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .eq("requested_by", "student");
       
       if (error) throw error;
       return data || [];

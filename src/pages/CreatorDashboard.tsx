@@ -97,7 +97,8 @@ const CreatorDashboard = () => {
         .from("reschedule_requests")
         .select("id, created_at")
         .in("product_id", productIds)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .eq("requested_by", "student");
       return data || [];
     },
     enabled: productIds.length > 0,
