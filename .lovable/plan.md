@@ -1,23 +1,46 @@
 
 
-# Исправление: бейдж-счётчик уведомлений считает исходящие запросы автора/учителя
+# Исправление: ученик не получает уведомления и бейдж о запросах на перенос от автора/учителя
 
 ## Проблема
-В `CreatorDashboard.tsx` (строка 100) и `TeacherDashboard.tsx` (строка 160) запросы для подсчёта бейджа загружают **все** pending `reschedule_requests` без фильтрации по `requested_by`. Поэтому когда автор/учитель сам отправляет запрос на перенос, он попадает в счётчик бейджа и выглядит как входящее уведомление.
+
+Бейдж уведомлений в Dashboard ученика и список уведомлений в NotificationsTab **не учитывают** входящие запросы на перенос от автора/учителя (`requested_by = "creator"` или `"teacher"`). 
+
+В `Dashboard.tsx` badge считается из 4 источников: отмены, покупки, разблокировки материалов, отклонённые переносы. **Входящие pending запросы от преподавателя не включены**.
+
+В `NotificationsTab.tsx` также отсутствует отображение таких запросов.
+
+Realtime тосты работают (строки 251-279 в `useRealtimeStudentNotifications.ts`), но бейдж и список — нет.
 
 ## Решение — 2 файла
 
-### `src/pages/CreatorDashboard.tsx` (строка ~100)
-Добавить `.eq("requested_by", "student")` в запрос бейдж-счётчика:
+### 1. `src/pages/Dashboard.tsx`
+Добавить запрос для подсчёта pending reschedule_requests от преподавателя:
 ```typescript
-.eq("status", "pending")
-.eq("requested_by", "student")  // <-- добавить
+const { data: incomingReschedules = [] } = useQuery({
+  queryKey: ["student-incoming-reschedules-count", user?.id],
+  queryFn: async () => {
+    if (!user?.id) return [];
+    const { data, error } = await supabase
+      .from("reschedule_requests")
+      .select("id, created_at")
+      .eq("simple_user_id", user.id)
+      .eq("status", "pending")
+      .neq("requested_by", "student")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return data || [];
+  },
+  enabled: !!user?.id,
+});
+```
+Добавить в подсчёт `newNotificationsCount`:
+```typescript
+const newIncoming = incomingReschedules.filter(r => new Date(r.created_at) > compareDate).length;
+return newCancellations + newPurchases + newUnlocks + newRejections + newIncoming;
 ```
 
-### `src/pages/TeacherDashboard.tsx` (строка ~160)
-Аналогично добавить `.eq("requested_by", "student")`:
-```typescript
-.eq("status", "pending")
-.eq("requested_by", "student")  // <-- добавить
-```
+### 2. `src/components/dashboard/NotificationsTab.tsx`
+Добавить запрос для получения pending reschedule_requests от преподавателя и отобразить их в списке уведомлений как карточки "Запрос на перенос от преподавателя" с датой/временем.
 
