@@ -1,45 +1,51 @@
 
 
-## Problem
+## Problem Analysis
 
-Proxying a 15MB video through an edge function is too slow and unreliable on mobile -- it times out or runs out of memory, causing "Ошибка при открытии файла". The proxy approach was designed to avoid CORS, but it's overkill for downloads.
+The error toast "Ошибка при открытии файла" appears on mobile when trying to download. The s3-download edge function works correctly (verified by direct call), so the issue is client-side. Two problems:
 
-## Root Cause
+1. **`window.location.href = presignedUrl`** navigates away from the SPA. On iOS Safari, this can cause the app to unload before the download starts, or the browser may fail to handle the navigation gracefully and trigger the catch block.
 
-The `getS3FileBlob` call downloads the entire 15MB file through the edge function into browser memory, then tries to create a File object and share it. This is slow, memory-intensive, and often times out on mobile networks.
+2. **Error toast doesn't show the actual error** in ProductMaterialsManager (line 376: `toast.error('Ошибка при открытии файла')` without error details), making debugging impossible.
 
-## Solution: Simple direct navigation
+## Solution
 
-The simplest approach that actually works on mobile: just use `window.location.href = presignedUrl` directly. No blank window, no proxy, no blob. The presigned URL from `s3-download` already supports `response-content-disposition: attachment`, which tells the browser to download the file.
+Replace `window.location.href` with `<a>` tag approach for mobile downloads. Create an invisible `<a>` element with `target="_blank"` and click it programmatically. This:
+- Opens the presigned URL in a new tab (no blank-window flickering since it goes directly to the URL)
+- Keeps the current app tab intact
+- Works reliably on both iOS Safari and Chrome for Android
+- With `Content-Disposition: attachment`, the browser downloads the file in the new tab
 
-On iOS Safari and mobile Chrome, `window.location.href` to a URL with `Content-Disposition: attachment` triggers the native download bar -- the file downloads in the background and the user stays on the current page. The previous flickering was caused by `window.open('about:blank')`, which is already removed.
+### Changes
 
-## Changes
-
-### All 4 material components
-
-Remove the blob/proxy branch for mobile downloads. Use the same presigned URL approach for all platforms, just without opening a blank window on mobile:
+**All 4 material files** - update the `nav` function:
 
 ```typescript
-// For S3 files:
-if (action === 'download') {
-  const url = await getS3DownloadUrl(material.file_url, role, userId, material.title);
+const nav = async (url: string) => {
   if (newWindow) {
     newWindow.location.href = url;
   } else {
-    // Mobile: direct navigation with attachment header -- browser downloads natively
-    window.location.href = url;
+    // Mobile: use <a> tag to open in new tab without navigating away
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
-}
+};
 ```
 
-Key: `newWindow` is already `null` on mobile (from `isMobile` check). So on mobile it just does `window.location.href = presignedUrl` with `Content-Disposition: attachment`. No blank tab, no flickering, no proxy timeout.
+Also add error details to the toast in all files for better debugging:
+
+```typescript
+toast.error(`Ошибка при открытии файла: ${err instanceof Error ? err.message : String(err)}`);
+```
 
 ### Files to edit:
-1. `src/components/dashboard/MaterialsTab.tsx` -- remove `getS3FileBlob` import and blob branch
-2. `src/components/teacher/TeacherMaterialsTab.tsx` -- same
-3. `src/components/teacher/TeacherMaterialsManager.tsx` -- same
-4. `src/components/creator/ProductMaterialsManager.tsx` -- same
-
-The `s3-download-proxy` edge function and `getS3FileBlob` helper can stay for potential future use but won't be called for downloads.
+1. `src/components/dashboard/MaterialsTab.tsx`
+2. `src/components/teacher/TeacherMaterialsTab.tsx`
+3. `src/components/teacher/TeacherMaterialsManager.tsx`
+4. `src/components/creator/ProductMaterialsManager.tsx`
 
