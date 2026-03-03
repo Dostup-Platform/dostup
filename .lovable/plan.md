@@ -1,32 +1,31 @@
 
 
-# Add outgoing reschedule request indicator for creator and teacher
+# Форматирование даты в запросах на перенос
 
-## Problem
-When a creator or teacher sends a reschedule request, there's no visual feedback in their schedule showing that a request is pending. Students see this as an orange "Ожидание подтверждения переноса на 12:00 ✕" indicator, but creators/teachers see nothing.
+## Проблема
+Дата в запросах на перенос отображается в сыром формате `2026-03-03` вместо красивого `3 мар.`
 
-## Solution — 2 files
+## Решение — 3 файла
 
-### 1. `src/components/creator/CreatorScheduleTab.tsx`
-- Add a `useQuery` to fetch pending `reschedule_requests` where `requested_by = "creator"` and `product_id` in creator's productIds
-- Add a `useMutation` to cancel (delete) a pending request
-- After each booking row (line ~1012-1016), check if there's a pending outgoing request for that booking and show the orange indicator with ✕ button, matching the student's UI exactly
+В проекте уже используется `date-fns` с `format`, `parseISO` и `locale: ru`. Нужно применить тот же подход к отображению `new_date` в запросах на перенос.
 
-### 2. `src/components/teacher/TeacherScheduleTab.tsx`
-- Same as above but with `requested_by = "teacher"`
-- Same orange indicator + cancel button after each booking row (line ~1063-1068)
+### 1. `src/components/dashboard/ScheduleTab.tsx` (строка 538)
+Заменить `${pendingReq.new_date}` на `format(parseISO(pendingReq.new_date), "d MMM", { locale: ru })` — такой же формат уже используется в этом файле (строка 447).
 
-### UI added per booking (when pending request exists)
-```
-<div className="mt-1 flex items-center gap-2">
-  <span className="text-orange-500 text-sm font-medium">
-    Ожидание подтверждения переноса на {new_time}
-  </span>
-  <button className="text-orange-500 hover:text-destructive ...">
-    <X />
-  </button>
-</div>
-```
+До: `Преподаватель просит перенести на 2026-03-03 13:00`
+После: `Преподаватель просит перенести на 3 мар. 13:00`
 
-The query matches pending requests to bookings via `booking_id`, and cancellation deletes the request and invalidates the query cache.
+### 2. `src/components/creator/CreatorScheduleTab.tsx` (строка 1056)
+Добавить `new_date` в запрос `outgoingReschedules` (уже есть) и в отображении добавить дату:
+
+До: `Ожидание подтверждения переноса на 13:00`
+После: `Ожидание подтверждения переноса на 3 мар. 13:00`
+
+### 3. `src/components/teacher/TeacherScheduleTab.tsx` (строка 1108)
+Аналогично — добавить дату в оранжевый индикатор:
+
+До: `Ожидание подтверждения переноса на 13:00`
+После: `Ожидание подтверждения переноса на 3 мар. 13:00`
+
+Все три файла уже импортируют `format` и `parseISO` из `date-fns` и `ru` locale — добавлять новые зависимости не нужно.
 
