@@ -1,31 +1,26 @@
 
 
-# Форматирование даты в запросах на перенос
+# Fix: Orange indicator appears immediately after sending reschedule request
 
-## Проблема
-Дата в запросах на перенос отображается в сыром формате `2026-03-03` вместо красивого `3 мар.`
+## Problem
+After sending a reschedule request, the orange indicator doesn't appear immediately because the `onSuccess` handlers don't invalidate the right query keys.
 
-## Решение — 3 файла
+## Fix — 2 files
 
-В проекте уже используется `date-fns` с `format`, `parseISO` и `locale: ru`. Нужно применить тот же подход к отображению `new_date` в запросах на перенос.
+### 1. `src/hooks/useSimplePurchases.ts` (line 765-772)
+The `useCreatorRescheduleRequest` mutation's `onSuccess` invalidates `creator-reschedule-requests` and `teacher-reschedule-requests` (incoming from students), but NOT `creator-outgoing-reschedules` or `teacher-outgoing-reschedules` (the queries that power the orange indicator).
 
-### 1. `src/components/dashboard/ScheduleTab.tsx` (строка 538)
-Заменить `${pendingReq.new_date}` на `format(parseISO(pendingReq.new_date), "d MMM", { locale: ru })` — такой же формат уже используется в этом файле (строка 447).
+Add two lines:
+```typescript
+queryClient.invalidateQueries({ queryKey: ["creator-outgoing-reschedules"] });
+queryClient.invalidateQueries({ queryKey: ["teacher-outgoing-reschedules"] });
+```
 
-До: `Преподаватель просит перенести на 2026-03-03 13:00`
-После: `Преподаватель просит перенести на 3 мар. 13:00`
-
-### 2. `src/components/creator/CreatorScheduleTab.tsx` (строка 1056)
-Добавить `new_date` в запрос `outgoingReschedules` (уже есть) и в отображении добавить дату:
-
-До: `Ожидание подтверждения переноса на 13:00`
-После: `Ожидание подтверждения переноса на 3 мар. 13:00`
-
-### 3. `src/components/teacher/TeacherScheduleTab.tsx` (строка 1108)
-Аналогично — добавить дату в оранжевый индикатор:
-
-До: `Ожидание подтверждения переноса на 13:00`
-После: `Ожидание подтверждения переноса на 3 мар. 13:00`
-
-Все три файла уже импортируют `format` и `parseISO` из `date-fns` и `ru` locale — добавлять новые зависимости не нужно.
+### 2. `src/components/dashboard/ScheduleTab.tsx` (line 195-199)
+The student's `rescheduleRequest` mutation's `onSuccess` only invalidates `student-pending-reschedules`. Need to also invalidate the student's own outgoing indicator:
+```typescript
+queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
+queryClient.invalidateQueries({ queryKey: ["student-incoming-reschedules"] });
+queryClient.invalidateQueries({ queryKey: ["student-incoming-reschedules-count"] });
+```
 
