@@ -769,6 +769,8 @@ export const useCreatorRescheduleRequest = () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-week-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
       queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-outgoing-reschedules"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-outgoing-reschedules"] });
     },
   });
 };
