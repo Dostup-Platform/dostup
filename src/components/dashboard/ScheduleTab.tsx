@@ -196,6 +196,8 @@ const ScheduleTab = () => {
       toast.success(language === "ru" ? "Запрос на перенос отправлен" : "Ауыстыру сұранысы жіберілді");
       setRescheduleBooking(null);
       queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
+      queryClient.invalidateQueries({ queryKey: ["student-incoming-reschedules"] });
+      queryClient.invalidateQueries({ queryKey: ["student-incoming-reschedules-count"] });
     },
     onError: () => {
       toast.error(language === "ru" ? "Ошибка при отправке запроса" : "Сұраныс жіберу қатесі");
