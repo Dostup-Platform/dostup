@@ -15,7 +15,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { format, addDays, startOfWeek, parse } from "date-fns";
+import { format, addDays, startOfWeek, parse, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
   Dialog,
@@ -1053,8 +1053,8 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
                                   <div className="mt-1 flex items-center gap-2 px-2">
                                     <span className="text-orange-500 text-sm font-medium">
                                       {language === "ru" 
-                                        ? `Ожидание подтверждения переноса на ${pendingReq.new_time?.slice(0, 5)}`
-                                        : `Ауыстыруды растау күтілуде ${pendingReq.new_time?.slice(0, 5)}`}
+                                        ? `Ожидание подтверждения переноса на ${format(parseISO(pendingReq.new_date), "d MMM", { locale: ru })} ${pendingReq.new_time?.slice(0, 5)}`
+                                        : `Ауыстыруды растау күтілуде ${format(parseISO(pendingReq.new_date), "d MMM", { locale: ru })} ${pendingReq.new_time?.slice(0, 5)}`}
                                     </span>
                                     <button
                                       className="text-orange-500 hover:text-destructive p-0.5 rounded"
