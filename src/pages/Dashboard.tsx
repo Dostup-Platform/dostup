@@ -167,9 +167,10 @@ const Dashboard = () => {
     }
   }, [newNotificationsCount, activeTab]);
 
-  // Обновление lastViewedAt при уходе с вкладки уведомлений
+  // Обновление lastViewedAt при входе/выходе с вкладки уведомлений
   const handleTabChange = (value: string) => {
-    if (previousTab.current === "notifications" && value !== "notifications") {
+    // Save lastViewedAt when entering OR leaving notifications tab
+    if (value === "notifications" || (previousTab.current === "notifications" && value !== "notifications")) {
       const now = new Date();
       localStorage.setItem("student_notifications_last_viewed", now.toISOString());
       setLastViewedAt(now);

@@ -192,13 +192,12 @@ const TeacherDashboard = () => {
     }
   }, [newNotificationsCount, activeTab]);
 
-  // Handle tab change - update last viewed when leaving notifications
+  // Handle tab change - update last viewed when entering OR leaving notifications
   const handleTabChange = useCallback((value: string) => {
-    if (activeTab === "notifications" && value !== "notifications") {
+    if (value === "notifications" || (activeTab === "notifications" && value !== "notifications")) {
       const now = new Date();
       localStorage.setItem(LAST_VIEWED_KEY, now.toISOString());
       setLastViewedAt(now);
-      // Clear app badge when leaving notifications
       clearAppBadge();
     }
     setActiveTab(value);
