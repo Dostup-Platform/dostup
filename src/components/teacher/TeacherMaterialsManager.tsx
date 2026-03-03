@@ -278,16 +278,26 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
           try {
             const response = await fetch(url);
             const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = blobUrl;
-            a.download = material.title || 'download';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            const fileName = material.title || 'download';
+            const file = new File([blob], fileName, { type: blob.type });
+            
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({ files: [file], title: fileName });
+              toast.success(language === "ru" ? "Файл сохранён" : "Файл сақталды");
+            } else {
+              const blobUrl = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = blobUrl;
+              a.download = fileName;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            }
           } catch (e) {
-            window.location.href = url;
+            if ((e as Error).name !== 'AbortError') {
+              window.location.href = url;
+            }
           }
         } else if (newWindow) {
           newWindow.location.href = url;
