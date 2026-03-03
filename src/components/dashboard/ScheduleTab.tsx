@@ -535,8 +535,8 @@ const ScheduleTab = () => {
                       <div className="mt-2 p-3 rounded-lg border border-orange-300 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-700 space-y-2">
                         <div className="text-orange-600 dark:text-orange-400 text-sm font-medium">
                           {language === "ru"
-                            ? `Преподаватель просит перенести на ${pendingReq.new_date} ${pendingReq.new_time?.slice(0, 5)}`
-                            : `Мұғалім ${pendingReq.new_date} ${pendingReq.new_time?.slice(0, 5)} уақытына ауыстыруды сұрайды`}
+                            ? `Преподаватель просит перенести на ${format(parseISO(pendingReq.new_date), "d MMM", { locale: ru })} ${pendingReq.new_time?.slice(0, 5)}`
+                            : `Мұғалім ${format(parseISO(pendingReq.new_date), "d MMM", { locale: ru })} ${pendingReq.new_time?.slice(0, 5)} уақытына ауыстыруды сұрайды`}
                         </div>
                         {((pendingReq.reasons?.length > 0) || pendingReq.comment) && (
                           <div className="text-xs text-muted-foreground italic">
