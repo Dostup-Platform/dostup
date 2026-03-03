@@ -2,63 +2,74 @@
 
 ## Problem
 
-iOS PWA standalone mode doesn't support traditional download methods — `<a download>`, hidden iframes, and `window.location.href` all cause issues. The blob approach also fails because iOS Safari ignores the `download` attribute on blob URLs.
+The Web Share API fix only applies when `isStandalone` is true (installed PWA). But the user is using a **regular mobile browser** (not installed PWA), where `isStandalone` is false. In that case, the code does `window.open('about:blank', '_blank')` then `newWindow.location.href = presignedUrl`. On iOS Safari, this causes:
+1. A blank tab opens
+2. iOS download bar appears at bottom
+3. The blank tab flashes/navigates
+4. Eventually the file preview appears "out of nowhere"
 
-## Solution: Web Share API with File
+The standalone-only check means the blob+share fix never runs for mobile browser users.
 
-Use `navigator.share({ files: [file] })` on iOS PWA. This opens the native iOS share sheet where the user can tap "Save to Files" or "Save Image/Video." After triggering the share sheet, show a toast message like "Сохраните файл через меню 'Сохранить в Файлы'" (Save the file via 'Save to Files').
+## Solution
 
-If `navigator.share` is not available or `navigator.canShare` returns false for files, fall back to opening the URL directly.
+Detect **mobile devices** (iOS/Android) separately from standalone mode. For mobile downloads:
+- Use Web Share API (blob → File → `navigator.share`) if available
+- Fallback: blob → `<a download>` click
+- Do NOT open a new blank window on mobile at all
 
-## Flow
-
-1. Fetch file as blob (already implemented)
-2. Create a `File` object from the blob
-3. Call `navigator.share({ files: [file] })`
-4. iOS shows native share sheet → user taps "Save to Files" or "Save to Photos"
-5. Show a toast: "Выберите 'Сохранить в Файлы' для загрузки" / after share completes: "Файл сохранён"
+For desktop: keep existing `window.open('about:blank')` behavior (works fine there).
 
 ## Changes (4 files, same pattern)
 
 **All files**: `MaterialsTab.tsx`, `TeacherMaterialsTab.tsx`, `TeacherMaterialsManager.tsx`, `ProductMaterialsManager.tsx`
 
-Replace the standalone download branch in `nav`:
+Replace standalone detection + newWindow logic:
 
 ```typescript
-if (isStandalone && action === 'download') {
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    const fileName = material.title || 'download';
-    const file = new File([blob], fileName, { type: blob.type });
-    
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: fileName });
-      toast.success(language === "ru" 
-        ? "Файл сохранён" 
-        : "Файл сақталды");
-    } else {
-      // Fallback: open blob URL
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    }
-  } catch (e) {
-    if ((e as Error).name !== 'AbortError') {
-      window.location.href = url;
-    }
-  }
-}
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+  || (navigator as any).standalone === true;
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+// Don't open blank window on mobile - it causes flickering
+const newWindow = (isStandalone || isMobile) ? null : window.open('about:blank', '_blank');
 ```
 
-Key details:
-- `navigator.canShare({ files })` is supported on iOS 15+ Safari and PWA
-- `AbortError` is thrown if user dismisses the share sheet — we silently ignore it
-- The share sheet lets users save to Files app, Photos (for images/videos), AirDrop, etc.
-- Loading toast "Подготовка файла..." stays visible during the fetch, dismissed after share
+Replace the `nav` function to use blob+share for ALL mobile downloads (not just standalone):
+
+```typescript
+const nav = async (url: string) => {
+  if (isMobile && action === 'download') {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const fileName = material.title || 'download';
+      const file = new File([blob], fileName, { type: blob.type });
+      
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: fileName });
+        toast.success(language === "ru" ? "Файл сохранён" : "Файл сақталды");
+      } else {
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      }
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') {
+        window.location.href = url;
+      }
+    }
+  } else if (newWindow) {
+    newWindow.location.href = url;
+  } else {
+    window.location.href = url;
+  }
+};
+```
+
+This ensures that on any mobile device (browser or PWA), downloads go through the share sheet / blob path instead of opening a blank tab.
 
