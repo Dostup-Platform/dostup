@@ -137,7 +137,13 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
         if (newWindow) {
           newWindow.location.href = url;
         } else {
-          window.location.href = url;
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
         }
       };
 
@@ -192,7 +198,8 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
     } catch (err) {
       console.error('Error getting file URL:', err);
       newWindow?.close();
-      toast.error(language === "ru" ? 'Ошибка при открытии файла' : 'Файлды ашу кезінде қате');
+      const errMsg = err instanceof Error ? err.message : String(err);
+      toast.error(language === "ru" ? `Ошибка при открытии файла: ${errMsg}` : `Файлды ашу кезінде қате: ${errMsg}`);
     } finally {
       toast.dismiss(loadingToast);
     }
