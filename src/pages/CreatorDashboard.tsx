@@ -40,14 +40,12 @@ const CreatorDashboard = () => {
     }
   }, []);
 
-  // Update last viewed when LEAVING notifications tab (not when entering)
+  // Update last viewed when entering OR leaving notifications tab
   const handleTabChange = useCallback((value: string) => {
-    // If we're currently on notifications tab and switching away, update lastViewedAt
-    if (activeTab === "notifications" && value !== "notifications") {
+    if (value === "notifications" || (activeTab === "notifications" && value !== "notifications")) {
       const now = new Date();
       localStorage.setItem(LAST_VIEWED_KEY, now.toISOString());
       setLastViewedAt(now);
-      // Clear app badge when leaving notifications
       clearAppBadge();
     }
     setActiveTab(value);
