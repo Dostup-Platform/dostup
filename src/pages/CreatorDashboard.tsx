@@ -20,8 +20,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 import { useAppResume } from "@/hooks/useAppResume";
 
-const LAST_VIEWED_KEY = "creator_notifications_last_viewed";
-
 const CreatorDashboard = () => {
   const [activeTab, setActiveTab] = useState("products");
   const [creatorName, setCreatorName] = useState<string | null>(null);
@@ -32,19 +30,23 @@ const CreatorDashboard = () => {
   const isMobile = useIsMobile();
   useAppResume();
   
+  // Per-user localStorage key for last viewed notifications
+  const lastViewedKey = creatorName ? `creator_notifications_last_viewed_${creatorName}` : null;
+
   // Load last viewed timestamp from localStorage
   useEffect(() => {
-    const stored = localStorage.getItem(LAST_VIEWED_KEY);
+    if (!lastViewedKey) return;
+    const stored = localStorage.getItem(lastViewedKey);
     if (stored) {
       setLastViewedAt(new Date(stored));
     }
-  }, []);
+  }, [lastViewedKey]);
 
   // Update last viewed when entering OR leaving notifications tab
   const handleTabChange = useCallback((value: string) => {
-    if (value === "notifications" || (activeTab === "notifications" && value !== "notifications")) {
+    if (lastViewedKey && (value === "notifications" || (activeTab === "notifications" && value !== "notifications"))) {
       const now = new Date();
-      localStorage.setItem(LAST_VIEWED_KEY, now.toISOString());
+      localStorage.setItem(lastViewedKey, now.toISOString());
       setLastViewedAt(now);
       clearAppBadge();
     }

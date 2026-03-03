@@ -25,13 +25,16 @@ const Dashboard = () => {
   const navigate = useNavigate();
   useAppResume();
 
-  // Загрузить lastViewedAt из localStorage
+  // Загрузить lastViewedAt из localStorage (per-user key)
+  const lastViewedKey = user?.id ? `student_notifications_last_viewed_${user.id}` : null;
+  
   useEffect(() => {
-    const saved = localStorage.getItem("student_notifications_last_viewed");
+    if (!lastViewedKey) return;
+    const saved = localStorage.getItem(lastViewedKey);
     if (saved) {
       setLastViewedAt(new Date(saved));
     }
-  }, []);
+  }, [lastViewedKey]);
 
   // Get purchased product IDs for filtering material unlocks
   const { data: purchasedProductIds = [] } = useQuery({
@@ -170,9 +173,9 @@ const Dashboard = () => {
   // Обновление lastViewedAt при входе/выходе с вкладки уведомлений
   const handleTabChange = (value: string) => {
     // Save lastViewedAt when entering OR leaving notifications tab
-    if (value === "notifications" || (previousTab.current === "notifications" && value !== "notifications")) {
+    if (lastViewedKey && (value === "notifications" || (previousTab.current === "notifications" && value !== "notifications"))) {
       const now = new Date();
-      localStorage.setItem("student_notifications_last_viewed", now.toISOString());
+      localStorage.setItem(lastViewedKey, now.toISOString());
       setLastViewedAt(now);
       clearAppBadge();
     }
