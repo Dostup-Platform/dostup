@@ -120,6 +120,25 @@ const Dashboard = () => {
     enabled: !!user?.id,
   });
 
+  // Incoming reschedule requests from creator/teacher
+  const { data: incomingReschedules = [] } = useQuery({
+    queryKey: ["student-incoming-reschedules-count", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("reschedule_requests")
+        .select("id, created_at")
+        .eq("simple_user_id", user.id)
+        .eq("status", "pending")
+        .neq("requested_by", "student")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
   // Подсчёт новых уведомлений
   const newNotificationsCount = useMemo(() => {
     const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -127,8 +146,9 @@ const Dashboard = () => {
     const newPurchases = confirmedPurchases.filter(p => p.confirmed_at && new Date(p.confirmed_at) > compareDate).length;
     const newUnlocks = materialUnlocks.filter(u => new Date(u.unlocked_at) > compareDate).length;
     const newRejections = rejectedReschedules.filter(r => r.responded_at && new Date(r.responded_at) > compareDate).length;
-    return newCancellations + newPurchases + newUnlocks + newRejections;
-  }, [cancellations, confirmedPurchases, materialUnlocks, rejectedReschedules, lastViewedAt]);
+    const newIncoming = incomingReschedules.filter(r => r.created_at && new Date(r.created_at) > compareDate).length;
+    return newCancellations + newPurchases + newUnlocks + newRejections + newIncoming;
+  }, [cancellations, confirmedPurchases, materialUnlocks, rejectedReschedules, incomingReschedules, lastViewedAt]);
 
   // Realtime уведомления (звуки и push) с badge count
   useRealtimeStudentNotifications(user?.id, !!user, newNotificationsCount, purchasedProductIds);
