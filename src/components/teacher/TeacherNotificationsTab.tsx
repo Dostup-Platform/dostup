@@ -27,6 +27,7 @@ interface RescheduleRequest {
   comment: string | null;
   status: string;
   response_comment: string | null;
+  responded_at: string | null;
   created_at: string;
   user_name?: string;
 }
@@ -115,7 +116,7 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
     enabled: productIds.length > 0,
   });
 
-  // Get reschedule requests for teacher's schedules
+  // Get reschedule requests for teacher's schedules (pending from students)
   const { data: rescheduleRequests = [], isLoading: rescheduleLoading } = useQuery<RescheduleRequest[]>({
     queryKey: ["teacher-reschedule-requests", scheduleIds],
     queryFn: async () => {
@@ -127,6 +128,32 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
         .eq("status", "pending")
         .eq("requested_by", "student")
         .order("created_at", { ascending: false })
+        .limit(50);
+      if (!data?.length) return [];
+
+      const userIds = [...new Set((data as any[]).map((r: any) => r.simple_user_id).filter(Boolean))];
+      const { data: users } = await supabase.from("simple_users").select("id, name").in("id", userIds);
+
+      return (data as any[]).map((r: any) => ({
+        ...r,
+        user_name: users?.find((u: any) => u.id === r.simple_user_id)?.name || "Ученик",
+      })) as RescheduleRequest[];
+    },
+    enabled: scheduleIds.length > 0,
+  });
+
+  // Get reschedule responses (teacher requested, student approved/rejected)
+  const { data: rescheduleResponses = [], isLoading: responsesLoading } = useQuery<RescheduleRequest[]>({
+    queryKey: ["teacher-reschedule-responses", scheduleIds],
+    queryFn: async () => {
+      if (!scheduleIds.length) return [];
+      const { data } = await supabase
+        .from("reschedule_requests")
+        .select("*")
+        .in("schedule_id", scheduleIds)
+        .in("status", ["approved", "rejected"])
+        .eq("requested_by", "teacher")
+        .order("responded_at", { ascending: false })
         .limit(50);
       if (!data?.length) return [];
 
@@ -222,11 +249,11 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
     },
   });
 
-  // Realtime for reschedule requests
+  // Realtime for reschedule requests and responses
   useEffect(() => {
     if (!scheduleIds.length) return;
     const channel = supabase
-      .channel("teacher-reschedule-requests-realtime")
+      .channel("teacher-reschedule-realtime")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "reschedule_requests" },
         (payload) => {
           const newRequest = payload.new as any;
@@ -234,16 +261,27 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
             queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-requests"] });
           }
         }
-      ).subscribe();
+      )
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "reschedule_requests" },
+        (payload) => {
+          const updated = payload.new as any;
+          if (scheduleIds.includes(updated.schedule_id) && updated.requested_by === "teacher" && ["approved", "rejected"].includes(updated.status)) {
+            queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-responses"] });
+            queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-responses-count"] });
+          }
+        }
+      )
+      .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [scheduleIds, queryClient]);
 
-  const isLoading = bookingsLoading || cancellationsLoading || rescheduleLoading;
+  const isLoading = bookingsLoading || cancellationsLoading || rescheduleLoading || responsesLoading;
   const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   const allNotifications = [
     ...bookings.map(b => ({ id: b.id, type: "booking" as const, date: b.created_at, data: b })),
     ...cancellations.map(c => ({ id: c.id, type: "cancellation" as const, date: c.cancelled_at, data: c })),
+    ...rescheduleResponses.map(r => ({ id: r.id, type: "reschedule_response" as const, date: r.responded_at || r.created_at || "", data: r })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   if (isLoading) {
@@ -364,7 +402,7 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
                 </CardContent>
               </Card>
             );
-          } else {
+          } else if (notification.type === "cancellation") {
             const cancellation = notification.data as any;
             return (
               <Card key={`cancel-${notification.id}`} className={isNew ? "border-destructive/50 bg-destructive/5" : ""}>
@@ -402,7 +440,46 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
                 </CardContent>
               </Card>
             );
+          } else if (notification.type === "reschedule_response") {
+            const response = notification.data as RescheduleRequest;
+            const isApproved = response.status === "approved";
+            return (
+              <Card key={`reschedule-resp-${notification.id}`} className={isNew ? (isApproved ? "border-green-500/50 bg-green-50/50 dark:bg-green-950/20" : "border-destructive/50 bg-destructive/5") : ""}>
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isApproved ? "bg-green-100 dark:bg-green-900/30" : "bg-destructive/10"}`}>
+                      {isApproved ? <Check className="w-5 h-5 text-green-600" /> : <X className="w-5 h-5 text-destructive" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">
+                          {isApproved
+                            ? (language === "ru" ? "Перенос подтверждён" : "Ауыстыру расталды")
+                            : (language === "ru" ? "Перенос отклонён" : "Ауыстыру қабылданбады")}
+                        </p>
+                        {isNew && <Badge variant={isApproved ? "default" : "destructive"} className="text-xs px-2 py-0.5">{language === "ru" ? "Новое" : "Жаңа"}</Badge>}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">{response.product_title}</p>
+                      <div className="flex items-center gap-2 text-xs mt-1">
+                        <span className="font-medium text-orange-500">{response.old_time?.slice(0, 5)}</span>
+                        <span className="text-muted-foreground">→</span>
+                        <span className="font-medium text-orange-500">{response.new_time?.slice(0, 5)}</span>
+                      </div>
+                      {response.response_comment && (
+                        <div className="mt-2 p-2 bg-muted/50 rounded">
+                          <p className="text-xs text-muted-foreground italic">"{response.response_comment}"</p>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        {response.user_name} {isApproved ? (language === "ru" ? "подтвердил" : "растады") : (language === "ru" ? "отклонил" : "қабылдамады")}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
           }
+          return null;
         })}
         </div>
       )}
