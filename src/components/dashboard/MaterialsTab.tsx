@@ -197,35 +197,27 @@ const MaterialsTab = () => {
     const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     
     try {
-      const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
+      const { isS3Path, getS3DownloadUrl, getS3FileBlob } = await import("@/lib/s3Helpers");
       
+      const navWithBlob = async (blob: Blob, fileName: string) => {
+        const file = new File([blob], fileName, { type: blob.type });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: fileName });
+          toast.success(language === "ru" ? "Файл сохранён" : "Файл сақталды");
+        } else {
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        }
+      };
+
       const nav = async (url: string) => {
-        if (isMobile && action === 'download') {
-          try {
-            const response = await fetch(url);
-            const blob = await response.blob();
-            const fileName = material.title || 'download';
-            const file = new File([blob], fileName, { type: blob.type });
-            
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-              await navigator.share({ files: [file], title: fileName });
-              toast.success(language === "ru" ? "Файл сохранён" : "Файл сақталды");
-            } else {
-              const blobUrl = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = blobUrl;
-              a.download = fileName;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-            }
-          } catch (e) {
-            if ((e as Error).name !== 'AbortError') {
-              window.location.href = url;
-            }
-          }
-        } else if (newWindow) {
+        if (newWindow) {
           newWindow.location.href = url;
         } else {
           window.location.href = url;
@@ -233,7 +225,11 @@ const MaterialsTab = () => {
       };
 
       if (isS3Path(material.file_url)) {
-        if (action === 'download') {
+        if (action === 'download' && isMobile) {
+          // Use proxy to avoid CORS on mobile
+          const { blob, fileName } = await getS3FileBlob(material.file_url, 'student', user?.id);
+          await navWithBlob(blob, material.title || fileName);
+        } else if (action === 'download') {
           const url = await getS3DownloadUrl(material.file_url, 'student', user?.id, 'attachment');
           await nav(url);
         } else {
