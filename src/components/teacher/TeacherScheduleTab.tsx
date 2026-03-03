@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, Pencil, UserPlus, Link, Copy } from "lucide-react";
+import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, Pencil, UserPlus, Link, Copy, X } from "lucide-react";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import RescheduleSlotDialog from "@/components/RescheduleSlotDialog";
 import EditSlotTimeDialog from "@/components/EditSlotTimeDialog";
@@ -244,6 +244,37 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
       })) as Booking[];
     },
     enabled: slotIds.length > 0,
+  });
+
+  // Fetch pending outgoing reschedule requests (teacher -> student)
+  const { data: outgoingReschedules = [] } = useQuery({
+    queryKey: ["teacher-outgoing-reschedules", productIds],
+    queryFn: async () => {
+      if (!productIds.length) return [];
+      const { data, error } = await supabase
+        .from("reschedule_requests")
+        .select("id, booking_id, new_date, new_time, status")
+        .in("product_id", productIds)
+        .eq("status", "pending")
+        .eq("requested_by", "teacher");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: productIds.length > 0,
+  });
+
+  const cancelOutgoingReschedule = useMutation({
+    mutationFn: async (requestId: string) => {
+      const { error } = await supabase
+        .from("reschedule_requests")
+        .delete()
+        .eq("id", requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teacher-outgoing-reschedules"] });
+      toast.success(language === "ru" ? "Запрос на перенос отменён" : "Ауыстыру сұранысы жойылды");
+    },
   });
 
   // Create schedule mutation
@@ -1061,10 +1092,31 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                       {slotBookings.length > 0 && (
                         <div className="mt-2 space-y-1 pl-5">
                           {slotBookings.map((booking) => (
-                            <div key={booking.id} className="flex items-center justify-between py-1 px-2 bg-background/50 rounded">
-                              <span className={`text-sm ${styles.text}`}>
-                                {booking.user?.name || "—"}
-                              </span>
+                            <div key={booking.id}>
+                              <div className="flex items-center justify-between py-1 px-2 bg-background/50 rounded">
+                                <span className={`text-sm ${styles.text}`}>
+                                  {booking.user?.name || "—"}
+                                </span>
+                              </div>
+                              {(() => {
+                                const pendingReq = outgoingReschedules.find(r => r.booking_id === booking.id);
+                                if (!pendingReq) return null;
+                                return (
+                                  <div className="mt-1 flex items-center gap-2 px-2">
+                                    <span className="text-orange-500 text-sm font-medium">
+                                      {language === "ru" 
+                                        ? `Ожидание подтверждения переноса на ${pendingReq.new_time?.slice(0, 5)}`
+                                        : `Ауыстыруды растау күтілуде ${pendingReq.new_time?.slice(0, 5)}`}
+                                    </span>
+                                    <button
+                                      className="text-orange-500 hover:text-destructive p-0.5 rounded"
+                                      onClick={() => cancelOutgoingReschedule.mutate(pendingReq.id)}
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           ))}
                         </div>
