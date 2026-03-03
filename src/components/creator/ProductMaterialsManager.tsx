@@ -312,24 +312,7 @@ interface FormData {
     
     try {
       setIsLoadingUrl(true);
-      const { isS3Path, getS3DownloadUrl, getS3FileBlob } = await import("@/lib/s3Helpers");
-      
-      const navWithBlob = async (blob: Blob, fileName: string) => {
-        const file = new File([blob], fileName, { type: blob.type });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], title: fileName });
-          toast.success(language === "ru" ? "Файл сохранён" : "Файл сақталды");
-        } else {
-          const blobUrl = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = blobUrl;
-          a.download = fileName;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-        }
-      };
+      const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
 
       const nav = async (url: string) => {
         if (newWindow) {
@@ -340,10 +323,7 @@ interface FormData {
       };
 
       if (isS3Path(material.file_url)) {
-        if (action === 'download' && isMobile) {
-          const { blob, fileName } = await getS3FileBlob(material.file_url, 'creator');
-          await navWithBlob(blob, material.title || fileName);
-        } else if (action === 'download') {
+        if (action === 'download') {
           const url = await getS3DownloadUrl(material.file_url, 'creator', undefined, material.title);
           await nav(url);
         } else {
