@@ -273,13 +273,22 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       setIsLoadingUrl(true);
       const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
       
-      const nav = (url: string) => {
+      const nav = async (url: string) => {
         if (isStandalone && action === 'download') {
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = url;
-          document.body.appendChild(iframe);
-          setTimeout(() => document.body.removeChild(iframe), 30000);
+          try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = material.title || 'download';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+          } catch (e) {
+            window.location.href = url;
+          }
         } else if (newWindow) {
           newWindow.location.href = url;
         } else {
@@ -290,16 +299,16 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       if (isS3Path(material.file_url)) {
         if (action === 'download') {
           const url = await getS3DownloadUrl(material.file_url, 'teacher', teacherId, material.title);
-          nav(url);
+          await nav(url);
         } else {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(material.file_url, 'teacher', teacherId);
             const proxyUrl = buildProxyUrl(token);
             const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-            nav(viewerUrl);
+            await nav(viewerUrl);
           } else {
             const url = await getS3DownloadUrl(material.file_url, 'teacher', teacherId);
-            nav(url);
+            await nav(url);
           }
         }
       } else {
@@ -323,15 +332,15 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
         }
         
         if (action === 'download') {
-          nav(data.signedUrl);
+          await nav(data.signedUrl);
         } else {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(path, 'teacher', teacherId);
             const proxyUrl = buildProxyUrl(token);
             const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-            nav(viewerUrl);
+            await nav(viewerUrl);
           } else {
-            nav(data.signedUrl);
+            await nav(data.signedUrl);
           }
         }
       }
