@@ -41,8 +41,8 @@ const EditSlotTimeDialog = ({
 
   useEffect(() => {
     if (isOpen && slot) {
-      setNewStartTime(addMinutes(slot.start_time.slice(0, 5), 30));
-      setNewEndTime(addMinutes(slot.end_time.slice(0, 5), 30));
+      setNewStartTime(addMinutes(slot.start_time.slice(0, 5), 60));
+      setNewEndTime(addMinutes(slot.end_time.slice(0, 5), 60));
     }
   }, [isOpen, slot]);
 
