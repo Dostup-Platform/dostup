@@ -1,46 +1,32 @@
 
 
-# Исправление: ученик не получает уведомления и бейдж о запросах на перенос от автора/учителя
+# Add outgoing reschedule request indicator for creator and teacher
 
-## Проблема
+## Problem
+When a creator or teacher sends a reschedule request, there's no visual feedback in their schedule showing that a request is pending. Students see this as an orange "Ожидание подтверждения переноса на 12:00 ✕" indicator, but creators/teachers see nothing.
 
-Бейдж уведомлений в Dashboard ученика и список уведомлений в NotificationsTab **не учитывают** входящие запросы на перенос от автора/учителя (`requested_by = "creator"` или `"teacher"`). 
+## Solution — 2 files
 
-В `Dashboard.tsx` badge считается из 4 источников: отмены, покупки, разблокировки материалов, отклонённые переносы. **Входящие pending запросы от преподавателя не включены**.
+### 1. `src/components/creator/CreatorScheduleTab.tsx`
+- Add a `useQuery` to fetch pending `reschedule_requests` where `requested_by = "creator"` and `product_id` in creator's productIds
+- Add a `useMutation` to cancel (delete) a pending request
+- After each booking row (line ~1012-1016), check if there's a pending outgoing request for that booking and show the orange indicator with ✕ button, matching the student's UI exactly
 
-В `NotificationsTab.tsx` также отсутствует отображение таких запросов.
+### 2. `src/components/teacher/TeacherScheduleTab.tsx`
+- Same as above but with `requested_by = "teacher"`
+- Same orange indicator + cancel button after each booking row (line ~1063-1068)
 
-Realtime тосты работают (строки 251-279 в `useRealtimeStudentNotifications.ts`), но бейдж и список — нет.
-
-## Решение — 2 файла
-
-### 1. `src/pages/Dashboard.tsx`
-Добавить запрос для подсчёта pending reschedule_requests от преподавателя:
-```typescript
-const { data: incomingReschedules = [] } = useQuery({
-  queryKey: ["student-incoming-reschedules-count", user?.id],
-  queryFn: async () => {
-    if (!user?.id) return [];
-    const { data, error } = await supabase
-      .from("reschedule_requests")
-      .select("id, created_at")
-      .eq("simple_user_id", user.id)
-      .eq("status", "pending")
-      .neq("requested_by", "student")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error) throw error;
-    return data || [];
-  },
-  enabled: !!user?.id,
-});
+### UI added per booking (when pending request exists)
 ```
-Добавить в подсчёт `newNotificationsCount`:
-```typescript
-const newIncoming = incomingReschedules.filter(r => new Date(r.created_at) > compareDate).length;
-return newCancellations + newPurchases + newUnlocks + newRejections + newIncoming;
+<div className="mt-1 flex items-center gap-2">
+  <span className="text-orange-500 text-sm font-medium">
+    Ожидание подтверждения переноса на {new_time}
+  </span>
+  <button className="text-orange-500 hover:text-destructive ...">
+    <X />
+  </button>
+</div>
 ```
 
-### 2. `src/components/dashboard/NotificationsTab.tsx`
-Добавить запрос для получения pending reschedule_requests от преподавателя и отобразить их в списке уведомлений как карточки "Запрос на перенос от преподавателя" с датой/временем.
+The query matches pending requests to bookings via `booking_id`, and cancellation deletes the request and invalidates the query cache.
 
