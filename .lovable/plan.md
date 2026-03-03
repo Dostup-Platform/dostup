@@ -2,57 +2,63 @@
 
 ## Problem
 
-Hidden iframe downloads **don't work on iOS Safari** (confirmed by Apple developer forums and Stack Overflow). iOS ignores iframe-based downloads in standalone PWA mode. The presigned URL still causes iOS to navigate or show its native download UI, which disrupts the app.
+iOS PWA standalone mode doesn't support traditional download methods — `<a download>`, hidden iframes, and `window.location.href` all cause issues. The blob approach also fails because iOS Safari ignores the `download` attribute on blob URLs.
 
-## Solution: Blob download
+## Solution: Web Share API with File
 
-The only reliable way to download files in iOS PWA standalone mode is the **blob approach**:
+Use `navigator.share({ files: [file] })` on iOS PWA. This opens the native iOS share sheet where the user can tap "Save to Files" or "Save Image/Video." After triggering the share sheet, show a toast message like "Сохраните файл через меню 'Сохранить в Файлы'" (Save the file via 'Save to Files').
 
-1. Fetch the file entirely into memory using `fetch()`
-2. Create a local `Blob` URL with `URL.createObjectURL()`
-3. Trigger download via an `<a download>` anchor click on the blob URL
+If `navigator.share` is not available or `navigator.canShare` returns false for files, fall back to opening the URL directly.
 
-This completely avoids navigating to an external URL. iOS handles blob URLs locally without any navigation or preview flashing.
+## Flow
 
-For "view" actions, keep `window.location.href` since the user wants to see the file.
+1. Fetch file as blob (already implemented)
+2. Create a `File` object from the blob
+3. Call `navigator.share({ files: [file] })`
+4. iOS shows native share sheet → user taps "Save to Files" or "Save to Photos"
+5. Show a toast: "Выберите 'Сохранить в Файлы' для загрузки" / after share completes: "Файл сохранён"
 
 ## Changes (4 files, same pattern)
 
 **All files**: `MaterialsTab.tsx`, `TeacherMaterialsTab.tsx`, `TeacherMaterialsManager.tsx`, `ProductMaterialsManager.tsx`
 
-Replace the `nav` function's standalone download branch:
+Replace the standalone download branch in `nav`:
 
 ```typescript
-const nav = async (url: string) => {
-  if (isStandalone && action === 'download') {
-    // Blob approach: fetch file into memory, then trigger local download
-    // This avoids any external URL navigation on iOS PWA
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
+if (isStandalone && action === 'download') {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const fileName = material.title || 'download';
+    const file = new File([blob], fileName, { type: blob.type });
+    
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: fileName });
+      toast.success(language === "ru" 
+        ? "Файл сохранён" 
+        : "Файл сақталды");
+    } else {
+      // Fallback: open blob URL
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = material.title || 'download';
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    } catch (e) {
-      // Fallback: open URL directly if blob fails
+    }
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') {
       window.location.href = url;
     }
-  } else if (newWindow) {
-    newWindow.location.href = url;
-  } else {
-    window.location.href = url;
   }
-};
+}
 ```
 
-Since `nav` becomes async, all calls to `nav(url)` need `await nav(url)`.
-
-The loading toast "Подготовка файла..." will remain visible during both the presigned URL generation AND the actual file download, giving proper feedback for the full process.
-
-For a 15MB video this will take a few seconds to fetch into memory but will completely eliminate the flashing/navigation issue.
+Key details:
+- `navigator.canShare({ files })` is supported on iOS 15+ Safari and PWA
+- `AbortError` is thrown if user dismisses the share sheet — we silently ignore it
+- The share sheet lets users save to Files app, Photos (for images/videos), AirDrop, etc.
+- Loading toast "Подготовка файла..." stays visible during the fetch, dismissed after share
 
