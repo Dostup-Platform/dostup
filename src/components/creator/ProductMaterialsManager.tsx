@@ -301,7 +301,8 @@ interface FormData {
   const handleOpenFile = async (material: Material, action: 'view' | 'download') => {
     if (!material.file_url) return;
     
-    const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
+    // Open blank window synchronously for BOTH view and download to avoid iOS Safari flickering
+    const newWindow = window.open('about:blank', '_blank');
     const loadingToast = toast.loading("Подготовка файла...");
     
     try {
@@ -309,18 +310,11 @@ interface FormData {
       const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
       
       if (isS3Path(material.file_url)) {
-        // S3 file
         if (action === 'download') {
           const url = await getS3DownloadUrl(material.file_url, 'creator', undefined, material.title);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = material.title;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          if (newWindow) newWindow.location.href = url;
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
-            // For office docs, use proxy-material (which now supports S3)
             const token = await requestMaterialToken(material.file_url, 'creator');
             const proxyUrl = buildProxyUrl(token);
             const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
@@ -331,7 +325,6 @@ interface FormData {
           }
         }
       } else {
-        // Legacy Supabase storage file
         const isFullUrl = material.file_url.startsWith('http');
         const path = isFullUrl 
           ? material.file_url.split('/materials/')[1] 
@@ -352,12 +345,7 @@ interface FormData {
         }
         
         if (action === 'download') {
-          const link = document.createElement('a');
-          link.href = data.signedUrl;
-          link.download = material.title;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          if (newWindow) newWindow.location.href = data.signedUrl;
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(path, 'creator');
@@ -371,6 +359,7 @@ interface FormData {
       }
     } catch (err) {
       console.error('Error getting file URL:', err);
+      newWindow?.close();
       toast.error('Ошибка при открытии файла');
     } finally {
       setIsLoadingUrl(false);

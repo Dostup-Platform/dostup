@@ -187,17 +187,17 @@ const MaterialsTab = () => {
   const handleOpenFile = useCallback(async (material: { file_url: string; title: string }, action: 'view' | 'download') => {
     if (!material.file_url) return;
     
-    const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
+    // Open blank window synchronously for BOTH view and download to avoid iOS Safari flickering
+    const newWindow = window.open('about:blank', '_blank');
     const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     
     try {
       const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
       
-        if (isS3Path(material.file_url)) {
+      if (isS3Path(material.file_url)) {
         if (action === 'download') {
           const url = await getS3DownloadUrl(material.file_url, 'student', user?.id, 'attachment');
-          // Navigate directly — S3 will return Content-Disposition: attachment
-          window.location.href = url;
+          if (newWindow) newWindow.location.href = url;
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(material.file_url, 'student', user?.id);
@@ -230,12 +230,7 @@ const MaterialsTab = () => {
         }
         
         if (action === 'download') {
-          const link = document.createElement('a');
-          link.href = data.signedUrl;
-          link.download = material.title;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          if (newWindow) newWindow.location.href = data.signedUrl;
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(path, 'student', user?.id);
@@ -249,8 +244,8 @@ const MaterialsTab = () => {
       }
     } catch (err) {
       console.error('Error getting file URL:', err);
+      newWindow?.close();
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error('Detail:', errMsg);
       toast.error(language === "ru" ? `Ошибка при открытии файла: ${errMsg}` : `Файлды ашу кезінде қате: ${errMsg}`);
     } finally {
       toast.dismiss(loadingToast);
