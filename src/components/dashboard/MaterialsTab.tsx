@@ -196,7 +196,19 @@ const MaterialsTab = () => {
     try {
       const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
       
-      const nav = (url: string) => { if (newWindow) newWindow.location.href = url; else window.location.href = url; };
+      const nav = (url: string) => {
+        if (isStandalone && action === 'download') {
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = url;
+          document.body.appendChild(iframe);
+          setTimeout(() => document.body.removeChild(iframe), 30000);
+        } else if (newWindow) {
+          newWindow.location.href = url;
+        } else {
+          window.location.href = url;
+        }
+      };
 
       if (isS3Path(material.file_url)) {
         if (action === 'download') {
