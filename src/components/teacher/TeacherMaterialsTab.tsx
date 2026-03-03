@@ -121,17 +121,17 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
   const handleOpenFile = useCallback(async (material: { file_url: string; title: string }, action: 'view' | 'download') => {
     if (!material.file_url) return;
     
-    const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
+    // Open blank window synchronously for BOTH view and download to avoid iOS Safari flickering
+    const newWindow = window.open('about:blank', '_blank');
     const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     
     try {
       const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
 
       if (isS3Path(material.file_url)) {
-        // S3 file
         if (action === 'download') {
           const url = await getS3DownloadUrl(material.file_url, 'teacher', teacherUser?.id, material.title);
-          window.location.href = url;
+          if (newWindow) newWindow.location.href = url;
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(material.file_url, 'teacher', teacherUser?.id);
@@ -144,7 +144,6 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
           }
         }
       } else {
-        // Legacy Supabase Storage file
         const isFullUrl = material.file_url.startsWith('http');
         const path = isFullUrl 
           ? material.file_url.split('/materials/')[1] 
@@ -165,12 +164,7 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
         }
         
         if (action === 'download') {
-          const link = document.createElement('a');
-          link.href = data.signedUrl;
-          link.download = material.title;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          if (newWindow) newWindow.location.href = data.signedUrl;
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(path, 'teacher', teacherUser?.id);
@@ -184,6 +178,7 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
       }
     } catch (err) {
       console.error('Error getting file URL:', err);
+      newWindow?.close();
       toast.error(language === "ru" ? 'Ошибка при открытии файла' : 'Файлды ашу кезінде қате');
     } finally {
       toast.dismiss(loadingToast);

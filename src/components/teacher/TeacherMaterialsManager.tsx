@@ -263,7 +263,9 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   const handleOpenFile = async (material: Material, action: 'view' | 'download') => {
     if (!material.file_url) return;
     
-    const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
+    // Open blank window synchronously for BOTH view and download to avoid iOS Safari flickering
+    const newWindow = window.open('about:blank', '_blank');
+    const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     
     try {
       setIsLoadingUrl(true);
@@ -272,12 +274,9 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       if (isS3Path(material.file_url)) {
         if (action === 'download') {
           const url = await getS3DownloadUrl(material.file_url, 'teacher', teacherId, material.title);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = material.title;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          if (newWindow) {
+            newWindow.location.href = url;
+          }
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(material.file_url, 'teacher', teacherId);
@@ -310,12 +309,9 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
         }
         
         if (action === 'download') {
-          const link = document.createElement('a');
-          link.href = data.signedUrl;
-          link.download = material.title;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          if (newWindow) {
+            newWindow.location.href = data.signedUrl;
+          }
         } else if (newWindow) {
           if (isOfficeDocument(material.title)) {
             const token = await requestMaterialToken(path, 'teacher', teacherId);
@@ -329,9 +325,11 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       }
     } catch (err) {
       console.error('Error getting file URL:', err);
+      newWindow?.close();
       toast.error(language === "ru" ? 'Ошибка при открытии файла' : 'Файлды ашу кезінде қате');
     } finally {
       setIsLoadingUrl(false);
+      toast.dismiss(loadingToast);
     }
   };
 
