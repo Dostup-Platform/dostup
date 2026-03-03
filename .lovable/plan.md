@@ -1,88 +1,45 @@
 
 
+## Problem
+
+Proxying a 15MB video through an edge function is too slow and unreliable on mobile -- it times out or runs out of memory, causing "Ошибка при открытии файла". The proxy approach was designed to avoid CORS, but it's overkill for downloads.
+
 ## Root Cause
 
-The `fetch(s3PresignedUrl)` call in the browser fails silently due to **CORS** — AWS S3 doesn't have CORS configured to allow requests from your app's domain. When fetch fails, the catch block falls back to `window.location.href = url`, which causes the exact flickering behavior you described.
+The `getS3FileBlob` call downloads the entire 15MB file through the edge function into browser memory, then tries to create a File object and share it. This is slow, memory-intensive, and often times out on mobile networks.
 
-## Solution
+## Solution: Simple direct navigation
 
-Instead of fetching the S3 file directly from the browser (which hits CORS), **proxy the file through a backend function** that returns the binary data with proper CORS headers. The flow becomes:
+The simplest approach that actually works on mobile: just use `window.location.href = presignedUrl` directly. No blank window, no proxy, no blob. The presigned URL from `s3-download` already supports `response-content-disposition: attachment`, which tells the browser to download the file.
 
-1. Client calls edge function with file path + role
-2. Edge function fetches from S3 server-side (no CORS issues)
-3. Edge function streams the file bytes back to client with CORS headers
-4. Client creates Blob → File → `navigator.share()` or `<a download>`
+On iOS Safari and mobile Chrome, `window.location.href` to a URL with `Content-Disposition: attachment` triggers the native download bar -- the file downloads in the background and the user stays on the current page. The previous flickering was caused by `window.open('about:blank')`, which is already removed.
 
 ## Changes
 
-### 1. New edge function: `s3-download-proxy`
+### All 4 material components
 
-A simple function that:
-- Accepts `path`, `role`, `userId` (same as `s3-download`)
-- Validates access (same logic as current `s3-download`)
-- Fetches the file from S3 server-side
-- Returns the raw file bytes with `Content-Type` and CORS headers
+Remove the blob/proxy branch for mobile downloads. Use the same presigned URL approach for all platforms, just without opening a blank window on mobile:
 
 ```typescript
-// Returns actual file content, not a URL
-return new Response(s3Response.body, {
-  headers: {
-    ...corsHeaders,
-    'Content-Type': contentType,
-    'Content-Disposition': `attachment; filename="${encodedName}"`,
-  },
-});
-```
-
-### 2. Update `s3Helpers.ts` — add `getS3FileBlob()`
-
-New helper function that calls `s3-download-proxy` and returns a `Blob`:
-
-```typescript
-export async function getS3FileBlob(
-  path: string, role: string, userId?: string
-): Promise<{ blob: Blob; fileName: string }> {
-  const response = await fetch(`${supabaseUrl}/functions/v1/s3-download-proxy`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, role, userId }),
-  });
-  const blob = await response.blob();
-  const fileName = path.split('/').pop() || 'download';
-  return { blob, fileName };
-}
-```
-
-### 3. Update `nav()` in all 4 material files
-
-For mobile downloads, instead of `fetch(presignedUrl)` (which hits CORS), call `getS3FileBlob()` before `nav()` and pass the blob directly:
-
-```typescript
-if (isMobile && action === 'download') {
-  // For S3 files, get blob via proxy (avoids CORS)
-  const { blob } = await getS3FileBlob(material.file_url, role, userId);
-  const file = new File([blob], material.title || 'download', { type: blob.type });
-  
-  if (navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: material.title });
-    toast.success("Файл сохранён");
+// For S3 files:
+if (action === 'download') {
+  const url = await getS3DownloadUrl(material.file_url, role, userId, material.title);
+  if (newWindow) {
+    newWindow.location.href = url;
   } else {
-    const blobUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.download = material.title;
-    a.click();
+    // Mobile: direct navigation with attachment header -- browser downloads natively
+    window.location.href = url;
   }
 }
 ```
 
-For non-S3 files (Supabase storage), the signed URLs already have CORS, so `fetch()` works fine.
+Key: `newWindow` is already `null` on mobile (from `isMobile` check). So on mobile it just does `window.location.href = presignedUrl` with `Content-Disposition: attachment`. No blank tab, no flickering, no proxy timeout.
 
-### Files to change:
-1. **New**: `supabase/functions/s3-download-proxy/index.ts`
-2. **Edit**: `src/lib/s3Helpers.ts` — add `getS3FileBlob`
-3. **Edit**: `src/components/dashboard/MaterialsTab.tsx`
-4. **Edit**: `src/components/teacher/TeacherMaterialsTab.tsx`
-5. **Edit**: `src/components/teacher/TeacherMaterialsManager.tsx`
-6. **Edit**: `src/components/creator/ProductMaterialsManager.tsx`
+### Files to edit:
+1. `src/components/dashboard/MaterialsTab.tsx` -- remove `getS3FileBlob` import and blob branch
+2. `src/components/teacher/TeacherMaterialsTab.tsx` -- same
+3. `src/components/teacher/TeacherMaterialsManager.tsx` -- same
+4. `src/components/creator/ProductMaterialsManager.tsx` -- same
+
+The `s3-download-proxy` edge function and `getS3FileBlob` helper can stay for potential future use but won't be called for downloads.
 
