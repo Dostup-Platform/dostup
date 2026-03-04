@@ -1,49 +1,40 @@
 
 
-## Problem Analysis
+## Problem
 
-The error toast "Ошибка при открытии файла" appears on mobile when trying to download. The s3-download edge function works correctly (verified by direct call), so the issue is client-side. Two problems:
-
-1. **`window.location.href = presignedUrl`** navigates away from the SPA. On iOS Safari, this can cause the app to unload before the download starts, or the browser may fail to handle the navigation gracefully and trigger the catch block.
-
-2. **Error toast doesn't show the actual error** in ProductMaterialsManager (line 376: `toast.error('Ошибка при открытии файла')` without error details), making debugging impossible.
+On mobile, the `<a target="_blank">` programmatic click after `await getS3DownloadUrl(...)` is **silently blocked by popup blockers** because it's no longer in the synchronous user gesture context. The toast appears during the async call, then dismisses, and nothing opens — no error thrown.
 
 ## Solution
 
-Replace `window.location.href` with `<a>` tag approach for mobile downloads. Create an invisible `<a>` element with `target="_blank"` and click it programmatically. This:
-- Opens the presigned URL in a new tab (no blank-window flickering since it goes directly to the URL)
-- Keeps the current app tab intact
-- Works reliably on both iOS Safari and Chrome for Android
-- With `Content-Disposition: attachment`, the browser downloads the file in the new tab
+Different strategy for download vs view:
 
-### Changes
+- **Download**: Use `window.location.href = presignedUrl`. With `Content-Disposition: attachment` header, the browser starts a background download without navigating away from the SPA. No new window needed on any platform.
+- **View**: Use `window.open('about:blank', '_blank')` **synchronously on ALL platforms** (remove the mobile exclusion). This captures the user gesture. After the async call completes, navigate the opened window to the URL. Brief blank page is acceptable.
 
-**All 4 material files** - update the `nav` function:
+### Code change in all 4 files
 
-```typescript
-const nav = async (url: string) => {
-  if (newWindow) {
-    newWindow.location.href = url;
-  } else {
-    // Mobile: use <a> tag to open in new tab without navigating away
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
-};
-```
-
-Also add error details to the toast in all files for better debugging:
+Replace the `newWindow` and `nav` logic:
 
 ```typescript
-toast.error(`Ошибка при открытии файла: ${err instanceof Error ? err.message : String(err)}`);
+// View: open window synchronously to capture user gesture (all platforms)
+// Download: no window needed — window.location.href with attachment header
+const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
+const loadingToast = toast.loading(...);
+
+try {
+  // ...async work to get URL...
+
+  const nav = async (url: string) => {
+    if (newWindow) {
+      newWindow.location.href = url;
+    } else {
+      // Download: triggers native download, page stays intact
+      window.location.href = url;
+    }
+  };
 ```
 
-### Files to edit:
+### Files to edit
 1. `src/components/dashboard/MaterialsTab.tsx`
 2. `src/components/teacher/TeacherMaterialsTab.tsx`
 3. `src/components/teacher/TeacherMaterialsManager.tsx`
