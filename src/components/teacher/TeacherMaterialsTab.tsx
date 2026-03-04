@@ -121,13 +121,9 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
   const handleOpenFile = useCallback(async (material: { file_url: string; title: string }, action: 'view' | 'download') => {
     if (!material.file_url) return;
      
-    // Detect standalone PWA mode and mobile devices
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-      || (navigator as any).standalone === true;
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-    // Don't open blank window on mobile - it causes flickering
-    const newWindow = (isStandalone || isMobile) ? null : window.open('about:blank', '_blank');
+    // View: open window synchronously to capture user gesture (all platforms)
+    // Download: no window needed — window.location.href with attachment header
+    const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
     const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     
     try {
@@ -137,13 +133,8 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
         if (newWindow) {
           newWindow.location.href = url;
         } else {
-          const a = document.createElement('a');
-          a.href = url;
-          a.target = '_blank';
-          a.rel = 'noopener noreferrer';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
+          // Download: triggers native download, page stays intact
+          window.location.href = url;
         }
       };
 
