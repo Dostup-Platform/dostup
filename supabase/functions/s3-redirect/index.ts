@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
     if (download) {
       signOptions.queryParams = {
-        'response-content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(download)}`,
+        'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
       };
     }
 
