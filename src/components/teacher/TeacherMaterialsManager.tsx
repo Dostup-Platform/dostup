@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,8 +24,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, ChevronLeft, FolderOpen, Download, X, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { supabase } from "@/integrations/supabase/client";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
+import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface TeacherMaterialsManagerProps {
@@ -70,9 +70,7 @@ interface FormData {
   allow_download: boolean;
 }
 
-const isOfficeDocument = (fileName: string): boolean => {
-  return /\.(docx?|xlsx?|pptx?|odt|ods|odp)$/i.test(fileName);
-};
+// isOfficeDocument is now imported from fileRedirect
 
 const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: TeacherMaterialsManagerProps) => {
   const { language } = useLanguage();
@@ -87,7 +85,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   const [isUploading, setIsUploading] = useState(false);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+  
   
   const [formData, setFormData] = useState<FormData>({
     title: "",
@@ -260,85 +258,34 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     setEditingId(null);
   };
 
-  const handleOpenFile = async (material: Material, action: 'view' | 'download') => {
+  const getFileUrl = useCallback((material: Material, action: 'view' | 'download'): string | null => {
+    if (!material.file_url) return null;
+    if (isS3Path(material.file_url)) {
+      if (action === 'view' && isOfficeDocument(material.title)) return null;
+      return buildS3RedirectUrl(material.file_url, 'teacher', teacherId, action === 'download' ? material.title : undefined);
+    } else {
+      const path = parseStoragePath(material.file_url);
+      if (!path) return null;
+      return buildStorageRedirectUrl(path, action === 'download' ? material.title : undefined);
+    }
+  }, [teacherId]);
+
+  const handleOfficeView = useCallback(async (material: Material) => {
     if (!material.file_url) return;
-     
-    // View: open window synchronously to capture user gesture (all platforms)
-    // Download: no window needed — window.location.href with attachment header
-    const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
     const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
-    
     try {
-      setIsLoadingUrl(true);
-      const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
-
-      const nav = async (url: string) => {
-        if (newWindow) {
-          newWindow.location.href = url;
-        } else {
-          // Download: triggers native download, page stays intact
-          window.location.href = url;
-        }
-      };
-
-      if (isS3Path(material.file_url)) {
-        if (action === 'download') {
-          const url = await getS3DownloadUrl(material.file_url, 'teacher', teacherId, material.title);
-          await nav(url);
-        } else {
-          if (isOfficeDocument(material.title)) {
-            const token = await requestMaterialToken(material.file_url, 'teacher', teacherId);
-            const proxyUrl = buildProxyUrl(token);
-            const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-            await nav(viewerUrl);
-          } else {
-            const url = await getS3DownloadUrl(material.file_url, 'teacher', teacherId);
-            await nav(url);
-          }
-        }
-      } else {
-        const isFullUrl = material.file_url.startsWith('http');
-        const path = isFullUrl 
-          ? material.file_url.split('/materials/')[1] 
-          : material.file_url;
-        
-        if (!path) {
-          newWindow?.close();
-          throw new Error('Invalid file path');
-        }
-        
-        const { data, error } = await supabase.storage
-          .from('materials')
-          .createSignedUrl(path, 3600, { download: action === 'download' ? material.title : false });
-        
-        if (error) {
-          newWindow?.close();
-          throw error;
-        }
-        
-        if (action === 'download') {
-          await nav(data.signedUrl);
-        } else {
-          if (isOfficeDocument(material.title)) {
-            const token = await requestMaterialToken(path, 'teacher', teacherId);
-            const proxyUrl = buildProxyUrl(token);
-            const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-            await nav(viewerUrl);
-          } else {
-            await nav(data.signedUrl);
-          }
-        }
-      }
+      const token = await requestMaterialToken(material.file_url, 'teacher', teacherId);
+      const proxyUrl = buildProxyUrl(token);
+      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
+      window.open(viewerUrl, '_blank');
     } catch (err) {
-      console.error('Error getting file URL:', err);
-      newWindow?.close();
+      console.error('Error opening office doc:', err);
       const errMsg = err instanceof Error ? err.message : String(err);
-      toast.error(language === "ru" ? `Ошибка при открытии файла: ${errMsg}` : `Файлды ашу кезінде қате: ${errMsg}`);
+      toast.error(language === "ru" ? `Ошибка: ${errMsg}` : `Қате: ${errMsg}`);
     } finally {
-      setIsLoadingUrl(false);
       toast.dismiss(loadingToast);
     }
-  };
+  }, [language, teacherId]);
 
   const getAccessLabel = (material: Material) => {
     const canDownload = material.allow_download !== false;
@@ -606,32 +553,47 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      {material.type === "file" && material.file_url && (
-                        <>
-                          {material.allow_download !== false && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleOpenFile(material, 'download')}
-                              disabled={isLoadingUrl}
-                              title={language === "ru" ? "Скачать" : "Жүктеу"}
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleOpenFile(material, 'view')}
-                            disabled={isLoadingUrl}
-                            title={language === "ru" ? "Открыть" : "Ашу"}
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </Button>
-                        </>
-                      )}
+                      {material.type === "file" && material.file_url && (() => {
+                        const dlUrl = material.allow_download !== false
+                          ? getFileUrl(material, 'download')
+                          : null;
+                        const vUrl = getFileUrl(material, 'view');
+                        const needsOffice = isOfficeDocument(material.title) && isS3Path(material.file_url!);
+                        return (
+                          <>
+                            {dlUrl && (
+                              <a
+                                href={dlUrl}
+                                className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-8 w-8"
+                                title={language === "ru" ? "Скачать" : "Жүктеу"}
+                              >
+                                <Download className="w-4 h-4" />
+                              </a>
+                            )}
+                            {vUrl ? (
+                              <a
+                                href={vUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-8 w-8"
+                                title={language === "ru" ? "Открыть" : "Ашу"}
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            ) : needsOffice ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => handleOfficeView(material)}
+                                title={language === "ru" ? "Открыть" : "Ашу"}
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </Button>
+                            ) : null}
+                          </>
+                        );
+                      })()}
                       <Button
                         variant="ghost"
                         size="icon"

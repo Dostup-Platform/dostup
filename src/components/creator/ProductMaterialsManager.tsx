@@ -1,37 +1,33 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 
-// Check if file can be viewed via Google Docs Viewer
-const isOfficeDocument = (fileName: string): boolean => {
-  return /\.(docx?|xlsx?|pptx?|odt|ods|odp)$/i.test(fileName);
-};
- import { Button } from "@/components/ui/button";
- import { Input } from "@/components/ui/input";
- import { Label } from "@/components/ui/label";
- import { Card, CardContent } from "@/components/ui/card";
- import {
-   Dialog,
-   DialogContent,
-   DialogHeader,
-   DialogTitle,
- } from "@/components/ui/dialog";
- import {
-   AlertDialog,
-   AlertDialogAction,
-   AlertDialogCancel,
-   AlertDialogContent,
-   AlertDialogDescription,
-   AlertDialogFooter,
-   AlertDialogHeader,
-   AlertDialogTitle,
- } from "@/components/ui/alert-dialog";
- import { useProductMaterials, useCreateMaterial, useUpdateMaterial, useDeleteMaterial, uploadMaterialFile } from "@/hooks/useMaterials";
- import { useLanguage } from "@/contexts/LanguageContext";
- import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useProductMaterials, useCreateMaterial, useUpdateMaterial, useDeleteMaterial, uploadMaterialFile } from "@/hooks/useMaterials";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X, Clock } from "lucide-react";
 import { ExternalLink } from "lucide-react";
- import { toast } from "sonner";
- import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
+import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { Checkbox } from "@/components/ui/checkbox";
 
  
@@ -96,7 +92,7 @@ interface FormData {
    const [isUploading, setIsUploading] = useState(false);
    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
    const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+  
    
     const [formData, setFormData] = useState<FormData>({
       title: "",
@@ -298,85 +294,34 @@ interface FormData {
      setEditingId(null);
    };
  
-  const handleOpenFile = async (material: Material, action: 'view' | 'download') => {
+  const getFileUrl = useCallback((material: Material, action: 'view' | 'download'): string | null => {
+    if (!material.file_url) return null;
+    if (isS3Path(material.file_url)) {
+      if (action === 'view' && isOfficeDocument(material.title)) return null;
+      return buildS3RedirectUrl(material.file_url, 'creator', undefined, action === 'download' ? material.title : undefined);
+    } else {
+      const path = parseStoragePath(material.file_url);
+      if (!path) return null;
+      return buildStorageRedirectUrl(path, action === 'download' ? material.title : undefined);
+    }
+  }, []);
+
+  const handleOfficeView = useCallback(async (material: Material) => {
     if (!material.file_url) return;
-     
-    // View: open window synchronously to capture user gesture (all platforms)
-    // Download: no window needed — window.location.href with attachment header
-    const newWindow = action === 'view' ? window.open('about:blank', '_blank') : null;
     const loadingToast = toast.loading("Подготовка файла...");
-    
     try {
-      setIsLoadingUrl(true);
-      const { isS3Path, getS3DownloadUrl } = await import("@/lib/s3Helpers");
-
-      const nav = async (url: string) => {
-        if (newWindow) {
-          newWindow.location.href = url;
-        } else {
-          // Download: triggers native download, page stays intact
-          window.location.href = url;
-        }
-      };
-
-      if (isS3Path(material.file_url)) {
-        if (action === 'download') {
-          const url = await getS3DownloadUrl(material.file_url, 'creator', undefined, material.title);
-          await nav(url);
-        } else {
-          if (isOfficeDocument(material.title)) {
-            const token = await requestMaterialToken(material.file_url, 'creator');
-            const proxyUrl = buildProxyUrl(token);
-            const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-            await nav(viewerUrl);
-          } else {
-            const url = await getS3DownloadUrl(material.file_url, 'creator');
-            await nav(url);
-          }
-        }
-      } else {
-        const isFullUrl = material.file_url.startsWith('http');
-        const path = isFullUrl 
-          ? material.file_url.split('/materials/')[1] 
-          : material.file_url;
-        
-        if (!path) {
-          newWindow?.close();
-          throw new Error('Invalid file path');
-        }
-        
-        const { data, error } = await supabase.storage
-          .from('materials')
-          .createSignedUrl(path, 3600, { download: action === 'download' ? material.title : false });
-        
-        if (error) {
-          newWindow?.close();
-          throw error;
-        }
-        
-        if (action === 'download') {
-          await nav(data.signedUrl);
-        } else {
-          if (isOfficeDocument(material.title)) {
-            const token = await requestMaterialToken(path, 'creator');
-            const proxyUrl = buildProxyUrl(token);
-            const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
-            await nav(viewerUrl);
-          } else {
-            await nav(data.signedUrl);
-          }
-        }
-      }
+      const token = await requestMaterialToken(material.file_url, 'creator');
+      const proxyUrl = buildProxyUrl(token);
+      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
+      window.open(viewerUrl, '_blank');
     } catch (err) {
-      console.error('Error getting file URL:', err);
-      newWindow?.close();
+      console.error('Error opening office doc:', err);
       const errMsg = err instanceof Error ? err.message : String(err);
-      toast.error(`Ошибка при открытии файла: ${errMsg}`);
+      toast.error(`Ошибка: ${errMsg}`);
     } finally {
-      setIsLoadingUrl(false);
       toast.dismiss(loadingToast);
     }
-  };
+  }, []);
 
    const renderAddForm = () => (
      <form onSubmit={handleAdd} className="space-y-4">
@@ -789,30 +734,45 @@ interface FormData {
                                  </div>
                                 </div>
                                <div className="flex gap-0.5 justify-end w-full" onClick={(e) => e.stopPropagation()}>
-                                {material.type === "file" && material.file_url && (
-                                  <>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-7 w-7 sm:h-8 sm:w-8"
-                                      onClick={() => handleOpenFile(material, 'download')}
-                                      disabled={isLoadingUrl}
-                                      title="Скачать"
-                                    >
-                                      <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-7 w-7 sm:h-8 sm:w-8"
-                                      onClick={() => handleOpenFile(material, 'view')}
-                                      disabled={isLoadingUrl}
-                                      title="Открыть в браузере"
-                                    >
-                                      <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                    </Button>
-                                  </>
-                                 )}
+                                {material.type === "file" && material.file_url && (() => {
+                                  const dlUrl = getFileUrl(material, 'download');
+                                  const vUrl = getFileUrl(material, 'view');
+                                  const needsOffice = isOfficeDocument(material.title) && isS3Path(material.file_url!);
+                                  return (
+                                    <>
+                                      {dlUrl && (
+                                        <a
+                                          href={dlUrl}
+                                          className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-7 w-7 sm:h-8 sm:w-8"
+                                          title="Скачать"
+                                        >
+                                          <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                        </a>
+                                      )}
+                                      {vUrl ? (
+                                        <a
+                                          href={vUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-7 w-7 sm:h-8 sm:w-8"
+                                          title="Открыть в браузере"
+                                        >
+                                          <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                        </a>
+                                      ) : needsOffice ? (
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon" 
+                                          className="h-7 w-7 sm:h-8 sm:w-8"
+                                          onClick={() => handleOfficeView(material)}
+                                          title="Открыть в браузере"
+                                        >
+                                          <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                        </Button>
+                                      ) : null}
+                                    </>
+                                  );
+                                })()}
                                  <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={() => handleEdit(material)}>
                                    <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                  </Button>
