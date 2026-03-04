@@ -2,28 +2,29 @@
 
 ## Problem
 
-The S3 `SignatureDoesNotMatch` error occurs because the download filename (containing Cyrillic characters like "1200 на 700.png") is being **double-encoded**:
+S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
 
-1. `encodeURIComponent(download)` encodes it → `1200%20%D0%BD%D0%B0%20700.png`
-2. The `aws_s3_presign` library **also encodes** query param values internally when computing the signature
-3. The actual URL ends up with single encoding, but the signature was computed over double-encoded values → **mismatch**
+## Root Cause
 
-The view button works because it doesn't add `response-content-disposition` with a filename.
+The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
 
-## Fix
+## Solution
 
-In `supabase/functions/s3-redirect/index.ts` line 82, remove `encodeURIComponent`:
+Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
+
+For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
+
+## Change
+
+**File**: `supabase/functions/s3-redirect/index.ts` — line 82
 
 ```typescript
-// Before (broken):
-'response-content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(download)}`,
-
-// After (fixed):
+// Before:
 'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
+
+// After:
+'response-content-disposition': 'attachment',
 ```
 
-The presign library handles URL-encoding internally. We should pass the raw value.
-
-### File to edit:
-1. `supabase/functions/s3-redirect/index.ts` — remove `encodeURIComponent` on line 82
+Single line change. No other files affected.
 
