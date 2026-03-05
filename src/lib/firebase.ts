@@ -67,8 +67,6 @@ export const getFCMToken = async (): Promise<string | null> => {
     const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", {
       updateViaCache: 'none'
     });
-    // Force check for updated SW
-    registration.update();
 
     // Get FCM token
     const token = await getToken(messaging, {
