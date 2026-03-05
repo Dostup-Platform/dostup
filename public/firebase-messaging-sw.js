@@ -2,6 +2,33 @@
 // This file handles push notifications when the app is in the background
 // Note: App caching is now handled by Workbox (vite-plugin-pwa)
 
+// RAW push handler — runs BEFORE Firebase SDK intercepts.
+// Shows notification from push event context (only reliable way on mobile PWA).
+self.addEventListener('push', (event) => {
+  const payload = event.data?.json() || {};
+  const data = payload.data || {};
+
+  if (!data.title) return; // nothing to show
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      const isForeground = clientList.some(c => c.visibilityState === 'visible');
+
+      if (isForeground) {
+        // Show notification from push context — only way that works on iOS/Android PWA
+        return self.registration.showNotification(data.title, {
+          body: data.body || "",
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          tag: data.type || "default",
+          data: data,
+        });
+      }
+      // Background: let onBackgroundMessage handle it (below)
+    })
+  );
+});
+
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 

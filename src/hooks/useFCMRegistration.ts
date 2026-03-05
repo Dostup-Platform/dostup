@@ -55,30 +55,14 @@ export const useFCMRegistration = ({
     return () => clearTimeout(timeout);
   }, [enabled, userId, userRole]);
 
-  // Set up foreground message handler
-  // NOTE: We don't show toast here because realtime hooks already show toasts
-  // This handler is only for logging and potential future use
+  // Foreground message handler — logging only.
+  // Notification display is handled by the Service Worker push event handler.
   useEffect(() => {
     if (!isRegistered) return;
 
     const unsubscribe = onForegroundMessage((payload) => {
       console.log("FCM foreground message received:", payload.title);
-      
-      if (Notification.permission === "granted" && payload.title) {
-        // Always use Service Worker to show notification —
-        // new Notification() doesn't work in iOS/Android PWA standalone mode
-        navigator.serviceWorker?.ready.then((reg) => {
-          reg.showNotification(payload.title!, {
-            body: payload.body || "",
-            icon: "/icon-192.png",
-            badge: "/icon-192.png",
-            tag: payload.data?.type || "default",
-            data: payload.data,
-          });
-        }).catch((e) => {
-          console.error("Failed to show foreground notification:", e);
-        });
-      }
+      // Notification is shown by SW push handler, no need to call showNotification() here
     });
 
     return unsubscribe;
