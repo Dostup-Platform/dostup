@@ -2,6 +2,12 @@
 // This file handles push notifications when the app is in the background
 // Note: App caching is now handled by Workbox (vite-plugin-pwa)
 
+// Force immediate activation of new SW versions
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 // RAW push handler — runs BEFORE Firebase SDK intercepts.
 // Shows notification from push event context (only reliable way on mobile PWA).
 self.addEventListener('push', (event) => {
