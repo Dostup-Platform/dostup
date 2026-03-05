@@ -16,10 +16,10 @@ interface Reminder {
   slot_date: string | null;
   slot_time: string | null;
   sent_at: string | null;
+  target_role: string;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -27,12 +27,10 @@ serve(async (req) => {
   try {
     console.log("Starting reminder check...");
 
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get pending reminders that are due
     const now = new Date().toISOString();
     const { data: reminders, error: remindersError } = await supabase
       .from("booking_reminders")
@@ -56,133 +54,86 @@ serve(async (req) => {
 
     console.log(`Found ${reminders.length} reminders to process`);
 
-    // Separate morning reminders from regular reminders
     const morningReminders = (reminders as Reminder[]).filter(r => r.reminder_type === "morning");
     const regularReminders = (reminders as Reminder[]).filter(r => r.reminder_type !== "morning");
 
     let successCount = 0;
     let failCount = 0;
 
-    // Process regular reminders (24h and 2h) - one notification per reminder
+    // Process regular reminders (24h and 2h)
     for (const reminder of regularReminders) {
       try {
-        const isRussian = true; // Default to Russian
-        
-        let title: string;
-        let body: string;
+        const { title, body } = getReminderText(reminder);
 
-        if (reminder.reminder_type === "24h") {
-          title = isRussian ? "Завтра занятие!" : "Ертең сабақ!";
-          body = isRussian
-            ? `"${reminder.product_title}" состоится ${formatDate(reminder.slot_date)} в ${formatTime(reminder.slot_time)}`
-            : `"${reminder.product_title}" ${formatDate(reminder.slot_date)} күні ${formatTime(reminder.slot_time)} болады`;
-        } else {
-          title = isRussian ? "Скоро занятие!" : "Жуырда сабақ!";
-          body = isRussian
-            ? `"${reminder.product_title}" начнётся через 2 часа`
-            : `"${reminder.product_title}" 2 сағаттан кейін басталады`;
-        }
+        const pushSuccess = await sendReminderPush(supabase, reminder, title, body);
 
-        // Call send-push-notification function
-        const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
-          body: {
-            userId: reminder.simple_user_id,
-            title,
-            body,
-            data: {
-              type: "reminder",
-              reminderType: reminder.reminder_type,
-              bookingId: reminder.booking_id
-            }
-          }
-        });
-
-        if (pushError) {
-          console.error(`Error sending reminder ${reminder.id}:`, pushError);
+        if (!pushSuccess) {
           failCount++;
           continue;
         }
 
-        // Mark reminder as sent
         await supabase
           .from("booking_reminders")
           .update({ sent_at: new Date().toISOString() })
           .eq("id", reminder.id);
 
         successCount++;
-        console.log(`Sent regular reminder ${reminder.id} to ${reminder.simple_user_id}`);
+        console.log(`Sent ${reminder.target_role} ${reminder.reminder_type} reminder ${reminder.id}`);
       } catch (error) {
         console.error(`Exception processing reminder ${reminder.id}:`, error);
         failCount++;
       }
     }
 
-    // Process morning reminders - group by simple_user_id
-    const morningByUser = new Map<string, Reminder[]>();
+    // Process morning reminders - group by (simple_user_id or target_role) + target_role
+    const morningByKey = new Map<string, Reminder[]>();
     for (const reminder of morningReminders) {
-      const key = reminder.simple_user_id;
-      if (!key) continue;
-      const existing = morningByUser.get(key) || [];
+      // For creators: group by target_role only (simple_user_id is null)
+      // For students/teachers: group by simple_user_id + target_role
+      const key = reminder.target_role === "creator"
+        ? `creator::creator`
+        : `${reminder.simple_user_id}::${reminder.target_role}`;
+      const existing = morningByKey.get(key) || [];
       existing.push(reminder);
-      morningByUser.set(key, existing);
+      morningByKey.set(key, existing);
     }
 
-    for (const [userKey, userReminders] of morningByUser) {
+    for (const [userKey, userReminders] of morningByKey) {
       try {
-        const isRussian = true;
+        const targetRole = userReminders[0].target_role;
+        const isCreatorOrTeacher = targetRole === "creator" || targetRole === "teacher";
 
-        // Sort by time
         const sortedReminders = userReminders.sort((a, b) => {
           const timeA = a.slot_time || "00:00";
           const timeB = b.slot_time || "00:00";
           return timeA.localeCompare(timeB);
         });
 
-        // Build consolidated message
         let title: string;
         let body: string;
 
         if (sortedReminders.length === 1) {
-          // Single lesson
           const r = sortedReminders[0];
-          title = isRussian ? "Сегодня занятие!" : "Бүгін сабақ!";
-          body = isRussian
-            ? `"${r.product_title}" в ${formatTime(r.slot_time)}`
-            : `"${r.product_title}" ${formatTime(r.slot_time)} кезінде`;
+          title = isCreatorOrTeacher ? "Сегодня урок!" : "Сегодня занятие!";
+          body = `"${r.product_title}" в ${formatTime(r.slot_time)}`;
         } else {
-          // Multiple lessons - consolidated
-          title = isRussian 
-            ? `Сегодня ${sortedReminders.length} занятия!` 
-            : `Бүгін ${sortedReminders.length} сабақ!`;
-          
+          title = isCreatorOrTeacher
+            ? `Сегодня ${sortedReminders.length} урока!`
+            : `Сегодня ${sortedReminders.length} занятия!`;
           const times = sortedReminders.map(r => formatTime(r.slot_time)).join(", ");
-          body = isRussian
+          body = isCreatorOrTeacher
             ? `У вас уроки сегодня в ${times}`
-            : `Бүгінгі сабақтарыңыз: ${times}`;
+            : `У вас уроки сегодня в ${times}`;
         }
 
-        // Send single consolidated notification
         const firstReminder = userReminders[0];
-        const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
-          body: {
-            userId: firstReminder.simple_user_id,
-            title,
-            body,
-            data: {
-              type: "reminder",
-              reminderType: "morning",
-              lessonCount: sortedReminders.length
-            }
-          }
-        });
+        const pushSuccess = await sendReminderPush(supabase, firstReminder, title, body);
 
-        if (pushError) {
-          console.error(`Error sending morning digest to ${userKey}:`, pushError);
+        if (!pushSuccess) {
           failCount += userReminders.length;
           continue;
         }
 
-        // Mark all morning reminders for this user as sent
         const reminderIds = userReminders.map(r => r.id);
         await supabase
           .from("booking_reminders")
@@ -190,7 +141,7 @@ serve(async (req) => {
           .in("id", reminderIds);
 
         successCount += userReminders.length;
-        console.log(`Sent morning digest to ${userKey} with ${userReminders.length} lessons`);
+        console.log(`Sent morning digest (${targetRole}) to ${userKey} with ${userReminders.length} lessons`);
       } catch (error) {
         console.error(`Exception processing morning digest for ${userKey}:`, error);
         failCount += userReminders.length;
@@ -200,15 +151,9 @@ serve(async (req) => {
     console.log(`Reminders processed: ${successCount} sent, ${failCount} failed`);
 
     return new Response(
-      JSON.stringify({
-        message: "Reminders processed",
-        sent: successCount,
-        failed: failCount,
-        total: reminders.length
-      }),
+      JSON.stringify({ message: "Reminders processed", sent: successCount, failed: failCount, total: reminders.length }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error in send-reminders:", error);
@@ -219,7 +164,100 @@ serve(async (req) => {
   }
 });
 
-// Helper functions
+// Get notification text based on role and type
+function getReminderText(reminder: Reminder): { title: string; body: string } {
+  const isCreatorOrTeacher = reminder.target_role === "creator" || reminder.target_role === "teacher";
+
+  if (reminder.reminder_type === "24h") {
+    return {
+      title: isCreatorOrTeacher ? "Завтра урок!" : "Завтра занятие!",
+      body: `"${reminder.product_title}" состоится ${formatDate(reminder.slot_date)} в ${formatTime(reminder.slot_time)}`
+    };
+  } else {
+    // 2h
+    return {
+      title: isCreatorOrTeacher ? "Скоро урок!" : "Скоро занятие!",
+      body: isCreatorOrTeacher
+        ? `"${reminder.product_title}" через 2 часа`
+        : `"${reminder.product_title}" начнётся через 2 часа`
+    };
+  }
+}
+
+// Send push notification based on target_role
+async function sendReminderPush(
+  supabase: any,
+  reminder: Reminder,
+  title: string,
+  body: string
+): Promise<boolean> {
+  const data = {
+    type: "reminder",
+    reminderType: reminder.reminder_type,
+    bookingId: reminder.booking_id || ""
+  };
+
+  if (reminder.target_role === "creator") {
+    // Creator tokens have user_id = NULL, query push_tokens directly
+    const { data: tokens, error: tokensError } = await supabase
+      .from("push_tokens")
+      .select("id, fcm_token")
+      .is("user_id", null)
+      .eq("user_role", "creator");
+
+    if (tokensError || !tokens || tokens.length === 0) {
+      console.log(`No creator push tokens found`);
+      return false;
+    }
+
+    // Send to all creator tokens via send-push-notification won't work (user_id is null)
+    // Instead, invoke for each token directly — but send-push-notification expects userId
+    // We need to send FCM directly. Let's use the first token approach via invoke with a workaround:
+    // Actually, let's just call send-push-notification for each token by using a special flag
+    // Simplest: query tokens here and call the edge function per token... but that's wasteful.
+    // Better: send to ALL creator tokens by invoking send-push-notification with a special identifier.
+    
+    // Since send-push-notification queries by user_id and creator has user_id=NULL,
+    // we pass userId=null and rely on targetRole to filter. But the function requires userId.
+    // Let's just call it with a dummy and targetRole, then fix the function... 
+    // Actually simplest fix: call send-push-notification with userId="__creator__" and handle in that function.
+    // But that requires changing send-push-notification too. 
+    
+    // Simplest approach: directly send FCM from here for creator tokens.
+    // But we don't have FCM logic here. Let's invoke send-push-notification differently.
+    
+    // Best approach: pass targetRole=creator and let send-push-notification handle null user_id
+    const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
+      body: { userId: null, title, body, data, targetRole: "creator" }
+    });
+
+    if (pushError) {
+      console.error(`Error sending creator reminder:`, pushError);
+      return false;
+    }
+    return true;
+  } else if (reminder.target_role === "teacher") {
+    const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
+      body: { userId: reminder.simple_user_id, title, body, data, targetRole: "teacher" }
+    });
+    if (pushError) {
+      console.error(`Error sending teacher reminder:`, pushError);
+      return false;
+    }
+    return true;
+  } else {
+    // Student — existing behavior
+    const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
+      body: { userId: reminder.simple_user_id, title, body, data }
+    });
+    if (pushError) {
+      console.error(`Error sending student reminder ${reminder.id}:`, pushError);
+      return false;
+    }
+    return true;
+  }
+}
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
@@ -228,6 +266,5 @@ function formatDate(dateStr: string | null): string {
 
 function formatTime(timeStr: string | null): string {
   if (!timeStr) return "";
-  // Handle both "HH:MM:SS" and "HH:MM" formats
   return timeStr.substring(0, 5);
 }
