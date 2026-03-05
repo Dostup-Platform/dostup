@@ -178,9 +178,9 @@ const CreatorDashboard = () => {
         setIsLoading(false);
       } catch (err) {
         console.error('Session validation error:', err);
-        localStorage.removeItem("creator_token");
-        localStorage.removeItem("creator_name");
-        navigate("/");
+        // Network error — don't remove session, use cached name
+        setCreatorName(name);
+        setIsLoading(false);
       }
     };
 

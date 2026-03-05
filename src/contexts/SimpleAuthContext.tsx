@@ -62,16 +62,22 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       }
       
       if (storedUserId) {
-        const { data, error } = await supabase
-          .from("simple_users")
-          .select("*")
-          .eq("id", storedUserId)
-          .single();
+        try {
+          const { data, error } = await supabase
+            .from("simple_users")
+            .select("*")
+            .eq("id", storedUserId)
+            .single();
 
-        if (data && !error) {
-          setUser(data as SimpleUser);
-        } else {
-          localStorage.removeItem(USER_STORAGE_KEY);
+          if (data && !error) {
+            setUser(data as SimpleUser);
+          } else if (error && error.code === 'PGRST116') {
+            // Row not found — user was deleted, clear session
+            localStorage.removeItem(USER_STORAGE_KEY);
+          }
+          // On other errors (network, timeout), keep localStorage intact
+        } catch {
+          console.warn("Failed to load user, keeping session for retry");
         }
       }
       setLoading(false);
