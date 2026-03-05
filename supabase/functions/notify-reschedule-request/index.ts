@@ -153,14 +153,8 @@ serve(async (req) => {
                 body: JSON.stringify({
                   message: {
                     token: tokenRecord.fcm_token,
-                    notification: { title, body },
-                    data: { type: "reschedule_request", rescheduleRequestId: record.id },
+                    data: { title, body, type: "reschedule_request", rescheduleRequestId: record.id },
                     webpush: {
-                      notification: {
-                        icon: "/icon-192.png", badge: "/icon-192.png",
-                        vibrate: [200, 100, 200], requireInteraction: true,
-                        tag: `reschedule-request-${record.id}`
-                      },
                       fcm_options: { link: targetLink }
                     }
                   }
@@ -228,14 +222,8 @@ serve(async (req) => {
               body: JSON.stringify({
                 message: {
                   token: tokenRecord.fcm_token,
-                  notification: { title, body },
-                  data: { type: "reschedule_request_from_teacher", rescheduleRequestId: record.id },
+                  data: { title, body, type: "reschedule_request_from_teacher", rescheduleRequestId: record.id },
                   webpush: {
-                    notification: {
-                      icon: "/icon-192.png", badge: "/icon-192.png",
-                      vibrate: [200, 100, 200], requireInteraction: true,
-                      tag: `reschedule-request-${record.id}`
-                    },
                     fcm_options: { link: targetLink }
                   }
                 }

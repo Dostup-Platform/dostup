@@ -2,83 +2,29 @@
 
 ## Problem
 
-FCM messages are sent with a `notification` field. This causes a platform-level split:
+S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
 
-- **Foreground**: Browser suppresses auto-display, passes to `onMessage`. Code tries `serviceWorker.showNotification()` but this doesn't reliably work on all platforms when the `notification` field is present (the OS may treat it as "already handled").
-- **Background**: Browser auto-displays the notification from the `notification` field. Works fine.
+## Root Cause
 
-This is why push only works when the app is closed and not when it's open.
-
-In-app UI (toasts, tab badges, notification list) works via Supabase Realtime which only runs when the app is open -- this is by design and cannot work when the app is closed. When the app reopens, `useAppResume` refreshes all data so these update.
+The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
 
 ## Solution
 
-Switch ALL FCM messages to **data-only format** (remove `notification` field, put `title`/`body` in `data`). This gives full control over notification display in both states:
+Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
 
-- **Foreground**: `onMessage` fires → show via `serviceWorker.showNotification()` (reliable with data-only)
-- **Background**: `onBackgroundMessage` fires → show manually via `self.registration.showNotification()`
+For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
 
-## Files to change
+## Change
 
-### 1. Edge Functions (5 files) — remove `notification`, add title/body to `data`
+**File**: `supabase/functions/s3-redirect/index.ts` — line 82
 
-In each function's FCM message body, change from:
-```js
-notification: { title, body },
-data: { type: "booking", ... },
-```
-to:
-```js
-data: { title, body, type: "booking", ... },
+```typescript
+// Before:
+'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
+
+// After:
+'response-content-disposition': 'attachment',
 ```
 
-Files:
-- `supabase/functions/notify-booking-change/index.ts`
-- `supabase/functions/notify-purchase-change/index.ts`
-- `supabase/functions/notify-reschedule-request/index.ts`
-- `supabase/functions/notify-reschedule-response/index.ts`
-- `supabase/functions/send-push-notification/index.ts`
-
-### 2. `public/firebase-messaging-sw.js` — show notification manually in background
-
-Update `onBackgroundMessage` to manually display notification from `data` fields:
-```js
-messaging.onBackgroundMessage((payload) => {
-  const data = payload.data || {};
-  if (data.title) {
-    self.registration.showNotification(data.title, {
-      body: data.body || "",
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      tag: data.type || "default",
-      data: data,
-      vibrate: [200, 100, 200],
-      requireInteraction: true
-    });
-  }
-});
-```
-
-### 3. `src/lib/firebase.ts` — read from `data` in foreground handler
-
-Update `onForegroundMessage` to read title/body from `payload.data` instead of `payload.notification`:
-```js
-callback({
-  title: payload.data?.title || payload.notification?.title,
-  body: payload.data?.body || payload.notification?.body,
-  data: payload.data
-});
-```
-
-### 4. No changes needed to `useFCMRegistration.ts` — already uses `serviceWorker.showNotification()`
-
-## What this achieves
-
-| Feature | App Open | App Closed |
-|---------|----------|------------|
-| Push notification | via onMessage + SW | via onBackgroundMessage + SW |
-| App badge (icon) | via setAppBadge() | via OS when push arrives |
-| Toast | via Realtime | on reopen via useAppResume |
-| Tab badge | via Realtime | on reopen via useAppResume |
-| Notification list | via Realtime | on reopen via useAppResume |
+Single line change. No other files affected.
 
