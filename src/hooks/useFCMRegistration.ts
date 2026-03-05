@@ -64,26 +64,20 @@ export const useFCMRegistration = ({
     const unsubscribe = onForegroundMessage((payload) => {
       console.log("FCM foreground message received:", payload.title);
       
-      // Show system notification even when app is in foreground
       if (Notification.permission === "granted" && payload.title) {
-        try {
-          new Notification(payload.title, {
+        // Always use Service Worker to show notification —
+        // new Notification() doesn't work in iOS/Android PWA standalone mode
+        navigator.serviceWorker?.ready.then((reg) => {
+          reg.showNotification(payload.title!, {
             body: payload.body || "",
             icon: "/icon-192.png",
             badge: "/icon-192.png",
             tag: payload.data?.type || "default",
+            data: payload.data,
           });
-        } catch (e) {
-          // Fallback for environments where new Notification() isn't supported
-          navigator.serviceWorker?.ready.then((reg) => {
-            reg.showNotification(payload.title!, {
-              body: payload.body || "",
-              icon: "/icon-192.png",
-              badge: "/icon-192.png",
-              tag: payload.data?.type || "default",
-            });
-          });
-        }
+        }).catch((e) => {
+          console.error("Failed to show foreground notification:", e);
+        });
       }
     });
 
