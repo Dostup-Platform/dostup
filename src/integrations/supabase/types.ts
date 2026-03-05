@@ -116,6 +116,7 @@ export type Database = {
           simple_user_id: string | null
           slot_date: string | null
           slot_time: string | null
+          target_role: string
         }
         Insert: {
           booking_id?: string | null
@@ -128,6 +129,7 @@ export type Database = {
           simple_user_id?: string | null
           slot_date?: string | null
           slot_time?: string | null
+          target_role?: string
         }
         Update: {
           booking_id?: string | null
@@ -140,6 +142,7 @@ export type Database = {
           simple_user_id?: string | null
           slot_date?: string | null
           slot_time?: string | null
+          target_role?: string
         }
         Relationships: [
           {
