@@ -63,8 +63,9 @@ export const getFCMToken = async (): Promise<string | null> => {
       if (!messaging) return null;
     }
 
-    // Register service worker
+    // Register service worker at separate scope to avoid conflict with PWA SW
     const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", {
+      scope: "/firebase-cloud-messaging-push-scope",
       updateViaCache: 'none'
     });
 

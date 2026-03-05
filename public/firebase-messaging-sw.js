@@ -1,59 +1,20 @@
 // Firebase Messaging Service Worker
-// This file handles push notifications when the app is in the background
-// Note: App caching is now handled by Workbox (vite-plugin-pwa)
+// Handles push notifications independently from the main PWA Service Worker
+// Registered at scope /firebase-cloud-messaging-push-scope to avoid conflicts
 
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
 
-// RAW push handler — runs BEFORE Firebase SDK intercepts.
-// Shows notification from push event context (only reliable way on mobile PWA).
+// Raw push handler — shows notification in ALL states (foreground + background)
 self.addEventListener('push', (event) => {
   const payload = event.data?.json() || {};
   const data = payload.data || {};
 
-  if (!data.title) return; // nothing to show
+  if (!data.title) return;
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      const isForeground = clientList.some(c => c.visibilityState === 'visible');
-
-      if (isForeground) {
-        // Show notification from push context — only way that works on iOS/Android PWA
-        return self.registration.showNotification(data.title, {
-          body: data.body || "",
-          icon: "/icon-192.png",
-          badge: "/icon-192.png",
-          tag: data.type || "default",
-          data: data,
-        });
-      }
-      // Background: let onBackgroundMessage handle it (below)
-    })
-  );
-});
-
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
-
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyBU7eLriaqnhOIDrd7O4wQmCAwqEqj-kZ4",
-  authDomain: "dostup-5f5aa.firebaseapp.com",
-  projectId: "dostup-5f5aa",
-  storageBucket: "dostup-5f5aa.firebasestorage.app",
-  messagingSenderId: "201015831480",
-  appId: "1:201015831480:web:59116187a7c3375e2afd4d"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-
-// Retrieve firebase messaging
-const messaging = firebase.messaging();
-
-// Handle background messages (data-only — must show manually)
-messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message:', payload);
-  const data = payload.data || {};
-  if (data.title) {
     self.registration.showNotification(data.title, {
       body: data.body || "",
       icon: "/icon-192.png",
@@ -62,38 +23,31 @@ messaging.onBackgroundMessage((payload) => {
       data: data,
       vibrate: [200, 100, 200],
       requireInteraction: true
-    });
-  }
+    })
+  );
 });
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
-  console.log('[firebase-messaging-sw.js] Notification click:', event);
-  
   event.notification.close();
 
-  // Get the notification data
   const data = event.notification.data || {};
   let targetUrl = '/';
 
-  // Determine where to navigate based on notification type
   if (data.type === 'booking' || data.type === 'cancellation' || data.type === 'payment') {
     targetUrl = '/creator';
   } else if (data.type === 'creator_cancellation' || data.type === 'reminder' || data.type === 'material_unlocked') {
     targetUrl = '/dashboard';
   }
 
-  // Open or focus the app
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Check if there's already a window open
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           client.navigate(targetUrl);
           return client.focus();
         }
       }
-      // If no window is open, open a new one
       if (clients.openWindow) {
         return clients.openWindow(targetUrl);
       }
