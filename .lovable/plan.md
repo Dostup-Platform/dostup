@@ -2,41 +2,29 @@
 
 ## Problem
 
-When the app is open (foreground), FCM messages are intercepted by the `onMessage` handler in `useFCMRegistration.ts`. The code tries to show a system notification using `new Notification()`, but **on iOS PWA standalone mode, `new Notification()` is not supported** — it throws an error silently. The fallback to `serviceWorker.showNotification()` only runs in the `catch` block, but on some platforms the constructor doesn't throw — it just fails silently.
+S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
 
-When the app is closed (background), the Service Worker handles FCM messages directly via `onBackgroundMessage`, which works correctly because the FCM SDK shows the notification automatically.
+## Root Cause
 
-## Fix
+The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
 
-Always use `navigator.serviceWorker.ready.then(reg => reg.showNotification(...))` as the **primary** method for foreground notifications. This is the only reliable way to show push notifications in PWA standalone mode on both iOS and Android.
+## Solution
+
+Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
+
+For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
 
 ## Change
 
-**File**: `src/hooks/useFCMRegistration.ts` — lines 64-90
-
-Replace the foreground message handler to always use the Service Worker API:
+**File**: `supabase/functions/s3-redirect/index.ts` — line 82
 
 ```typescript
-const unsubscribe = onForegroundMessage((payload) => {
-  console.log("FCM foreground message received:", payload.title);
-  
-  if (Notification.permission === "granted" && payload.title) {
-    // Always use Service Worker to show notification — 
-    // new Notification() doesn't work in iOS/Android PWA standalone mode
-    navigator.serviceWorker?.ready.then((reg) => {
-      reg.showNotification(payload.title!, {
-        body: payload.body || "",
-        icon: "/icon-192.png",
-        badge: "/icon-192.png",
-        tag: payload.data?.type || "default",
-        data: payload.data,
-      });
-    }).catch((e) => {
-      console.error("Failed to show foreground notification:", e);
-    });
-  }
-});
+// Before:
+'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
+
+// After:
+'response-content-disposition': 'attachment',
 ```
 
-Single file change, no other files affected.
+Single line change. No other files affected.
 
