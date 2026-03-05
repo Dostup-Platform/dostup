@@ -211,14 +211,15 @@ serve(async (req) => {
 
     const { userId, title, body, data, targetRole } = await req.json();
 
-    if (!userId || !title || !body) {
+    if (!title || !body) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: userId, title, body" }),
+        JSON.stringify({ error: "Missing required fields: title, body" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const identifier = userId;
+    // For creators, userId may be null — use targetRole to identify
+    const identifier = userId || `role:${targetRole || 'unknown'}`;
 
     // Check for duplicate notifications
     const dedupKey = getNotificationKey(identifier, title, data);
@@ -240,7 +241,12 @@ serve(async (req) => {
       .from("push_tokens")
       .select("id, fcm_token, user_role");
 
-    query = query.eq("user_id", userId);
+    if (userId) {
+      query = query.eq("user_id", userId);
+    } else {
+      // Creator tokens have user_id = NULL
+      query = query.is("user_id", null);
+    }
     
     if (targetRole) {
       query = query.eq("user_role", targetRole);
