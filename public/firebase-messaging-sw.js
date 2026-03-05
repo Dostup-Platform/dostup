@@ -21,11 +21,21 @@ firebase.initializeApp(firebaseConfig);
 // Retrieve firebase messaging
 const messaging = firebase.messaging();
 
-// Handle background messages
+// Handle background messages (data-only — must show manually)
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message:', payload);
-  // FCM SDK automatically shows the notification when payload contains
-  // a "notification" field. No manual showNotification() needed.
+  const data = payload.data || {};
+  if (data.title) {
+    self.registration.showNotification(data.title, {
+      body: data.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: data.type || "default",
+      data: data,
+      vibrate: [200, 100, 200],
+      requireInteraction: true
+    });
+  }
 });
 
 // Handle notification click

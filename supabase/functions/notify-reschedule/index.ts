@@ -128,16 +128,8 @@ async function sendFCMToUser(
       const message = {
         message: {
           token: tokenRecord.fcm_token,
-          notification: { title, body },
-          data: data || {},
+          data: { title, body, ...(data || {}) },
           webpush: {
-            notification: {
-              icon: "/icon-192.png",
-              badge: "/icon-192.png",
-              vibrate: [200, 100, 200],
-              requireInteraction: true,
-              tag: `reschedule-${data?.rescheduleId || Date.now()}`
-            },
             fcm_options: { link: "/dashboard" }
           }
         }

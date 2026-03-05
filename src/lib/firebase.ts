@@ -187,8 +187,8 @@ export const onForegroundMessage = (
   return onMessage(messaging, (payload) => {
     console.log("Foreground message received:", payload);
     callback({
-      title: payload.notification?.title,
-      body: payload.notification?.body,
+      title: payload.data?.title || payload.notification?.title,
+      body: payload.data?.body || payload.notification?.body,
       data: payload.data
     });
   });

@@ -157,14 +157,8 @@ serve(async (req) => {
             body: JSON.stringify({
               message: {
                 token: tokenRecord.fcm_token,
-                notification: { title, body },
-                data: { type: "reschedule_response", rescheduleRequestId: record.id, status: record.status },
+                data: { title, body, type: "reschedule_response", rescheduleRequestId: record.id, status: record.status },
                 webpush: {
-                  notification: {
-                    icon: "/icon-192.png", badge: "/icon-192.png",
-                    vibrate: [200, 100, 200], requireInteraction: true,
-                    tag: `reschedule-response-${record.id}`
-                  },
                   fcm_options: { link: targetLink }
                 }
               }
