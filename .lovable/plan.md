@@ -1,28 +1,30 @@
 
 
-## Analysis
+## Problem
 
-The 24h reminder **is correctly created** in the database:
+`CreatorAccountTab` passes `creatorName` (a text string like "Иван") as `userId` to `NotificationPreferences`:
 
-| Field | Value |
-|-------|-------|
-| `id` | `0acbfc7e...` |
-| `target_role` | `creator` |
-| `reminder_type` | `24h` |
-| `scheduled_at` | `2026-03-07 09:49:00 UTC` (14:49 local) |
-| `sent_at` | `NULL` (not yet sent) |
+```tsx
+<NotificationPreferences userId={creatorName} />
+```
 
-The cron job `send-booking-reminders` runs **every 15 minutes** (`*/15 * * * *`). The last run was at **09:45 UTC** — 4 minutes **before** the reminder became due (09:49 UTC). The next run will be at **10:00 UTC**, which will pick up and send this reminder.
+But `notification_preferences.user_id` is a **UUID** column. Inserting/querying with a plain text string fails with a type error, causing "Не удалось сохранить".
 
-**There is no bug.** The reminder will arrive within the next ~11 minutes. The delay is caused by the 15-minute cron interval.
+## Fix
 
-## Fix: Reduce cron interval to every 2 minutes
+Change `notification_preferences.user_id` from `uuid` to `text`. This allows it to store both:
+- Student UUIDs (from `simple_users.id`)
+- Creator names (text strings)
 
-To make reminders arrive more promptly (within ~2 minutes of scheduled time instead of up to 15), update the cron schedule from `*/15 * * * *` to `*/2 * * * *`.
+This is a single migration:
 
-This requires a single SQL statement to reschedule the existing cron job.
+```sql
+ALTER TABLE notification_preferences ALTER COLUMN user_id TYPE text;
+```
+
+No code changes needed — the component already works with text strings, the database just rejects them due to the UUID type constraint.
 
 | What | Change |
 |------|--------|
-| Cron job `send-booking-reminders` | Change schedule from `*/15 * * * *` to `*/2 * * * *` |
+| Migration SQL | Change `notification_preferences.user_id` from `uuid` to `text` |
 
