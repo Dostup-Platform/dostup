@@ -2,31 +2,29 @@
 
 ## Problem
 
-The `create_booking_reminders` trigger fires on every INSERT into `simple_bookings`. Inside it, there's a JOIN:
+S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
 
-```sql
-LEFT JOIN notification_preferences np ON np.user_id = NEW.simple_user_id;
+## Root Cause
+
+The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
+
+## Solution
+
+Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
+
+For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
+
+## Change
+
+**File**: `supabase/functions/s3-redirect/index.ts` — line 82
+
+```typescript
+// Before:
+'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
+
+// After:
+'response-content-disposition': 'attachment',
 ```
 
-After the previous migration changed `notification_preferences.user_id` from `uuid` to `text`, this comparison (`text = uuid`) fails with:
-
-```
-operator does not exist: text = uuid
-```
-
-This causes the entire INSERT into `simple_bookings` to fail, preventing students from booking.
-
-## Fix
-
-Update the `create_booking_reminders` function to cast `NEW.simple_user_id` to `text` when joining with `notification_preferences`:
-
-```sql
-LEFT JOIN notification_preferences np ON np.user_id = NEW.simple_user_id::text;
-```
-
-Single migration, no code changes needed.
-
-| What | Change |
-|------|--------|
-| Migration SQL | Update `create_booking_reminders`: cast `simple_user_id` to `text` in the JOIN |
+Single line change. No other files affected.
 
