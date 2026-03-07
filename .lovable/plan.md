@@ -1,39 +1,30 @@
 
 
-## Problem: Timezone Bug in Reminder Scheduling
+## Problem
 
-The `create_booking_reminders` trigger calculates `scheduled_at` incorrectly:
+S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
 
-```sql
-v_slot_datetime := (v_slot_date::TEXT || ' ' || v_slot_time::TEXT)::TIMESTAMPTZ;
+## Root Cause
+
+The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
+
+## Solution
+
+Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
+
+For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
+
+## Change
+
+**File**: `supabase/functions/s3-redirect/index.ts` — line 82
+
+```typescript
+// Before:
+'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
+
+// After:
+'response-content-disposition': 'attachment',
 ```
 
-This interprets `16:33` (4:33 PM local Kazakhstan time) as `16:33 UTC`. So the "2 hours before" reminder is scheduled for `14:33 UTC` = **7:33 PM local** — which is AFTER the lesson.
-
-The correct `scheduled_at` should be `09:33 UTC` (2:33 PM local, 2h before 4:33 PM local).
-
-**Evidence from database:**
-- `slot_time`: 16:33 (local)
-- `scheduled_at`: 14:33 UTC (wrong — this is 7:33 PM local)
-- Should be: 09:33 UTC (2:33 PM local)
-
-## Fix
-
-Use `AT TIME ZONE 'Asia/Almaty'` to properly convert local time to UTC:
-
-```sql
-v_slot_datetime := ((v_slot_date::TEXT || ' ' || v_slot_time::TEXT)::TIMESTAMP AT TIME ZONE 'Asia/Almaty');
-```
-
-This single change in the `create_booking_reminders` function fixes all reminder types (24h, 2h, morning) for all roles (student, creator, teacher).
-
-After updating the trigger, we also need to fix the existing reminder rows for the current booking so they fire at the correct time.
-
-## Changes
-
-| What | Change |
-|------|--------|
-| Migration SQL | Update `create_booking_reminders` function: use `AT TIME ZONE 'Asia/Almaty'` |
-| Migration SQL | Fix existing unsent reminders: recalculate `scheduled_at` with correct timezone |
-| Morning reminders | Also fix: `v_morning_datetime` calculation uses same wrong pattern |
+Single line change. No other files affected.
 
