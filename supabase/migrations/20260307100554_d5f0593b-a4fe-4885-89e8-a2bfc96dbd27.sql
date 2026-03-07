@@ -1,0 +1,1 @@
+ALTER TABLE notification_preferences ALTER COLUMN user_id TYPE text;
