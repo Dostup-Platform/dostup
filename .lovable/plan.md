@@ -1,30 +1,28 @@
 
 
-## Problem
+## Analysis
 
-S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
+The 24h reminder **is correctly created** in the database:
 
-## Root Cause
+| Field | Value |
+|-------|-------|
+| `id` | `0acbfc7e...` |
+| `target_role` | `creator` |
+| `reminder_type` | `24h` |
+| `scheduled_at` | `2026-03-07 09:49:00 UTC` (14:49 local) |
+| `sent_at` | `NULL` (not yet sent) |
 
-The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
+The cron job `send-booking-reminders` runs **every 15 minutes** (`*/15 * * * *`). The last run was at **09:45 UTC** — 4 minutes **before** the reminder became due (09:49 UTC). The next run will be at **10:00 UTC**, which will pick up and send this reminder.
 
-## Solution
+**There is no bug.** The reminder will arrive within the next ~11 minutes. The delay is caused by the 15-minute cron interval.
 
-Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
+## Fix: Reduce cron interval to every 2 minutes
 
-For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
+To make reminders arrive more promptly (within ~2 minutes of scheduled time instead of up to 15), update the cron schedule from `*/15 * * * *` to `*/2 * * * *`.
 
-## Change
+This requires a single SQL statement to reschedule the existing cron job.
 
-**File**: `supabase/functions/s3-redirect/index.ts` — line 82
-
-```typescript
-// Before:
-'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
-
-// After:
-'response-content-disposition': 'attachment',
-```
-
-Single line change. No other files affected.
+| What | Change |
+|------|--------|
+| Cron job `send-booking-reminders` | Change schedule from `*/15 * * * *` to `*/2 * * * *` |
 
