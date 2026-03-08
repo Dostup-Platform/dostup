@@ -498,7 +498,7 @@ const ProductScheduleManager = ({ productId, productTitle, isOpen, onClose }: Pr
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label>Начало дня (24ч)</Label>
+                            <Label>Начало дня</Label>
                             <Input
                               type="time"
                               value={slotsForm.startTime}
