@@ -1216,7 +1216,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{language === "ru" ? "Время начала (24ч)" : "Басталу уақыты (24с)"}</Label>
+                <Label>{language === "ru" ? "Время начала" : "Басталу уақыты"}</Label>
                 <Input
                   type="time"
                   value={slotsForm.startTime}
