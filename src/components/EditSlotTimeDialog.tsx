@@ -106,7 +106,7 @@ const EditSlotTimeDialog = ({
           </div>
           <div className="space-y-2">
             <Label>
-              {language === "ru" ? "Конец (24ч)" : "Аяқталуы (24с)"}
+              {language === "ru" ? "Конец" : "Аяқталуы"}
             </Label>
             <Input
               type="time"
