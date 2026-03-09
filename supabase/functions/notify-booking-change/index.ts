@@ -373,6 +373,23 @@ serve(async (req) => {
       );
       totalSent += sent;
 
+      // 3. Notify student if cancelled by creator/teacher
+      if (cancellation.cancelled_by !== "student" && cancellation.simple_user_id) {
+        const cancellerLabel = cancellation.cancelled_by === "teacher" ? "Учитель" : "Автор";
+        const studentTitle = `${cancellerLabel} отменил занятие`;
+        const studentBody = `Занятие "${cancellation.product_title}" на ${cancellation.slot_date} в ${cancellation.slot_time} отменено`;
+        
+        const sentStudent = await sendFCMToUser(
+          supabase,
+          cancellation.simple_user_id,
+          "student",
+          studentTitle,
+          studentBody,
+          { ...notificationData, type: "creator_cancellation" }
+        );
+        totalSent += sentStudent;
+      }
+
       console.log(`Booking DELETE: sent ${totalSent} notifications`);
 
       return new Response(
