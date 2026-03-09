@@ -1,30 +1,35 @@
 
 
-## Problem
+## Проблема
 
-S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
+Когда автор/учитель **одобряет** запрос ученика на перенос, срабатывают **две** системы уведомлений:
 
-## Root Cause
+1. `notify-reschedule-response` — срабатывает на UPDATE `reschedule_requests` (статус → approved) → отправляет ученику "Перенос подтверждён" ✅
+2. `notify-reschedule` — срабатывает на INSERT в `booking_reschedules` (создаётся запись о переносе) → отправляет ученику "Урок перенесён" ❌ дубликат
 
-The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
+Ученик получает **два** пуша вместо одного.
 
-## Solution
+## Решение
 
-Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
+В `notify-reschedule/index.ts` добавить проверку: если причина содержит "Запрос ученика подтверждён", значит это автоматический перенос после одобрения запроса — пуш уже отправлен через `notify-reschedule-response`, поэтому пропускаем.
 
-For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
+### Изменение
 
-## Change
+**Файл:** `supabase/functions/notify-reschedule/index.ts`
 
-**File**: `supabase/functions/s3-redirect/index.ts` — line 82
+После получения `record` (строка ~196), перед отправкой пуша добавить:
 
 ```typescript
-// Before:
-'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
-
-// After:
-'response-content-disposition': 'attachment',
+// Skip if this reschedule was auto-created from approving a student's request
+// (notify-reschedule-response already sent a push)
+if (record.reasons?.includes("Запрос ученика подтверждён")) {
+  console.log("Skipping: auto-created from approved student request");
+  return new Response(
+    JSON.stringify({ success: true, message: "Skipped (handled by response notification)" }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
 ```
 
-Single line change. No other files affected.
+Один файл, ~7 строк.
 
