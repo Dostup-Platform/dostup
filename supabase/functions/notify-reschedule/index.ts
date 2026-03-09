@@ -189,6 +189,16 @@ serve(async (req) => {
       );
     }
 
+    // Skip if this reschedule was auto-created from approving a student's request
+    // (notify-reschedule-response already sent a push)
+    if (record.reasons?.includes("Запрос ученика подтверждён")) {
+      console.log("Skipping: auto-created from approved student request");
+      return new Response(
+        JSON.stringify({ success: true, message: "Skipped (handled by response notification)" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
