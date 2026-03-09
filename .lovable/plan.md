@@ -1,30 +1,44 @@
 
 
-## Problem
+## Проблема
 
-S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
+В edge-функции `notify-booking-change`, при DELETE (отмена записи), пуш-уведомления отправляются только автору и учителю. Ученику пуш **не отправляется вообще** — нет вызова `sendFCMToUser` для студента.
 
-## Root Cause
+## Решение
 
-The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
+В блоке DELETE добавить отправку пуш-уведомления ученику, используя `cancellation.simple_user_id` и роль `"student"`.
 
-## Solution
+Текст уведомления зависит от `cancelled_by`:
+- Если `cancelled_by = "creator"` → "Автор отменил занятие"
+- Если `cancelled_by = "teacher"` → "Учитель отменил занятие"
+- Если `cancelled_by = "student"` → не отправляем пуш ученику (он сам отменил)
 
-Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
+| Файл | Изменение |
+|------|-----------|
+| `supabase/functions/notify-booking-change/index.ts` | В блоке DELETE, после отправки пуша автору, добавить отправку ученику если `cancelled_by !== "student"` |
 
-For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
+### Код (строки ~365-375)
 
-## Change
-
-**File**: `supabase/functions/s3-redirect/index.ts` — line 82
+После существующей отправки автору добавляем:
 
 ```typescript
-// Before:
-'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
-
-// After:
-'response-content-disposition': 'attachment',
+// 3. Notify student if cancelled by creator/teacher
+if (cancellation.cancelled_by !== "student" && cancellation.simple_user_id) {
+  const cancellerLabel = cancellation.cancelled_by === "teacher" ? "Учитель" : "Автор";
+  const studentTitle = `${cancellerLabel} отменил занятие`;
+  const studentBody = `Занятие "${cancellation.product_title}" на ${cancellation.slot_date} в ${cancellation.slot_time} отменено`;
+  
+  const sent = await sendFCMToUser(
+    supabase,
+    cancellation.simple_user_id,
+    "student",
+    studentTitle,
+    studentBody,
+    { ...notificationData, type: "creator_cancellation" }
+  );
+  totalSent += sent;
+}
 ```
 
-Single line change. No other files affected.
+Один файл, ~10 строк.
 
