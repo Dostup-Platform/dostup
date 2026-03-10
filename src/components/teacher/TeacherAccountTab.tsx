@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { User, LogOut, Loader2, Download, Globe } from "lucide-react";
 import { unregisterPushToken } from "@/lib/firebase";
-import NotificationPreferences from "@/components/NotificationPreferences";
 import { usePWADetection } from "@/hooks/usePWADetection";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import {
