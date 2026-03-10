@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { User, LogOut, Loader2, Download, Globe } from "lucide-react";
 import { unregisterPushToken } from "@/lib/firebase";
-import NotificationPreferences from "@/components/NotificationPreferences";
 import { usePWADetection } from "@/hooks/usePWADetection";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import {
@@ -69,9 +68,6 @@ const TeacherAccountTab = ({ teacherName, teacherId }: TeacherAccountTabProps) =
           </div>
         </CardContent>
       </Card>
-
-      {/* Notification Preferences */}
-      {teacherId && <NotificationPreferences userId={teacherId} />}
 
       {/* Language Switcher */}
       <Card>

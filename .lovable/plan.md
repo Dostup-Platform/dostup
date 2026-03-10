@@ -1,24 +1,30 @@
 
 
-## План: убрать утренние напоминания и UI настроек
+## Problem
 
-### Что делаем
-1. Убираем компонент `NotificationPreferences` из всех трёх вкладок аккаунта (ученик, учитель, автор)
-2. Убираем создание утренних напоминаний из триггера `create_booking_reminders`
-3. Убираем обработку утренних напоминаний из edge-функции `send-reminders`
-4. Оставляем только 24h и 2h — всегда включены, без выбора
+S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
 
-### Изменения
+## Root Cause
 
-| Файл | Что меняем |
-|------|-----------|
-| `src/components/dashboard/AccountTab.tsx` | Убираем импорт и рендер `NotificationPreferences` |
-| `src/components/creator/CreatorAccountTab.tsx` | Убираем импорт и рендер `NotificationPreferences` |
-| `src/components/teacher/TeacherAccountTab.tsx` | Убираем импорт и рендер `NotificationPreferences` |
-| `supabase/functions/send-reminders/index.ts` | Убираем блок обработки morning reminders (~строки 57-149) |
-| SQL миграция | Обновляем функцию `create_booking_reminders` — убираем все блоки с `reminder_type = 'morning'` и убираем зависимость от `notification_preferences` |
+The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
 
-### Триггер `create_booking_reminders` — упрощение
+## Solution
 
-Сейчас триггер читает `notification_preferences` для каждого пользователя. Поскольку настройки убираем и 24h/2h всегда включены, триггер упрощается: всегда создавать 24h и 2h напоминания для ученика, учителя и автора без проверки preferences.
+Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
+
+For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
+
+## Change
+
+**File**: `supabase/functions/s3-redirect/index.ts` — line 82
+
+```typescript
+// Before:
+'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
+
+// After:
+'response-content-disposition': 'attachment',
+```
+
+Single line change. No other files affected.
 

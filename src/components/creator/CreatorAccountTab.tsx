@@ -7,7 +7,6 @@ import { ru } from "date-fns/locale";
 import { useNavigate, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
-import NotificationPreferences from "@/components/NotificationPreferences";
 import { usePWADetection } from "@/hooks/usePWADetection";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import {
@@ -84,9 +83,6 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
           </div>
         </CardContent>
       </Card>
-
-      {/* Notification Preferences */}
-      <NotificationPreferences userId={creatorName} />
 
       {/* Language Switcher */}
       <Card>

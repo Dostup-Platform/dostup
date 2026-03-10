@@ -54,8 +54,16 @@ serve(async (req) => {
 
     console.log(`Found ${reminders.length} reminders to process`);
 
-    const morningReminders = (reminders as Reminder[]).filter(r => r.reminder_type === "morning");
+    // Filter out morning reminders (no longer used)
     const regularReminders = (reminders as Reminder[]).filter(r => r.reminder_type !== "morning");
+
+    // Mark any remaining morning reminders as sent so they don't pile up
+    const morningReminders = (reminders as Reminder[]).filter(r => r.reminder_type === "morning");
+    if (morningReminders.length > 0) {
+      const morningIds = morningReminders.map(r => r.id);
+      await supabase.from("booking_reminders").update({ sent_at: new Date().toISOString() }).in("id", morningIds);
+      console.log(`Skipped ${morningIds.length} morning reminders (feature removed)`);
+    }
 
     let successCount = 0;
     let failCount = 0;
@@ -82,69 +90,6 @@ serve(async (req) => {
       } catch (error) {
         console.error(`Exception processing reminder ${reminder.id}:`, error);
         failCount++;
-      }
-    }
-
-    // Process morning reminders - group by (simple_user_id or target_role) + target_role
-    const morningByKey = new Map<string, Reminder[]>();
-    for (const reminder of morningReminders) {
-      // For creators: group by target_role only (simple_user_id is null)
-      // For students/teachers: group by simple_user_id + target_role
-      const key = reminder.target_role === "creator"
-        ? `creator::creator`
-        : `${reminder.simple_user_id}::${reminder.target_role}`;
-      const existing = morningByKey.get(key) || [];
-      existing.push(reminder);
-      morningByKey.set(key, existing);
-    }
-
-    for (const [userKey, userReminders] of morningByKey) {
-      try {
-        const targetRole = userReminders[0].target_role;
-        const isCreatorOrTeacher = targetRole === "creator" || targetRole === "teacher";
-
-        const sortedReminders = userReminders.sort((a, b) => {
-          const timeA = a.slot_time || "00:00";
-          const timeB = b.slot_time || "00:00";
-          return timeA.localeCompare(timeB);
-        });
-
-        let title: string;
-        let body: string;
-
-        if (sortedReminders.length === 1) {
-          const r = sortedReminders[0];
-          title = isCreatorOrTeacher ? "Сегодня урок!" : "Сегодня занятие!";
-          body = `"${r.product_title}" в ${formatTime(r.slot_time)}`;
-        } else {
-          title = isCreatorOrTeacher
-            ? `Сегодня ${sortedReminders.length} урока!`
-            : `Сегодня ${sortedReminders.length} занятия!`;
-          const times = sortedReminders.map(r => formatTime(r.slot_time)).join(", ");
-          body = isCreatorOrTeacher
-            ? `У вас уроки сегодня в ${times}`
-            : `У вас уроки сегодня в ${times}`;
-        }
-
-        const firstReminder = userReminders[0];
-        const pushSuccess = await sendReminderPush(supabase, firstReminder, title, body);
-
-        if (!pushSuccess) {
-          failCount += userReminders.length;
-          continue;
-        }
-
-        const reminderIds = userReminders.map(r => r.id);
-        await supabase
-          .from("booking_reminders")
-          .update({ sent_at: new Date().toISOString() })
-          .in("id", reminderIds);
-
-        successCount += userReminders.length;
-        console.log(`Sent morning digest (${targetRole}) to ${userKey} with ${userReminders.length} lessons`);
-      } catch (error) {
-        console.error(`Exception processing morning digest for ${userKey}:`, error);
-        failCount += userReminders.length;
       }
     }
 
