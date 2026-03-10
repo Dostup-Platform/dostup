@@ -69,9 +69,6 @@ const TeacherAccountTab = ({ teacherName, teacherId }: TeacherAccountTabProps) =
         </CardContent>
       </Card>
 
-      {/* Notification Preferences */}
-      {teacherId && <NotificationPreferences userId={teacherId} />}
-
       {/* Language Switcher */}
       <Card>
         <CardHeader className="pb-3">

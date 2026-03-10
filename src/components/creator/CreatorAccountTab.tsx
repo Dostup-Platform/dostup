@@ -84,9 +84,6 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
         </CardContent>
       </Card>
 
-      {/* Notification Preferences */}
-      <NotificationPreferences userId={creatorName} />
-
       {/* Language Switcher */}
       <Card>
         <CardHeader className="pb-3">

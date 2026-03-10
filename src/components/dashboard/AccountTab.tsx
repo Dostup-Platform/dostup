@@ -126,9 +126,6 @@ const AccountTab = () => {
         </CardContent>
       </Card>
 
-      {/* Notification Preferences */}
-      <NotificationPreferences userId={user.id} />
-
       {/* Language Switcher */}
       <Card>
         <CardHeader className="pb-3">
