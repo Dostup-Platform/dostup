@@ -54,8 +54,16 @@ serve(async (req) => {
 
     console.log(`Found ${reminders.length} reminders to process`);
 
-    const morningReminders = (reminders as Reminder[]).filter(r => r.reminder_type === "morning");
+    // Filter out morning reminders (no longer used)
     const regularReminders = (reminders as Reminder[]).filter(r => r.reminder_type !== "morning");
+
+    // Mark any remaining morning reminders as sent so they don't pile up
+    const morningReminders = (reminders as Reminder[]).filter(r => r.reminder_type === "morning");
+    if (morningReminders.length > 0) {
+      const morningIds = morningReminders.map(r => r.id);
+      await supabase.from("booking_reminders").update({ sent_at: new Date().toISOString() }).in("id", morningIds);
+      console.log(`Skipped ${morningIds.length} morning reminders (feature removed)`);
+    }
 
     let successCount = 0;
     let failCount = 0;
