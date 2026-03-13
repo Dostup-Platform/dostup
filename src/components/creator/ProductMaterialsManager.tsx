@@ -519,12 +519,12 @@ interface FormData {
            className="flex-1"
            disabled={isUploading || createMaterial.isPending}
          >
-           {(isUploading || createMaterial.isPending) ? (
-             <span className="flex items-center gap-2">
-               <Loader2 className="w-4 h-4 animate-spin" />
-               Загрузка...
-             </span>
-           ) : (
+            {(isUploading || createMaterial.isPending) ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {isUploading && uploadProgress > 0 ? `${uploadProgress}%` : 'Загрузка...'}
+              </span>
+            ) : (
              t("add")
            )}
          </Button>
