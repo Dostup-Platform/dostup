@@ -412,7 +412,7 @@ const MaterialsTab = () => {
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[hsl(200,80%,50%)]/10 text-[hsl(200,80%,40%)] hover:bg-[hsl(200,80%,50%)]/20 transition-colors font-medium text-sm"
               >
-                {language === "ru" ? "Вступить в группу" : "Топқа қосылу"}
+                {language === "ru" ? "Вступить в группу (Telegram/Discord или др.)" : "Топқа қосылу (Telegram/Discord т.б.)"}
               </a>
             </div>
           ))}
