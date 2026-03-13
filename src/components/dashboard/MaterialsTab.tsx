@@ -428,8 +428,9 @@ const MaterialsTab = () => {
                     </a>
                   )}
                   {productMaterials?.map((material, index) => renderMaterialCard(material, index))}
-                </div>
-              ))}
+              </div>
+                );
+              })}
             </div>
           )}
 

@@ -122,6 +122,7 @@ export const useCreateProduct = () => {
           description: product.description || null,
           price: product.price,
           kaspi_link: product.kaspi_link || null,
+          telegram_link: product.telegram_link || null,
           has_schedule: product.has_schedule || false,
           is_active: product.is_active ?? true,
           image_url: product.image_url || null,
