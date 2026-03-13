@@ -480,12 +480,19 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                   {isUploading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {language === "ru" ? "Загрузка..." : "Жүктелуде..."}
+                      {uploadProgress > 0 ? `${uploadProgress}%` : (language === "ru" ? "Загрузка..." : "Жүктелуде...")}
                     </>
                   ) : (
                     language === "ru" ? "Сохранить" : "Сақтау"
                   )}
                 </Button>
+                <Button type="button" variant="outline" onClick={() => { setIsAdding(false); resetForm(); }}>
+                  {language === "ru" ? "Отмена" : "Болдырмау"}
+                </Button>
+              </div>
+              {isUploading && uploadProgress > 0 && (
+                <Progress value={uploadProgress} className="h-2" />
+              )}
                 <Button type="button" variant="outline" onClick={() => { setIsAdding(false); resetForm(); }}>
                   {language === "ru" ? "Отмена" : "Болдырмау"}
                 </Button>
