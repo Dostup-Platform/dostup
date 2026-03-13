@@ -411,9 +411,22 @@ const MaterialsTab = () => {
           {/* Creator Materials */}
           {Object.keys(groupCreatorMaterials).length > 0 && (
             <div className="space-y-4">
-              {Object.entries(groupCreatorMaterials).map(([productTitle, productMaterials]) => (
+           {Object.entries(groupCreatorMaterials).map(([productTitle, productMaterials]) => {
+                const telegramLink = productMaterials?.[0]?.product?.telegram_link;
+                return (
                 <div key={productTitle} className="space-y-3">
                   <h3 className="font-medium text-muted-foreground">{productTitle}</h3>
+                  {telegramLink && (
+                    <a
+                      href={telegramLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[hsl(200,80%,50%)]/10 text-[hsl(200,80%,40%)] hover:bg-[hsl(200,80%,50%)]/20 transition-colors font-medium text-sm"
+                    >
+                      <Send className="w-5 h-5" />
+                      {language === "ru" ? "Вступить в Telegram канал" : "Telegram каналға қосылу"}
+                    </a>
+                  )}
                   {productMaterials?.map((material, index) => renderMaterialCard(material, index))}
                 </div>
               ))}
