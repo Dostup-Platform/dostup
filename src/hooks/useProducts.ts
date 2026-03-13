@@ -99,6 +99,7 @@ interface CreateProductInput {
   description?: string | null;
   price: number;
   kaspi_link?: string | null;
+  telegram_link?: string | null;
   has_schedule?: boolean;
   is_active?: boolean;
   image_url?: string | null;
