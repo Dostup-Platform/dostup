@@ -15,6 +15,7 @@ interface SimplePurchase {
     id: string;
     title: string;
     headline: string | null;
+    telegram_link: string | null;
   } | null;
 }
 

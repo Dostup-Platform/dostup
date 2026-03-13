@@ -163,6 +163,7 @@ const InlineVideoPlayer = ({ url }: InlineVideoPlayerProps) => {
 
 const MaterialsTab = () => {
   const { data: materials, isLoading } = useSimpleMaterials();
+  const { data: purchases } = useSimplePurchases();
   const { t, language } = useLanguage();
   const { user } = useSimpleAuth();
   const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
