@@ -1,30 +1,26 @@
 
 
-## Problem
+## План: исправить показ Telegram-ссылки
 
-S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
+### Проблема
+Кнопка "Вступить в Telegram канал" рендерится внутри цикла по `groupCreatorMaterials`. Если у продукта нет ни одного материала — он не попадает в эту группу, и кнопка не отображается.
 
-## Root Cause
+### Решение
+В `MaterialsTab.tsx`:
+1. Получить список купленных продуктов с `telegram_link` из `useSimplePurchases()` (purchases уже содержат product_id)
+2. Загрузить `telegram_link` для всех купленных продуктов отдельным запросом (или использовать уже загруженные данные)
+3. Показывать Telegram-ссылки для всех купленных продуктов, даже если у них нет материалов
 
-The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
+### Изменения
 
-## Solution
+| Файл | Что меняем |
+|---|---|
+| `src/components/dashboard/MaterialsTab.tsx` | Добавляем загрузку купленных продуктов с telegram_link, показываем кнопки для продуктов без материалов тоже |
+| `src/hooks/useSimplePurchases.ts` | Добавляем `telegram_link` в select продуктов в `useSimplePurchases` (уже есть в `useSimpleMaterials`, но нужно и в purchases) |
 
-Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
-
-For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
-
-## Change
-
-**File**: `supabase/functions/s3-redirect/index.ts` — line 82
-
-```typescript
-// Before:
-'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
-
-// After:
-'response-content-disposition': 'attachment',
-```
-
-Single line change. No other files affected.
+### Логика отображения
+- Собираем все купленные продукты с `telegram_link`
+- Для продуктов С материалами — показываем кнопку над материалами (как сейчас)
+- Для продуктов БЕЗ материалов но С telegram_link — показываем отдельный блок с названием продукта и кнопкой Telegram
+- Если вообще нет ни материалов ни telegram-ссылок — показываем пустое состояние
 
