@@ -3,7 +3,7 @@ import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { Card, CardContent } from "@/components/ui/card";
-import { useSimpleMaterials } from "@/hooks/useSimplePurchases";
+import { useSimpleMaterials, useSimplePurchases } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder, User, Lock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
