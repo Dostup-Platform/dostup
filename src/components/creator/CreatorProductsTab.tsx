@@ -38,6 +38,7 @@ interface Product {
   description: string | null;
   price: number;
   kaspi_link: string | null;
+  telegram_link: string | null;
   has_schedule: boolean;
   is_active: boolean;
 }
@@ -56,6 +57,7 @@ interface FormData {
   description: string;
   price: string;
   kaspiLink: string;
+  telegramLink: string;
 }
 
 interface ProductFormProps {
@@ -126,6 +128,20 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
         Ссылка на оплату через Kaspi.kz
       </p>
     </div>
+    <div className="space-y-2">
+      <Label htmlFor="telegramLink">Telegram ссылка</Label>
+      <Input 
+        id="telegramLink" 
+        type="url" 
+        placeholder="https://t.me/your_channel" 
+        className="h-12"
+        value={formData.telegramLink}
+        onChange={(e) => setFormData(prev => ({ ...prev, telegramLink: e.target.value }))}
+      />
+      <p className="text-xs text-muted-foreground">
+        Ссылка на Telegram канал/группу. Будет показана ученикам после покупки.
+      </p>
+    </div>
     <Button 
       type="submit" 
       variant="cta" 
@@ -169,6 +185,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     description: "",
     price: "",
     kaspiLink: "",
+    telegramLink: "",
   });
 
   const resetForm = () => {
@@ -178,6 +195,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       description: "",
       price: "",
       kaspiLink: "",
+      telegramLink: "",
     });
   };
 
@@ -198,6 +216,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         description: formData.description || null,
         price: Number(formData.price),
         kaspi_link: formData.kaspiLink || null,
+        telegram_link: formData.telegramLink || null,
         has_schedule: false,
         is_active: true,
       });
@@ -218,6 +237,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       description: product.description || "",
       price: String(product.price),
       kaspiLink: product.kaspi_link || "",
+      telegramLink: product.telegram_link || "",
     });
   };
 
@@ -237,6 +257,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         description: formData.description || null,
         price: Number(formData.price),
         kaspi_link: formData.kaspiLink || null,
+        telegram_link: formData.telegramLink || null,
       });
       
       toast.success("Продукт обновлён!");

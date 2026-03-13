@@ -16,6 +16,7 @@ interface Product {
   created_at: string;
   updated_at: string;
   kaspi_link: string | null;
+  telegram_link: string | null;
 }
 
 export const useProduct = (productId: string | undefined) => {
@@ -98,6 +99,7 @@ interface CreateProductInput {
   description?: string | null;
   price: number;
   kaspi_link?: string | null;
+  telegram_link?: string | null;
   has_schedule?: boolean;
   is_active?: boolean;
   image_url?: string | null;
@@ -120,6 +122,7 @@ export const useCreateProduct = () => {
           description: product.description || null,
           price: product.price,
           kaspi_link: product.kaspi_link || null,
+          telegram_link: product.telegram_link || null,
           has_schedule: product.has_schedule || false,
           is_active: product.is_active ?? true,
           image_url: product.image_url || null,

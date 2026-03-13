@@ -198,7 +198,7 @@ export const useSimpleMaterials = () => {
       // Добавить информацию о продукте
       const { data: products } = await supabase
         .from("products")
-        .select("id, title")
+        .select("id, title, telegram_link")
         .in("id", productIds);
 
       // Получить имена учителей для материалов учителей

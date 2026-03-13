@@ -488,6 +488,7 @@ export type Database = {
           kaspi_link: string | null
           price: number
           slug: string | null
+          telegram_link: string | null
           title: string
           updated_at: string
         }
@@ -503,6 +504,7 @@ export type Database = {
           kaspi_link?: string | null
           price?: number
           slug?: string | null
+          telegram_link?: string | null
           title: string
           updated_at?: string
         }
@@ -518,6 +520,7 @@ export type Database = {
           kaspi_link?: string | null
           price?: number
           slug?: string | null
+          telegram_link?: string | null
           title?: string
           updated_at?: string
         }
