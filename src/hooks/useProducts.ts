@@ -16,6 +16,7 @@ interface Product {
   created_at: string;
   updated_at: string;
   kaspi_link: string | null;
+  telegram_link: string | null;
 }
 
 export const useProduct = (productId: string | undefined) => {
