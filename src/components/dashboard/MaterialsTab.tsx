@@ -3,7 +3,7 @@ import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { Card, CardContent } from "@/components/ui/card";
-import { useSimpleMaterials } from "@/hooks/useSimplePurchases";
+import { useSimpleMaterials, useSimplePurchases } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder, User, Lock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,7 @@ const InlineVideoPlayer = ({ url }: InlineVideoPlayerProps) => {
 
 const MaterialsTab = () => {
   const { data: materials, isLoading } = useSimpleMaterials();
+  const { data: purchases } = useSimplePurchases();
   const { t, language } = useLanguage();
   const { user } = useSimpleAuth();
   const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
@@ -258,7 +259,13 @@ const MaterialsTab = () => {
     return acc;
   }, {} as Record<string, typeof teacherMaterials>);
 
-  const hasNoMaterials = !materials || materials.length === 0;
+  // Products with telegram_link but no materials
+  const productsWithMaterials = new Set(creatorMaterials.map(m => m.product?.id).filter(Boolean));
+  const telegramOnlyProducts = (purchases || []).filter(
+    p => p.product?.telegram_link && !productsWithMaterials.has(p.product_id)
+  );
+
+  const hasNoMaterials = (!materials || materials.length === 0) && telegramOnlyProducts.length === 0;
 
   const renderMaterialCard = (material: typeof materials[0], index: number) => {
     const isVideo = material.type === "video" && material.file_url;
@@ -449,6 +456,26 @@ const MaterialsTab = () => {
                   <div className="space-y-2">
                     {productMaterials?.map((material, index) => renderMaterialCard(material, index))}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Telegram-only products (no materials) */}
+          {telegramOnlyProducts.length > 0 && (
+            <div className="space-y-4">
+              {telegramOnlyProducts.map(purchase => (
+                <div key={purchase.product_id} className="space-y-3">
+                  <h3 className="font-medium text-muted-foreground">{purchase.product?.title}</h3>
+                  <a
+                    href={purchase.product!.telegram_link!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[hsl(200,80%,50%)]/10 text-[hsl(200,80%,40%)] hover:bg-[hsl(200,80%,50%)]/20 transition-colors font-medium text-sm"
+                  >
+                    <Send className="w-5 h-5" />
+                    {language === "ru" ? "Вступить в Telegram канал" : "Telegram каналға қосылу"}
+                  </a>
                 </div>
               ))}
             </div>
