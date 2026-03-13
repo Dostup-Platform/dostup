@@ -1,30 +1,41 @@
 
 
-## Problem
+## План: прямая загрузка в S3 через presigned URL
 
-S3 rejects raw Cyrillic in `response-content-disposition` because non-ASCII chars can't be represented in ISO-8859-1. But `encodeURIComponent` caused double-encoding (signature mismatch). Both approaches fail.
+### Проблема
+Edge Functions ограничены ~50-100 МБ по размеру тела запроса и ~150 МБ по памяти. Файл 1 ГБ не может пройти через них.
 
-## Root Cause
+### Решение
+Двухэтапная загрузка:
+1. Клиент запрашивает presigned PUT URL у Edge Function (легкий запрос, без файла)
+2. Клиент загружает файл напрямую в S3 по этому URL (без лимитов Edge Function)
 
-The `aws_s3_presign` library encodes query param values internally for signature computation. There's no way to pass a pre-encoded `filename*=UTF-8''...` value that works for both the URL and the signature with this library.
+### Изменения
 
-## Solution
+**1. Новая Edge Function `supabase/functions/s3-presign-upload/index.ts`**
+- Принимает JSON: `{ productId, role, fileName, fileType, creatorToken?, creatorName?, teacherId? }`
+- Выполняет ту же авторизацию что и текущий `s3-upload`
+- Генерирует S3 key и presigned PUT URL (срок 1 час)
+- Возвращает `{ uploadUrl, storagePath }`
 
-Use `response-content-disposition=attachment` **without a filename**. S3 will force a download. The browser will derive the filename from the URL path (the S3 key), which is a unique hash like `1772121810588-zf8jm.png`. This always works regardless of character encoding.
+**2. Обновление `supabase/config.toml`**
+- Добавить `[functions.s3-presign-upload]` с `verify_jwt = false`
 
-For a human-readable filename, the client-side `<a>` tag can set the `download` attribute — but this only works for same-origin URLs, so it won't apply here. The tradeoff is: **downloads work reliably on all platforms** but the filename will be the S3 key rather than the original name. This is acceptable since the file opens correctly.
+**3. Обновление `src/lib/s3Helpers.ts` -- функция `uploadFileToS3`**
+- Шаг 1: вызов `s3-presign-upload` для получения presigned URL
+- Шаг 2: `fetch(PUT)` файла напрямую в S3
+- Добавить поддержку `onProgress` через `XMLHttpRequest` для отображения прогресса
 
-## Change
+**4. Обновление UI компонентов загрузки** (опционально)
+- `ProductMaterialsManager.tsx` и `TeacherMaterialsManager.tsx` -- добавить прогресс-бар загрузки
 
-**File**: `supabase/functions/s3-redirect/index.ts` — line 82
+### Технические детали
+- Presigned URL генерируется через AWS Signature V4 (аналогично текущему скачиванию в `s3-download`)
+- Старый `s3-upload` остается для обратной совместимости с мелкими файлами, но `uploadFileToS3` переключится на новый путь
+- CORS на S3 бакете должен разрешать PUT от домена приложения (нужно проверить настройки бакета)
 
-```typescript
-// Before:
-'response-content-disposition': `attachment; filename*=UTF-8''${download}`,
+### Важно
+Для работы presigned upload нужно убедиться, что S3 бакет имеет CORS-конфигурацию разрешающую PUT-запросы с домена `dostup
 
-// After:
-'response-content-disposition': 'attachment',
-```
-
-Single line change. No other files affected.
+.lovable.app` и `lovableproject.com`.
 
