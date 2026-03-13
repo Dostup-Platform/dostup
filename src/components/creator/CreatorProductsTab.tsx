@@ -57,6 +57,7 @@ interface FormData {
   description: string;
   price: string;
   kaspiLink: string;
+  telegramLink: string;
 }
 
 interface ProductFormProps {
