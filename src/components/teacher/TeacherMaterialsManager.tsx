@@ -131,6 +131,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
 
     try {
       setIsUploading(true);
+      setUploadProgress(0);
 
       if (formData.itemType === "folder") {
         const folder = await createMaterial.mutateAsync({
