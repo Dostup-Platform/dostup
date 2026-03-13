@@ -460,6 +460,26 @@ const MaterialsTab = () => {
               ))}
             </div>
           )}
+
+          {/* Telegram-only products (no materials) */}
+          {telegramOnlyProducts.length > 0 && (
+            <div className="space-y-4">
+              {telegramOnlyProducts.map(purchase => (
+                <div key={purchase.product_id} className="space-y-3">
+                  <h3 className="font-medium text-muted-foreground">{purchase.product?.title}</h3>
+                  <a
+                    href={purchase.product!.telegram_link!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[hsl(200,80%,50%)]/10 text-[hsl(200,80%,40%)] hover:bg-[hsl(200,80%,50%)]/20 transition-colors font-medium text-sm"
+                  >
+                    <Send className="w-5 h-5" />
+                    {language === "ru" ? "Вступить в Telegram канал" : "Telegram каналға қосылу"}
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
 
