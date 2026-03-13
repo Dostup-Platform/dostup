@@ -137,11 +137,17 @@ export const useDeleteTeacherMaterial = () => {
 };
 
 // Upload material file for teacher
-export const uploadTeacherMaterialFile = async (file: File, productId: string, teacherId: string): Promise<string> => {
-  // Upload to S3 via edge function
+export const uploadTeacherMaterialFile = async (
+  file: File, 
+  productId: string, 
+  teacherId: string,
+  onProgress?: (progress: number) => void
+): Promise<string> => {
+  // Upload to S3 via presigned URL
   const { uploadFileToS3 } = await import("@/lib/s3Helpers");
   
   return uploadFileToS3(file, productId, 'teacher', {
     teacherId,
+    onProgress,
   });
 };
