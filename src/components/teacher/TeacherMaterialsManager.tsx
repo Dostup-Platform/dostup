@@ -493,10 +493,10 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
               {isUploading && uploadProgress > 0 && (
                 <Progress value={uploadProgress} className="h-2" />
               )}
-                <Button type="button" variant="outline" onClick={() => { setIsAdding(false); resetForm(); }}>
-                  {language === "ru" ? "Отмена" : "Болдырмау"}
-                </Button>
-              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
             </form>
           </CardContent>
         </Card>
