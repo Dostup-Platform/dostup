@@ -195,7 +195,7 @@ interface FormData {
          // Upload files
           for (let i = 0; i < formData.fileEntries.length; i++) {
             const entry = formData.fileEntries[i];
-            const fileUrl = await uploadMaterialFile(entry.file, productId);
+            const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
             await createMaterial.mutateAsync({
               product_id: productId,
               title: entry.customName || entry.file.name,
