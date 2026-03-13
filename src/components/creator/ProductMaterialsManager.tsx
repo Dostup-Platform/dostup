@@ -528,7 +528,10 @@ interface FormData {
              t("add")
            )}
          </Button>
-       </div>
+        </div>
+        {isUploading && uploadProgress > 0 && (
+          <Progress value={uploadProgress} className="h-2" />
+        )}
      </form>
    );
  
