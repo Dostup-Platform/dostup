@@ -497,10 +497,6 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
           </CardContent>
         </Card>
       )}
-            </form>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Materials List */}
       {materials.length === 0 && !isAdding ? (
