@@ -259,7 +259,13 @@ const MaterialsTab = () => {
     return acc;
   }, {} as Record<string, typeof teacherMaterials>);
 
-  const hasNoMaterials = !materials || materials.length === 0;
+  // Products with telegram_link but no materials
+  const productsWithMaterials = new Set(creatorMaterials.map(m => m.product?.id).filter(Boolean));
+  const telegramOnlyProducts = (purchases || []).filter(
+    p => p.product?.telegram_link && !productsWithMaterials.has(p.product_id)
+  );
+
+  const hasNoMaterials = (!materials || materials.length === 0) && telegramOnlyProducts.length === 0;
 
   const renderMaterialCard = (material: typeof materials[0], index: number) => {
     const isVideo = material.type === "video" && material.file_url;
