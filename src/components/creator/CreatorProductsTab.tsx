@@ -128,6 +128,20 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
         Ссылка на оплату через Kaspi.kz
       </p>
     </div>
+    <div className="space-y-2">
+      <Label htmlFor="telegramLink">Telegram ссылка</Label>
+      <Input 
+        id="telegramLink" 
+        type="url" 
+        placeholder="https://t.me/your_channel" 
+        className="h-12"
+        value={formData.telegramLink}
+        onChange={(e) => setFormData(prev => ({ ...prev, telegramLink: e.target.value }))}
+      />
+      <p className="text-xs text-muted-foreground">
+        Ссылка на Telegram канал/группу. Будет показана ученикам после покупки.
+      </p>
+    </div>
     <Button 
       type="submit" 
       variant="cta" 
