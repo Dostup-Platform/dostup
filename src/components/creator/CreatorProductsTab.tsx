@@ -185,6 +185,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     description: "",
     price: "",
     kaspiLink: "",
+    telegramLink: "",
   });
 
   const resetForm = () => {
@@ -194,6 +195,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       description: "",
       price: "",
       kaspiLink: "",
+      telegramLink: "",
     });
   };
 
