@@ -237,6 +237,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       description: product.description || "",
       price: String(product.price),
       kaspiLink: product.kaspi_link || "",
+      telegramLink: product.telegram_link || "",
     });
   };
 
