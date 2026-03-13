@@ -38,6 +38,7 @@ interface Product {
   description: string | null;
   price: number;
   kaspi_link: string | null;
+  telegram_link: string | null;
   has_schedule: boolean;
   is_active: boolean;
 }
