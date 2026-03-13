@@ -259,13 +259,10 @@ const MaterialsTab = () => {
     return acc;
   }, {} as Record<string, typeof teacherMaterials>);
 
-  // Products with telegram_link but no materials
-  const productsWithMaterials = new Set(creatorMaterials.map(m => m.product?.id).filter(Boolean));
-  const telegramOnlyProducts = (purchases || []).filter(
-    p => p.product?.telegram_link && !productsWithMaterials.has(p.product_id)
-  );
+  // All purchased products with telegram_link
+  const allTelegramProducts = (purchases || []).filter(p => p.product?.telegram_link);
 
-  const hasNoMaterials = (!materials || materials.length === 0) && telegramOnlyProducts.length === 0;
+  const hasNoMaterials = !materials || materials.length === 0;
 
   const renderMaterialCard = (material: typeof materials[0], index: number) => {
     const isVideo = material.type === "video" && material.file_url;
@@ -403,6 +400,26 @@ const MaterialsTab = () => {
 
   return (
     <div className="space-y-6">
+      {/* Telegram links on top */}
+      {allTelegramProducts.length > 0 && (
+        <div className="space-y-3">
+          {allTelegramProducts.map(purchase => (
+            <div key={purchase.product_id} className="space-y-2">
+              <h3 className="font-medium text-muted-foreground">{purchase.product?.title}</h3>
+              <a
+                href={purchase.product!.telegram_link!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[hsl(200,80%,50%)]/10 text-[hsl(200,80%,40%)] hover:bg-[hsl(200,80%,50%)]/20 transition-colors font-medium text-sm"
+              >
+                <Send className="w-5 h-5" />
+                {language === "ru" ? "Вступить в Telegram канал" : "Telegram каналға қосылу"}
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+
       <h2 className="text-lg font-semibold text-foreground">{t("myMaterials")}</h2>
 
       {hasNoMaterials ? (
@@ -418,26 +435,12 @@ const MaterialsTab = () => {
           {/* Creator Materials */}
           {Object.keys(groupCreatorMaterials).length > 0 && (
             <div className="space-y-4">
-           {Object.entries(groupCreatorMaterials).map(([productTitle, productMaterials]) => {
-                const telegramLink = productMaterials?.[0]?.product?.telegram_link;
-                return (
+              {Object.entries(groupCreatorMaterials).map(([productTitle, productMaterials]) => (
                 <div key={productTitle} className="space-y-3">
                   <h3 className="font-medium text-muted-foreground">{productTitle}</h3>
-                  {telegramLink && (
-                    <a
-                      href={telegramLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[hsl(200,80%,50%)]/10 text-[hsl(200,80%,40%)] hover:bg-[hsl(200,80%,50%)]/20 transition-colors font-medium text-sm"
-                    >
-                      <Send className="w-5 h-5" />
-                      {language === "ru" ? "Вступить в Telegram канал" : "Telegram каналға қосылу"}
-                    </a>
-                  )}
                   {productMaterials?.map((material, index) => renderMaterialCard(material, index))}
-              </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
 
@@ -456,26 +459,6 @@ const MaterialsTab = () => {
                   <div className="space-y-2">
                     {productMaterials?.map((material, index) => renderMaterialCard(material, index))}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Telegram-only products (no materials) */}
-          {telegramOnlyProducts.length > 0 && (
-            <div className="space-y-4">
-              {telegramOnlyProducts.map(purchase => (
-                <div key={purchase.product_id} className="space-y-3">
-                  <h3 className="font-medium text-muted-foreground">{purchase.product?.title}</h3>
-                  <a
-                    href={purchase.product!.telegram_link!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[hsl(200,80%,50%)]/10 text-[hsl(200,80%,40%)] hover:bg-[hsl(200,80%,50%)]/20 transition-colors font-medium text-sm"
-                  >
-                    <Send className="w-5 h-5" />
-                    {language === "ru" ? "Вступить в Telegram канал" : "Telegram каналға қосылу"}
-                  </a>
                 </div>
               ))}
             </div>
