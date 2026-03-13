@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from "react";
+import { Progress } from "@/components/ui/progress";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,7 +90,8 @@ interface FormData {
    const [isAdding, setIsAdding] = useState(false);
    const [editingId, setEditingId] = useState<string | null>(null);
    const [deletingMaterial, setDeletingMaterial] = useState<{ id: string; title: string; file_url?: string | null } | null>(null);
-   const [isUploading, setIsUploading] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
    const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -154,8 +156,8 @@ interface FormData {
      }
 
      try {
-       setIsUploading(true);
-
+        setIsUploading(true);
+        setUploadProgress(0);
        if (formData.itemType === "folder") {
          // Create folder
          const folder = await createMaterial.mutateAsync({
@@ -172,7 +174,7 @@ interface FormData {
          if (formData.fileEntries.length > 0) {
            for (let i = 0; i < formData.fileEntries.length; i++) {
              const entry = formData.fileEntries[i];
-             const fileUrl = await uploadMaterialFile(entry.file, productId);
+              const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
              await createMaterial.mutateAsync({
                product_id: productId,
                title: entry.customName || entry.file.name,
@@ -193,7 +195,7 @@ interface FormData {
          // Upload files
           for (let i = 0; i < formData.fileEntries.length; i++) {
             const entry = formData.fileEntries[i];
-            const fileUrl = await uploadMaterialFile(entry.file, productId);
+            const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
             await createMaterial.mutateAsync({
               product_id: productId,
               title: entry.customName || entry.file.name,
@@ -517,16 +519,19 @@ interface FormData {
            className="flex-1"
            disabled={isUploading || createMaterial.isPending}
          >
-           {(isUploading || createMaterial.isPending) ? (
-             <span className="flex items-center gap-2">
-               <Loader2 className="w-4 h-4 animate-spin" />
-               Загрузка...
-             </span>
-           ) : (
+            {(isUploading || createMaterial.isPending) ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {isUploading && uploadProgress > 0 ? `${uploadProgress}%` : 'Загрузка...'}
+              </span>
+            ) : (
              t("add")
            )}
          </Button>
-       </div>
+        </div>
+        {isUploading && uploadProgress > 0 && (
+          <Progress value={uploadProgress} className="h-2" />
+        )}
      </form>
    );
  

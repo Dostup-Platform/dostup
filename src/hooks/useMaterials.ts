@@ -187,8 +187,12 @@ export const useDeleteMaterial = () => {
   });
 };
 
-export const uploadMaterialFile = async (file: File, productId: string): Promise<string> => {
-  // Upload to S3 via edge function
+export const uploadMaterialFile = async (
+  file: File, 
+  productId: string,
+  onProgress?: (progress: number) => void
+): Promise<string> => {
+  // Upload to S3 via presigned URL
   const { uploadFileToS3 } = await import("@/lib/s3Helpers");
   
   // Get creator session from localStorage
@@ -198,5 +202,6 @@ export const uploadMaterialFile = async (file: File, productId: string): Promise
   return uploadFileToS3(file, productId, 'creator', {
     creatorToken,
     creatorName,
+    onProgress,
   });
 };

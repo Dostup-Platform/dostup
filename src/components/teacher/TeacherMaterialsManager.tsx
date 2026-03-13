@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from "react";
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,6 +84,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingMaterial, setDeletingMaterial] = useState<{ id: string; title: string; file_url?: string | null } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -129,6 +131,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
 
     try {
       setIsUploading(true);
+      setUploadProgress(0);
 
       if (formData.itemType === "folder") {
         const folder = await createMaterial.mutateAsync({
@@ -145,7 +148,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
         if (formData.fileEntries.length > 0) {
           for (let i = 0; i < formData.fileEntries.length; i++) {
             const entry = formData.fileEntries[i];
-            const fileUrl = await uploadTeacherMaterialFile(entry.file, productId, teacherId);
+            const fileUrl = await uploadTeacherMaterialFile(entry.file, productId, teacherId, (p) => setUploadProgress(p));
             await createMaterial.mutateAsync({
               product_id: productId,
               teacher_id: teacherId,
@@ -165,7 +168,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       } else {
         for (let i = 0; i < formData.fileEntries.length; i++) {
           const entry = formData.fileEntries[i];
-          const fileUrl = await uploadTeacherMaterialFile(entry.file, productId, teacherId);
+          const fileUrl = await uploadTeacherMaterialFile(entry.file, productId, teacherId, (p) => setUploadProgress(p));
           await createMaterial.mutateAsync({
             product_id: productId,
             teacher_id: teacherId,
@@ -477,7 +480,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                   {isUploading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {language === "ru" ? "Загрузка..." : "Жүктелуде..."}
+                      {uploadProgress > 0 ? `${uploadProgress}%` : (language === "ru" ? "Загрузка..." : "Жүктелуде...")}
                     </>
                   ) : (
                     language === "ru" ? "Сохранить" : "Сақтау"
@@ -487,6 +490,9 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                   {language === "ru" ? "Отмена" : "Болдырмау"}
                 </Button>
               </div>
+              {isUploading && uploadProgress > 0 && (
+                <Progress value={uploadProgress} className="h-2" />
+              )}
             </form>
           </CardContent>
         </Card>

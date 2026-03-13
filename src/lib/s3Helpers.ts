@@ -55,8 +55,14 @@ export async function getS3FileBlob(
   return { blob, fileName };
 }
 
+export interface UploadProgressCallback {
+  (progress: number): void;
+}
+
 /**
- * Upload a file to S3 via the s3-upload edge function
+ * Upload a file to S3 via presigned URL (supports large files up to 5GB)
+ * Step 1: Get presigned PUT URL from edge function
+ * Step 2: Upload file directly to S3 from the browser
  */
 export async function uploadFileToS3(
   file: File,
@@ -66,33 +72,68 @@ export async function uploadFileToS3(
     creatorToken?: string;
     creatorName?: string;
     teacherId?: string;
+    onProgress?: UploadProgressCallback;
   }
 ): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('productId', productId);
-  formData.append('role', role);
-
-  if (options.creatorToken) formData.append('creatorToken', options.creatorToken);
-  if (options.creatorName) formData.append('creatorName', options.creatorName);
-  if (options.teacherId) formData.append('teacherId', options.teacherId);
-
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/s3-upload`, {
+  // Step 1: Get presigned upload URL
+  const presignResponse = await fetch(`${supabaseUrl}/functions/v1/s3-presign-upload`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${supabaseKey}`,
+      'Content-Type': 'application/json',
     },
-    body: formData,
+    body: JSON.stringify({
+      productId,
+      role,
+      fileName: file.name,
+      fileType: file.type || 'application/octet-stream',
+      creatorToken: options.creatorToken,
+      creatorName: options.creatorName,
+      teacherId: options.teacherId,
+    }),
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Upload failed');
+  if (!presignResponse.ok) {
+    const errorData = await presignResponse.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to get upload URL');
   }
 
-  const data = await response.json();
-  return data.path; // Returns s3://bucket/key
+  const { uploadUrl, storagePath, contentType } = await presignResponse.json();
+
+  // Step 2: Upload file directly to S3 using XMLHttpRequest for progress
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable && options.onProgress) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        options.onProgress(percent);
+      }
+    });
+    
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`S3 upload failed with status ${xhr.status}: ${xhr.responseText}`));
+      }
+    });
+    
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error during S3 upload'));
+    });
+    
+    xhr.addEventListener('abort', () => {
+      reject(new Error('Upload was aborted'));
+    });
+    
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', contentType);
+    xhr.send(file);
+  });
+
+  return storagePath;
 }
