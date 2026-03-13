@@ -216,6 +216,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         description: formData.description || null,
         price: Number(formData.price),
         kaspi_link: formData.kaspiLink || null,
+        telegram_link: formData.telegramLink || null,
         has_schedule: false,
         is_active: true,
       });
