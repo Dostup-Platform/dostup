@@ -148,7 +148,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
         if (formData.fileEntries.length > 0) {
           for (let i = 0; i < formData.fileEntries.length; i++) {
             const entry = formData.fileEntries[i];
-            const fileUrl = await uploadTeacherMaterialFile(entry.file, productId, teacherId);
+            const fileUrl = await uploadTeacherMaterialFile(entry.file, productId, teacherId, (p) => setUploadProgress(p));
             await createMaterial.mutateAsync({
               product_id: productId,
               teacher_id: teacherId,
