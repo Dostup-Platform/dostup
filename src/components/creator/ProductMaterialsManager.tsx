@@ -156,8 +156,8 @@ interface FormData {
      }
 
      try {
-       setIsUploading(true);
-
+        setIsUploading(true);
+        setUploadProgress(0);
        if (formData.itemType === "folder") {
          // Create folder
          const folder = await createMaterial.mutateAsync({
