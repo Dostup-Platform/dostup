@@ -104,23 +104,33 @@ Deno.serve(async (req) => {
 
     const contentType = fileType || 'application/octet-stream';
 
-    // Use AWS SDK v3 for correct regional endpoint
-    const s3Client = new S3Client({
+    // Build presigned PUT URL without Node runtime providers
+    const hostname = `${bucket}.s3.${region}.amazonaws.com`;
+    const encodedKey = s3Key.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+
+    const presigner = new S3RequestPresigner({
       region,
       credentials: {
         accessKeyId,
         secretAccessKey,
       },
+      sha256: Sha256,
     });
 
-    const command = new PutObjectCommand({
-      Bucket: bucket,
-      Key: s3Key,
-      ContentType: contentType,
-    });
+    const signedRequest = await presigner.presign(
+      new HttpRequest({
+        protocol: 'https:',
+        method: 'PUT',
+        hostname,
+        path: `/${encodedKey}`,
+        headers: {
+          host: hostname,
+        },
+      }),
+      { expiresIn: 3600 }
+    );
 
-    const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-
+    const uploadUrl = formatUrl(signedRequest);
     const storagePath = `s3://${bucket}/${s3Key}`;
     console.log('Generated presigned upload URL for:', s3Key, 'region:', region);
 
