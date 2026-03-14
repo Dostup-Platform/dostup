@@ -1,12 +1,29 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { S3Client, PutObjectCommand } from "https://esm.sh/@aws-sdk/client-s3@3.620.0";
-import { getSignedUrl } from "https://esm.sh/@aws-sdk/s3-request-presigner@3.620.0";
+import { S3RequestPresigner } from "https://esm.sh/@aws-sdk/s3-request-presigner@3.620.0?target=deno";
+import { HttpRequest } from "https://esm.sh/@smithy/protocol-http@4.1.7?target=deno";
+import { Sha256 } from "https://esm.sh/@aws-crypto/sha256-browser@5.2.0?target=deno";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+function buildPresignedUrl(request: HttpRequest): string {
+  const url = new URL(`${request.protocol}//${request.hostname}${request.path}`);
+
+  if (request.query) {
+    for (const [key, value] of Object.entries(request.query)) {
+      if (Array.isArray(value)) {
+        value.forEach((v) => url.searchParams.append(key, String(v)));
+      } else if (value !== undefined && value !== null) {
+        url.searchParams.append(key, String(value));
+      }
+    }
+  }
+
+  return url.toString();
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -102,23 +119,33 @@ Deno.serve(async (req) => {
 
     const contentType = fileType || 'application/octet-stream';
 
-    // Use AWS SDK v3 for correct regional endpoint
-    const s3Client = new S3Client({
+    // Build presigned PUT URL without Node runtime providers
+    const hostname = `${bucket}.s3.${region}.amazonaws.com`;
+    const encodedKey = s3Key.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+
+    const presigner = new S3RequestPresigner({
       region,
       credentials: {
         accessKeyId,
         secretAccessKey,
       },
+      sha256: Sha256,
     });
 
-    const command = new PutObjectCommand({
-      Bucket: bucket,
-      Key: s3Key,
-      ContentType: contentType,
-    });
+    const signedRequest = await presigner.presign(
+      new HttpRequest({
+        protocol: 'https:',
+        method: 'PUT',
+        hostname,
+        path: `/${encodedKey}`,
+        headers: {
+          host: hostname,
+        },
+      }),
+      { expiresIn: 3600 }
+    );
 
-    const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-
+    const uploadUrl = buildPresignedUrl(signedRequest);
     const storagePath = `s3://${bucket}/${s3Key}`;
     console.log('Generated presigned upload URL for:', s3Key, 'region:', region);
 
