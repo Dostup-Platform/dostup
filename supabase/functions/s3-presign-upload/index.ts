@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { S3Client, PutObjectCommand } from "https://esm.sh/@aws-sdk/client-s3@3.620.0";
-import { getSignedUrl } from "https://esm.sh/@aws-sdk/s3-request-presigner@3.620.0";
+import { S3Client, PutObjectCommand } from "https://esm.sh/@aws-sdk/client-s3@3.620.0?target=deno";
+import { getSignedUrl } from "https://esm.sh/@aws-sdk/s3-request-presigner@3.620.0?target=deno";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
