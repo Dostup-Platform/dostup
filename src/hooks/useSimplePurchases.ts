@@ -118,7 +118,8 @@ export const useSimpleMaterials = () => {
           allow_view,
           allow_download,
           teacher_id,
-          available_at
+          available_at,
+          parent_id
         `)
         .in("product_id", productIds)
         .is("teacher_id", null)
