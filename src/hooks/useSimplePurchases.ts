@@ -184,7 +184,8 @@ export const useSimpleMaterials = () => {
             allow_view,
             allow_download,
             teacher_id,
-            available_at
+            available_at,
+            parent_id
           `)
           .eq("product_id", assignment.product_id)
           .eq("teacher_id", assignment.teacher_id)

@@ -308,10 +308,44 @@ const MaterialsTab = () => {
     const needsOfficeAsync = material.type === "file" && material.file_url && !isLocked
       && isOfficeDocument(material.title) && isS3Path(material.file_url);
 
+    // Folder rendering
+    if (isFolder && children.length > 0) {
+      return (
+        <div key={material.id} className="animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
+          <Card
+            className={`cursor-pointer transition-colors hover:bg-accent/50 ${isChild ? 'ml-6' : ''}`}
+            onClick={() => toggleFolder(material.id)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                  <Folder className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-foreground truncate" title={material.title}>{material.title}</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {children.length} {language === "ru" 
+                      ? (children.length === 1 ? "файл" : children.length < 5 ? "файла" : "файлов")
+                      : (children.length === 1 ? "файл" : "файл")}
+                  </p>
+                </div>
+                {isFolderExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
+              </div>
+            </CardContent>
+          </Card>
+          {isFolderExpanded && (
+            <div className="ml-4 mt-2 space-y-2 border-l-2 border-border pl-2">
+              {children.map((child, i) => renderMaterialCard(child, i, true))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <Card 
         key={material.id} 
-        className="animate-fade-in"
+        className={`animate-fade-in ${isChild ? 'ml-2' : ''}`}
         style={{ animationDelay: `${index * 50}ms` }}
       >
         <CardContent className="p-4">
