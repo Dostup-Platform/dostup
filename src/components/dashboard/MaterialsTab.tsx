@@ -5,7 +5,7 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSimpleMaterials, useSimplePurchases } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder, User, Lock } from "lucide-react";
+import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder, User, Lock, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -167,6 +167,7 @@ const MaterialsTab = () => {
   const { t, language } = useLanguage();
   const { user } = useSimpleAuth();
   const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
 
   const toggleVideoExpand = (materialId: string) => {
@@ -237,9 +238,24 @@ const MaterialsTab = () => {
     );
   }
 
-  // Separate creator materials and teacher materials
-  const creatorMaterials = materials?.filter(m => !m.is_teacher_material) || [];
-  const teacherMaterials = materials?.filter(m => m.is_teacher_material) || [];
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  };
+
+  // Helper: get children of a folder
+  const getChildren = (parentId: string) => materials?.filter(m => m.parent_id === parentId) || [];
+
+  // Separate creator materials and teacher materials (only root-level)
+  const creatorMaterials = materials?.filter(m => !m.is_teacher_material && !m.parent_id) || [];
+  const teacherMaterials = materials?.filter(m => m.is_teacher_material && !m.parent_id) || [];
 
   const groupCreatorMaterials = creatorMaterials.reduce((acc, material) => {
     const productTitle = material.product?.title || "Продукт";
@@ -264,11 +280,14 @@ const MaterialsTab = () => {
 
   const hasNoMaterials = !materials || materials.length === 0;
 
-  const renderMaterialCard = (material: typeof materials[0], index: number) => {
+  const renderMaterialCard = (material: typeof materials[0], index: number, isChild = false) => {
     const isVideo = material.type === "video" && material.file_url;
     const isExpanded = expandedVideos.has(material.id);
     const canPlay = isVideo && canPlayInline(material.file_url!);
     const isLocked = material.available_at && new Date(material.available_at) > new Date();
+    const isFolder = material.type === "folder";
+    const isFolderExpanded = expandedFolders.has(material.id);
+    const children = isFolder ? getChildren(material.id) : [];
 
     // Format available_at date for display
     const formatAvailableDate = (dateStr: string) => {
@@ -289,10 +308,44 @@ const MaterialsTab = () => {
     const needsOfficeAsync = material.type === "file" && material.file_url && !isLocked
       && isOfficeDocument(material.title) && isS3Path(material.file_url);
 
+    // Folder rendering
+    if (isFolder && children.length > 0) {
+      return (
+        <div key={material.id} className="animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
+          <Card
+            className={`cursor-pointer transition-colors hover:bg-accent/50 ${isChild ? 'ml-6' : ''}`}
+            onClick={() => toggleFolder(material.id)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                  <Folder className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-foreground truncate" title={material.title}>{material.title}</h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {children.length} {language === "ru" 
+                      ? (children.length === 1 ? "файл" : children.length < 5 ? "файла" : "файлов")
+                      : (children.length === 1 ? "файл" : "файл")}
+                  </p>
+                </div>
+                {isFolderExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
+              </div>
+            </CardContent>
+          </Card>
+          {isFolderExpanded && (
+            <div className="ml-4 mt-2 space-y-2 border-l-2 border-border pl-2">
+              {children.map((child, i) => renderMaterialCard(child, i, true))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <Card 
         key={material.id} 
-        className="animate-fade-in"
+        className={`animate-fade-in ${isChild ? 'ml-2' : ''}`}
         style={{ animationDelay: `${index * 50}ms` }}
       >
         <CardContent className="p-4">
