@@ -9,6 +9,22 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+function buildPresignedUrl(request: HttpRequest): string {
+  const url = new URL(`${request.protocol}//${request.hostname}${request.path}`);
+
+  if (request.query) {
+    for (const [key, value] of Object.entries(request.query)) {
+      if (Array.isArray(value)) {
+        value.forEach((v) => url.searchParams.append(key, String(v)));
+      } else if (value !== undefined && value !== null) {
+        url.searchParams.append(key, String(value));
+      }
+    }
+  }
+
+  return url.toString();
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
