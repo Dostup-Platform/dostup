@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getSignedUrl } from "https://deno.land/x/aws_s3_presign@2.2.1/mod.ts";
+import { S3Client, PutObjectCommand } from "https://esm.sh/@aws-sdk/client-s3@3.620.0";
+import { getSignedUrl } from "https://esm.sh/@aws-sdk/s3-request-presigner@3.620.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,7 +27,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Validate authorization (same as s3-upload)
+    // Validate authorization
     if (role === 'creator') {
       if (!creatorToken || !creatorName) {
         return new Response(
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Generate S3 key (same logic as s3-upload)
+    // Generate S3 key
     const fileExt = fileName.split('.').pop();
     const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
     let s3Key: string;
@@ -99,27 +100,30 @@ Deno.serve(async (req) => {
       s3Key = `${productId}/${uniqueId}.${fileExt}`;
     }
 
-    // Generate presigned PUT URL using the same library as s3-download
     const contentType = fileType || 'application/octet-stream';
-    
-    const url = getSignedUrl({
-      accessKeyId,
-      secretAccessKey,
-      bucket,
-      key: '/' + s3Key,
+
+    // Use AWS SDK v3 for correct regional endpoint
+    const s3Client = new S3Client({
       region,
-      expiresIn: 3600, // 1 hour
-      method: 'PUT',
-      headers: {
-        'Content-Type': contentType,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
       },
     });
 
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: s3Key,
+      ContentType: contentType,
+    });
+
+    const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+
     const storagePath = `s3://${bucket}/${s3Key}`;
-    console.log('Generated presigned upload URL for:', s3Key);
+    console.log('Generated presigned upload URL for:', s3Key, 'region:', region);
 
     return new Response(
-      JSON.stringify({ uploadUrl: url, storagePath, contentType }),
+      JSON.stringify({ uploadUrl, storagePath, contentType }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
