@@ -167,6 +167,7 @@ const MaterialsTab = () => {
   const { t, language } = useLanguage();
   const { user } = useSimpleAuth();
   const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
 
   const toggleVideoExpand = (materialId: string) => {
