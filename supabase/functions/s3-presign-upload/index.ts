@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { S3Client, PutObjectCommand } from "https://esm.sh/@aws-sdk/client-s3@3.620.0?target=deno";
-import { getSignedUrl } from "https://esm.sh/@aws-sdk/s3-request-presigner@3.620.0?target=deno";
+import { S3RequestPresigner } from "https://esm.sh/@aws-sdk/s3-request-presigner@3.620.0?target=deno";
+import { HttpRequest } from "https://esm.sh/@smithy/protocol-http@4.1.7?target=deno";
+import { formatUrl } from "https://esm.sh/@aws-sdk/util-format-url@3.620.0?target=deno";
+import { Sha256 } from "https://esm.sh/@aws-crypto/sha256-browser@5.2.0?target=deno";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
