@@ -280,11 +280,14 @@ const MaterialsTab = () => {
 
   const hasNoMaterials = !materials || materials.length === 0;
 
-  const renderMaterialCard = (material: typeof materials[0], index: number) => {
+  const renderMaterialCard = (material: typeof materials[0], index: number, isChild = false) => {
     const isVideo = material.type === "video" && material.file_url;
     const isExpanded = expandedVideos.has(material.id);
     const canPlay = isVideo && canPlayInline(material.file_url!);
     const isLocked = material.available_at && new Date(material.available_at) > new Date();
+    const isFolder = material.type === "folder";
+    const isFolderExpanded = expandedFolders.has(material.id);
+    const children = isFolder ? getChildren(material.id) : [];
 
     // Format available_at date for display
     const formatAvailableDate = (dateStr: string) => {
