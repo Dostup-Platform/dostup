@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
       { expiresIn: 3600 }
     );
 
-    const uploadUrl = formatUrl(signedRequest);
+    const uploadUrl = buildPresignedUrl(signedRequest);
     const storagePath = `s3://${bucket}/${s3Key}`;
     console.log('Generated presigned upload URL for:', s3Key, 'region:', region);
 
