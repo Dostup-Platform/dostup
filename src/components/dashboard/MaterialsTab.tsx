@@ -238,9 +238,24 @@ const MaterialsTab = () => {
     );
   }
 
-  // Separate creator materials and teacher materials
-  const creatorMaterials = materials?.filter(m => !m.is_teacher_material) || [];
-  const teacherMaterials = materials?.filter(m => m.is_teacher_material) || [];
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  };
+
+  // Helper: get children of a folder
+  const getChildren = (parentId: string) => materials?.filter(m => m.parent_id === parentId) || [];
+
+  // Separate creator materials and teacher materials (only root-level)
+  const creatorMaterials = materials?.filter(m => !m.is_teacher_material && !m.parent_id) || [];
+  const teacherMaterials = materials?.filter(m => m.is_teacher_material && !m.parent_id) || [];
 
   const groupCreatorMaterials = creatorMaterials.reduce((acc, material) => {
     const productTitle = material.product?.title || "Продукт";
