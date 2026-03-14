@@ -155,7 +155,8 @@ export const useSimpleMaterials = () => {
             allow_view,
             allow_download,
             teacher_id,
-            available_at
+            available_at,
+            parent_id
           `)
           .in("product_id", canChooseTeacherProducts)
           .not("teacher_id", "is", null)
