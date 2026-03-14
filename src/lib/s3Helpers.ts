@@ -131,7 +131,7 @@ export async function uploadFileToS3(
     });
     
     xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('Content-Type', contentType);
+    // Content-Type is already included in the presigned URL signature
     xhr.send(file);
   });
 
