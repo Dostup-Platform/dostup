@@ -883,6 +883,17 @@ interface FormData {
                                  </div>
                                 </div>
                                <div className="flex gap-0.5 justify-end w-full" onClick={(e) => e.stopPropagation()}>
+                                {material.type === "link" && material.file_url && (
+                                  <a
+                                    href={material.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-7 w-7 sm:h-8 sm:w-8"
+                                    title="Открыть ссылку"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  </a>
+                                )}
                                 {material.type === "file" && material.file_url && (() => {
                                   const dlUrl = getFileUrl(material, 'download');
                                   const vUrl = getFileUrl(material, 'view');
