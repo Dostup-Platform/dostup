@@ -299,9 +299,9 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   };
 
   const getItemIcon = (type: string) => {
-    if (type === "folder") {
-      return <Folder className="w-4 h-4 text-primary" />;
-    }
+    if (type === "folder") return <Folder className="w-4 h-4 text-primary" />;
+    if (type === "link") return <LinkIcon className="w-4 h-4 text-primary" />;
+    if (type === "text") return <Type className="w-4 h-4 text-primary" />;
     return <FileText className="w-4 h-4 text-primary" />;
   };
 
