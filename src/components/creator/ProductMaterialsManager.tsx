@@ -469,12 +469,12 @@ interface FormData {
           </>
         )}
  
-       <div className="space-y-2">
-         <Label>
-           {formData.itemType === "folder" 
-             ? "Файлы в папку (опционально)" 
-             : "Выберите файл(ы) *"}
-         </Label>
+        {(formData.itemType === "file" || formData.itemType === "folder") && <div className="space-y-2">
+          <Label>
+            {formData.itemType === "folder" 
+              ? "Файлы в папку (опционально)" 
+              : "Выберите файл(ы) *"}
+          </Label>
          {/* Selected files list */}
          {formData.fileEntries.length > 0 && (
              <div className="space-y-2 mb-3">
