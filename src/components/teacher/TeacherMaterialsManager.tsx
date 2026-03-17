@@ -698,6 +698,17 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      {material.type === "link" && material.file_url && (
+                        <a
+                          href={material.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-8 w-8"
+                          title={language === "ru" ? "Открыть ссылку" : "Сілтемені ашу"}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
                       {material.type === "file" && material.file_url && (() => {
                         const dlUrl = material.allow_download !== false
                           ? getFileUrl(material, 'download')
