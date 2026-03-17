@@ -134,11 +134,45 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       return;
     }
 
+    if (formData.itemType === "link" && (!formData.title || !formData.linkUrl)) {
+      toast.error(language === "ru" ? "Введите название и URL ссылки" : "Атау мен URL енгізіңіз");
+      return;
+    }
+
+    if (formData.itemType === "text" && (!formData.title || !formData.content)) {
+      toast.error(language === "ru" ? "Введите название и текст" : "Атау мен мәтін енгізіңіз");
+      return;
+    }
+
     try {
       setIsUploading(true);
       setUploadProgress(0);
 
-      if (formData.itemType === "folder") {
+      if (formData.itemType === "link") {
+        await createMaterial.mutateAsync({
+          product_id: productId,
+          teacher_id: teacherId,
+          title: formData.title,
+          type: "link",
+          content: null,
+          file_url: formData.linkUrl,
+          order_index: materials.length,
+          parent_id: currentFolderId,
+        });
+        toast.success(language === "ru" ? "Ссылка добавлена!" : "Сілтеме қосылды!");
+      } else if (formData.itemType === "text") {
+        await createMaterial.mutateAsync({
+          product_id: productId,
+          teacher_id: teacherId,
+          title: formData.title,
+          type: "text",
+          content: formData.content,
+          file_url: null,
+          order_index: materials.length,
+          parent_id: currentFolderId,
+        });
+        toast.success(language === "ru" ? "Текст добавлен!" : "Мәтін қосылды!");
+      } else if (formData.itemType === "folder") {
         const folder = await createMaterial.mutateAsync({
           product_id: productId,
           teacher_id: teacherId,
