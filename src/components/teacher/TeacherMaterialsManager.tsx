@@ -99,6 +99,8 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     filePermissions: [],
     fileEntries: [],
     allow_download: true,
+    linkUrl: "",
+    content: "",
   });
 
   // Filter materials for current folder level
