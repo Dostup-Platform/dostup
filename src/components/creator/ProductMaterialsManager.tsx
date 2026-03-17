@@ -268,20 +268,22 @@ interface FormData {
       }
     };
  
-    const handleEdit = (material: Material) => {
-      setEditingId(material.id);
-       setFormData({
-         title: material.title,
-         itemType: material.type === "folder" ? "folder" : "file",
-         files: [],
-         filePermissions: [],
-         fileEntries: [],
-         allow_download: material.allow_download !== false,
-         teacher_allow_download: material.teacher_allow_download !== false,
-         scheduleAccess: !!material.available_at,
-         availableAt: material.available_at ? new Date(material.available_at).toISOString().slice(0, 16) : "",
-       });
-    };
+     const handleEdit = (material: Material) => {
+       setEditingId(material.id);
+        setFormData({
+          title: material.title,
+          itemType: (material.type === "folder" || material.type === "link" || material.type === "text") ? material.type as ItemType : "file",
+          files: [],
+          filePermissions: [],
+          fileEntries: [],
+          allow_download: material.allow_download !== false,
+          teacher_allow_download: material.teacher_allow_download !== false,
+          scheduleAccess: !!material.available_at,
+          availableAt: material.available_at ? new Date(material.available_at).toISOString().slice(0, 16) : "",
+          linkUrl: material.type === "link" ? (material.file_url || "") : "",
+          content: material.type === "text" ? (material.content || "") : "",
+        });
+     };
  
    const handleUpdate = async (e: React.FormEvent) => {
      e.preventDefault();
