@@ -645,6 +645,29 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                         </label>
                       </div>
                     )}
+                    {formData.itemType === "link" && (
+                      <div className="space-y-2">
+                        <Label>{language === "ru" ? "URL ссылки *" : "URL сілтемесі *"}</Label>
+                        <Input
+                          placeholder="https://..."
+                          value={formData.linkUrl}
+                          onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
+                          required
+                        />
+                      </div>
+                    )}
+                    {formData.itemType === "text" && (
+                      <div className="space-y-2">
+                        <Label>{language === "ru" ? "Текст *" : "Мәтін *"}</Label>
+                        <Textarea
+                          placeholder={language === "ru" ? "Введите текст..." : "Мәтін енгізіңіз..."}
+                          value={formData.content}
+                          onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                          rows={4}
+                          required
+                        />
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <Button type="submit" size="sm">{language === "ru" ? "Сохранить" : "Сақтау"}</Button>
                       <Button type="button" variant="outline" size="sm" onClick={() => { setEditingId(null); resetForm(); }}>
