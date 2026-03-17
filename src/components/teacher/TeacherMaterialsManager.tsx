@@ -396,8 +396,8 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                 <Label>{language === "ru" ? "Что добавить?" : "Нені қосу керек?"}</Label>
                 <RadioGroup
                   value={formData.itemType}
-                  onValueChange={(value: ItemType) => setFormData(prev => ({ ...prev, itemType: value, files: [] }))}
-                  className="flex gap-4"
+                  onValueChange={(value: ItemType) => setFormData(prev => ({ ...prev, itemType: value, files: [], fileEntries: [] }))}
+                  className="flex flex-wrap gap-4"
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="file" id="teacher-type-file" />
@@ -411,6 +411,20 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                     <Label htmlFor="teacher-type-folder" className="cursor-pointer flex items-center gap-2">
                       <Folder className="w-4 h-4" />
                       {language === "ru" ? "Папка" : "Қалта"}
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="link" id="teacher-type-link" />
+                    <Label htmlFor="teacher-type-link" className="cursor-pointer flex items-center gap-2">
+                      <LinkIcon className="w-4 h-4" />
+                      {language === "ru" ? "Ссылка" : "Сілтеме"}
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="text" id="teacher-type-text" />
+                    <Label htmlFor="teacher-type-text" className="cursor-pointer flex items-center gap-2">
+                      <Type className="w-4 h-4" />
+                      {language === "ru" ? "Текст" : "Мәтін"}
                     </Label>
                   </div>
                 </RadioGroup>
