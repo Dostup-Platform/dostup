@@ -167,6 +167,7 @@ const MaterialsTab = () => {
   const { t, language } = useLanguage();
   const { user } = useSimpleAuth();
   const [expandedVideos, setExpandedVideos] = useState<Set<string>>(new Set());
+  const [expandedTexts, setExpandedTexts] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
 
@@ -359,7 +360,7 @@ const MaterialsTab = () => {
                 {material.type === "video" ? "Видео" : material.type}
               </p>
               
-              {material.type === "text" && material.content && (
+              {material.type === "text" && material.content && expandedTexts.has(material.id) && (
                 <p className="text-sm text-muted-foreground mt-3 whitespace-pre-line">
                   {material.content}
                 </p>
@@ -434,6 +435,24 @@ const MaterialsTab = () => {
                 onClick={() => window.open(material.file_url!, "_blank")}
               >
                 <ExternalLink className="w-5 h-5" />
+              </Button>
+            )}
+
+            {material.type === "text" && material.content && !isLocked && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="flex-shrink-0"
+                onClick={() => {
+                  setExpandedTexts(prev => {
+                    const next = new Set(prev);
+                    if (next.has(material.id)) next.delete(material.id);
+                    else next.add(material.id);
+                    return next;
+                  });
+                }}
+              >
+                {expandedTexts.has(material.id) ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
               </Button>
             )}
 
