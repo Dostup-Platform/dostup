@@ -40,7 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
    onClose: () => void;
  }
  
- type ItemType = "file" | "folder";
+ type ItemType = "file" | "folder" | "link" | "text";
  
   interface Material {
     id: string;
