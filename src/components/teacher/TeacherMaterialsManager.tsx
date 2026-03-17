@@ -685,9 +685,15 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                         {getItemIcon(material.type)}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">{material.title}</p>
+                       <p className="font-medium text-sm truncate">{material.title}</p>
                         {material.type === "file" && (
                           <p className="text-xs text-muted-foreground">{getAccessLabel(material)}</p>
+                        )}
+                        {material.type === "link" && (
+                          <p className="text-xs text-muted-foreground">{language === "ru" ? "Ссылка" : "Сілтеме"}</p>
+                        )}
+                        {material.type === "text" && (
+                          <p className="text-xs text-muted-foreground">{language === "ru" ? "Текст" : "Мәтін"}</p>
                         )}
                       </div>
                     </div>
