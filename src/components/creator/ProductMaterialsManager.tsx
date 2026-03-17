@@ -374,39 +374,100 @@ interface FormData {
      <form onSubmit={handleAdd} className="space-y-4">
        <div className="space-y-3">
          <Label>Что добавить?</Label>
-         <RadioGroup
-           value={formData.itemType}
-           onValueChange={(value: ItemType) => setFormData(prev => ({ ...prev, itemType: value, files: [] }))}
-           className="flex gap-4"
-         >
-           <div className="flex items-center space-x-2">
-             <RadioGroupItem value="file" id="type-file" />
-             <Label htmlFor="type-file" className="cursor-pointer flex items-center gap-2">
-               <FileText className="w-4 h-4" />
-               Файл
-             </Label>
-           </div>
-           <div className="flex items-center space-x-2">
-             <RadioGroupItem value="folder" id="type-folder" />
-             <Label htmlFor="type-folder" className="cursor-pointer flex items-center gap-2">
-               <Folder className="w-4 h-4" />
-               Папка
-             </Label>
-           </div>
-         </RadioGroup>
-       </div>
- 
-       {formData.itemType === "folder" && (
-         <div className="space-y-2">
-           <Label>Название папки *</Label>
-           <Input
-             placeholder="Введите название папки"
-             value={formData.title}
-             onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-             required
-           />
-         </div>
-       )}
+          <RadioGroup
+            value={formData.itemType}
+            onValueChange={(value: ItemType) => setFormData(prev => ({ ...prev, itemType: value, files: [], fileEntries: [] }))}
+            className="flex flex-wrap gap-4"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="file" id="type-file" />
+              <Label htmlFor="type-file" className="cursor-pointer flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Файл
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="folder" id="type-folder" />
+              <Label htmlFor="type-folder" className="cursor-pointer flex items-center gap-2">
+                <Folder className="w-4 h-4" />
+                Папка
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="link" id="type-link" />
+              <Label htmlFor="type-link" className="cursor-pointer flex items-center gap-2">
+                <LinkIcon className="w-4 h-4" />
+                Ссылка
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="text" id="type-text" />
+              <Label htmlFor="type-text" className="cursor-pointer flex items-center gap-2">
+                <Type className="w-4 h-4" />
+                Текст
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
+  
+        {formData.itemType === "folder" && (
+          <div className="space-y-2">
+            <Label>Название папки *</Label>
+            <Input
+              placeholder="Введите название папки"
+              value={formData.title}
+              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+              required
+            />
+          </div>
+        )}
+
+        {formData.itemType === "link" && (
+          <>
+            <div className="space-y-2">
+              <Label>Название *</Label>
+              <Input
+                placeholder="Введите название ссылки"
+                value={formData.title}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>URL ссылки *</Label>
+              <Input
+                placeholder="https://..."
+                value={formData.linkUrl}
+                onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
+                required
+              />
+            </div>
+          </>
+        )}
+
+        {formData.itemType === "text" && (
+          <>
+            <div className="space-y-2">
+              <Label>Название *</Label>
+              <Input
+                placeholder="Введите название"
+                value={formData.title}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Текст *</Label>
+              <Textarea
+                placeholder="Введите текст..."
+                value={formData.content}
+                onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                rows={4}
+                required
+              />
+            </div>
+          </>
+        )}
  
        <div className="space-y-2">
          <Label>
