@@ -255,13 +255,22 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     if (!editingId || !formData.title) return;
 
     try {
-      await updateMaterial.mutateAsync({
+      const updateData: any = {
         id: editingId,
         teacherId: teacherId,
         title: formData.title,
         allow_view: true,
         allow_download: formData.allow_download,
-      });
+      };
+
+      if (formData.itemType === "link") {
+        updateData.file_url = formData.linkUrl;
+      }
+      if (formData.itemType === "text") {
+        updateData.content = formData.content;
+      }
+
+      await updateMaterial.mutateAsync(updateData);
 
       toast.success(language === "ru" ? "Изменения сохранены!" : "Өзгерістер сақталды!");
       setEditingId(null);
