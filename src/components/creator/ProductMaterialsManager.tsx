@@ -23,8 +23,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useProductMaterials, useCreateMaterial, useUpdateMaterial, useDeleteMaterial, uploadMaterialFile } from "@/hooks/useMaterials";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X, Clock } from "lucide-react";
+import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X, Clock, Link as LinkIcon, Type } from "lucide-react";
 import { ExternalLink } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
@@ -39,7 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
    onClose: () => void;
  }
  
- type ItemType = "file" | "folder";
+ type ItemType = "file" | "folder" | "link" | "text";
  
   interface Material {
     id: string;
@@ -78,6 +79,8 @@ interface FormData {
    teacher_allow_download: boolean;
    scheduleAccess: boolean;
    availableAt: string;
+   linkUrl: string;
+   content: string;
  }
  
  const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: ProductMaterialsManagerProps) => {
@@ -106,6 +109,8 @@ interface FormData {
       teacher_allow_download: true,
       scheduleAccess: false,
       availableAt: "",
+      linkUrl: "",
+      content: "",
     });
  
    // Filter materials for current folder level
@@ -138,133 +143,182 @@ interface FormData {
    };
  
     const resetForm = () => {
-      setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true, teacher_allow_download: true, scheduleAccess: false, availableAt: "" });
+      setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true, teacher_allow_download: true, scheduleAccess: false, availableAt: "", linkUrl: "", content: "" });
       if (fileInputRef.current) fileInputRef.current.value = "";
     };
  
-   const handleAdd = async (e: React.FormEvent) => {
-     e.preventDefault();
-     
-     if (formData.itemType === "folder" && !formData.title) {
-       toast.error("Введите название папки");
-       return;
-     }
-     
-     if (formData.itemType === "file" && formData.fileEntries.length === 0) {
-       toast.error("Выберите файл(ы)");
-       return;
-     }
+    const handleAdd = async (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      if (formData.itemType === "folder" && !formData.title) {
+        toast.error("Введите название папки");
+        return;
+      }
+      
+      if (formData.itemType === "file" && formData.fileEntries.length === 0) {
+        toast.error("Выберите файл(ы)");
+        return;
+      }
 
-     try {
+      if (formData.itemType === "link" && (!formData.title || !formData.linkUrl)) {
+        toast.error("Введите название и URL ссылки");
+        return;
+      }
+
+      if (formData.itemType === "text" && (!formData.title || !formData.content)) {
+        toast.error("Введите название и текст");
+        return;
+      }
+
+      try {
         setIsUploading(true);
         setUploadProgress(0);
-       if (formData.itemType === "folder") {
-         // Create folder
-         const folder = await createMaterial.mutateAsync({
-           product_id: productId,
-           title: formData.title,
-           type: "folder",
-           content: null,
-           file_url: null,
-           order_index: materials.length,
-           parent_id: currentFolderId,
-         });
+        if (formData.itemType === "link") {
+          await createMaterial.mutateAsync({
+            product_id: productId,
+            title: formData.title,
+            type: "link",
+            content: null,
+            file_url: formData.linkUrl,
+            order_index: materials.length,
+            parent_id: currentFolderId,
+            available_at: formData.scheduleAccess && formData.availableAt 
+              ? new Date(formData.availableAt).toISOString() 
+              : null,
+          });
+          toast.success("Ссылка добавлена!");
+        } else if (formData.itemType === "text") {
+          await createMaterial.mutateAsync({
+            product_id: productId,
+            title: formData.title,
+            type: "text",
+            content: formData.content,
+            file_url: null,
+            order_index: materials.length,
+            parent_id: currentFolderId,
+            available_at: formData.scheduleAccess && formData.availableAt 
+              ? new Date(formData.availableAt).toISOString() 
+              : null,
+          });
+          toast.success("Текст добавлен!");
+        } else if (formData.itemType === "folder") {
+          // Create folder
+          const folder = await createMaterial.mutateAsync({
+            product_id: productId,
+            title: formData.title,
+            type: "folder",
+            content: null,
+            file_url: null,
+            order_index: materials.length,
+            parent_id: currentFolderId,
+          });
 
-         // If files selected, add them to the folder
-         if (formData.fileEntries.length > 0) {
+          // If files selected, add them to the folder
+          if (formData.fileEntries.length > 0) {
+            for (let i = 0; i < formData.fileEntries.length; i++) {
+              const entry = formData.fileEntries[i];
+               const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
+              await createMaterial.mutateAsync({
+                product_id: productId,
+                title: entry.customName || entry.file.name,
+                 type: "file",
+                 content: null,
+                 file_url: fileUrl,
+                 order_index: i,
+                 parent_id: folder.id,
+                 allow_view: true,
+                 allow_download: entry.permissions.allow_download,
+                 teacher_allow_download: entry.permissions.teacher_allow_download,
+               });
+            }
+          }
+
+          toast.success(`Папка "${formData.title}" создана!`);
+        } else {
+          // Upload files
            for (let i = 0; i < formData.fileEntries.length; i++) {
              const entry = formData.fileEntries[i];
-              const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
+             const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
              await createMaterial.mutateAsync({
                product_id: productId,
                title: entry.customName || entry.file.name,
-                type: "file",
-                content: null,
-                file_url: fileUrl,
-                order_index: i,
-                parent_id: folder.id,
+               type: "file",
+               content: null,
+               file_url: fileUrl,
+                order_index: materials.length + i,
+                parent_id: currentFolderId,
                 allow_view: true,
                 allow_download: entry.permissions.allow_download,
                 teacher_allow_download: entry.permissions.teacher_allow_download,
+                available_at: formData.scheduleAccess && formData.availableAt 
+                  ? new Date(formData.availableAt).toISOString() 
+                  : null,
               });
            }
-         }
+          toast.success(formData.fileEntries.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");
+        }
 
-         toast.success(`Папка "${formData.title}" создана!`);
-       } else {
-         // Upload files
-          for (let i = 0; i < formData.fileEntries.length; i++) {
-            const entry = formData.fileEntries[i];
-            const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
-            await createMaterial.mutateAsync({
-              product_id: productId,
-              title: entry.customName || entry.file.name,
-              type: "file",
-              content: null,
-              file_url: fileUrl,
-               order_index: materials.length + i,
-               parent_id: currentFolderId,
-               allow_view: true,
-               allow_download: entry.permissions.allow_download,
-               teacher_allow_download: entry.permissions.teacher_allow_download,
-               available_at: formData.scheduleAccess && formData.availableAt 
-                 ? new Date(formData.availableAt).toISOString() 
-                 : null,
-             });
-          }
-         toast.success(formData.fileEntries.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");
-       }
-
-       setIsAdding(false);
-       resetForm();
-     } catch (err) {
-       console.error(err);
-       toast.error("Ошибка при добавлении");
-     } finally {
-       setIsUploading(false);
-     }
-   };
- 
-    const handleEdit = (material: Material) => {
-      setEditingId(material.id);
-       setFormData({
-         title: material.title,
-         itemType: material.type === "folder" ? "folder" : "file",
-         files: [],
-         filePermissions: [],
-         fileEntries: [],
-         allow_download: material.allow_download !== false,
-         teacher_allow_download: material.teacher_allow_download !== false,
-         scheduleAccess: !!material.available_at,
-         availableAt: material.available_at ? new Date(material.available_at).toISOString().slice(0, 16) : "",
-       });
+        setIsAdding(false);
+        resetForm();
+      } catch (err) {
+        console.error(err);
+        toast.error("Ошибка при добавлении");
+      } finally {
+        setIsUploading(false);
+      }
     };
  
-   const handleUpdate = async (e: React.FormEvent) => {
-     e.preventDefault();
-     if (!editingId || !formData.title) return;
+     const handleEdit = (material: Material) => {
+       setEditingId(material.id);
+        setFormData({
+          title: material.title,
+          itemType: (material.type === "folder" || material.type === "link" || material.type === "text") ? material.type as ItemType : "file",
+          files: [],
+          filePermissions: [],
+          fileEntries: [],
+          allow_download: material.allow_download !== false,
+          teacher_allow_download: material.teacher_allow_download !== false,
+          scheduleAccess: !!material.available_at,
+          availableAt: material.available_at ? new Date(material.available_at).toISOString().slice(0, 16) : "",
+          linkUrl: material.type === "link" ? (material.file_url || "") : "",
+          content: material.type === "text" ? (material.content || "") : "",
+        });
+     };
  
-      try {
-         await updateMaterial.mutateAsync({
-           id: editingId,
-           productId: productId,
-           title: formData.title,
-           allow_view: true,
-           allow_download: formData.allow_download,
-           teacher_allow_download: formData.teacher_allow_download,
-           available_at: formData.scheduleAccess && formData.availableAt 
-             ? new Date(formData.availableAt).toISOString() 
-             : null,
-         });
- 
-      toast.success("Изменения сохранены!");
-       setEditingId(null);
-       resetForm();
-     } catch (err) {
-       console.error(err);
-       toast.error("Ошибка при обновлении");
-     }
-   };
+    const handleUpdate = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingId || !formData.title) return;
+  
+       try {
+          const updateData: any = {
+            id: editingId,
+            productId: productId,
+            title: formData.title,
+            allow_view: true,
+            allow_download: formData.allow_download,
+            teacher_allow_download: formData.teacher_allow_download,
+            available_at: formData.scheduleAccess && formData.availableAt 
+              ? new Date(formData.availableAt).toISOString() 
+              : null,
+          };
+
+          if (formData.itemType === "link") {
+            updateData.file_url = formData.linkUrl;
+          }
+          if (formData.itemType === "text") {
+            updateData.content = formData.content;
+          }
+
+          await updateMaterial.mutateAsync(updateData);
+  
+       toast.success("Изменения сохранены!");
+        setEditingId(null);
+        resetForm();
+      } catch (err) {
+        console.error(err);
+        toast.error("Ошибка при обновлении");
+      }
+    };
  
    const handleDelete = async () => {
      if (!deletingMaterial) return;
@@ -283,12 +337,12 @@ interface FormData {
      }
    };
  
-   const getItemIcon = (type: string) => {
-     if (type === "folder") {
-       return <Folder className="w-4 h-4 text-primary" />;
-     }
-     return <FileText className="w-4 h-4 text-primary" />;
-   };
+    const getItemIcon = (type: string) => {
+      if (type === "folder") return <Folder className="w-4 h-4 text-primary" />;
+      if (type === "link") return <LinkIcon className="w-4 h-4 text-primary" />;
+      if (type === "text") return <Type className="w-4 h-4 text-primary" />;
+      return <FileText className="w-4 h-4 text-primary" />;
+    };
  
    const handleOpenFolder = (folderId: string) => {
      setCurrentFolderId(folderId);
@@ -329,46 +383,107 @@ interface FormData {
      <form onSubmit={handleAdd} className="space-y-4">
        <div className="space-y-3">
          <Label>Что добавить?</Label>
-         <RadioGroup
-           value={formData.itemType}
-           onValueChange={(value: ItemType) => setFormData(prev => ({ ...prev, itemType: value, files: [] }))}
-           className="flex gap-4"
-         >
-           <div className="flex items-center space-x-2">
-             <RadioGroupItem value="file" id="type-file" />
-             <Label htmlFor="type-file" className="cursor-pointer flex items-center gap-2">
-               <FileText className="w-4 h-4" />
-               Файл
-             </Label>
-           </div>
-           <div className="flex items-center space-x-2">
-             <RadioGroupItem value="folder" id="type-folder" />
-             <Label htmlFor="type-folder" className="cursor-pointer flex items-center gap-2">
-               <Folder className="w-4 h-4" />
-               Папка
-             </Label>
-           </div>
-         </RadioGroup>
-       </div>
+          <RadioGroup
+            value={formData.itemType}
+            onValueChange={(value: ItemType) => setFormData(prev => ({ ...prev, itemType: value, files: [], fileEntries: [] }))}
+            className="flex flex-wrap gap-4"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="file" id="type-file" />
+              <Label htmlFor="type-file" className="cursor-pointer flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Файл
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="folder" id="type-folder" />
+              <Label htmlFor="type-folder" className="cursor-pointer flex items-center gap-2">
+                <Folder className="w-4 h-4" />
+                Папка
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="link" id="type-link" />
+              <Label htmlFor="type-link" className="cursor-pointer flex items-center gap-2">
+                <LinkIcon className="w-4 h-4" />
+                Ссылка
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="text" id="type-text" />
+              <Label htmlFor="type-text" className="cursor-pointer flex items-center gap-2">
+                <Type className="w-4 h-4" />
+                Текст
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
+  
+        {formData.itemType === "folder" && (
+          <div className="space-y-2">
+            <Label>Название папки *</Label>
+            <Input
+              placeholder="Введите название папки"
+              value={formData.title}
+              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+              required
+            />
+          </div>
+        )}
+
+        {formData.itemType === "link" && (
+          <>
+            <div className="space-y-2">
+              <Label>Название *</Label>
+              <Input
+                placeholder="Введите название ссылки"
+                value={formData.title}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>URL ссылки *</Label>
+              <Input
+                placeholder="https://..."
+                value={formData.linkUrl}
+                onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
+                required
+              />
+            </div>
+          </>
+        )}
+
+        {formData.itemType === "text" && (
+          <>
+            <div className="space-y-2">
+              <Label>Название *</Label>
+              <Input
+                placeholder="Введите название"
+                value={formData.title}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Текст *</Label>
+              <Textarea
+                placeholder="Введите текст..."
+                value={formData.content}
+                onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                rows={4}
+                required
+              />
+            </div>
+          </>
+        )}
  
-       {formData.itemType === "folder" && (
-         <div className="space-y-2">
-           <Label>Название папки *</Label>
-           <Input
-             placeholder="Введите название папки"
-             value={formData.title}
-             onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-             required
-           />
-         </div>
-       )}
- 
-       <div className="space-y-2">
-         <Label>
-           {formData.itemType === "folder" 
-             ? "Файлы в папку (опционально)" 
-             : "Выберите файл(ы) *"}
-         </Label>
+        {(formData.itemType === "file" || formData.itemType === "folder") && <div className="space-y-2">
+          <Label>
+            {formData.itemType === "folder" 
+              ? "Файлы в папку (опционально)" 
+              : "Выберите файл(ы) *"}
+          </Label>
          {/* Selected files list */}
          {formData.fileEntries.length > 0 && (
              <div className="space-y-2 mb-3">
@@ -476,7 +591,7 @@ interface FormData {
              </p>
            </label>
          </div>
-        </div>
+        </div>}
 
         {/* Schedule access */}
         <div className="space-y-3">
@@ -572,6 +687,31 @@ interface FormData {
            </div>
          </div>
        )}
+
+      {formData.itemType === "link" && editingId && (
+        <div className="space-y-2">
+          <Label>URL ссылки *</Label>
+          <Input
+            placeholder="https://..."
+            value={formData.linkUrl}
+            onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
+            required
+          />
+        </div>
+      )}
+
+      {formData.itemType === "text" && editingId && (
+        <div className="space-y-2">
+          <Label>Текст *</Label>
+          <Textarea
+            placeholder="Введите текст..."
+            value={formData.content}
+            onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+            rows={4}
+            required
+          />
+        </div>
+      )}
 
        {/* Schedule access in edit form */}
        {formData.itemType === "file" && (
@@ -730,15 +870,30 @@ interface FormData {
                                   </div>
                                   <div className="flex-1 min-w-0 overflow-hidden">
                                     <p className="font-medium text-sm truncate" title={material.title}>{material.title}</p>
-                                   <p className="text-xs text-muted-foreground truncate">
-                                     {material.type === "folder" 
-                                       ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
-                                       : `Файл • уч: ${material.allow_download !== false ? 'скач.' : '—'} • учит: ${material.teacher_allow_download !== false ? 'скач.' : '—'}${material.available_at ? ` • 🕐 ${new Date(material.available_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} ${new Date(material.available_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}`
-                                     }
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {material.type === "folder" 
+                                        ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
+                                        : material.type === "link"
+                                        ? "Ссылка"
+                                        : material.type === "text"
+                                        ? "Текст"
+                                        : `Файл • уч: ${material.allow_download !== false ? 'скач.' : '—'} • учит: ${material.teacher_allow_download !== false ? 'скач.' : '—'}${material.available_at ? ` • 🕐 ${new Date(material.available_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} ${new Date(material.available_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}`
+                                      }
                                    </p>
                                  </div>
                                 </div>
                                <div className="flex gap-0.5 justify-end w-full" onClick={(e) => e.stopPropagation()}>
+                                {material.type === "link" && material.file_url && (
+                                  <a
+                                    href={material.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-7 w-7 sm:h-8 sm:w-8"
+                                    title="Открыть ссылку"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  </a>
+                                )}
                                 {material.type === "file" && material.file_url && (() => {
                                   const dlUrl = getFileUrl(material, 'download');
                                   const vUrl = getFileUrl(material, 'view');

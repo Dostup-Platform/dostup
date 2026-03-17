@@ -22,7 +22,8 @@ import {
   uploadTeacherMaterialFile,
 } from "@/hooks/useTeacherMaterials";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, ChevronLeft, FolderOpen, Download, X, ExternalLink } from "lucide-react";
+import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, ChevronLeft, FolderOpen, Download, X, ExternalLink, Link as LinkIcon, Type } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
@@ -35,7 +36,7 @@ interface TeacherMaterialsManagerProps {
   productTitle: string;
 }
 
-type ItemType = "file" | "folder";
+type ItemType = "file" | "folder" | "link" | "text";
 
 interface Material {
   id: string;
@@ -69,6 +70,8 @@ interface FormData {
   filePermissions: FilePermission[];
   fileEntries: FileEntry[];
   allow_download: boolean;
+  linkUrl: string;
+  content: string;
 }
 
 // isOfficeDocument is now imported from fileRedirect
@@ -96,6 +99,8 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     filePermissions: [],
     fileEntries: [],
     allow_download: true,
+    linkUrl: "",
+    content: "",
   });
 
   // Filter materials for current folder level
@@ -112,7 +117,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   }, [allMaterials, currentFolderId]);
 
   const resetForm = () => {
-    setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true });
+    setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true, linkUrl: "", content: "" });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -129,11 +134,45 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       return;
     }
 
+    if (formData.itemType === "link" && (!formData.title || !formData.linkUrl)) {
+      toast.error(language === "ru" ? "Введите название и URL ссылки" : "Атау мен URL енгізіңіз");
+      return;
+    }
+
+    if (formData.itemType === "text" && (!formData.title || !formData.content)) {
+      toast.error(language === "ru" ? "Введите название и текст" : "Атау мен мәтін енгізіңіз");
+      return;
+    }
+
     try {
       setIsUploading(true);
       setUploadProgress(0);
 
-      if (formData.itemType === "folder") {
+      if (formData.itemType === "link") {
+        await createMaterial.mutateAsync({
+          product_id: productId,
+          teacher_id: teacherId,
+          title: formData.title,
+          type: "link",
+          content: null,
+          file_url: formData.linkUrl,
+          order_index: materials.length,
+          parent_id: currentFolderId,
+        });
+        toast.success(language === "ru" ? "Ссылка добавлена!" : "Сілтеме қосылды!");
+      } else if (formData.itemType === "text") {
+        await createMaterial.mutateAsync({
+          product_id: productId,
+          teacher_id: teacherId,
+          title: formData.title,
+          type: "text",
+          content: formData.content,
+          file_url: null,
+          order_index: materials.length,
+          parent_id: currentFolderId,
+        });
+        toast.success(language === "ru" ? "Текст добавлен!" : "Мәтін қосылды!");
+      } else if (formData.itemType === "folder") {
         const folder = await createMaterial.mutateAsync({
           product_id: productId,
           teacher_id: teacherId,
@@ -201,11 +240,13 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     setEditingId(material.id);
     setFormData({
       title: material.title,
-      itemType: material.type === "folder" ? "folder" : "file",
+      itemType: (material.type === "folder" || material.type === "link" || material.type === "text") ? material.type as ItemType : "file",
       files: [],
       filePermissions: [],
       fileEntries: [],
       allow_download: material.allow_download !== false,
+      linkUrl: material.type === "link" ? (material.file_url || "") : "",
+      content: material.type === "text" ? (material.content || "") : "",
     });
   };
 
@@ -214,13 +255,22 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     if (!editingId || !formData.title) return;
 
     try {
-      await updateMaterial.mutateAsync({
+      const updateData: any = {
         id: editingId,
         teacherId: teacherId,
         title: formData.title,
         allow_view: true,
         allow_download: formData.allow_download,
-      });
+      };
+
+      if (formData.itemType === "link") {
+        updateData.file_url = formData.linkUrl;
+      }
+      if (formData.itemType === "text") {
+        updateData.content = formData.content;
+      }
+
+      await updateMaterial.mutateAsync(updateData);
 
       toast.success(language === "ru" ? "Изменения сохранены!" : "Өзгерістер сақталды!");
       setEditingId(null);
@@ -249,9 +299,9 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   };
 
   const getItemIcon = (type: string) => {
-    if (type === "folder") {
-      return <Folder className="w-4 h-4 text-primary" />;
-    }
+    if (type === "folder") return <Folder className="w-4 h-4 text-primary" />;
+    if (type === "link") return <LinkIcon className="w-4 h-4 text-primary" />;
+    if (type === "text") return <Type className="w-4 h-4 text-primary" />;
     return <FileText className="w-4 h-4 text-primary" />;
   };
 
@@ -346,8 +396,8 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                 <Label>{language === "ru" ? "Что добавить?" : "Нені қосу керек?"}</Label>
                 <RadioGroup
                   value={formData.itemType}
-                  onValueChange={(value: ItemType) => setFormData(prev => ({ ...prev, itemType: value, files: [] }))}
-                  className="flex gap-4"
+                  onValueChange={(value: ItemType) => setFormData(prev => ({ ...prev, itemType: value, files: [], fileEntries: [] }))}
+                  className="flex flex-wrap gap-4"
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="file" id="teacher-type-file" />
@@ -361,6 +411,20 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                     <Label htmlFor="teacher-type-folder" className="cursor-pointer flex items-center gap-2">
                       <Folder className="w-4 h-4" />
                       {language === "ru" ? "Папка" : "Қалта"}
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="link" id="teacher-type-link" />
+                    <Label htmlFor="teacher-type-link" className="cursor-pointer flex items-center gap-2">
+                      <LinkIcon className="w-4 h-4" />
+                      {language === "ru" ? "Ссылка" : "Сілтеме"}
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="text" id="teacher-type-text" />
+                    <Label htmlFor="teacher-type-text" className="cursor-pointer flex items-center gap-2">
+                      <Type className="w-4 h-4" />
+                      {language === "ru" ? "Текст" : "Мәтін"}
                     </Label>
                   </div>
                 </RadioGroup>
@@ -378,13 +442,59 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                 </div>
               )}
 
-              <div className="space-y-2">
+              {formData.itemType === "link" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>{language === "ru" ? "Название *" : "Атауы *"}</Label>
+                    <Input
+                      placeholder={language === "ru" ? "Введите название ссылки" : "Сілтеме атауын енгізіңіз"}
+                      value={formData.title}
+                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{language === "ru" ? "URL ссылки *" : "URL сілтемесі *"}</Label>
+                    <Input
+                      placeholder="https://..."
+                      value={formData.linkUrl}
+                      onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {formData.itemType === "text" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>{language === "ru" ? "Название *" : "Атауы *"}</Label>
+                    <Input
+                      placeholder={language === "ru" ? "Введите название" : "Атауын енгізіңіз"}
+                      value={formData.title}
+                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{language === "ru" ? "Текст *" : "Мәтін *"}</Label>
+                    <Textarea
+                      placeholder={language === "ru" ? "Введите текст..." : "Мәтін енгізіңіз..."}
+                      value={formData.content}
+                      onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                      rows={4}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {(formData.itemType === "file" || formData.itemType === "folder") && <div className="space-y-2">
                 <Label>
                   {formData.itemType === "folder" 
                     ? (language === "ru" ? "Файлы в папку (опционально)" : "Қалтаға файлдар (міндетті емес)")
                     : (language === "ru" ? "Выберите файл(ы) *" : "Файл(дар)ды таңдаңыз *")}
                 </Label>
-                
                 {formData.fileEntries.length > 0 && (
                   <div className="space-y-2 mb-3">
                     {formData.fileEntries.map((entry, index) => (
@@ -473,7 +583,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                     </p>
                   </label>
                 </div>
-              </div>
+              </div>}
 
               <div className="flex gap-2">
                 <Button type="submit" disabled={isUploading} className="flex-1">
@@ -535,6 +645,29 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                         </label>
                       </div>
                     )}
+                    {formData.itemType === "link" && (
+                      <div className="space-y-2">
+                        <Label>{language === "ru" ? "URL ссылки *" : "URL сілтемесі *"}</Label>
+                        <Input
+                          placeholder="https://..."
+                          value={formData.linkUrl}
+                          onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
+                          required
+                        />
+                      </div>
+                    )}
+                    {formData.itemType === "text" && (
+                      <div className="space-y-2">
+                        <Label>{language === "ru" ? "Текст *" : "Мәтін *"}</Label>
+                        <Textarea
+                          placeholder={language === "ru" ? "Введите текст..." : "Мәтін енгізіңіз..."}
+                          value={formData.content}
+                          onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                          rows={4}
+                          required
+                        />
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <Button type="submit" size="sm">{language === "ru" ? "Сохранить" : "Сақтау"}</Button>
                       <Button type="button" variant="outline" size="sm" onClick={() => { setEditingId(null); resetForm(); }}>
@@ -552,13 +685,30 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                         {getItemIcon(material.type)}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">{material.title}</p>
+                       <p className="font-medium text-sm truncate">{material.title}</p>
                         {material.type === "file" && (
                           <p className="text-xs text-muted-foreground">{getAccessLabel(material)}</p>
+                        )}
+                        {material.type === "link" && (
+                          <p className="text-xs text-muted-foreground">{language === "ru" ? "Ссылка" : "Сілтеме"}</p>
+                        )}
+                        {material.type === "text" && (
+                          <p className="text-xs text-muted-foreground">{language === "ru" ? "Текст" : "Мәтін"}</p>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      {material.type === "link" && material.file_url && (
+                        <a
+                          href={material.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-8 w-8"
+                          title={language === "ru" ? "Открыть ссылку" : "Сілтемені ашу"}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
                       {material.type === "file" && material.file_url && (() => {
                         const dlUrl = material.allow_download !== false
                           ? getFileUrl(material, 'download')
