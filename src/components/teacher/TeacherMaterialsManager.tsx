@@ -36,7 +36,7 @@ interface TeacherMaterialsManagerProps {
   productTitle: string;
 }
 
-type ItemType = "file" | "folder";
+type ItemType = "file" | "folder" | "link" | "text";
 
 interface Material {
   id: string;
