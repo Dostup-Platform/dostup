@@ -870,11 +870,15 @@ interface FormData {
                                   </div>
                                   <div className="flex-1 min-w-0 overflow-hidden">
                                     <p className="font-medium text-sm truncate" title={material.title}>{material.title}</p>
-                                   <p className="text-xs text-muted-foreground truncate">
-                                     {material.type === "folder" 
-                                       ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
-                                       : `Файл • уч: ${material.allow_download !== false ? 'скач.' : '—'} • учит: ${material.teacher_allow_download !== false ? 'скач.' : '—'}${material.available_at ? ` • 🕐 ${new Date(material.available_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} ${new Date(material.available_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}`
-                                     }
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {material.type === "folder" 
+                                        ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
+                                        : material.type === "link"
+                                        ? "Ссылка"
+                                        : material.type === "text"
+                                        ? "Текст"
+                                        : `Файл • уч: ${material.allow_download !== false ? 'скач.' : '—'} • учит: ${material.teacher_allow_download !== false ? 'скач.' : '—'}${material.available_at ? ` • 🕐 ${new Date(material.available_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} ${new Date(material.available_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : ''}`
+                                      }
                                    </p>
                                  </div>
                                 </div>
