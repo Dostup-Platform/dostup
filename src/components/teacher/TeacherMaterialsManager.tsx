@@ -240,11 +240,13 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     setEditingId(material.id);
     setFormData({
       title: material.title,
-      itemType: material.type === "folder" ? "folder" : "file",
+      itemType: (material.type === "folder" || material.type === "link" || material.type === "text") ? material.type as ItemType : "file",
       files: [],
       filePermissions: [],
       fileEntries: [],
       allow_download: material.allow_download !== false,
+      linkUrl: material.type === "link" ? (material.file_url || "") : "",
+      content: material.type === "text" ? (material.content || "") : "",
     });
   };
 
