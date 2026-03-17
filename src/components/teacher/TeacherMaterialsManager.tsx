@@ -494,7 +494,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                   {formData.itemType === "folder" 
                     ? (language === "ru" ? "Файлы в папку (опционально)" : "Қалтаға файлдар (міндетті емес)")
                     : (language === "ru" ? "Выберите файл(ы) *" : "Файл(дар)ды таңдаңыз *")}
-                
+                </Label>
                 {formData.fileEntries.length > 0 && (
                   <div className="space-y-2 mb-3">
                     {formData.fileEntries.map((entry, index) => (
