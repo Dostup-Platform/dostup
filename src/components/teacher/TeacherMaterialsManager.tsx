@@ -583,7 +583,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                     </p>
                   </label>
                 </div>
-              </div>
+              </div>}
 
               <div className="flex gap-2">
                 <Button type="submit" disabled={isUploading} className="flex-1">
