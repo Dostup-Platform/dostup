@@ -438,6 +438,24 @@ const MaterialsTab = () => {
               </Button>
             )}
 
+            {material.type === "text" && material.content && !isLocked && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="flex-shrink-0"
+                onClick={() => {
+                  setExpandedTexts(prev => {
+                    const next = new Set(prev);
+                    if (next.has(material.id)) next.delete(material.id);
+                    else next.add(material.id);
+                    return next;
+                  });
+                }}
+              >
+                {expandedTexts.has(material.id) ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+              </Button>
+            )}
+
             {isLocked && (
               <div className="flex items-center gap-1.5 text-muted-foreground flex-shrink-0">
                 <Lock className="w-4 h-4" />
