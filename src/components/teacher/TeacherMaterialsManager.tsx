@@ -70,6 +70,8 @@ interface FormData {
   filePermissions: FilePermission[];
   fileEntries: FileEntry[];
   allow_download: boolean;
+  linkUrl: string;
+  content: string;
 }
 
 // isOfficeDocument is now imported from fileRedirect
