@@ -582,7 +582,7 @@ interface FormData {
              </p>
            </label>
          </div>
-        </div>
+        </div>}
 
         {/* Schedule access */}
         <div className="space-y-3">
