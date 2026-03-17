@@ -109,6 +109,8 @@ interface FormData {
       teacher_allow_download: true,
       scheduleAccess: false,
       availableAt: "",
+      linkUrl: "",
+      content: "",
     });
  
    // Filter materials for current folder level
