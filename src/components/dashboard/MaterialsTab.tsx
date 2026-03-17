@@ -360,7 +360,7 @@ const MaterialsTab = () => {
                 {material.type === "video" ? "Видео" : material.type}
               </p>
               
-              {material.type === "text" && material.content && (
+              {material.type === "text" && material.content && expandedTexts.has(material.id) && (
                 <p className="text-sm text-muted-foreground mt-3 whitespace-pre-line">
                   {material.content}
                 </p>
