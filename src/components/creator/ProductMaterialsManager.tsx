@@ -79,6 +79,8 @@ interface FormData {
    teacher_allow_download: boolean;
    scheduleAccess: boolean;
    availableAt: string;
+   linkUrl: string;
+   content: string;
  }
  
  const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: ProductMaterialsManagerProps) => {
