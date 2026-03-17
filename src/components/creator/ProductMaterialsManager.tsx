@@ -679,6 +679,31 @@ interface FormData {
          </div>
        )}
 
+      {formData.itemType === "link" && editingId && (
+        <div className="space-y-2">
+          <Label>URL ссылки *</Label>
+          <Input
+            placeholder="https://..."
+            value={formData.linkUrl}
+            onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
+            required
+          />
+        </div>
+      )}
+
+      {formData.itemType === "text" && editingId && (
+        <div className="space-y-2">
+          <Label>Текст *</Label>
+          <Textarea
+            placeholder="Введите текст..."
+            value={formData.content}
+            onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+            rows={4}
+            required
+          />
+        </div>
+      )}
+
        {/* Schedule access in edit form */}
        {formData.itemType === "file" && (
          <div className="space-y-3">
