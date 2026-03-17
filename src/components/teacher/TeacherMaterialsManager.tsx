@@ -117,7 +117,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   }, [allMaterials, currentFolderId]);
 
   const resetForm = () => {
-    setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true });
+    setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true, linkUrl: "", content: "" });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
