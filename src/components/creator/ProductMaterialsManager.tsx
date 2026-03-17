@@ -285,31 +285,40 @@ interface FormData {
         });
      };
  
-   const handleUpdate = async (e: React.FormEvent) => {
-     e.preventDefault();
-     if (!editingId || !formData.title) return;
- 
-      try {
-         await updateMaterial.mutateAsync({
-           id: editingId,
-           productId: productId,
-           title: formData.title,
-           allow_view: true,
-           allow_download: formData.allow_download,
-           teacher_allow_download: formData.teacher_allow_download,
-           available_at: formData.scheduleAccess && formData.availableAt 
-             ? new Date(formData.availableAt).toISOString() 
-             : null,
-         });
- 
-      toast.success("Изменения сохранены!");
-       setEditingId(null);
-       resetForm();
-     } catch (err) {
-       console.error(err);
-       toast.error("Ошибка при обновлении");
-     }
-   };
+    const handleUpdate = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingId || !formData.title) return;
+  
+       try {
+          const updateData: any = {
+            id: editingId,
+            productId: productId,
+            title: formData.title,
+            allow_view: true,
+            allow_download: formData.allow_download,
+            teacher_allow_download: formData.teacher_allow_download,
+            available_at: formData.scheduleAccess && formData.availableAt 
+              ? new Date(formData.availableAt).toISOString() 
+              : null,
+          };
+
+          if (formData.itemType === "link") {
+            updateData.file_url = formData.linkUrl;
+          }
+          if (formData.itemType === "text") {
+            updateData.content = formData.content;
+          }
+
+          await updateMaterial.mutateAsync(updateData);
+  
+       toast.success("Изменения сохранены!");
+        setEditingId(null);
+        resetForm();
+      } catch (err) {
+        console.error(err);
+        toast.error("Ошибка при обновлении");
+      }
+    };
  
    const handleDelete = async () => {
      if (!deletingMaterial) return;
