@@ -442,12 +442,58 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                 </div>
               )}
 
-              <div className="space-y-2">
+              {formData.itemType === "link" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>{language === "ru" ? "Название *" : "Атауы *"}</Label>
+                    <Input
+                      placeholder={language === "ru" ? "Введите название ссылки" : "Сілтеме атауын енгізіңіз"}
+                      value={formData.title}
+                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{language === "ru" ? "URL ссылки *" : "URL сілтемесі *"}</Label>
+                    <Input
+                      placeholder="https://..."
+                      value={formData.linkUrl}
+                      onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {formData.itemType === "text" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>{language === "ru" ? "Название *" : "Атауы *"}</Label>
+                    <Input
+                      placeholder={language === "ru" ? "Введите название" : "Атауын енгізіңіз"}
+                      value={formData.title}
+                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{language === "ru" ? "Текст *" : "Мәтін *"}</Label>
+                    <Textarea
+                      placeholder={language === "ru" ? "Введите текст..." : "Мәтін енгізіңіз..."}
+                      value={formData.content}
+                      onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                      rows={4}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              {(formData.itemType === "file" || formData.itemType === "folder") && <div className="space-y-2">
                 <Label>
                   {formData.itemType === "folder" 
                     ? (language === "ru" ? "Файлы в папку (опционально)" : "Қалтаға файлдар (міндетті емес)")
                     : (language === "ru" ? "Выберите файл(ы) *" : "Файл(дар)ды таңдаңыз *")}
-                </Label>
                 
                 {formData.fileEntries.length > 0 && (
                   <div className="space-y-2 mb-3">
