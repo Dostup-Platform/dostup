@@ -147,88 +147,126 @@ interface FormData {
       if (fileInputRef.current) fileInputRef.current.value = "";
     };
  
-   const handleAdd = async (e: React.FormEvent) => {
-     e.preventDefault();
-     
-     if (formData.itemType === "folder" && !formData.title) {
-       toast.error("Введите название папки");
-       return;
-     }
-     
-     if (formData.itemType === "file" && formData.fileEntries.length === 0) {
-       toast.error("Выберите файл(ы)");
-       return;
-     }
+    const handleAdd = async (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      if (formData.itemType === "folder" && !formData.title) {
+        toast.error("Введите название папки");
+        return;
+      }
+      
+      if (formData.itemType === "file" && formData.fileEntries.length === 0) {
+        toast.error("Выберите файл(ы)");
+        return;
+      }
 
-     try {
+      if (formData.itemType === "link" && (!formData.title || !formData.linkUrl)) {
+        toast.error("Введите название и URL ссылки");
+        return;
+      }
+
+      if (formData.itemType === "text" && (!formData.title || !formData.content)) {
+        toast.error("Введите название и текст");
+        return;
+      }
+
+      try {
         setIsUploading(true);
         setUploadProgress(0);
-       if (formData.itemType === "folder") {
-         // Create folder
-         const folder = await createMaterial.mutateAsync({
-           product_id: productId,
-           title: formData.title,
-           type: "folder",
-           content: null,
-           file_url: null,
-           order_index: materials.length,
-           parent_id: currentFolderId,
-         });
+        if (formData.itemType === "link") {
+          await createMaterial.mutateAsync({
+            product_id: productId,
+            title: formData.title,
+            type: "link",
+            content: null,
+            file_url: formData.linkUrl,
+            order_index: materials.length,
+            parent_id: currentFolderId,
+            available_at: formData.scheduleAccess && formData.availableAt 
+              ? new Date(formData.availableAt).toISOString() 
+              : null,
+          });
+          toast.success("Ссылка добавлена!");
+        } else if (formData.itemType === "text") {
+          await createMaterial.mutateAsync({
+            product_id: productId,
+            title: formData.title,
+            type: "text",
+            content: formData.content,
+            file_url: null,
+            order_index: materials.length,
+            parent_id: currentFolderId,
+            available_at: formData.scheduleAccess && formData.availableAt 
+              ? new Date(formData.availableAt).toISOString() 
+              : null,
+          });
+          toast.success("Текст добавлен!");
+        } else if (formData.itemType === "folder") {
+          // Create folder
+          const folder = await createMaterial.mutateAsync({
+            product_id: productId,
+            title: formData.title,
+            type: "folder",
+            content: null,
+            file_url: null,
+            order_index: materials.length,
+            parent_id: currentFolderId,
+          });
 
-         // If files selected, add them to the folder
-         if (formData.fileEntries.length > 0) {
+          // If files selected, add them to the folder
+          if (formData.fileEntries.length > 0) {
+            for (let i = 0; i < formData.fileEntries.length; i++) {
+              const entry = formData.fileEntries[i];
+               const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
+              await createMaterial.mutateAsync({
+                product_id: productId,
+                title: entry.customName || entry.file.name,
+                 type: "file",
+                 content: null,
+                 file_url: fileUrl,
+                 order_index: i,
+                 parent_id: folder.id,
+                 allow_view: true,
+                 allow_download: entry.permissions.allow_download,
+                 teacher_allow_download: entry.permissions.teacher_allow_download,
+               });
+            }
+          }
+
+          toast.success(`Папка "${formData.title}" создана!`);
+        } else {
+          // Upload files
            for (let i = 0; i < formData.fileEntries.length; i++) {
              const entry = formData.fileEntries[i];
-              const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
+             const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
              await createMaterial.mutateAsync({
                product_id: productId,
                title: entry.customName || entry.file.name,
-                type: "file",
-                content: null,
-                file_url: fileUrl,
-                order_index: i,
-                parent_id: folder.id,
+               type: "file",
+               content: null,
+               file_url: fileUrl,
+                order_index: materials.length + i,
+                parent_id: currentFolderId,
                 allow_view: true,
                 allow_download: entry.permissions.allow_download,
                 teacher_allow_download: entry.permissions.teacher_allow_download,
+                available_at: formData.scheduleAccess && formData.availableAt 
+                  ? new Date(formData.availableAt).toISOString() 
+                  : null,
               });
            }
-         }
+          toast.success(formData.fileEntries.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");
+        }
 
-         toast.success(`Папка "${formData.title}" создана!`);
-       } else {
-         // Upload files
-          for (let i = 0; i < formData.fileEntries.length; i++) {
-            const entry = formData.fileEntries[i];
-            const fileUrl = await uploadMaterialFile(entry.file, productId, (p) => setUploadProgress(p));
-            await createMaterial.mutateAsync({
-              product_id: productId,
-              title: entry.customName || entry.file.name,
-              type: "file",
-              content: null,
-              file_url: fileUrl,
-               order_index: materials.length + i,
-               parent_id: currentFolderId,
-               allow_view: true,
-               allow_download: entry.permissions.allow_download,
-               teacher_allow_download: entry.permissions.teacher_allow_download,
-               available_at: formData.scheduleAccess && formData.availableAt 
-                 ? new Date(formData.availableAt).toISOString() 
-                 : null,
-             });
-          }
-         toast.success(formData.fileEntries.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");
-       }
-
-       setIsAdding(false);
-       resetForm();
-     } catch (err) {
-       console.error(err);
-       toast.error("Ошибка при добавлении");
-     } finally {
-       setIsUploading(false);
-     }
-   };
+        setIsAdding(false);
+        resetForm();
+      } catch (err) {
+        console.error(err);
+        toast.error("Ошибка при добавлении");
+      } finally {
+        setIsUploading(false);
+      }
+    };
  
     const handleEdit = (material: Material) => {
       setEditingId(material.id);
