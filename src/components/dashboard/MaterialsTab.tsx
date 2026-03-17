@@ -359,12 +359,6 @@ const MaterialsTab = () => {
               <p className="text-sm text-muted-foreground capitalize mt-0.5">
                 {material.type === "video" ? "Видео" : material.type}
               </p>
-              
-              {material.type === "text" && material.content && expandedTexts.has(material.id) && (
-                <p className="text-sm text-muted-foreground mt-3 whitespace-pre-line">
-                  {material.content}
-                </p>
-              )}
 
               {isVideo && isExpanded && canPlay && (
                 <InlineVideoPlayer url={material.file_url!} />
@@ -465,6 +459,12 @@ const MaterialsTab = () => {
               </div>
             )}
           </div>
+
+          {material.type === "text" && material.content && expandedTexts.has(material.id) && (
+            <p className="text-sm text-muted-foreground mt-3 whitespace-pre-line">
+              {material.content}
+            </p>
+          )}
         </CardContent>
       </Card>
     );
