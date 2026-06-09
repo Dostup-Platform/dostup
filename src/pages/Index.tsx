@@ -9,7 +9,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 import CreatorRegisterForm from "@/components/CreatorRegisterForm";
 import RoleSelection from "@/components/RoleSelection";
-import { Loader2, User, X, UserPlus, Eye, EyeOff } from "lucide-react";
+import { Loader2, User, X, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -229,7 +229,7 @@ const Index = () => {
                   className="w-full"
                   onClick={() => setShowRegistrationForm(true)}
                 >
-                  {t("register")}
+                  {t("loginAsOtherUser")}
                 </Button>
               </div>
             ) : (
@@ -312,7 +312,6 @@ const Index = () => {
                 className="w-full"
                 onClick={() => setShowCreatorRegister(true)}
               >
-                <UserPlus className="w-4 h-4 mr-2" />
                 {t("register")}
               </Button>
             </div>
