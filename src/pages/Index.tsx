@@ -8,10 +8,10 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import CreatorLoginForm from "@/components/CreatorLoginForm";
+import CreatorRegisterForm from "@/components/CreatorRegisterForm";
 import RoleSelection from "@/components/RoleSelection";
-import { Loader2, BookOpen, User, X, Download, GraduationCap } from "lucide-react";
+import { Loader2, BookOpen, User, X, UserPlus } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -24,24 +24,17 @@ const Index = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [showCreatorLogin, setShowCreatorLogin] = useState(false);
-  const [showTeacherLogin, setShowTeacherLogin] = useState(false);
+  const [showCreatorRegister, setShowCreatorRegister] = useState(false);
   const [showRegistrationForm, setShowRegistrationForm] = useState(false);
-  const [showTeacherForm, setShowTeacherForm] = useState(false);
-  const [teacherFirstName, setTeacherFirstName] = useState("");
-  const [teacherLastName, setTeacherLastName] = useState("");
-  const [isTeacherLogging, setIsTeacherLogging] = useState(false);
   const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
-  
-  // Получаем данные последнего учителя
-  const lastTeacherData = localStorage.getItem("last_teacher_data");
-  const lastTeacher = lastTeacherData ? JSON.parse(lastTeacherData) : null;
 
   // Если создатель уже вошёл, перенаправить
   useEffect(() => {
     const creatorName = localStorage.getItem("creator_name");
     const teacherData = localStorage.getItem("teacher_data");
+    const creatorAccountType = localStorage.getItem("creator_account_type");
     if (creatorName) {
-      navigate("/creator");
+      navigate(creatorAccountType === "online_school" ? "/school" : "/creator");
     } else if (teacherData) {
       navigate("/teacher");
     }
@@ -128,94 +121,6 @@ const Index = () => {
   const handleNotMe = () => {
     clearLastUser();
     setShowRegistrationForm(true);
-  };
-
-  const handleTeacherLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const fullName = `${teacherFirstName.trim()} ${teacherLastName.trim()}`.trim();
-    if (fullName.length < 3) {
-      toast.error(t("minNameLength"));
-      return;
-    }
-    
-    setIsTeacherLogging(true);
-    
-    try {
-      // Ищем учителя в product_teachers по имени
-      const { data: teacherRecords, error } = await supabase
-        .from("product_teachers")
-        .select("id, teacher_name, product_id")
-        .ilike("teacher_name", fullName);
-      
-      if (error) throw error;
-      
-      if (!teacherRecords || teacherRecords.length === 0) {
-        toast.error(t("teacherNotFound"));
-        setIsTeacherLogging(false);
-        return;
-      }
-      
-      // Сохраняем данные учителя
-      const teacherData = {
-        name: fullName,
-        productIds: teacherRecords.map(r => r.product_id)
-      };
-      localStorage.setItem("teacher_data", JSON.stringify(teacherData));
-      // Сохраняем для быстрого входа в следующий раз
-      localStorage.setItem("last_teacher_data", JSON.stringify(teacherData));
-      
-      toast.success(t("welcomeCreator"));
-      navigate("/teacher");
-    } catch (error) {
-      console.error("Teacher login error:", error);
-      toast.error(t("teacherNotFound"));
-    } finally {
-      setIsTeacherLogging(false);
-    }
-  };
-
-  const handleLoginAsLastTeacher = async () => {
-    if (!lastTeacher) return;
-    
-    setIsTeacherLogging(true);
-    
-    try {
-      // Проверяем, что учитель всё ещё существует
-      const { data: teacherRecords, error } = await supabase
-        .from("product_teachers")
-        .select("id, teacher_name, product_id")
-        .ilike("teacher_name", lastTeacher.name);
-      
-      if (error) throw error;
-      
-      if (!teacherRecords || teacherRecords.length === 0) {
-        toast.error(t("teacherNotFound"));
-        localStorage.removeItem("last_teacher_data");
-        setIsTeacherLogging(false);
-        return;
-      }
-      
-      // Обновляем данные учителя
-      const teacherData = {
-        name: lastTeacher.name,
-        productIds: teacherRecords.map(r => r.product_id)
-      };
-      localStorage.setItem("teacher_data", JSON.stringify(teacherData));
-      
-      toast.success(t("welcomeCreator"));
-      navigate("/teacher");
-    } catch (error) {
-      console.error("Teacher login error:", error);
-      toast.error(t("teacherNotFound"));
-    } finally {
-      setIsTeacherLogging(false);
-    }
-  };
-
-  const handleClearLastTeacher = () => {
-    localStorage.removeItem("last_teacher_data");
-    setShowTeacherForm(true);
   };
 
   if (loading) {
