@@ -8,10 +8,10 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import CreatorLoginForm from "@/components/CreatorLoginForm";
+import CreatorRegisterForm from "@/components/CreatorRegisterForm";
 import RoleSelection from "@/components/RoleSelection";
-import { Loader2, BookOpen, User, X, Download, GraduationCap } from "lucide-react";
+import { Loader2, BookOpen, User, X, UserPlus } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -24,24 +24,17 @@ const Index = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [showCreatorLogin, setShowCreatorLogin] = useState(false);
-  const [showTeacherLogin, setShowTeacherLogin] = useState(false);
+  const [showCreatorRegister, setShowCreatorRegister] = useState(false);
   const [showRegistrationForm, setShowRegistrationForm] = useState(false);
-  const [showTeacherForm, setShowTeacherForm] = useState(false);
-  const [teacherFirstName, setTeacherFirstName] = useState("");
-  const [teacherLastName, setTeacherLastName] = useState("");
-  const [isTeacherLogging, setIsTeacherLogging] = useState(false);
   const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
-  
-  // Получаем данные последнего учителя
-  const lastTeacherData = localStorage.getItem("last_teacher_data");
-  const lastTeacher = lastTeacherData ? JSON.parse(lastTeacherData) : null;
 
   // Если создатель уже вошёл, перенаправить
   useEffect(() => {
     const creatorName = localStorage.getItem("creator_name");
     const teacherData = localStorage.getItem("teacher_data");
+    const creatorAccountType = localStorage.getItem("creator_account_type");
     if (creatorName) {
-      navigate("/creator");
+      navigate(creatorAccountType === "online_school" ? "/school" : "/creator");
     } else if (teacherData) {
       navigate("/teacher");
     }
@@ -130,94 +123,6 @@ const Index = () => {
     setShowRegistrationForm(true);
   };
 
-  const handleTeacherLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const fullName = `${teacherFirstName.trim()} ${teacherLastName.trim()}`.trim();
-    if (fullName.length < 3) {
-      toast.error(t("minNameLength"));
-      return;
-    }
-    
-    setIsTeacherLogging(true);
-    
-    try {
-      // Ищем учителя в product_teachers по имени
-      const { data: teacherRecords, error } = await supabase
-        .from("product_teachers")
-        .select("id, teacher_name, product_id")
-        .ilike("teacher_name", fullName);
-      
-      if (error) throw error;
-      
-      if (!teacherRecords || teacherRecords.length === 0) {
-        toast.error(t("teacherNotFound"));
-        setIsTeacherLogging(false);
-        return;
-      }
-      
-      // Сохраняем данные учителя
-      const teacherData = {
-        name: fullName,
-        productIds: teacherRecords.map(r => r.product_id)
-      };
-      localStorage.setItem("teacher_data", JSON.stringify(teacherData));
-      // Сохраняем для быстрого входа в следующий раз
-      localStorage.setItem("last_teacher_data", JSON.stringify(teacherData));
-      
-      toast.success(t("welcomeCreator"));
-      navigate("/teacher");
-    } catch (error) {
-      console.error("Teacher login error:", error);
-      toast.error(t("teacherNotFound"));
-    } finally {
-      setIsTeacherLogging(false);
-    }
-  };
-
-  const handleLoginAsLastTeacher = async () => {
-    if (!lastTeacher) return;
-    
-    setIsTeacherLogging(true);
-    
-    try {
-      // Проверяем, что учитель всё ещё существует
-      const { data: teacherRecords, error } = await supabase
-        .from("product_teachers")
-        .select("id, teacher_name, product_id")
-        .ilike("teacher_name", lastTeacher.name);
-      
-      if (error) throw error;
-      
-      if (!teacherRecords || teacherRecords.length === 0) {
-        toast.error(t("teacherNotFound"));
-        localStorage.removeItem("last_teacher_data");
-        setIsTeacherLogging(false);
-        return;
-      }
-      
-      // Обновляем данные учителя
-      const teacherData = {
-        name: lastTeacher.name,
-        productIds: teacherRecords.map(r => r.product_id)
-      };
-      localStorage.setItem("teacher_data", JSON.stringify(teacherData));
-      
-      toast.success(t("welcomeCreator"));
-      navigate("/teacher");
-    } catch (error) {
-      console.error("Teacher login error:", error);
-      toast.error(t("teacherNotFound"));
-    } finally {
-      setIsTeacherLogging(false);
-    }
-  };
-
-  const handleClearLastTeacher = () => {
-    localStorage.removeItem("last_teacher_data");
-    setShowTeacherForm(true);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -235,127 +140,8 @@ const Index = () => {
     return <CreatorLoginForm onBack={() => setShowCreatorLogin(false)} />;
   }
 
-  // Teacher login form
-  if (showTeacherLogin) {
-    const showLastTeacherOption = lastTeacher && !showTeacherForm;
-    
-    return (
-      <div className="min-h-screen bg-gradient-hero flex flex-col">
-        <div className="absolute top-4 left-4 z-20">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setShowTeacherLogin(false);
-              setShowTeacherForm(false);
-            }}
-          >
-            <X className="w-4 h-4 mr-2" />
-            {t("back")}
-          </Button>
-        </div>
-
-        <main className="flex-1 flex items-center justify-center px-4 py-8">
-          <Card className="w-full max-w-md animate-fade-in">
-            <CardHeader className="text-center pb-2">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <GraduationCap className="w-6 h-6 text-primary" />
-              </div>
-              <CardTitle className="text-2xl font-bold">{t("teacherLogin")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {showLastTeacherOption ? (
-                // Быстрый вход как последний учитель
-                <div className="space-y-4">
-                  <Button
-                    variant="default"
-                    size="lg"
-                    className="w-full h-auto py-4"
-                    onClick={handleLoginAsLastTeacher}
-                    disabled={isTeacherLogging}
-                  >
-                    {isTeacherLogging ? (
-                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    ) : (
-                      <GraduationCap className="w-5 h-5 mr-2" />
-                    )}
-                    <span className="flex flex-col items-start">
-                      <span className="text-sm opacity-80">{t("continueAs")}</span>
-                      <span className="font-semibold">{lastTeacher.name}</span>
-                    </span>
-                  </Button>
-                  
-                  <div className="relative my-4">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-card px-2 text-muted-foreground">
-                        {t("or")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleClearLastTeacher}
-                  >
-                    {t("loginAsOther")}
-                  </Button>
-                </div>
-              ) : (
-                // Форма входа
-                <form onSubmit={handleTeacherLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="teacherFirstName">{t("firstName")}</Label>
-                    <Input
-                      id="teacherFirstName"
-                      type="text"
-                      placeholder={t("firstNamePlaceholder")}
-                      value={teacherFirstName}
-                      onChange={(e) => setTeacherFirstName(e.target.value)}
-                      required
-                      className="h-12"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="teacherLastName">{t("lastName")}</Label>
-                    <Input
-                      id="teacherLastName"
-                      type="text"
-                      placeholder={t("lastNamePlaceholder")}
-                      value={teacherLastName}
-                      onChange={(e) => setTeacherLastName(e.target.value)}
-                      required
-                      className="h-12"
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    variant="cta"
-                    size="lg"
-                    className="w-full mt-6"
-                    disabled={isTeacherLogging || !teacherFirstName.trim() || !teacherLastName.trim()}
-                  >
-                    {isTeacherLogging ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        {t("processing")}
-                      </span>
-                    ) : (
-                      t("login")
-                    )}
-                  </Button>
-                </form>
-              )}
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    );
+  if (showCreatorRegister) {
+    return <CreatorRegisterForm onBack={() => setShowCreatorRegister(false)} />;
   }
 
   // Если есть последний пользователь и не показываем форму регистрации
@@ -480,7 +266,7 @@ const Index = () => {
                         {t("processing")}
                       </span>
                     ) : (
-                      t("continue")
+                      t("login")
                     )}
                   </Button>
                 </form>
@@ -491,19 +277,19 @@ const Index = () => {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => setShowTeacherLogin(true)}
+                onClick={() => setShowCreatorRegister(true)}
               >
-                <GraduationCap className="w-4 h-4 mr-2" />
-                {t("forTeachers")}
+                <UserPlus className="w-4 h-4 mr-2" />
+                {t("register")}
               </Button>
-              
+
               <Button
                 variant="outline"
                 className="w-full"
                 onClick={() => setShowCreatorLogin(true)}
               >
                 <BookOpen className="w-4 h-4 mr-2" />
-                {t("forCourseCreators")}
+                {t("login")}
               </Button>
             </div>
           </CardContent>

@@ -247,6 +247,36 @@ export type Database = {
           },
         ]
       }
+      creator_accounts: {
+        Row: {
+          account_type: string
+          created_at: string
+          display_name: string
+          id: string
+          login: string
+          password_hash: string
+          updated_at: string
+        }
+        Insert: {
+          account_type: string
+          created_at?: string
+          display_name: string
+          id?: string
+          login: string
+          password_hash: string
+          updated_at?: string
+        }
+        Update: {
+          account_type?: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          login?: string
+          password_hash?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       creator_sessions: {
         Row: {
           created_at: string | null

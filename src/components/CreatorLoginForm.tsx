@@ -69,6 +69,9 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
         if (data.token) {
           localStorage.setItem("creator_token", data.token);
         }
+        if (data.accountType) {
+          localStorage.setItem("creator_account_type", data.accountType);
+        }
         return true;
       }
 
@@ -77,6 +80,11 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
       console.error('Error verifying password:', err);
       return false;
     }
+  };
+
+  const redirectAfterLogin = () => {
+    const type = localStorage.getItem("creator_account_type");
+    navigate(type === "online_school" ? "/school" : "/creator");
   };
 
   const handleCreatorLogin = async (e: React.FormEvent) => {
@@ -100,7 +108,7 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
     // Store creator name in localStorage
     localStorage.setItem("creator_name", creatorName.trim());
     localStorage.setItem("creator_last_name", creatorName.trim());
-    navigate("/creator");
+    redirectAfterLogin();
     setIsSubmitting(false);
   };
 
@@ -124,7 +132,7 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
 
     // Store creator name in localStorage
     localStorage.setItem("creator_name", lastCreatorName);
-    navigate("/creator");
+    redirectAfterLogin();
     setIsSubmitting(false);
   };
 
