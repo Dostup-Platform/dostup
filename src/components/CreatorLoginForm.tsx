@@ -149,17 +149,21 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
 
       <main className="flex-1 flex items-center justify-center px-4 py-8">
         <Card className="w-full max-w-md animate-fade-in">
-          <CardHeader className="text-center pb-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute left-4 top-4"
-              onClick={onBack}
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              {t("back")}
-            </Button>
-            <CardTitle className="text-2xl font-bold">{t("courseCreator")}</CardTitle>
+          <CardHeader className="pb-2">
+            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="px-2 -ml-2"
+                onClick={onBack}
+                aria-label={t("back")}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline ml-1">{t("back")}</span>
+              </Button>
+              <CardTitle className="text-xl sm:text-2xl font-bold text-center truncate">{t("courseCreator")}</CardTitle>
+              <span className="w-8 sm:w-16" aria-hidden />
+            </div>
           </CardHeader>
           <CardContent>
             {showLastCreatorOption ? (

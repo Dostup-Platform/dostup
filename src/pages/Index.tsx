@@ -7,26 +7,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-import CreatorLoginForm from "@/components/CreatorLoginForm";
 import CreatorRegisterForm from "@/components/CreatorRegisterForm";
 import RoleSelection from "@/components/RoleSelection";
-import { Loader2, BookOpen, User, X, UserPlus } from "lucide-react";
+import { Loader2, User, X, UserPlus, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, loading, loginOrRegister, loginById, lastUserId, lastUserName, clearLastUser } = useSimpleAuth();
   const { t } = useLanguage();
   
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [loginValue, setLoginValue] = useState("");
+  const [passwordValue, setPasswordValue] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
-  const [showCreatorLogin, setShowCreatorLogin] = useState(false);
   const [showCreatorRegister, setShowCreatorRegister] = useState(false);
   const [showRegistrationForm, setShowRegistrationForm] = useState(false);
-  const [errors, setErrors] = useState<{ firstName?: string; lastName?: string }>({});
+  const [errors, setErrors] = useState<{ login?: string; password?: string }>({});
 
   // Если создатель уже вошёл, перенаправить
   useEffect(() => {
@@ -50,45 +50,58 @@ const Index = () => {
   }, [user, loading, navigate]);
 
   const validateFields = () => {
-    const newErrors: { firstName?: string; lastName?: string } = {};
-    
-    if (firstName.trim().length < 2) {
-      newErrors.firstName = t("minNameLength");
-    }
-    if (lastName.trim().length < 2) {
-      newErrors.lastName = t("minNameLength");
-    }
-    
+    const newErrors: { login?: string; password?: string } = {};
+    if (loginValue.trim().length < 2) newErrors.login = t("minNameLength");
+    if (passwordValue.trim().length < 2) newErrors.password = t("minNameLength");
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const isFormValid = firstName.trim().length >= 2 && lastName.trim().length >= 2;
+  const isFormValid = loginValue.trim().length >= 2 && passwordValue.trim().length >= 2;
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateFields()) {
-      return;
-    }
-    
+    if (!validateFields()) return;
     setIsSubmitting(true);
 
-    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    const login = loginValue.trim();
+    const password = passwordValue;
+
+    // 1) Try as creator (old or new)
+    try {
+      const { data: cData } = await supabase.functions.invoke("verify-creator-password", {
+        body: { password, creatorName: login },
+      });
+      if (cData?.success) {
+        if (cData.token) localStorage.setItem("creator_token", cData.token);
+        if (cData.accountType) localStorage.setItem("creator_account_type", cData.accountType);
+        localStorage.setItem("creator_name", login);
+        localStorage.setItem("creator_last_name", login);
+        navigate(cData.accountType === "online_school" ? "/school" : "/creator");
+        setIsSubmitting(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("creator verify failed", err);
+    }
+
+    // 2) Fallback: student/teacher (login = first name, password = last name)
+    const fullName = `${login} ${password.trim()}`.trim();
     const { user: foundUser, error, isNewUser } = await loginOrRegister(fullName);
 
     if (error) {
-      toast.error(error.message);
+      toast.error(t("invalidCredentials"));
       setIsSubmitting(false);
       return;
     }
 
     if (foundUser) {
       if (isNewUser) {
-        // Новый пользователь - показать выбор роли
         setShowRoleSelection(true);
+      } else if ((foundUser.role as string) === "teacher") {
+        localStorage.setItem("teacher_data", JSON.stringify({ id: foundUser.id, name: foundUser.name }));
+        navigate("/teacher");
       } else {
-        // Существующий пользователь - перейти в dashboard
         if (foundUser.role === "student" || !foundUser.role) {
           navigate("/dashboard");
         } else if (foundUser.role === "creator") {
@@ -133,11 +146,6 @@ const Index = () => {
 
   if (showRoleSelection || (user && !user.role)) {
     return <RoleSelection />;
-  }
-
-  // Creator login form
-  if (showCreatorLogin) {
-    return <CreatorLoginForm onBack={() => setShowCreatorLogin(false)} />;
   }
 
   if (showCreatorRegister) {
@@ -216,40 +224,52 @@ const Index = () => {
               <>
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName">{t("firstName")}</Label>
+                    <Label htmlFor="loginField">{t("loginField")}</Label>
                     <Input
-                      id="firstName"
+                      id="loginField"
                       type="text"
-                      placeholder={t("firstNamePlaceholder")}
-                      value={firstName}
+                      placeholder={t("loginPlaceholder")}
+                      value={loginValue}
                       onChange={(e) => {
-                        setFirstName(e.target.value);
-                        if (errors.firstName) setErrors(prev => ({ ...prev, firstName: undefined }));
+                        setLoginValue(e.target.value);
+                        if (errors.login) setErrors(prev => ({ ...prev, login: undefined }));
                       }}
                       required
-                      className={`h-12 ${errors.firstName ? "border-destructive" : ""}`}
+                      className={`h-12 ${errors.login ? "border-destructive" : ""}`}
                     />
-                    {errors.firstName && (
-                      <p className="text-sm text-destructive">{errors.firstName}</p>
+                    {errors.login && (
+                      <p className="text-sm text-destructive">{errors.login}</p>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="lastName">{t("lastName")}</Label>
-                    <Input
-                      id="lastName"
-                      type="text"
-                      placeholder={t("lastNamePlaceholder")}
-                      value={lastName}
-                      onChange={(e) => {
-                        setLastName(e.target.value);
-                        if (errors.lastName) setErrors(prev => ({ ...prev, lastName: undefined }));
-                      }}
-                      required
-                      className={`h-12 ${errors.lastName ? "border-destructive" : ""}`}
-                    />
-                    {errors.lastName && (
-                      <p className="text-sm text-destructive">{errors.lastName}</p>
+                    <Label htmlFor="passwordField">{t("passwordField")}</Label>
+                    <div className="relative">
+                      <Input
+                        id="passwordField"
+                        type={showPassword ? "text" : "password"}
+                        placeholder={t("passwordPlaceholder")}
+                        value={passwordValue}
+                        onChange={(e) => {
+                          setPasswordValue(e.target.value);
+                          if (errors.password) setErrors(prev => ({ ...prev, password: undefined }));
+                        }}
+                        required
+                        className={`h-12 pr-10 ${errors.password ? "border-destructive" : ""}`}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-12 px-3"
+                        onClick={() => setShowPassword((s) => !s)}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                    {errors.password && (
+                      <p className="text-sm text-destructive">{errors.password}</p>
                     )}
                   </div>
 
@@ -281,15 +301,6 @@ const Index = () => {
               >
                 <UserPlus className="w-4 h-4 mr-2" />
                 {t("register")}
-              </Button>
-
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setShowCreatorLogin(true)}
-              >
-                <BookOpen className="w-4 h-4 mr-2" />
-                {t("login")}
               </Button>
             </div>
           </CardContent>
