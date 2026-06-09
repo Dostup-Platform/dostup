@@ -139,7 +139,17 @@ const Index = () => {
     }
     
     if (loggedInUser) {
-      navigate("/dashboard");
+      if ((loggedInUser.role as string) === "teacher") {
+        localStorage.setItem(
+          "teacher_data",
+          JSON.stringify({ id: loggedInUser.id, name: loggedInUser.name })
+        );
+        navigate("/teacher");
+      } else if ((loggedInUser.role as string) === "creator") {
+        navigate("/creator");
+      } else {
+        navigate("/dashboard");
+      }
     }
     setIsLoggingIn(false);
   };
