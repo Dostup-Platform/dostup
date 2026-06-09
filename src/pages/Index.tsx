@@ -229,7 +229,7 @@ const Index = () => {
                   className="w-full"
                   onClick={() => setShowRegistrationForm(true)}
                 >
-                  {t("loginAsOtherUser")}
+                  {t("loginAsOther")}
                 </Button>
               </div>
             ) : (
