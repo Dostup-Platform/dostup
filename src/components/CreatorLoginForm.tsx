@@ -55,15 +55,23 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
 
   const verifyPasswordViaEdgeFunction = async (password: string, name: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.functions.invoke('verify-creator-password', {
-        body: { password, creatorName: name }
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-creator-password`;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: anonKey,
+          Authorization: `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({ password, creatorName: name }),
       });
 
-      if (error) {
-        console.error('Edge function error:', error);
+      if (!resp.ok) {
         return false;
       }
 
+      const data = await resp.json();
       if (data?.success) {
         // Store session token for future validation
         if (data.token) {
@@ -77,7 +85,6 @@ const CreatorLoginForm = ({ onBack }: CreatorLoginFormProps) => {
 
       return false;
     } catch (err) {
-      console.error('Error verifying password:', err);
       return false;
     }
   };
