@@ -98,7 +98,7 @@ const Index = () => {
     if (foundUser) {
       if (isNewUser) {
         setShowRoleSelection(true);
-      } else if (foundUser.role === "teacher" as unknown as typeof foundUser.role) {
+      } else if ((foundUser.role as string) === "teacher") {
         localStorage.setItem("teacher_data", JSON.stringify({ id: foundUser.id, name: foundUser.name }));
         navigate("/teacher");
       } else {
