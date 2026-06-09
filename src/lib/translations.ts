@@ -254,6 +254,42 @@ export const translations = {
     lessonRescheduled: "Урок перенесён!",
     editTime: "Изменить время",
     timeUpdated: "Время обновлено!",
+
+    // Account types / register flow
+    chooseAccountType: "Выберите тип аккаунта",
+    courseCreatorMode: "Создатель курса",
+    courseCreatorDescription: "Создавайте и продавайте свои курсы и занятия",
+    onlineSchoolMode: "Онлайн-школа",
+    onlineSchoolDescription: "LMS/CRM для школ и образовательных центров",
+    repeatPassword: "Повторите пароль",
+    minPassword6: "Минимум 6 символов",
+    passwordsDontMatch: "Пароли не совпадают",
+    loginAlreadyTaken: "Это имя уже занято, выберите другое",
+    registrationFailed: "Не удалось зарегистрироваться",
+
+    // Change password
+    security: "Безопасность",
+    changePassword: "Сменить пароль",
+    currentPassword: "Текущий пароль",
+    newPassword: "Новый пароль",
+    passwordChanged: "Пароль изменён",
+    wrongCurrentPassword: "Неверный текущий пароль",
+    legacyAccountNotice: "Вы используете общий пароль. Для смены — обратитесь в поддержку.",
+
+    // School dashboard
+    schoolComingSoonTitle: "Полноценная LMS/CRM скоро будет доступна",
+    schoolComingSoonDescription: "Мы готовим полный набор инструментов для управления учебным процессом школы.",
+    schoolFeaturesTitle: "Что будет внутри",
+    schoolFeatureStudents: "Ученики",
+    schoolFeatureTeachers: "Преподаватели",
+    schoolFeatureGroups: "Группы",
+    schoolFeatureSchedule: "Расписание занятий",
+    schoolFeatureMaterials: "Библиотека материалов",
+    schoolFeatureHomework: "Домашние задания",
+    schoolFeatureTests: "Тестирование",
+    schoolFeatureAnalytics: "Аналитика и прогресс",
+    schoolFeatureAccess: "Доступы и оплаты",
+    schoolFeatureNotifications: "Уведомления",
   },
   kk: {
     // Common
@@ -508,6 +544,42 @@ export const translations = {
     lessonRescheduled: "Сабақ ауыстырылды!",
     editTime: "Уақытты өзгерту",
     timeUpdated: "Уақыт жаңартылды!",
+
+    // Account types / register flow
+    chooseAccountType: "Аккаунт түрін таңдаңыз",
+    courseCreatorMode: "Курс авторы",
+    courseCreatorDescription: "Өз курстарыңыз бен сабақтарыңызды жасап сатыңыз",
+    onlineSchoolMode: "Онлайн-мектеп",
+    onlineSchoolDescription: "Мектептер мен білім орталықтарына арналған LMS/CRM",
+    repeatPassword: "Құпия сөзді қайталаңыз",
+    minPassword6: "Кемінде 6 таңба",
+    passwordsDontMatch: "Құпия сөздер сәйкес келмейді",
+    loginAlreadyTaken: "Бұл атау бос емес, басқасын таңдаңыз",
+    registrationFailed: "Тіркелу мүмкін болмады",
+
+    // Change password
+    security: "Қауіпсіздік",
+    changePassword: "Құпия сөзді ауыстыру",
+    currentPassword: "Ағымдағы құпия сөз",
+    newPassword: "Жаңа құпия сөз",
+    passwordChanged: "Құпия сөз өзгертілді",
+    wrongCurrentPassword: "Ағымдағы құпия сөз қате",
+    legacyAccountNotice: "Сіз ортақ құпия сөзді пайдаланасыз. Ауыстыру үшін қолдау қызметіне хабарласыңыз.",
+
+    // School dashboard
+    schoolComingSoonTitle: "Толыққанды LMS/CRM жақында қол жетімді болады",
+    schoolComingSoonDescription: "Біз мектептің оқу үдерісін басқаруға арналған толық құралдар жинағын дайындап жатырмыз.",
+    schoolFeaturesTitle: "Ішінде не болады",
+    schoolFeatureStudents: "Оқушылар",
+    schoolFeatureTeachers: "Мұғалімдер",
+    schoolFeatureGroups: "Топтар",
+    schoolFeatureSchedule: "Сабақ кестесі",
+    schoolFeatureMaterials: "Материалдар кітапханасы",
+    schoolFeatureHomework: "Үй тапсырмалары",
+    schoolFeatureTests: "Тестілеу",
+    schoolFeatureAnalytics: "Талдау және прогресс",
+    schoolFeatureAccess: "Қол жеткізу мен төлемдер",
+    schoolFeatureNotifications: "Хабарландырулар",
   },
 } as const;
 
