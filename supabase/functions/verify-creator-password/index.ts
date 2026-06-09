@@ -108,8 +108,8 @@ serve(async (req) => {
     if (!isValid) {
       console.log('Invalid password attempt for creator:', trimmedName)
       return new Response(
-        JSON.stringify({ error: 'Invalid password' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Invalid password' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
