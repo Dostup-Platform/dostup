@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
       if (!s3Response.ok) {
         console.error('S3 download error:', s3Response.status);
         return new Response(
-          JSON.stringify({ error: 'File not found in S3' }),
+          JSON.stringify({ error: 'File not found' }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }

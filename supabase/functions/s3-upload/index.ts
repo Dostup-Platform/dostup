@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
       const errorText = await s3Response.text();
       console.error('S3 upload error:', s3Response.status, errorText);
       return new Response(
-        JSON.stringify({ error: 'Failed to upload to S3', details: errorText }),
+        JSON.stringify({ error: 'Upload failed' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
