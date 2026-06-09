@@ -166,7 +166,15 @@ const CreatorDashboard = () => {
           body: { token, creatorName: name }
         });
 
-        if (error || !data?.valid) {
+        if (error) {
+          // Network/transport error — keep session, continue with cached name
+          console.warn('Session validation network error, using cached session:', error);
+          setCreatorName(name);
+          setIsLoading(false);
+          return;
+        }
+
+        if (!data?.valid) {
           console.log('Invalid creator session, redirecting to login');
           localStorage.removeItem("creator_token");
           localStorage.removeItem("creator_name");
