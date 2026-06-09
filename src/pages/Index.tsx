@@ -67,22 +67,35 @@ const Index = () => {
     const login = loginValue.trim();
     const password = passwordValue;
 
-    // 1) Try as creator (old or new)
+    // 1) Try as creator (old or new). Use raw fetch so a 401 (not-a-creator)
+    //    doesn't get logged as an error by supabase-js.
     try {
-      const { data: cData } = await supabase.functions.invoke("verify-creator-password", {
-        body: { password, creatorName: login },
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-creator-password`;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: anonKey,
+          Authorization: `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({ password, creatorName: login }),
       });
-      if (cData?.success) {
-        if (cData.token) localStorage.setItem("creator_token", cData.token);
-        if (cData.accountType) localStorage.setItem("creator_account_type", cData.accountType);
-        localStorage.setItem("creator_name", login);
-        localStorage.setItem("creator_last_name", login);
-        navigate(cData.accountType === "online_school" ? "/school" : "/creator");
-        setIsSubmitting(false);
-        return;
+      if (resp.ok) {
+        const cData = await resp.json();
+        if (cData?.success) {
+          if (cData.token) localStorage.setItem("creator_token", cData.token);
+          if (cData.accountType) localStorage.setItem("creator_account_type", cData.accountType);
+          localStorage.setItem("creator_name", login);
+          localStorage.setItem("creator_last_name", login);
+          navigate(cData.accountType === "online_school" ? "/school" : "/creator");
+          setIsSubmitting(false);
+          return;
+        }
       }
-    } catch (err) {
-      console.warn("creator verify failed", err);
+      // non-OK (e.g. 401 not-a-creator) → fall through to student/teacher login
+    } catch {
+      // network error — silently fall through
     }
 
     // 2) Fallback: student/teacher (login = first name, password = last name)
