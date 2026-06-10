@@ -325,6 +325,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     telegramLink: "",
     imageUrl: "",
     videoUrl: "",
+    faq: [] as Array<{ question: string; answer: string }>,
   });
 
   const resetForm = () => {
@@ -337,6 +338,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       telegramLink: "",
       imageUrl: "",
       videoUrl: "",
+      faq: [],
     });
   };
 
@@ -360,6 +362,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         telegram_link: formData.telegramLink || null,
         has_schedule: false,
         is_active: true,
+        faq: formData.faq.filter(it => it.question.trim() || it.answer.trim()),
       });
       
       toast.success("Продукт создан!");
@@ -381,6 +384,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       telegramLink: product.telegram_link || "",
       imageUrl: product.image_url || "",
       videoUrl: product.video_url || "",
+      faq: Array.isArray(product.faq) ? product.faq : [],
     });
   };
 
@@ -403,6 +407,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         telegram_link: formData.telegramLink || null,
         image_url: formData.imageUrl || null,
         video_url: formData.videoUrl || null,
+        faq: formData.faq.filter(it => it.question.trim() || it.answer.trim()) as any,
       });
       
       toast.success("Продукт обновлён!");
