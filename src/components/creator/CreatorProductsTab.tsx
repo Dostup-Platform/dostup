@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText, Users } from "lucide-react";
+import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
-import ProductTeachersManager from "./ProductTeachersManager";
 import ShareLinkDialog from "./ShareLinkDialog";
 
 interface Product {
@@ -176,7 +175,6 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
-  const [teachersProduct, setTeachersProduct] = useState<{ id: string; title: string } | null>(null);
   const [shareProduct, setShareProduct] = useState<{ id: string; title: string } | null>(null);
   
   const [formData, setFormData] = useState({
@@ -403,15 +401,6 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setTeachersProduct({ id: product.id, title: product.title })}
-                  className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span className="ml-1">{language === "ru" ? "Учителя" : "Мұғалімдер"}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => setShareProduct({ id: product.id, title: product.title })}
                   className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
                 >
@@ -463,16 +452,6 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         productTitle={materialsProduct.title}
         isOpen={!!materialsProduct}
         onClose={() => setMaterialsProduct(null)}
-      />
-    )}
-
-    {/* Teachers Manager */}
-    {teachersProduct && (
-      <ProductTeachersManager
-        productId={teachersProduct.id}
-        productTitle={teachersProduct.title}
-        isOpen={!!teachersProduct}
-        onClose={() => setTeachersProduct(null)}
       />
     )}
 
