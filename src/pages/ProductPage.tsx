@@ -4,6 +4,7 @@ import { useProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import { Loader2 } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import heroBackground from "@/assets/hero-background.jpg";
 
 const formatPrice = (price: number) => {
@@ -48,6 +49,10 @@ const ProductPage = () => {
 
   const videoUrl = (displayProduct as any).video_url as string | null | undefined;
   const imageUrl = displayProduct.image_url || heroBackground;
+  const faqRaw = (displayProduct as any).faq;
+  const faq: Array<{ question: string; answer: string }> = Array.isArray(faqRaw)
+    ? faqRaw.filter((it: any) => it && (it.question || it.answer))
+    : [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -100,6 +105,26 @@ const ProductPage = () => {
             <span className="text-muted-foreground">{t("oneTime")}</span>
           </div>
         </div>
+
+        {faq.length > 0 && (
+          <div className="mt-6 bg-card rounded-2xl p-6 shadow-lg animate-fade-in">
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              {language === "kz" ? "Жиі қойылатын сұрақтар" : "Часто задаваемые вопросы"}
+            </h2>
+            <Accordion type="single" collapsible className="w-full">
+              {faq.map((item, idx) => (
+                <AccordionItem key={idx} value={`faq-${idx}`} className="border-border">
+                  <AccordionTrigger className="text-left text-base font-medium hover:no-underline">
+                    {item.question}
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                    {item.answer}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
+        )}
       </div>
 
       {/* Fixed CTA Button */}
@@ -111,7 +136,7 @@ const ProductPage = () => {
             className="w-full"
             onClick={handleBuy}
           >
-            {t("getAccess")} — {formatPrice(Number(displayProduct.price))}
+            {t("getAccess")}
           </Button>
         </div>
       </div>
