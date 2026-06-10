@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
 
 import { Button } from "@/components/ui/button";
@@ -97,8 +97,8 @@ interface FormData {
     const [uploadProgress, setUploadProgress] = useState(0);
    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
    const fileInputRef = useRef<HTMLInputElement>(null);
-  
-   
+  const [isDragging, setIsDragging] = useState(false);
+
     const [formData, setFormData] = useState<FormData>({
       title: "",
       itemType: "file",
@@ -112,6 +112,50 @@ interface FormData {
       linkUrl: "",
       content: "",
     });
+
+  const addFilesToForm = useCallback((files: FileList | File[]) => {
+    const arr = Array.from(files);
+    if (arr.length === 0) return;
+    const newEntries: FileEntry[] = arr.map(file => ({
+      file,
+      customName: "",
+      permissions: { allow_download: true, teacher_allow_download: true }
+    }));
+    setFormData(prev => ({
+      ...prev,
+      fileEntries: [...prev.fileEntries, ...newEntries]
+    }));
+    toast.success(arr.length > 1 ? `Добавлено файлов: ${arr.length}` : "Файл добавлен");
+  }, []);
+
+  // Global paste listener: when dialog is open and a file/folder is being created,
+  // pasting a file anywhere in the dialog adds it to the form.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      if (formData.itemType !== "file" && formData.itemType !== "folder") return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (it.kind === "file") {
+          const f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        addFilesToForm(files);
+      }
+    };
+    window.addEventListener("paste", handler);
+    return () => window.removeEventListener("paste", handler);
+  }, [isOpen, addFilesToForm, formData.itemType]);
  
    // Filter materials for current folder level
    const materials = useMemo(() => {
@@ -561,23 +605,45 @@ interface FormData {
              </div>
          )}
 
-         {/* Add more files button */}
-         <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
+          {/* Add more files button — supports click, drag & drop, and paste */}
+          <div
+            className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}`}
+            tabIndex={0}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragging(false);
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                addFilesToForm(e.dataTransfer.files);
+              }
+            }}
+            onPaste={(e) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              const files: File[] = [];
+              for (let i = 0; i < items.length; i++) {
+                const it = items[i];
+                if (it.kind === "file") {
+                  const f = it.getAsFile();
+                  if (f) files.push(f);
+                }
+              }
+              if (files.length > 0) {
+                e.preventDefault();
+                addFilesToForm(files);
+              }
+            }}
+          >
            <input
              ref={fileInputRef}
              type="file"
              multiple
              onChange={(e) => {
                if (e.target.files && e.target.files.length > 0) {
-                  const newEntries: FileEntry[] = Array.from(e.target.files).map(file => ({
-                    file,
-                    customName: "",
-                    permissions: { allow_download: true, teacher_allow_download: true }
-                  }));
-                 setFormData(prev => ({ 
-                   ...prev, 
-                   fileEntries: [...prev.fileEntries, ...newEntries]
-                 }));
+                  addFilesToForm(e.target.files);
                }
                if (fileInputRef.current) fileInputRef.current.value = "";
              }}
@@ -587,8 +653,11 @@ interface FormData {
            <label htmlFor="file-upload" className="cursor-pointer">
              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
              <p className="text-sm text-muted-foreground">
-               {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите для выбора файла(ов)"}
+                {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)"}
              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Поддерживается перетаскивание и вставка из буфера обмена
+              </p>
            </label>
          </div>
         </div>}
