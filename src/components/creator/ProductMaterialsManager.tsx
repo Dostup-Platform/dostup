@@ -99,6 +99,20 @@ interface FormData {
    const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
+    const [formData, setFormData] = useState<FormData>({
+      title: "",
+      itemType: "file",
+      files: [],
+      filePermissions: [],
+      fileEntries: [],
+      allow_download: true,
+      teacher_allow_download: true,
+      scheduleAccess: false,
+      availableAt: "",
+      linkUrl: "",
+      content: "",
+    });
+
   const addFilesToForm = useCallback((files: FileList | File[]) => {
     const arr = Array.from(files);
     if (arr.length === 0) return;
@@ -115,13 +129,12 @@ interface FormData {
   }, []);
 
   // Global paste listener: when dialog is open and a file/folder is being created,
-  // pasting an image/file anywhere in the dialog adds it to the form.
+  // pasting a file anywhere in the dialog adds it to the form.
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: ClipboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-        // Don't hijack paste inside text fields
         return;
       }
       if (formData.itemType !== "file" && formData.itemType !== "folder") return;
@@ -143,21 +156,6 @@ interface FormData {
     window.addEventListener("paste", handler);
     return () => window.removeEventListener("paste", handler);
   }, [isOpen, addFilesToForm, formData.itemType]);
-  
-   
-    const [formData, setFormData] = useState<FormData>({
-      title: "",
-      itemType: "file",
-      files: [],
-      filePermissions: [],
-      fileEntries: [],
-      allow_download: true,
-      teacher_allow_download: true,
-      scheduleAccess: false,
-      availableAt: "",
-      linkUrl: "",
-      content: "",
-    });
  
    // Filter materials for current folder level
    const materials = useMemo(() => {
