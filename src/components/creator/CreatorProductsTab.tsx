@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Copy, ExternalLink, Package, Loader2, Edit, Trash2, FileText } from "lucide-react";
+import { Plus, Copy, Package, Loader2, Edit, Trash2, FileText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -407,14 +407,6 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                   <Copy className="w-3.5 h-3.5" />
                   <span className="ml-1">{language === "ru" ? "Ссылка" : "Сілтеме"}</span>
                 </Button>
-                {!isMobile && (
-                  <Button variant="outline" size="sm" asChild className="h-9">
-                    <a href={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="w-4 h-4" />
-                      <span className="ml-2">{language === "ru" ? "Открыть" : "Ашу"}</span>
-                    </a>
-                  </Button>
-                )}
                 <Button
                   variant="outline"
                   size="sm"
