@@ -1,9 +1,10 @@
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Play } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import heroBackground from "@/assets/hero-background.jpg";
 
@@ -21,6 +22,7 @@ const ProductPage = () => {
   const [searchParams] = useSearchParams();
   const { t, language } = useLanguage();
   const { data: product, isLoading } = useProduct(productId);
+  const [isPlaying, setIsPlaying] = useState(false);
   
   // Передаём параметры учителя на страницу checkout
   const handleBuy = () => {
@@ -58,24 +60,40 @@ const ProductPage = () => {
     <div className="min-h-screen bg-background">
       {/* Hero Media */}
       <div className="relative w-full aspect-[4/3] md:aspect-[16/9] max-h-[50vh] bg-black">
-        {videoUrl ? (
-          <video
-            src={videoUrl}
-            poster={imageUrl}
-            controls
-            playsInline
-            preload="metadata"
-            className="w-full h-full object-contain bg-black"
-          />
-        ) : (
+        {videoUrl && displayProduct.image_url && !isPlaying ? (
           <>
             <img
               src={imageUrl}
               alt={displayProduct.title}
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+            <button
+              type="button"
+              onClick={() => setIsPlaying(true)}
+              aria-label="Play video"
+              className="absolute inset-0 flex items-center justify-center group"
+            >
+              <span className="flex items-center justify-center w-[72px] h-[72px] rounded-full bg-background/80 backdrop-blur shadow-lg transition-transform group-hover:scale-110">
+                <Play className="w-8 h-8 text-foreground fill-foreground ml-1" />
+              </span>
+            </button>
           </>
+        ) : videoUrl ? (
+          <video
+            src={videoUrl}
+            poster={displayProduct.image_url || undefined}
+            controls
+            autoPlay={isPlaying}
+            playsInline
+            preload="metadata"
+            className="w-full h-full object-contain bg-black"
+          />
+        ) : (
+          <img
+            src={imageUrl}
+            alt={displayProduct.title}
+            className="w-full h-full object-cover"
+          />
         )}
       </div>
 
