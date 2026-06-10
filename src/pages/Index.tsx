@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user, loading, loginOrRegister, loginById, lastUserId, lastUserName, clearLastUser } = useSimpleAuth();
+  const { user, loading, loginByName, loginById, lastUserId, lastUserName, clearLastUser } = useSimpleAuth();
   const { t } = useLanguage();
   
   const [loginValue, setLoginValue] = useState("");
@@ -98,20 +98,19 @@ const Index = () => {
       // network error — silently fall through
     }
 
-    // 2) Fallback: student/teacher (login = first name, password = last name)
+    // 2) Fallback: student/teacher (login = first name, password = last name).
+    // Only existing users can log in — no auto-registration.
     const fullName = `${login} ${password.trim()}`.trim();
-    const { user: foundUser, error, isNewUser } = await loginOrRegister(fullName);
+    const { user: foundUser, error } = await loginByName(fullName);
 
-    if (error) {
+    if (error || !foundUser) {
       toast.error(t("invalidCredentials"));
       setIsSubmitting(false);
       return;
     }
 
     if (foundUser) {
-      if (isNewUser) {
-        setShowRoleSelection(true);
-      } else if ((foundUser.role as string) === "teacher") {
+      if ((foundUser.role as string) === "teacher") {
         localStorage.setItem("teacher_data", JSON.stringify({ id: foundUser.id, name: foundUser.name }));
         navigate("/teacher");
       } else {
