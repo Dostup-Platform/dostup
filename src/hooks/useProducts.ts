@@ -10,6 +10,7 @@ interface Product {
   description: string | null;
   price: number;
   image_url: string | null;
+  video_url: string | null;
   has_schedule: boolean;
   is_active: boolean;
   slug: string | null;
@@ -103,6 +104,7 @@ interface CreateProductInput {
   has_schedule?: boolean;
   is_active?: boolean;
   image_url?: string | null;
+  video_url?: string | null;
   slug?: string | null;
 }
 
@@ -126,6 +128,7 @@ export const useCreateProduct = () => {
           has_schedule: product.has_schedule || false,
           is_active: product.is_active ?? true,
           image_url: product.image_url || null,
+          video_url: product.video_url || null,
           slug: product.slug || null,
           creator_id: creatorId,
         })
