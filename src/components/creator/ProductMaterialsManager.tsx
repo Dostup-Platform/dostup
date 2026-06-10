@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
 
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,22 @@ interface FormData {
     const [uploadProgress, setUploadProgress] = useState(0);
    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
    const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const addFilesToForm = useCallback((files: FileList | File[]) => {
+    const arr = Array.from(files);
+    if (arr.length === 0) return;
+    const newEntries: FileEntry[] = arr.map(file => ({
+      file,
+      customName: "",
+      permissions: { allow_download: true, teacher_allow_download: true }
+    }));
+    setFormData(prev => ({
+      ...prev,
+      fileEntries: [...prev.fileEntries, ...newEntries]
+    }));
+    toast.success(arr.length > 1 ? `Добавлено файлов: ${arr.length}` : "Файл добавлен");
+  }, []);
   
    
     const [formData, setFormData] = useState<FormData>({
