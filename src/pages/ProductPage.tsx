@@ -43,18 +43,35 @@ const ProductPage = () => {
     description: "Этот комплексный курс охватывает все необходимые навыки для создания вашего цифрового присутствия. От основ до продвинутых техник — вы научитесь у экспертов с многолетним опытом.",
     price: 49000,
     image_url: heroBackground,
+    video_url: null as string | null,
   };
+
+  const videoUrl = (displayProduct as any).video_url as string | null | undefined;
+  const imageUrl = displayProduct.image_url || heroBackground;
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Image */}
-      <div className="relative w-full aspect-[4/3] md:aspect-[16/9] max-h-[50vh]">
-        <img
-          src={displayProduct.image_url || heroBackground}
-          alt={displayProduct.title}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+      {/* Hero Media */}
+      <div className="relative w-full aspect-[4/3] md:aspect-[16/9] max-h-[50vh] bg-black">
+        {videoUrl ? (
+          <video
+            src={videoUrl}
+            poster={imageUrl}
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full h-full object-contain bg-black"
+          />
+        ) : (
+          <>
+            <img
+              src={imageUrl}
+              alt={displayProduct.title}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+          </>
+        )}
       </div>
 
       {/* Content */}

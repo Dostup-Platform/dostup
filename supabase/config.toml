@@ -62,3 +62,9 @@ verify_jwt = false
 
 [functions.s3-presign-upload]
 verify_jwt = false
+
+[functions.upload-product-media]
+verify_jwt = false
+
+[functions.product-media-redirect]
+verify_jwt = false
