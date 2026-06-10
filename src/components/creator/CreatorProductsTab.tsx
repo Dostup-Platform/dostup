@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
-import ShareLinkDialog from "./ShareLinkDialog";
 import { uploadProductMedia, getVideoDuration, MAX_VIDEO_DURATION_SECONDS } from "@/lib/productMediaUpload";
 import { ImageIcon, Video as VideoIcon, X as XIcon, HelpCircle } from "lucide-react";
 
@@ -385,7 +384,6 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
-  const [shareProduct, setShareProduct] = useState<{ id: string; title: string } | null>(null);
   
   const [formData, setFormData] = useState({
     title: "",
@@ -625,7 +623,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShareProduct({ id: product.id, title: product.title })}
+                  onClick={() => {
+                    navigator.clipboard.writeText(`https://dostup.lovable.app/product/${product.id}`);
+                    toast.success(language === "ru" ? "Ссылка скопирована!" : "Сілтеме көшірілді!");
+                  }}
                   className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
                 >
                   <Copy className="w-3.5 h-3.5" />
@@ -668,16 +669,6 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         productTitle={materialsProduct.title}
         isOpen={!!materialsProduct}
         onClose={() => setMaterialsProduct(null)}
-      />
-    )}
-
-    {/* Share Link Dialog */}
-    {shareProduct && (
-      <ShareLinkDialog
-        productId={shareProduct.id}
-        productTitle={shareProduct.title}
-        isOpen={!!shareProduct}
-        onClose={() => setShareProduct(null)}
       />
     )}
 
