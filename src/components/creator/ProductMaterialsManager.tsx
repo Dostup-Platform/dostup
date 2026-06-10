@@ -650,15 +650,12 @@ interface FormData {
              className="hidden"
              id="file-upload"
            />
-           <label htmlFor="file-upload" className="cursor-pointer">
-             <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-             <p className="text-sm text-muted-foreground">
-                {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)"}
-             </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Поддерживается перетаскивание и вставка из буфера обмена
+            <label htmlFor="file-upload" className="cursor-pointer">
+              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">
+                 {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)"}
               </p>
-           </label>
+            </label>
          </div>
         </div>}
 
