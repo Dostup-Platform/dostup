@@ -79,6 +79,9 @@ interface ProductFormProps {
 const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPending, t, editingProductId }: ProductFormProps) => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [removeImageOpen, setRemoveImageOpen] = useState(false);
+  const [removeVideoOpen, setRemoveVideoOpen] = useState(false);
+
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
