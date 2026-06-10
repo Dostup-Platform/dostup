@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ShareLinkDialog from "./ShareLinkDialog";
 import { uploadProductMedia, getVideoDuration, MAX_VIDEO_DURATION_SECONDS } from "@/lib/productMediaUpload";
-import { ImageIcon, Video as VideoIcon, X as XIcon } from "lucide-react";
+import { ImageIcon, Video as VideoIcon, X as XIcon, HelpCircle } from "lucide-react";
 
 interface Product {
   id: string;
@@ -44,6 +44,7 @@ interface Product {
   is_active: boolean;
   image_url?: string | null;
   video_url?: string | null;
+  faq?: Array<{ question: string; answer: string }> | null;
 }
 
 const formatPrice = (price: number, currency: string = "KZT") => {
@@ -63,6 +64,7 @@ interface FormData {
   telegramLink: string;
   imageUrl: string;
   videoUrl: string;
+  faq: Array<{ question: string; answer: string }>;
 }
 
 interface ProductFormProps {
@@ -277,6 +279,77 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
       </p>
     )}
 
+    {/* FAQ editor */}
+    <div className="space-y-3 pt-2 border-t border-border">
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-2">
+          <HelpCircle className="w-4 h-4" />
+          Часто задаваемые вопросы
+        </Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            setFormData(prev => ({
+              ...prev,
+              faq: [...prev.faq, { question: "", answer: "" }],
+            }))
+          }
+        >
+          <Plus className="w-4 h-4 mr-1" />
+          Добавить
+        </Button>
+      </div>
+      {formData.faq.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          Добавьте вопросы и ответы — они появятся на странице продукта в виде раскрывающегося списка.
+        </p>
+      )}
+      {formData.faq.map((item, idx) => (
+        <div key={idx} className="space-y-2 rounded-md border border-border p-3 relative">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="absolute top-1 right-1 h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+            onClick={() =>
+              setFormData(prev => ({
+                ...prev,
+                faq: prev.faq.filter((_, i) => i !== idx),
+              }))
+            }
+          >
+            <XIcon className="w-4 h-4" />
+          </Button>
+          <Input
+            placeholder="Вопрос"
+            className="h-10"
+            value={item.question}
+            onChange={e => {
+              const v = e.target.value;
+              setFormData(prev => ({
+                ...prev,
+                faq: prev.faq.map((it, i) => (i === idx ? { ...it, question: v } : it)),
+              }));
+            }}
+          />
+          <Textarea
+            placeholder="Ответ"
+            rows={3}
+            value={item.answer}
+            onChange={e => {
+              const v = e.target.value;
+              setFormData(prev => ({
+                ...prev,
+                faq: prev.faq.map((it, i) => (i === idx ? { ...it, answer: v } : it)),
+              }));
+            }}
+          />
+        </div>
+      ))}
+    </div>
+
     <Button 
       type="submit" 
       variant="cta" 
@@ -323,6 +396,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     telegramLink: "",
     imageUrl: "",
     videoUrl: "",
+    faq: [] as Array<{ question: string; answer: string }>,
   });
 
   const resetForm = () => {
@@ -335,6 +409,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       telegramLink: "",
       imageUrl: "",
       videoUrl: "",
+      faq: [],
     });
   };
 
@@ -358,6 +433,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         telegram_link: formData.telegramLink || null,
         has_schedule: false,
         is_active: true,
+        faq: formData.faq.filter(it => it.question.trim() || it.answer.trim()),
       });
       
       toast.success("Продукт создан!");
@@ -379,6 +455,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       telegramLink: product.telegram_link || "",
       imageUrl: product.image_url || "",
       videoUrl: product.video_url || "",
+      faq: Array.isArray(product.faq) ? product.faq : [],
     });
   };
 
@@ -401,6 +478,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         telegram_link: formData.telegramLink || null,
         image_url: formData.imageUrl || null,
         video_url: formData.videoUrl || null,
+        faq: formData.faq.filter(it => it.question.trim() || it.answer.trim()) as any,
       });
       
       toast.success("Продукт обновлён!");
