@@ -18,6 +18,7 @@ interface Product {
   updated_at: string;
   kaspi_link: string | null;
   telegram_link: string | null;
+  faq: Array<{ question: string; answer: string }> | null;
 }
 
 export const useProduct = (productId: string | undefined) => {
@@ -106,6 +107,7 @@ interface CreateProductInput {
   image_url?: string | null;
   video_url?: string | null;
   slug?: string | null;
+  faq?: Array<{ question: string; answer: string }> | null;
 }
 
 export const useCreateProduct = () => {
@@ -130,6 +132,7 @@ export const useCreateProduct = () => {
           image_url: product.image_url || null,
           video_url: product.video_url || null,
           slug: product.slug || null,
+          faq: (product.faq as any) ?? [],
           creator_id: creatorId,
         })
         .select()
