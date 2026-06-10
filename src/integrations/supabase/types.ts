@@ -510,6 +510,7 @@ export type Database = {
           created_at: string
           creator_id: string
           description: string | null
+          faq: Json
           has_schedule: boolean
           headline: string | null
           id: string
@@ -527,6 +528,7 @@ export type Database = {
           created_at?: string
           creator_id: string
           description?: string | null
+          faq?: Json
           has_schedule?: boolean
           headline?: string | null
           id?: string
@@ -544,6 +546,7 @@ export type Database = {
           created_at?: string
           creator_id?: string
           description?: string | null
+          faq?: Json
           has_schedule?: boolean
           headline?: string | null
           id?: string
