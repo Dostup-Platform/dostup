@@ -25,6 +25,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
@@ -79,6 +80,9 @@ interface ProductFormProps {
 const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPending, t, editingProductId }: ProductFormProps) => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [removeImageOpen, setRemoveImageOpen] = useState(false);
+  const [removeVideoOpen, setRemoveVideoOpen] = useState(false);
+
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -200,15 +204,38 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
           {formData.imageUrl ? (
             <div className="relative rounded-md overflow-hidden border border-border">
               <img src={formData.imageUrl} alt="cover" className="w-full max-h-48 object-cover" />
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                className="absolute top-2 right-2 h-7 w-7 p-0"
-                onClick={() => setFormData(prev => ({ ...prev, imageUrl: "" }))}
-              >
-                <XIcon className="w-4 h-4" />
-              </Button>
+              <AlertDialog open={removeImageOpen} onOpenChange={setRemoveImageOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2 h-7 w-7 p-0"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Удалить обложку?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Вы уверены, что хотите удалить изображение продукта? Это действие нельзя отменить.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setRemoveImageOpen(false)}>Отмена</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, imageUrl: "" }));
+                        setRemoveImageOpen(false);
+                      }}
+                    >
+                      Удалить
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           ) : (
             <label className="flex items-center justify-center gap-2 h-24 border-2 border-dashed border-border rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
@@ -238,15 +265,38 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
           {formData.videoUrl ? (
             <div className="relative rounded-md overflow-hidden border border-border">
               <video src={formData.videoUrl} controls playsInline preload="metadata" className="w-full max-h-56 bg-black" />
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                className="absolute top-2 right-2 h-7 w-7 p-0"
-                onClick={() => setFormData(prev => ({ ...prev, videoUrl: "" }))}
-              >
-                <XIcon className="w-4 h-4" />
-              </Button>
+              <AlertDialog open={removeVideoOpen} onOpenChange={setRemoveVideoOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2 h-7 w-7 p-0"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Удалить видео?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Вы уверены, что хотите удалить видео продукта? Это действие нельзя отменить.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setRemoveVideoOpen(false)}>Отмена</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, videoUrl: "" }));
+                        setRemoveVideoOpen(false);
+                      }}
+                    >
+                      Удалить
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           ) : (
             <label className="flex items-center justify-center gap-2 h-24 border-2 border-dashed border-border rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
