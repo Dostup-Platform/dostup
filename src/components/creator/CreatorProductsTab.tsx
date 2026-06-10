@@ -29,6 +29,8 @@ import {
 import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ShareLinkDialog from "./ShareLinkDialog";
+import { uploadProductMedia, getVideoDuration, MAX_VIDEO_DURATION_SECONDS } from "@/lib/productMediaUpload";
+import { ImageIcon, Video as VideoIcon, X as XIcon } from "lucide-react";
 
 interface Product {
   id: string;
@@ -40,6 +42,8 @@ interface Product {
   telegram_link: string | null;
   has_schedule: boolean;
   is_active: boolean;
+  image_url?: string | null;
+  video_url?: string | null;
 }
 
 const formatPrice = (price: number, currency: string = "KZT") => {
@@ -57,6 +61,8 @@ interface FormData {
   price: string;
   kaspiLink: string;
   telegramLink: string;
+  imageUrl: string;
+  videoUrl: string;
 }
 
 interface ProductFormProps {
@@ -66,9 +72,52 @@ interface ProductFormProps {
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
   isPending: boolean;
   t: (key: string) => string;
+  editingProductId?: string | null;
 }
 
-const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPending, t }: ProductFormProps) => (
+const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPending, t, editingProductId }: ProductFormProps) => {
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !editingProductId) return;
+    setUploadingImage(true);
+    try {
+      const url = await uploadProductMedia(file, editingProductId, "image");
+      setFormData(prev => ({ ...prev, imageUrl: url }));
+      toast.success("Изображение загружено");
+    } catch (err: any) {
+      toast.error(err?.message || "Ошибка загрузки изображения");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !editingProductId) return;
+    setUploadingVideo(true);
+    try {
+      const duration = await getVideoDuration(file);
+      if (duration > MAX_VIDEO_DURATION_SECONDS) {
+        toast.error(`Видео слишком длинное (${Math.round(duration)} сек). Максимум 3 минуты.`);
+        setUploadingVideo(false);
+        return;
+      }
+      const url = await uploadProductMedia(file, editingProductId, "video");
+      setFormData(prev => ({ ...prev, videoUrl: url }));
+      toast.success("Видео загружено");
+    } catch (err: any) {
+      toast.error(err?.message || "Ошибка загрузки видео");
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  return (
   <form onSubmit={onSubmit} className="space-y-4 mt-4">
     <div className="space-y-2">
       <Label htmlFor="title">Название *</Label>
@@ -141,6 +190,93 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
         Ссылка на группу или канал (Telegram, Discord и др.). Будет показана ученикам после покупки.
       </p>
     </div>
+
+    {isEdit && editingProductId && (
+      <>
+        {/* Image upload */}
+        <div className="space-y-2">
+          <Label>Обложка (изображение)</Label>
+          {formData.imageUrl ? (
+            <div className="relative rounded-md overflow-hidden border border-border">
+              <img src={formData.imageUrl} alt="cover" className="w-full max-h-48 object-cover" />
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="absolute top-2 right-2 h-7 w-7 p-0"
+                onClick={() => setFormData(prev => ({ ...prev, imageUrl: "" }))}
+              >
+                <XIcon className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <label className="flex items-center justify-center gap-2 h-24 border-2 border-dashed border-border rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
+              {uploadingImage ? (
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              ) : (
+                <>
+                  <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Загрузить изображение</span>
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploadingImage}
+                onChange={handleImageChange}
+              />
+            </label>
+          )}
+          <p className="text-xs text-muted-foreground">JPG, PNG, WebP. До 15 МБ.</p>
+        </div>
+
+        {/* Video upload */}
+        <div className="space-y-2">
+          <Label>Видео-презентация (до 3 минут)</Label>
+          {formData.videoUrl ? (
+            <div className="relative rounded-md overflow-hidden border border-border">
+              <video src={formData.videoUrl} controls playsInline preload="metadata" className="w-full max-h-56 bg-black" />
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="absolute top-2 right-2 h-7 w-7 p-0"
+                onClick={() => setFormData(prev => ({ ...prev, videoUrl: "" }))}
+              >
+                <XIcon className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <label className="flex items-center justify-center gap-2 h-24 border-2 border-dashed border-border rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
+              {uploadingVideo ? (
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              ) : (
+                <>
+                  <VideoIcon className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Загрузить видео</span>
+                </>
+              )}
+              <input
+                type="file"
+                accept="video/*"
+                className="hidden"
+                disabled={uploadingVideo}
+                onChange={handleVideoChange}
+              />
+            </label>
+          )}
+          <p className="text-xs text-muted-foreground">MP4, WebM, MOV. Длительность до 3 минут, размер до 250 МБ.</p>
+        </div>
+      </>
+    )}
+
+    {!isEdit && (
+      <p className="text-xs text-muted-foreground">
+        Изображение и видео можно добавить после создания продукта — откройте «Редактировать».
+      </p>
+    )}
+
     <Button 
       type="submit" 
       variant="cta" 
@@ -157,7 +293,8 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
       )}
     </Button>
   </form>
-);
+  );
+};
 
 interface CreatorProductsTabProps {
   creatorName: string;
@@ -184,6 +321,8 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     price: "",
     kaspiLink: "",
     telegramLink: "",
+    imageUrl: "",
+    videoUrl: "",
   });
 
   const resetForm = () => {
@@ -194,6 +333,8 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       price: "",
       kaspiLink: "",
       telegramLink: "",
+      imageUrl: "",
+      videoUrl: "",
     });
   };
 
@@ -236,6 +377,8 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       price: String(product.price),
       kaspiLink: product.kaspi_link || "",
       telegramLink: product.telegram_link || "",
+      imageUrl: product.image_url || "",
+      videoUrl: product.video_url || "",
     });
   };
 
@@ -256,6 +399,8 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         price: Number(formData.price),
         kaspi_link: formData.kaspiLink || null,
         telegram_link: formData.telegramLink || null,
+        image_url: formData.imageUrl || null,
+        video_url: formData.videoUrl || null,
       });
       
       toast.success("Продукт обновлён!");
@@ -326,6 +471,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
             setFormData={setFormData}
             isPending={updateProduct.isPending}
             t={t}
+            editingProductId={editingProduct?.id || null}
           />
         </DialogContent>
       </Dialog>
