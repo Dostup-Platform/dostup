@@ -203,15 +203,38 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
           {formData.imageUrl ? (
             <div className="relative rounded-md overflow-hidden border border-border">
               <img src={formData.imageUrl} alt="cover" className="w-full max-h-48 object-cover" />
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                className="absolute top-2 right-2 h-7 w-7 p-0"
-                onClick={() => setFormData(prev => ({ ...prev, imageUrl: "" }))}
-              >
-                <XIcon className="w-4 h-4" />
-              </Button>
+              <AlertDialog open={removeImageOpen} onOpenChange={setRemoveImageOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2 h-7 w-7 p-0"
+                  >
+                    <XIcon className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Удалить обложку?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Вы уверены, что хотите удалить изображение продукта? Это действие нельзя отменить.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setRemoveImageOpen(false)}>Отмена</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, imageUrl: "" }));
+                        setRemoveImageOpen(false);
+                      }}
+                    >
+                      Удалить
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           ) : (
             <label className="flex items-center justify-center gap-2 h-24 border-2 border-dashed border-border rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
