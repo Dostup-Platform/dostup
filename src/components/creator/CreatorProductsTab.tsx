@@ -68,6 +68,11 @@ interface FormData {
   imageUrl: string;
   videoUrl: string;
   faq: Array<{ question: string; answer: string }>;
+  isPaid: boolean;
+  kaspiMethod: "link" | "phone";
+  kaspiPhone: string;
+  accessMode: "forever" | "limited";
+  accessDurationDays: number;
 }
 
 interface ProductFormProps {
@@ -78,6 +83,10 @@ interface ProductFormProps {
   isPending: boolean;
   t: (key: string) => string;
   editingProductId?: string | null;
+  pendingImageFile?: File | null;
+  pendingVideoFile?: File | null;
+  setPendingImageFile?: (f: File | null) => void;
+  setPendingVideoFile?: (f: File | null) => void;
 }
 
 const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPending, t, editingProductId }: ProductFormProps) => {
