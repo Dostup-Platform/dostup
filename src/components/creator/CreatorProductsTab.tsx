@@ -835,6 +835,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
               setFormData={setFormData}
               isPending={createProduct.isPending}
               t={t}
+              pendingImageFile={pendingImageFile}
+              pendingVideoFile={pendingVideoFile}
+              setPendingImageFile={setPendingImageFile}
+              setPendingVideoFile={setPendingVideoFile}
             />
           </DialogContent>
         </Dialog>
