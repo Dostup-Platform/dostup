@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Copy, Package, Loader2, Edit, Trash2, FileText } from "lucide-react";
+import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, FileText, ChevronDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +30,8 @@ import {
 import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import { uploadProductMedia, getVideoDuration, MAX_VIDEO_DURATION_SECONDS } from "@/lib/productMediaUpload";
-import { ImageIcon, Video as VideoIcon, X as XIcon, HelpCircle } from "lucide-react";
+import { ImageIcon, Video as VideoIcon, X as XIcon, HelpCircle, Play } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Product {
   id: string;
@@ -45,6 +46,8 @@ interface Product {
   image_url?: string | null;
   video_url?: string | null;
   faq?: Array<{ question: string; answer: string }> | null;
+  kaspi_phone?: string | null;
+  access_duration_days?: number | null;
 }
 
 const formatPrice = (price: number, currency: string = "KZT") => {
