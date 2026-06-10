@@ -577,23 +577,45 @@ interface FormData {
              </div>
          )}
 
-         {/* Add more files button */}
-         <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
+          {/* Add more files button — supports click, drag & drop, and paste */}
+          <div
+            className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}`}
+            tabIndex={0}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragging(false);
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                addFilesToForm(e.dataTransfer.files);
+              }
+            }}
+            onPaste={(e) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              const files: File[] = [];
+              for (let i = 0; i < items.length; i++) {
+                const it = items[i];
+                if (it.kind === "file") {
+                  const f = it.getAsFile();
+                  if (f) files.push(f);
+                }
+              }
+              if (files.length > 0) {
+                e.preventDefault();
+                addFilesToForm(files);
+              }
+            }}
+          >
            <input
              ref={fileInputRef}
              type="file"
              multiple
              onChange={(e) => {
                if (e.target.files && e.target.files.length > 0) {
-                  const newEntries: FileEntry[] = Array.from(e.target.files).map(file => ({
-                    file,
-                    customName: "",
-                    permissions: { allow_download: true, teacher_allow_download: true }
-                  }));
-                 setFormData(prev => ({ 
-                   ...prev, 
-                   fileEntries: [...prev.fileEntries, ...newEntries]
-                 }));
+                  addFilesToForm(e.target.files);
                }
                if (fileInputRef.current) fileInputRef.current.value = "";
              }}
@@ -603,8 +625,11 @@ interface FormData {
            <label htmlFor="file-upload" className="cursor-pointer">
              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
              <p className="text-sm text-muted-foreground">
-               {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите для выбора файла(ов)"}
+                {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)"}
              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Поддерживается перетаскивание и вставка из буфера обмена
+              </p>
            </label>
          </div>
         </div>}
