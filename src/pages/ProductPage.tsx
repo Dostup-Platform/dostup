@@ -109,7 +109,7 @@ const ProductPage = () => {
         {faq.length > 0 && (
           <div className="mt-6 bg-card rounded-2xl p-6 shadow-lg animate-fade-in">
             <h2 className="text-xl font-semibold text-foreground mb-2">
-              {language === "kz" ? "Жиі қойылатын сұрақтар" : "Часто задаваемые вопросы"}
+              {language === "kk" ? "Жиі қойылатын сұрақтар" : "Часто задаваемые вопросы"}
             </h2>
             <Accordion type="single" collapsible className="w-full">
               {faq.map((item, idx) => (
