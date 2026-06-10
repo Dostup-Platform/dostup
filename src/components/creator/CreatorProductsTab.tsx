@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ShareLinkDialog from "./ShareLinkDialog";
 import { uploadProductMedia, getVideoDuration, MAX_VIDEO_DURATION_SECONDS } from "@/lib/productMediaUpload";
-import { ImageIcon, Video as VideoIcon, X as XIcon } from "lucide-react";
+import { ImageIcon, Video as VideoIcon, X as XIcon, HelpCircle } from "lucide-react";
 
 interface Product {
   id: string;
@@ -44,6 +44,7 @@ interface Product {
   is_active: boolean;
   image_url?: string | null;
   video_url?: string | null;
+  faq?: Array<{ question: string; answer: string }> | null;
 }
 
 const formatPrice = (price: number, currency: string = "KZT") => {
@@ -63,6 +64,7 @@ interface FormData {
   telegramLink: string;
   imageUrl: string;
   videoUrl: string;
+  faq: Array<{ question: string; answer: string }>;
 }
 
 interface ProductFormProps {
