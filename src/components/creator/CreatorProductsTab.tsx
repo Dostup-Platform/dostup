@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Copy, Package, Loader2, Edit, Trash2, FileText } from "lucide-react";
+import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, FileText, ChevronDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +30,8 @@ import {
 import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import { uploadProductMedia, getVideoDuration, MAX_VIDEO_DURATION_SECONDS } from "@/lib/productMediaUpload";
-import { ImageIcon, Video as VideoIcon, X as XIcon, HelpCircle } from "lucide-react";
+import { ImageIcon, Video as VideoIcon, X as XIcon, HelpCircle, Play } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Product {
   id: string;
@@ -45,6 +46,8 @@ interface Product {
   image_url?: string | null;
   video_url?: string | null;
   faq?: Array<{ question: string; answer: string }> | null;
+  kaspi_phone?: string | null;
+  access_duration_days?: number | null;
 }
 
 const formatPrice = (price: number, currency: string = "KZT") => {
@@ -65,6 +68,11 @@ interface FormData {
   imageUrl: string;
   videoUrl: string;
   faq: Array<{ question: string; answer: string }>;
+  isPaid: boolean;
+  kaspiMethod: "link" | "phone";
+  kaspiPhone: string;
+  accessMode: "forever" | "limited";
+  accessDurationDays: number;
 }
 
 interface ProductFormProps {
@@ -75,19 +83,65 @@ interface ProductFormProps {
   isPending: boolean;
   t: (key: string) => string;
   editingProductId?: string | null;
+  pendingImageFile?: File | null;
+  pendingVideoFile?: File | null;
+  setPendingImageFile?: (f: File | null) => void;
+  setPendingVideoFile?: (f: File | null) => void;
 }
 
-const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPending, t, editingProductId }: ProductFormProps) => {
+const ProductForm = ({
+  onSubmit,
+  isEdit = false,
+  formData,
+  setFormData,
+  isPending,
+  t,
+  editingProductId,
+  pendingImageFile,
+  pendingVideoFile,
+  setPendingImageFile,
+  setPendingVideoFile,
+}: ProductFormProps) => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [removeImageOpen, setRemoveImageOpen] = useState(false);
   const [removeVideoOpen, setRemoveVideoOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+
+  // Object URL previews for pending files (create mode)
+  const [pendingImagePreview, setPendingImagePreview] = useState<string>("");
+  const [pendingVideoPreview, setPendingVideoPreview] = useState<string>("");
+
+  useEffect(() => {
+    if (pendingImageFile) {
+      const url = URL.createObjectURL(pendingImageFile);
+      setPendingImagePreview(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setPendingImagePreview("");
+  }, [pendingImageFile]);
+
+  useEffect(() => {
+    if (pendingVideoFile) {
+      const url = URL.createObjectURL(pendingVideoFile);
+      setPendingVideoPreview(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setPendingVideoPreview("");
+  }, [pendingVideoFile]);
 
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || !editingProductId) return;
+    if (!file) return;
+    if (!isEdit) {
+      setPendingImageFile?.(file);
+      return;
+    }
+    if (!editingProductId) return;
     setUploadingImage(true);
     try {
       const url = await uploadProductMedia(file, editingProductId, "image");
@@ -103,15 +157,24 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
   const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || !editingProductId) return;
-    setUploadingVideo(true);
+    if (!file) return;
     try {
       const duration = await getVideoDuration(file);
       if (duration > MAX_VIDEO_DURATION_SECONDS) {
         toast.error(`Видео слишком длинное (${Math.round(duration)} сек). Максимум 3 минуты.`);
-        setUploadingVideo(false);
         return;
       }
+    } catch {
+      toast.error("Не удалось прочитать видео");
+      return;
+    }
+    if (!isEdit) {
+      setPendingVideoFile?.(file);
+      return;
+    }
+    if (!editingProductId) return;
+    setUploadingVideo(true);
+    try {
       const url = await uploadProductMedia(file, editingProductId, "video");
       setFormData(prev => ({ ...prev, videoUrl: url }));
       toast.success("Видео загружено");
@@ -122,88 +185,66 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
     }
   };
 
-  return (
-  <form onSubmit={onSubmit} className="space-y-4 mt-4">
-    <div className="space-y-2">
-      <Label htmlFor="title">Название *</Label>
-      <Input 
-        id="title" 
-        placeholder="Название курса" 
-        className="h-12"
-        value={formData.title}
-        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-        required
-      />
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="headline">Краткое описание</Label>
-      <Input 
-        id="headline" 
-        placeholder="Что получит пользователь" 
-        className="h-12"
-        value={formData.headline}
-        onChange={(e) => setFormData(prev => ({ ...prev, headline: e.target.value }))}
-      />
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="description">Полное описание</Label>
-      <Textarea 
-        id="description" 
-        placeholder="Подробное описание курса" 
-        rows={4}
-        value={formData.description}
-        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-      />
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="price">Цена (тенге) *</Label>
-      <Input 
-        id="price" 
-        type="number" 
-        placeholder="49000" 
-        className="h-12"
-        value={formData.price}
-        onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-        required
-      />
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="kaspiLink">{t("kaspiLink")}</Label>
-      <Input 
-        id="kaspiLink" 
-        type="url" 
-        placeholder={t("kaspiLinkPlaceholder")} 
-        className="h-12"
-        value={formData.kaspiLink}
-        onChange={(e) => setFormData(prev => ({ ...prev, kaspiLink: e.target.value }))}
-      />
-      <p className="text-xs text-muted-foreground">
-        Ссылка на оплату через Kaspi.kz
-      </p>
-    </div>
-    <div className="space-y-2">
-      <Label htmlFor="telegramLink">Ссылка на группу/канал</Label>
-      <Input 
-        id="telegramLink" 
-        type="url" 
-        placeholder="https://t.me/... или https://discord.gg/..." 
-        className="h-12"
-        value={formData.telegramLink}
-        onChange={(e) => setFormData(prev => ({ ...prev, telegramLink: e.target.value }))}
-      />
-      <p className="text-xs text-muted-foreground">
-        Ссылка на группу или канал (Telegram, Discord и др.). Будет показана ученикам после покупки.
-      </p>
-    </div>
+  const displayedImageUrl = formData.imageUrl || pendingImagePreview;
+  const displayedVideoUrl = formData.videoUrl || pendingVideoPreview;
 
-    {isEdit && editingProductId && (
-      <>
+  const clearImage = () => {
+    setFormData(prev => ({ ...prev, imageUrl: "" }));
+    setPendingImageFile?.(null);
+    setRemoveImageOpen(false);
+  };
+  const clearVideo = () => {
+    setFormData(prev => ({ ...prev, videoUrl: "" }));
+    setPendingVideoFile?.(null);
+    setRemoveVideoOpen(false);
+    setVideoPlaying(false);
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Auto-open sections containing required-but-empty fields
+    if (!formData.title) {
+      setDetailsOpen(true);
+    }
+    if (formData.isPaid && !formData.price) {
+      setPaymentOpen(true);
+    }
+    onSubmit(e);
+  };
+
+  const SectionHeader = ({
+    label,
+    open,
+  }: { label: string; open: boolean }) => (
+    <CollapsibleTrigger asChild>
+      <button
+        type="button"
+        className="flex items-center justify-between w-full px-4 py-3 bg-muted/40 hover:bg-muted/60 rounded-md border border-border transition-colors"
+      >
+        <span className="font-medium text-foreground">{label}</span>
+        {open ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+      </button>
+    </CollapsibleTrigger>
+  );
+
+  const durationPresets = [
+    { label: "7 дней", value: 7 },
+    { label: "2 недели", value: 14 },
+    { label: "1 месяц", value: 30 },
+  ];
+
+  return (
+  <form onSubmit={handleFormSubmit} className="space-y-4 mt-4">
+    {/* ============ ДЕТАЛИ ============ */}
+    <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
+      <SectionHeader label="Детали" open={detailsOpen} />
+      <CollapsibleContent className="space-y-4 pt-4">
         {/* Image upload */}
         <div className="space-y-2">
           <Label>Обложка (изображение)</Label>
-          {formData.imageUrl ? (
+          {displayedImageUrl ? (
             <div className="relative rounded-md overflow-hidden border border-border">
-              <img src={formData.imageUrl} alt="cover" className="w-full max-h-48 object-cover" />
+              <img src={displayedImageUrl} alt="cover" className="w-full max-h-48 object-cover" />
               <AlertDialog open={removeImageOpen} onOpenChange={setRemoveImageOpen}>
                 <AlertDialogTrigger asChild>
                   <Button
@@ -226,10 +267,7 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
                     <AlertDialogCancel onClick={() => setRemoveImageOpen(false)}>Отмена</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, imageUrl: "" }));
-                        setRemoveImageOpen(false);
-                      }}
+                      onClick={clearImage}
                     >
                       Удалить
                     </AlertDialogAction>
@@ -262,9 +300,9 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
         {/* Video upload */}
         <div className="space-y-2">
           <Label>Видео-презентация (до 3 минут)</Label>
-          {formData.videoUrl ? (
+          {displayedVideoUrl ? (
             <div className="relative rounded-md overflow-hidden border border-border">
-              <video src={formData.videoUrl} controls playsInline preload="metadata" className="w-full max-h-56 bg-black" />
+              <video src={displayedVideoUrl} controls playsInline preload="metadata" className="w-full max-h-56 bg-black" />
               <AlertDialog open={removeVideoOpen} onOpenChange={setRemoveVideoOpen}>
                 <AlertDialogTrigger asChild>
                   <Button
@@ -287,10 +325,7 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
                     <AlertDialogCancel onClick={() => setRemoveVideoOpen(false)}>Отмена</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, videoUrl: "" }));
-                        setRemoveVideoOpen(false);
-                      }}
+                      onClick={clearVideo}
                     >
                       Удалить
                     </AlertDialogAction>
@@ -319,17 +354,46 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
           )}
           <p className="text-xs text-muted-foreground">MP4, WebM, MOV. Длительность до 3 минут, размер до 250 МБ.</p>
         </div>
-      </>
-    )}
 
-    {!isEdit && (
-      <p className="text-xs text-muted-foreground">
-        Изображение и видео можно добавить после создания продукта — откройте «Редактировать».
-      </p>
-    )}
+        {/* Title */}
+        <div className="space-y-2">
+          <Label htmlFor="title">Название *</Label>
+          <Input
+            id="title"
+            placeholder="Название курса"
+            className="h-12"
+            value={formData.title}
+            onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+            required
+          />
+        </div>
 
-    {/* FAQ editor */}
-    <div className="space-y-3 pt-2 border-t border-border">
+        {/* Headline */}
+        <div className="space-y-2">
+          <Label htmlFor="headline">Краткое описание</Label>
+          <Input
+            id="headline"
+            placeholder="Что получит пользователь"
+            className="h-12"
+            value={formData.headline}
+            onChange={(e) => setFormData(prev => ({ ...prev, headline: e.target.value }))}
+          />
+        </div>
+
+        {/* Description */}
+        <div className="space-y-2">
+          <Label htmlFor="description">Полное описание</Label>
+          <Textarea
+            id="description"
+            placeholder="Подробное описание курса"
+            rows={4}
+            value={formData.description}
+            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          />
+        </div>
+
+        {/* FAQ editor (внутри Деталей) */}
+        <div className="space-y-3 pt-2 border-t border-border">
       <div className="flex items-center justify-between">
         <Label className="flex items-center gap-2">
           <HelpCircle className="w-4 h-4" />
@@ -397,7 +461,148 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
           />
         </div>
       ))}
-    </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+
+    {/* ============ ОПЛАТА ============ */}
+    <Collapsible open={paymentOpen} onOpenChange={setPaymentOpen}>
+      <SectionHeader label="Оплата" open={paymentOpen} />
+      <CollapsibleContent className="space-y-4 pt-4">
+        {/* Free / Paid */}
+        <div className="space-y-2">
+          <Label>Как люди получат доступ?</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={formData.isPaid ? "outline" : "default"}
+              onClick={() => setFormData(prev => ({ ...prev, isPaid: false }))}
+            >
+              Бесплатно
+            </Button>
+            <Button
+              type="button"
+              variant={formData.isPaid ? "default" : "outline"}
+              onClick={() => setFormData(prev => ({ ...prev, isPaid: true }))}
+            >
+              Платно
+            </Button>
+          </div>
+        </div>
+
+        {formData.isPaid && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="price">Цена (тенге) *</Label>
+              <Input
+                id="price"
+                type="number"
+                placeholder="49000"
+                className="h-12"
+                value={formData.price}
+                onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                required={formData.isPaid}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Способ оплаты через Kaspi</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={formData.kaspiMethod === "link" ? "default" : "outline"}
+                  onClick={() => setFormData(prev => ({ ...prev, kaspiMethod: "link" }))}
+                >
+                  Ссылка
+                </Button>
+                <Button
+                  type="button"
+                  variant={formData.kaspiMethod === "phone" ? "default" : "outline"}
+                  onClick={() => setFormData(prev => ({ ...prev, kaspiMethod: "phone" }))}
+                >
+                  Номер телефона
+                </Button>
+              </div>
+              {formData.kaspiMethod === "link" ? (
+                <Input
+                  type="url"
+                  placeholder={t("kaspiLinkPlaceholder")}
+                  className="h-12"
+                  value={formData.kaspiLink}
+                  onChange={(e) => setFormData(prev => ({ ...prev, kaspiLink: e.target.value }))}
+                />
+              ) : (
+                <Input
+                  type="tel"
+                  placeholder="+7 700 000 00 00"
+                  className="h-12"
+                  value={formData.kaspiPhone}
+                  onChange={(e) => setFormData(prev => ({ ...prev, kaspiPhone: e.target.value }))}
+                />
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Access duration */}
+        <div className="space-y-2 pt-2 border-t border-border">
+          <Label>Доступ к продукту</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={formData.accessMode === "forever" ? "default" : "outline"}
+              onClick={() => setFormData(prev => ({ ...prev, accessMode: "forever" }))}
+            >
+              Навсегда
+            </Button>
+            <Button
+              type="button"
+              variant={formData.accessMode === "limited" ? "default" : "outline"}
+              onClick={() => setFormData(prev => ({ ...prev, accessMode: "limited" }))}
+            >
+              На время
+            </Button>
+          </div>
+
+          {formData.accessMode === "limited" && (
+            <div className="space-y-2 pt-2">
+              <div className="flex flex-wrap gap-2">
+                {durationPresets.map(p => (
+                  <Button
+                    key={p.value}
+                    type="button"
+                    size="sm"
+                    variant={formData.accessDurationDays === p.value ? "default" : "outline"}
+                    onClick={() => setFormData(prev => ({ ...prev, accessDurationDays: p.value }))}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="customDays" className="text-xs text-muted-foreground whitespace-nowrap">
+                  Своё число дней:
+                </Label>
+                <Input
+                  id="customDays"
+                  type="number"
+                  min={1}
+                  className="h-10 w-28"
+                  value={formData.accessDurationDays || ""}
+                  onChange={(e) =>
+                    setFormData(prev => ({
+                      ...prev,
+                      accessDurationDays: Number(e.target.value) || 0,
+                    }))
+                  }
+                />
+                <span className="text-xs text-muted-foreground">дн.</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
 
     <Button 
       type="submit" 
@@ -434,8 +639,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     title: "",
     headline: "",
     description: "",
@@ -445,6 +652,11 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     imageUrl: "",
     videoUrl: "",
     faq: [] as Array<{ question: string; answer: string }>,
+    isPaid: true,
+    kaspiMethod: "link",
+    kaspiPhone: "",
+    accessMode: "forever",
+    accessDurationDays: 14,
   });
 
   const resetForm = () => {
@@ -458,7 +670,14 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       imageUrl: "",
       videoUrl: "",
       faq: [],
+      isPaid: true,
+      kaspiMethod: "link",
+      kaspiPhone: "",
+      accessMode: "forever",
+      accessDurationDays: 14,
     });
+    setPendingImageFile(null);
+    setPendingVideoFile(null);
   };
 
   // copyLink function removed - now using ShareLinkDialog for all link copying
@@ -466,24 +685,55 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.title || !formData.price) {
+    if (!formData.title || (formData.isPaid && !formData.price)) {
       toast.error("Заполните обязательные поля");
       return;
     }
 
     try {
-      await createProduct.mutateAsync({
+      const created = await createProduct.mutateAsync({
         title: formData.title,
         headline: formData.headline || null,
         description: formData.description || null,
-        price: Number(formData.price),
-        kaspi_link: formData.kaspiLink || null,
-        telegram_link: formData.telegramLink || null,
+        price: formData.isPaid ? Number(formData.price) : 0,
+        kaspi_link: formData.isPaid && formData.kaspiMethod === "link" ? (formData.kaspiLink || null) : null,
+        kaspi_phone: formData.isPaid && formData.kaspiMethod === "phone" ? (formData.kaspiPhone || null) : null,
+        telegram_link: null,
+        access_duration_days: formData.accessMode === "limited" ? (formData.accessDurationDays || null) : null,
         has_schedule: false,
         is_active: true,
         faq: formData.faq.filter(it => it.question.trim() || it.answer.trim()),
       });
-      
+
+      // Upload pending media (if any)
+      let imageUrl: string | null = null;
+      let videoUrl: string | null = null;
+      if (pendingImageFile && created?.id) {
+        try {
+          imageUrl = await uploadProductMedia(pendingImageFile, created.id, "image");
+        } catch (err: any) {
+          toast.error(err?.message || "Ошибка загрузки изображения. Можно догрузить в редакторе.");
+        }
+      }
+      if (pendingVideoFile && created?.id) {
+        try {
+          videoUrl = await uploadProductMedia(pendingVideoFile, created.id, "video");
+        } catch (err: any) {
+          toast.error(err?.message || "Ошибка загрузки видео. Можно догрузить в редакторе.");
+        }
+      }
+      if ((imageUrl || videoUrl) && created?.id) {
+        try {
+          await updateProduct.mutateAsync({
+            id: created.id,
+            ...(imageUrl ? { image_url: imageUrl } : {}),
+            ...(videoUrl ? { video_url: videoUrl } : {}),
+          });
+        } catch {
+          // already toasted above
+        }
+      }
+
       toast.success("Продукт создан!");
       setIsCreating(false);
       resetForm();
@@ -504,13 +754,18 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       imageUrl: product.image_url || "",
       videoUrl: product.video_url || "",
       faq: Array.isArray(product.faq) ? product.faq : [],
+      isPaid: Number(product.price) > 0,
+      kaspiMethod: product.kaspi_phone ? "phone" : "link",
+      kaspiPhone: product.kaspi_phone || "",
+      accessMode: product.access_duration_days ? "limited" : "forever",
+      accessDurationDays: product.access_duration_days || 14,
     });
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!editingProduct || !formData.title || !formData.price) {
+    if (!editingProduct || !formData.title || (formData.isPaid && !formData.price)) {
       toast.error("Заполните обязательные поля");
       return;
     }
@@ -521,9 +776,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         title: formData.title,
         headline: formData.headline || null,
         description: formData.description || null,
-        price: Number(formData.price),
-        kaspi_link: formData.kaspiLink || null,
-        telegram_link: formData.telegramLink || null,
+        price: formData.isPaid ? Number(formData.price) : 0,
+        kaspi_link: formData.isPaid && formData.kaspiMethod === "link" ? (formData.kaspiLink || null) : null,
+        kaspi_phone: formData.isPaid && formData.kaspiMethod === "phone" ? (formData.kaspiPhone || null) : null,
+        access_duration_days: formData.accessMode === "limited" ? (formData.accessDurationDays || null) : null,
         image_url: formData.imageUrl || null,
         video_url: formData.videoUrl || null,
         faq: formData.faq.filter(it => it.question.trim() || it.answer.trim()) as any,
@@ -579,6 +835,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
               setFormData={setFormData}
               isPending={createProduct.isPending}
               t={t}
+              pendingImageFile={pendingImageFile}
+              pendingVideoFile={pendingVideoFile}
+              setPendingImageFile={setPendingImageFile}
+              setPendingVideoFile={setPendingVideoFile}
             />
           </DialogContent>
         </Dialog>
