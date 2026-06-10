@@ -19,6 +19,8 @@ interface Product {
   kaspi_link: string | null;
   telegram_link: string | null;
   faq: Array<{ question: string; answer: string }> | null;
+  kaspi_phone: string | null;
+  access_duration_days: number | null;
 }
 
 export const useProduct = (productId: string | undefined) => {
@@ -48,7 +50,7 @@ export const useProduct = (productId: string | undefined) => {
       }
       
       if (error) throw error;
-      return data as Product | null;
+      return data as unknown as Product | null;
     },
     enabled: !!productId,
   });
@@ -87,7 +89,7 @@ export const useCreatorProducts = (passedCreatorName?: string | null) => {
         .order("created_at", { ascending: false });
       
       if (error) throw error;
-      return data as Product[];
+      return data as unknown as Product[];
     },
     enabled: !!creatorId,
     staleTime: 0,
@@ -108,6 +110,8 @@ interface CreateProductInput {
   video_url?: string | null;
   slug?: string | null;
   faq?: Array<{ question: string; answer: string }> | null;
+  kaspi_phone?: string | null;
+  access_duration_days?: number | null;
 }
 
 export const useCreateProduct = () => {
@@ -134,6 +138,8 @@ export const useCreateProduct = () => {
           slug: product.slug || null,
           faq: (product.faq as any) ?? [],
           creator_id: creatorId,
+          kaspi_phone: product.kaspi_phone ?? null,
+          access_duration_days: product.access_duration_days ?? null,
         })
         .select()
         .single();
