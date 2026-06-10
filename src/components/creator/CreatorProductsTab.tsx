@@ -279,6 +279,77 @@ const ProductForm = ({ onSubmit, isEdit = false, formData, setFormData, isPendin
       </p>
     )}
 
+    {/* FAQ editor */}
+    <div className="space-y-3 pt-2 border-t border-border">
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-2">
+          <HelpCircle className="w-4 h-4" />
+          Часто задаваемые вопросы
+        </Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            setFormData(prev => ({
+              ...prev,
+              faq: [...prev.faq, { question: "", answer: "" }],
+            }))
+          }
+        >
+          <Plus className="w-4 h-4 mr-1" />
+          Добавить
+        </Button>
+      </div>
+      {formData.faq.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          Добавьте вопросы и ответы — они появятся на странице продукта в виде раскрывающегося списка.
+        </p>
+      )}
+      {formData.faq.map((item, idx) => (
+        <div key={idx} className="space-y-2 rounded-md border border-border p-3 relative">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="absolute top-1 right-1 h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+            onClick={() =>
+              setFormData(prev => ({
+                ...prev,
+                faq: prev.faq.filter((_, i) => i !== idx),
+              }))
+            }
+          >
+            <XIcon className="w-4 h-4" />
+          </Button>
+          <Input
+            placeholder="Вопрос"
+            className="h-10"
+            value={item.question}
+            onChange={e => {
+              const v = e.target.value;
+              setFormData(prev => ({
+                ...prev,
+                faq: prev.faq.map((it, i) => (i === idx ? { ...it, question: v } : it)),
+              }));
+            }}
+          />
+          <Textarea
+            placeholder="Ответ"
+            rows={3}
+            value={item.answer}
+            onChange={e => {
+              const v = e.target.value;
+              setFormData(prev => ({
+                ...prev,
+                faq: prev.faq.map((it, i) => (i === idx ? { ...it, answer: v } : it)),
+              }));
+            }}
+          />
+        </div>
+      ))}
+    </div>
+
     <Button 
       type="submit" 
       variant="cta" 
