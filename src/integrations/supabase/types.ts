@@ -507,6 +507,7 @@ export type Database = {
       }
       products: {
         Row: {
+          access_duration_days: number | null
           created_at: string
           creator_id: string
           description: string | null
@@ -517,6 +518,7 @@ export type Database = {
           image_url: string | null
           is_active: boolean
           kaspi_link: string | null
+          kaspi_phone: string | null
           price: number
           slug: string | null
           telegram_link: string | null
@@ -525,6 +527,7 @@ export type Database = {
           video_url: string | null
         }
         Insert: {
+          access_duration_days?: number | null
           created_at?: string
           creator_id: string
           description?: string | null
@@ -535,6 +538,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           kaspi_link?: string | null
+          kaspi_phone?: string | null
           price?: number
           slug?: string | null
           telegram_link?: string | null
@@ -543,6 +547,7 @@ export type Database = {
           video_url?: string | null
         }
         Update: {
+          access_duration_days?: number | null
           created_at?: string
           creator_id?: string
           description?: string | null
@@ -553,6 +558,7 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean
           kaspi_link?: string | null
+          kaspi_phone?: string | null
           price?: number
           slug?: string | null
           telegram_link?: string | null
