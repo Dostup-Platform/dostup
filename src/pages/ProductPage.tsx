@@ -19,7 +19,7 @@ const ProductPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { data: product, isLoading } = useProduct(productId);
   
   // Передаём параметры учителя на страницу checkout
