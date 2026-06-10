@@ -639,8 +639,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     title: "",
     headline: "",
     description: "",
@@ -650,6 +652,11 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     imageUrl: "",
     videoUrl: "",
     faq: [] as Array<{ question: string; answer: string }>,
+    isPaid: true,
+    kaspiMethod: "link",
+    kaspiPhone: "",
+    accessMode: "forever",
+    accessDurationDays: 14,
   });
 
   const resetForm = () => {
@@ -663,7 +670,14 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       imageUrl: "",
       videoUrl: "",
       faq: [],
+      isPaid: true,
+      kaspiMethod: "link",
+      kaspiPhone: "",
+      accessMode: "forever",
+      accessDurationDays: 14,
     });
+    setPendingImageFile(null);
+    setPendingVideoFile(null);
   };
 
   // copyLink function removed - now using ShareLinkDialog for all link copying
@@ -671,24 +685,55 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.title || !formData.price) {
+    if (!formData.title || (formData.isPaid && !formData.price)) {
       toast.error("Заполните обязательные поля");
       return;
     }
 
     try {
-      await createProduct.mutateAsync({
+      const created = await createProduct.mutateAsync({
         title: formData.title,
         headline: formData.headline || null,
         description: formData.description || null,
-        price: Number(formData.price),
-        kaspi_link: formData.kaspiLink || null,
-        telegram_link: formData.telegramLink || null,
+        price: formData.isPaid ? Number(formData.price) : 0,
+        kaspi_link: formData.isPaid && formData.kaspiMethod === "link" ? (formData.kaspiLink || null) : null,
+        kaspi_phone: formData.isPaid && formData.kaspiMethod === "phone" ? (formData.kaspiPhone || null) : null,
+        telegram_link: null,
+        access_duration_days: formData.accessMode === "limited" ? (formData.accessDurationDays || null) : null,
         has_schedule: false,
         is_active: true,
         faq: formData.faq.filter(it => it.question.trim() || it.answer.trim()),
       });
-      
+
+      // Upload pending media (if any)
+      let imageUrl: string | null = null;
+      let videoUrl: string | null = null;
+      if (pendingImageFile && created?.id) {
+        try {
+          imageUrl = await uploadProductMedia(pendingImageFile, created.id, "image");
+        } catch (err: any) {
+          toast.error(err?.message || "Ошибка загрузки изображения. Можно догрузить в редакторе.");
+        }
+      }
+      if (pendingVideoFile && created?.id) {
+        try {
+          videoUrl = await uploadProductMedia(pendingVideoFile, created.id, "video");
+        } catch (err: any) {
+          toast.error(err?.message || "Ошибка загрузки видео. Можно догрузить в редакторе.");
+        }
+      }
+      if ((imageUrl || videoUrl) && created?.id) {
+        try {
+          await updateProduct.mutateAsync({
+            id: created.id,
+            ...(imageUrl ? { image_url: imageUrl } : {}),
+            ...(videoUrl ? { video_url: videoUrl } : {}),
+          });
+        } catch {
+          // already toasted above
+        }
+      }
+
       toast.success("Продукт создан!");
       setIsCreating(false);
       resetForm();
@@ -709,13 +754,18 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       imageUrl: product.image_url || "",
       videoUrl: product.video_url || "",
       faq: Array.isArray(product.faq) ? product.faq : [],
+      isPaid: Number(product.price) > 0,
+      kaspiMethod: product.kaspi_phone ? "phone" : "link",
+      kaspiPhone: product.kaspi_phone || "",
+      accessMode: product.access_duration_days ? "limited" : "forever",
+      accessDurationDays: product.access_duration_days || 14,
     });
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!editingProduct || !formData.title || !formData.price) {
+    if (!editingProduct || !formData.title || (formData.isPaid && !formData.price)) {
       toast.error("Заполните обязательные поля");
       return;
     }
@@ -726,9 +776,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         title: formData.title,
         headline: formData.headline || null,
         description: formData.description || null,
-        price: Number(formData.price),
-        kaspi_link: formData.kaspiLink || null,
-        telegram_link: formData.telegramLink || null,
+        price: formData.isPaid ? Number(formData.price) : 0,
+        kaspi_link: formData.isPaid && formData.kaspiMethod === "link" ? (formData.kaspiLink || null) : null,
+        kaspi_phone: formData.isPaid && formData.kaspiMethod === "phone" ? (formData.kaspiPhone || null) : null,
+        access_duration_days: formData.accessMode === "limited" ? (formData.accessDurationDays || null) : null,
         image_url: formData.imageUrl || null,
         video_url: formData.videoUrl || null,
         faq: formData.faq.filter(it => it.question.trim() || it.answer.trim()) as any,
