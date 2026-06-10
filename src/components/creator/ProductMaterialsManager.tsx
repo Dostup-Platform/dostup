@@ -113,6 +113,37 @@ interface FormData {
     }));
     toast.success(arr.length > 1 ? `Добавлено файлов: ${arr.length}` : "Файл добавлен");
   }, []);
+
+  // Global paste listener: when dialog is open and a file/folder is being created,
+  // pasting an image/file anywhere in the dialog adds it to the form.
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        // Don't hijack paste inside text fields
+        return;
+      }
+      const itemType = formDataRef.current.itemType;
+      if (itemType !== "file" && itemType !== "folder") return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (it.kind === "file") {
+          const f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        addFilesToForm(files);
+      }
+    };
+    window.addEventListener("paste", handler);
+    return () => window.removeEventListener("paste", handler);
+  }, [isOpen, addFilesToForm]);
   
    
     const [formData, setFormData] = useState<FormData>({
