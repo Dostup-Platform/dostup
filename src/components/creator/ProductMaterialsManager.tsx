@@ -124,8 +124,7 @@ interface FormData {
         // Don't hijack paste inside text fields
         return;
       }
-      const itemType = formDataRef.current.itemType;
-      if (itemType !== "file" && itemType !== "folder") return;
+      if (formData.itemType !== "file" && formData.itemType !== "folder") return;
       const items = e.clipboardData?.items;
       if (!items) return;
       const files: File[] = [];
@@ -143,7 +142,7 @@ interface FormData {
     };
     window.addEventListener("paste", handler);
     return () => window.removeEventListener("paste", handler);
-  }, [isOpen, addFilesToForm]);
+  }, [isOpen, addFilesToForm, formData.itemType]);
   
    
     const [formData, setFormData] = useState<FormData>({
