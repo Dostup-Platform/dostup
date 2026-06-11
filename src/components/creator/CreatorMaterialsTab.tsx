@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Library, Plus, Edit, FolderCog } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Loader2, Library, Plus, Edit, FolderCog, Folder, FileText, Link as LinkIcon, Type, ChevronDown, ChevronRight } from "lucide-react";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
 import NoProductsEmptyState from "./NoProductsEmptyState";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useProductMaterials } from "@/hooks/useMaterials";
+import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
+import { useMemo } from "react";
 
 interface Props { creatorName: string; onGoToProducts?: () => void; }
 
@@ -83,6 +87,10 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
         </Popover>
       </div>
 
+      {product && (
+        <CreatorMaterialsReadOnlyList productId={product.id} />
+      )}
+
       {product && mode && (
         <ProductMaterialsManager
           productId={product.id}
@@ -97,3 +105,103 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
 };
 
 export default CreatorMaterialsTab;
+
+interface Mat {
+  id: string;
+  title: string;
+  type: string;
+  parent_id?: string | null;
+}
+
+const CreatorMaterialsReadOnlyList = ({ productId }: { productId: string }) => {
+  const { language } = useLanguage();
+  const { data: allMaterials = [], isLoading } = useProductMaterials(productId, { creatorOnly: true });
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const q = query.trim().toLowerCase();
+  const list = allMaterials as Mat[];
+
+  const filtered = useMemo(() => {
+    if (!q) return list.filter((m) => !m.parent_id);
+    return list.filter((m) => m.title.toLowerCase().includes(q));
+  }, [list, q]);
+
+  const getIcon = (type: string) => {
+    if (type === "folder") return <Folder className="w-4 h-4 text-primary" />;
+    if (type === "link") return <LinkIcon className="w-4 h-4 text-primary" />;
+    if (type === "text") return <Type className="w-4 h-4 text-primary" />;
+    return <FileText className="w-4 h-4 text-primary" />;
+  };
+
+  const toggle = (id: string) =>
+    setExpanded((p) => {
+      const n = new Set(p);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+
+  const childrenOf = (id: string) => list.filter((m) => m.parent_id === id);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-6">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-6 text-sm text-muted-foreground">
+          {q
+            ? language === "kk" ? "Ештеңе табылмады" : "Ничего не найдено"
+            : language === "kk" ? "Әзірге материалдар жоқ" : "Пока нет материалов"}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((m) => {
+            const isFolder = m.type === "folder";
+            const isOpen = expanded.has(m.id);
+            const kids = isFolder && !q ? childrenOf(m.id) : [];
+            return (
+              <div key={m.id}>
+                <Card
+                  className={isFolder && !q ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""}
+                  onClick={() => isFolder && !q && toggle(m.id)}
+                >
+                  <CardContent className="p-3 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      {getIcon(m.type)}
+                    </div>
+                    <p className="font-medium text-sm truncate flex-1" title={m.title}>{m.title}</p>
+                    {isFolder && !q && (
+                      isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </CardContent>
+                </Card>
+                {isFolder && !q && isOpen && kids.length > 0 && (
+                  <div className="ml-4 mt-2 space-y-2 border-l-2 border-border pl-2">
+                    {kids.map((c) => (
+                      <Card key={c.id}>
+                        <CardContent className="p-3 flex items-center gap-3">
+                          <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            {getIcon(c.type)}
+                          </div>
+                          <p className="font-medium text-sm truncate flex-1" title={c.title}>{c.title}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
