@@ -565,27 +565,9 @@ interface FormData {
                       <X className="w-4 h-4" />
                     </Button>
                    </div>
-                  <div className="pl-6 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Для учителя:</p>
-                    <label className="flex items-center gap-2 text-xs cursor-pointer">
-                      <Checkbox
-                        checked={entry.permissions.teacher_allow_download}
-                        onCheckedChange={(checked) => {
-                          setFormData(prev => {
-                            const newEntries = [...prev.fileEntries];
-                            newEntries[index] = { 
-                              ...newEntries[index], 
-                              permissions: { ...newEntries[index].permissions, teacher_allow_download: !!checked }
-                            };
-                            return { ...prev, fileEntries: newEntries };
-                          });
-                        }}
-                      />
-                      <Download className="w-3 h-3" />
-                      Скачивание
-                    </label>
-                    <p className="text-xs font-medium text-muted-foreground mt-2">Для ученика:</p>
-                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                   <div className="pl-6 space-y-2">
+                     <p className="text-xs font-medium text-muted-foreground">Для ученика:</p>
+                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox
                         checked={entry.permissions.allow_download}
                         onCheckedChange={(checked) => {
