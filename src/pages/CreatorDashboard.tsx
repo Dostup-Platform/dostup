@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Package, Users, Calendar, Loader2, Bell, User, Megaphone, Library } from "lucide-react";
 import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
