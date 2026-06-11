@@ -109,6 +109,8 @@ const ProductForm = ({
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
+  const [isImageDragging, setIsImageDragging] = useState(false);
+  const [isVideoDragging, setIsVideoDragging] = useState(false);
 
   // Object URL previews for pending files (create mode)
   const [pendingImagePreview, setPendingImagePreview] = useState<string>("");
@@ -133,10 +135,11 @@ const ProductForm = ({
   }, [pendingVideoFile]);
 
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  const processImageFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Это не изображение");
+      return;
+    }
     if (!isEdit) {
       setPendingImageFile?.(file);
       return;
@@ -154,10 +157,11 @@ const ProductForm = ({
     }
   };
 
-  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  const processVideoFile = async (file: File) => {
+    if (!file.type.startsWith("video/")) {
+      toast.error("Это не видео");
+      return;
+    }
     try {
       const duration = await getVideoDuration(file);
       if (duration > MAX_VIDEO_DURATION_SECONDS) {
@@ -185,8 +189,55 @@ const ProductForm = ({
     }
   };
 
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    await processImageFile(file);
+  };
+
+  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    await processVideoFile(file);
+  };
+
   const displayedImageUrl = formData.imageUrl || pendingImagePreview;
   const displayedVideoUrl = formData.videoUrl || pendingVideoPreview;
+
+  // Paste support: listen on window while at least one slot is empty.
+  useEffect(() => {
+    const imageEmpty = !displayedImageUrl;
+    const videoEmpty = !displayedVideoUrl;
+    if (!imageEmpty && !videoEmpty) return;
+
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      // Don't hijack paste in inputs/textareas/contenteditable
+      if (target) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) return;
+      }
+      const files = e.clipboardData?.files;
+      if (!files || files.length === 0) return;
+      const filesArr = Array.from(files);
+      const imgFile = filesArr.find(f => f.type.startsWith("image/"));
+      const vidFile = filesArr.find(f => f.type.startsWith("video/"));
+      if (imageEmpty && imgFile) {
+        e.preventDefault();
+        void processImageFile(imgFile);
+        return;
+      }
+      if (videoEmpty && vidFile) {
+        e.preventDefault();
+        void processVideoFile(vidFile);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayedImageUrl, displayedVideoUrl, isEdit, editingProductId]);
 
   const clearImage = () => {
     setFormData(prev => ({ ...prev, imageUrl: "" }));
