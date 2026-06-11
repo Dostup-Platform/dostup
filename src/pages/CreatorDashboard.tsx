@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Users, Calendar, Loader2, Bell, User, Megaphone } from "lucide-react";
+import { Package, Users, Calendar, Loader2, Bell, User, Megaphone, Library } from "lucide-react";
 import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
 import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
 import CreatorNotificationsTab from "@/components/creator/CreatorNotificationsTab";
 import CreatorAccountTab from "@/components/creator/CreatorAccountTab";
 import CreatorAnnouncementsTab from "@/components/creator/CreatorAnnouncementsTab";
+import CreatorMaterialsTab from "@/components/creator/CreatorMaterialsTab";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import { useCreatorProducts } from "@/hooks/useProducts";
@@ -22,7 +23,7 @@ import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 import { useAppResume } from "@/hooks/useAppResume";
 
 const CreatorDashboard = () => {
-  const [activeTab, setActiveTab] = useState("announcements");
+  const [activeTab, setActiveTab] = useState("products");
   const [creatorName, setCreatorName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
@@ -224,22 +225,26 @@ const CreatorDashboard = () => {
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           {/* Desktop Top Tabs */}
           {!isMobile && (
-            <TabsList className="w-full h-12 grid grid-cols-6 mb-6">
-              <TabsTrigger value="announcements" className="gap-2">
-                <Megaphone className="w-4 h-4" />
-                {t("announcements")}
-              </TabsTrigger>
+            <TabsList className="w-full h-12 grid grid-cols-7 mb-6">
               <TabsTrigger value="products" className="gap-2">
                 <Package className="w-4 h-4" />
                 {t("products")}
               </TabsTrigger>
-              <TabsTrigger value="users" className="gap-2">
-                <Users className="w-4 h-4" />
-                {t("users")}
+              <TabsTrigger value="announcements" className="gap-2">
+                <Megaphone className="w-4 h-4" />
+                {t("announcements")}
+              </TabsTrigger>
+              <TabsTrigger value="materials" className="gap-2">
+                <Library className="w-4 h-4" />
+                {t("materials")}
               </TabsTrigger>
               <TabsTrigger value="schedule" className="gap-2">
                 <Calendar className="w-4 h-4" />
                 {t("schedule")}
+              </TabsTrigger>
+              <TabsTrigger value="users" className="gap-2">
+                <Users className="w-4 h-4" />
+                {t("users")}
               </TabsTrigger>
               <TabsTrigger value="notifications" className="gap-2 relative">
                 <Bell className="w-4 h-4" />
@@ -257,17 +262,20 @@ const CreatorDashboard = () => {
             </TabsList>
           )}
 
-          <TabsContent value="announcements" className="mt-0 animate-fade-in">
-            <CreatorAnnouncementsTab creatorName={creatorName} />
-          </TabsContent>
           <TabsContent value="products" className="mt-0 animate-fade-in">
             <CreatorProductsTab creatorName={creatorName} />
           </TabsContent>
-          <TabsContent value="users" className="mt-0 animate-fade-in">
-            <CreatorUsersTab creatorName={creatorName} />
+          <TabsContent value="announcements" className="mt-0 animate-fade-in">
+            <CreatorAnnouncementsTab creatorName={creatorName} />
+          </TabsContent>
+          <TabsContent value="materials" className="mt-0 animate-fade-in">
+            <CreatorMaterialsTab creatorName={creatorName} />
           </TabsContent>
           <TabsContent value="schedule" className="mt-0 animate-fade-in">
             <CreatorScheduleTab creatorName={creatorName} />
+          </TabsContent>
+          <TabsContent value="users" className="mt-0 animate-fade-in">
+            <CreatorUsersTab creatorName={creatorName} />
           </TabsContent>
           <TabsContent value="notifications" className="mt-0 animate-fade-in">
             <CreatorNotificationsTab creatorName={creatorName} lastViewedAt={lastViewedAt} />
@@ -283,14 +291,7 @@ const CreatorDashboard = () => {
         <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
           <div className="max-w-2xl mx-auto">
             <Tabs value={activeTab} onValueChange={handleTabChange}>
-              <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-6 gap-0">
-                <TabsTrigger 
-                  value="announcements" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-                >
-                  <Megaphone className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("announcements")}</span>
-                </TabsTrigger>
+              <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-7 gap-0">
                 <TabsTrigger 
                   value="products" 
                   className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
@@ -299,11 +300,18 @@ const CreatorDashboard = () => {
                   <span className="text-[10px] leading-tight">{t("products")}</span>
                 </TabsTrigger>
                 <TabsTrigger 
-                  value="users" 
+                  value="announcements" 
                   className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
                 >
-                  <Users className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("users")}</span>
+                  <Megaphone className="w-5 h-5" />
+                  <span className="text-[10px] leading-tight">{t("announcements")}</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="materials" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
+                >
+                  <Library className="w-5 h-5" />
+                  <span className="text-[10px] leading-tight">{t("materials")}</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="schedule" 
@@ -311,6 +319,13 @@ const CreatorDashboard = () => {
                 >
                   <Calendar className="w-5 h-5" />
                   <span className="text-[10px] leading-tight">{t("schedule")}</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="users" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
+                >
+                  <Users className="w-5 h-5" />
+                  <span className="text-[10px] leading-tight">{t("users")}</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="notifications" 
