@@ -30,10 +30,11 @@ interface Props {
   productTitle: string;
   initialGroupLinkUrl: string | null;
   initialGroupLinkLabel: string | null;
-  onBack: () => void;
+  onBack?: () => void;
+  hideBackButton?: boolean;
 }
 
-const ProductAnnouncementsManager = ({ productId, productTitle, initialGroupLinkUrl, initialGroupLinkLabel, onBack }: Props) => {
+const ProductAnnouncementsManager = ({ productId, productTitle, initialGroupLinkUrl, initialGroupLinkLabel, onBack, hideBackButton }: Props) => {
   const { data: announcements = [], isLoading } = useAnnouncements(productId);
   const createMut = useCreateAnnouncement();
   const updateMut = useUpdateAnnouncement();
@@ -89,10 +90,12 @@ const ProductAnnouncementsManager = ({ productId, productTitle, initialGroupLink
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" />К продуктам</Button>
-        <h2 className="text-lg font-semibold truncate">{productTitle}</h2>
-      </div>
+      {!hideBackButton && onBack && (
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" />К продуктам</Button>
+          <h2 className="text-lg font-semibold truncate">{productTitle}</h2>
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-4 space-y-3">
