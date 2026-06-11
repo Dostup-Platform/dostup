@@ -27,8 +27,6 @@ const navItems = [
   { key: "materials", labelKey: "materials", icon: Library },
   { key: "schedule", labelKey: "schedule", icon: Calendar },
   { key: "users", labelKey: "users", icon: Users },
-  { key: "notifications", labelKey: "notifications", icon: Bell, badge: true },
-  { key: "account", labelKey: "account", icon: User },
 ];
 
 const CreatorDashboard = () => {
@@ -220,18 +218,46 @@ const CreatorDashboard = () => {
     <div className={`min-h-screen bg-background ${isMobile ? "pb-20" : ""}`}>
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">{t("creatorDashboard")}</h1>
-            <p className="text-sm text-muted-foreground">{creatorName}</p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-foreground truncate">{t("creatorDashboard")}</h1>
+            <p className="text-sm text-muted-foreground truncate">{creatorName}</p>
           </div>
-          
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => handleTabChange("notifications")}
+              aria-label={t("notifications" as any)}
+              className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                activeTab === "notifications"
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:bg-accent/50"
+              }`}
+            >
+              <Bell className="w-5 h-5" />
+              {newNotificationsCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+                  {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => handleTabChange("account")}
+              aria-label={t("account" as any)}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                activeTab === "account"
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:bg-accent/50"
+              }`}
+            >
+              <User className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Desktop: sidebar + content */}
       {/* Mobile: content only */}
-      <div className={`${isMobile ? "" : "flex gap-6 items-start max-w-7xl mx-auto px-4 py-6"}`}>
+      <div className={`${isMobile ? "" : "flex gap-6 items-start pl-4 pr-6 py-6"}`}>
         
         {/* Left Sidebar - Desktop Only */}
         {!isMobile && (
@@ -252,11 +278,6 @@ const CreatorDashboard = () => {
                   >
                     <Icon className="w-4 h-4 flex-shrink-0" />
                     <span className="flex-1">{t(item.labelKey as any)}</span>
-                    {item.badge && newNotificationsCount > 0 && (
-                      <span className="ml-auto w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
-                        {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                      </span>
-                    )}
                   </button>
                 );
               })}
@@ -265,7 +286,7 @@ const CreatorDashboard = () => {
         )}
 
         {/* Main Content */}
-        <main className={isMobile ? "max-w-4xl mx-auto px-4 py-6" : "flex-1 min-w-0"}>
+        <main className={isMobile ? "px-4 py-6" : "flex-1 min-w-0"}>
           {activeTab === "products" && (
             <div className="animate-fade-in">
               <CreatorProductsTab creatorName={creatorName} />
@@ -308,7 +329,7 @@ const CreatorDashboard = () => {
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
           <div className="max-w-2xl mx-auto">
-            <div className="w-full h-16 bg-transparent rounded-none grid grid-cols-7 gap-0">
+            <div className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-0">
               <button 
                 onClick={() => handleTabChange("products")}
                 className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "products" ? "text-primary" : "text-muted-foreground"}`}
@@ -343,25 +364,6 @@ const CreatorDashboard = () => {
               >
                 <Users className="w-5 h-5" />
                 <span className="text-[10px] leading-tight">{t("users")}</span>
-              </button>
-              <button 
-                onClick={() => handleTabChange("notifications")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none relative px-1 ${activeTab === "notifications" ? "text-primary" : "text-muted-foreground"}`}
-              >
-                <Bell className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("notifications")}</span>
-                {newNotificationsCount > 0 && (
-                  <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                  </span>
-                )}
-              </button>
-              <button 
-                onClick={() => handleTabChange("account")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "account" ? "text-primary" : "text-muted-foreground"}`}
-              >
-                <User className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("account")}</span>
               </button>
             </div>
           </div>

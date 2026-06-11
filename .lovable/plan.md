@@ -1,51 +1,29 @@
-## Plan: Reorder Creator Dashboard Tabs + Add Materials Tab
+## Изменения в `src/pages/CreatorDashboard.tsx`
 
-### Problem
-The creator dashboard currently has 6 tabs in this order:
-1. Объявления
-2. Продукты
-3. Пользователи
-4. Расписание
-5. Уведомления
-6. Аккаунт
+### 1. Шапка (header)
+- Убрать `max-w-4xl mx-auto` — заголовок "Панель создателя" + имя автора прижать к левому краю (только `px-4`).
+- В правую часть шапки добавить две иконки-кнопки (и на десктопе, и на мобильном):
+  - **Уведомления** (`Bell`) — с бейджем `newNotificationsCount` (красный кружок справа сверху).
+  - **Аккаунт** (`User`).
+- Клик по этим кнопкам вызывает `handleTabChange("notifications" | "account")` и активирует соответствующую вкладку с тем же контентом, что и раньше.
 
-User wants 7 tabs in this order:
-1. **Продукты** (leftmost)
-2. **Объявления**
-3. **Материалы** (new)
-4. **Расписание**
-5. **Пользователи**
-6. **Уведомления**
-7. **Аккаунт**
+### 2. Левая боковая панель (десктоп)
+- Убрать центрирование `max-w-7xl mx-auto` — прижать к левому краю (`pl-4 pr-6 py-6`).
+- Оставить только **5 пунктов**: Продукты, Объявления, Материалы, Расписание, Пользователи.
+- Убрать из неё Уведомления и Аккаунт.
 
-### Changes
+### 3. Нижняя навигация (мобильная)
+- Сетка `grid-cols-7` → `grid-cols-5`.
+- Оставить только: Продукты, Объявления, Материалы, Расписание, Пользователи.
+- Убрать кнопки Уведомления и Аккаунт.
 
-#### 1. New Component: `CreatorMaterialsTab.tsx`
-- Works exactly like `CreatorAnnouncementsTab.tsx` but opens `ProductMaterialsManager` instead of `ProductAnnouncementsManager`.
-- Shows list of creator's products. Clicking a product opens its materials management view.
-- Uses `Library` icon from lucide-react.
+### 4. `navItems` массив
+- Сократить до 5 пунктов (без `notifications` и `account`).
 
-#### 2. Update `CreatorDashboard.tsx`
-- Reorder all tab declarations (desktop + mobile) to: products → announcements → materials → schedule → users → notifications → account.
-- Change default `activeTab` from `"announcements"` to `"products"`.
-- Change desktop `TabsList` grid from `grid-cols-6` to `grid-cols-7`.
-- Change mobile bottom nav `grid-cols-6` to `grid-cols-7`.
-- Add import and `TabsContent` for `CreatorMaterialsTab`.
+### Поведение
+- Активная вкладка `notifications` или `account` подсвечивает соответствующую иконку в шапке (например `bg-accent`).
+- Логика `handleTabChange`, бейджи, `lastViewedAt`, badge приложения — не меняются.
+- Контент (`activeTab === "notifications"` / `"account"`) рендерится в основной области как и раньше.
 
-#### 3. Icons per tab (lucide-react)
-- Продукты → `Package`
-- Объявления → `Megaphone`
-- Материалы → `Library`
-- Расписание → `Calendar`
-- Пользователи → `Users`
-- Уведомления → `Bell`
-- Аккаунт → `User`
-
-### Files to Change
-- `src/components/creator/CreatorMaterialsTab.tsx` (new)
-- `src/pages/CreatorDashboard.tsx` (edit)
-
-### Notes
-- Translations already have `materials` key in both RU/KK.
-- No database or edge function changes needed.
-- `ProductMaterialsManager` already exists and accepts `productId`, `productTitle`, `isOpen`, `onClose`. We will embed it inline (not as a dialog) similar to how `ProductAnnouncementsManager` is used in `CreatorAnnouncementsTab`.
+### Файлы
+- Меняется только `src/pages/CreatorDashboard.tsx`.
