@@ -318,6 +318,9 @@ interface FormData {
 
         setIsAdding(false);
         resetForm();
+        if (mode === "add") {
+          onClose();
+        }
       } catch (err) {
         console.error(err);
         toast.error("Ошибка при добавлении");
