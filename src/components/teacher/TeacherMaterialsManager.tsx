@@ -653,17 +653,25 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       )}
 
       {/* Materials List */}
+      <MaterialsSearchBar value={searchQuery} onChange={setSearchQuery} resultCount={materials.length} />
+
       {materials.length === 0 && !isAdding ? (
         <div className="text-center py-8 text-muted-foreground">
-          <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">
-            {language === "ru" ? "Нет материалов" : "Материалдар жоқ"}
-          </p>
-          <p className="text-xs mt-1">
-            {language === "ru" 
-              ? "Добавьте файлы или папки для ваших учеников"
-              : "Оқушыларыңыз үшін файлдар немесе қалталар қосыңыз"}
-          </p>
+          {searchQuery.trim() ? (
+            <p className="text-sm">{language === "ru" ? "Ничего не найдено" : "Ештеңе табылмады"}</p>
+          ) : (
+            <>
+              <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">
+                {language === "ru" ? "Нет материалов" : "Материалдар жоқ"}
+              </p>
+              <p className="text-xs mt-1">
+                {language === "ru" 
+                  ? "Добавьте файлы или папки для ваших учеников"
+                  : "Оқушыларыңыз үшін файлдар немесе қалталар қосыңыз"}
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
