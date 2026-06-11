@@ -67,6 +67,33 @@ const Index = () => {
     const login = loginValue.trim();
     const password = passwordValue;
 
+    // 0) Moderator login (hidden — login "moderator")
+    if (login.toLowerCase() === "moderator") {
+      try {
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-moderator-password`;
+        const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+          body: JSON.stringify({ login, password }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data?.success) {
+          localStorage.setItem("moderator_token", data.token);
+          navigate("/moderator");
+          setIsSubmitting(false);
+          return;
+        }
+        toast.error(t("invalidCredentials"));
+        setIsSubmitting(false);
+        return;
+      } catch {
+        toast.error(t("invalidCredentials"));
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     // 1) Try as creator (old or new). Use raw fetch so a 401 (not-a-creator)
     //    doesn't get logged as an error by supabase-js.
     try {
