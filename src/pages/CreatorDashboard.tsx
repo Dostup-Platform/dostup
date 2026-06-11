@@ -252,7 +252,7 @@ const CreatorDashboard = () => {
                     }`}
                   >
                     <Icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="flex-1">{t(item.labelKey)}</span>
+                    <span className="flex-1">{t(item.labelKey as any)}</span>
                     {item.badge && newNotificationsCount > 0 && (
                       <span className="ml-auto w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
                         {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
