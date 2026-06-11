@@ -240,7 +240,7 @@ const Dashboard = () => {
                 className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
               >
                 <HomeIcon className="w-5 h-5" />
-                <span className="text-xs">{t("home") || "Home"}</span>
+                <span className="text-xs">{t("home")}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="materials" 
