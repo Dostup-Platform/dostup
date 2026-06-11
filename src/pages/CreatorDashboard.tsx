@@ -229,7 +229,7 @@ const CreatorDashboard = () => {
               aria-label={t("notifications" as any)}
               className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                 activeTab === "notifications"
-                  ? "bg-accent text-foreground"
+                  ? "bg-accent text-white"
                   : "text-muted-foreground hover:bg-accent/50"
               }`}
             >
@@ -245,7 +245,7 @@ const CreatorDashboard = () => {
               aria-label={t("account" as any)}
               className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                 activeTab === "account"
-                  ? "bg-accent text-foreground"
+                  ? "bg-accent text-white"
                   : "text-muted-foreground hover:bg-accent/50"
               }`}
             >
@@ -272,7 +272,7 @@ const CreatorDashboard = () => {
                     onClick={() => handleTabChange(item.key)}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
                       isActive
-                        ? "bg-accent text-foreground"
+                        ? "bg-accent text-white"
                         : "text-muted-foreground hover:bg-accent/50"
                     }`}
                   >
@@ -332,35 +332,35 @@ const CreatorDashboard = () => {
             <div className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-0">
               <button 
                 onClick={() => handleTabChange("products")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "products" ? "text-primary" : "text-muted-foreground"}`}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "products" ? "bg-accent text-white" : "text-muted-foreground"}`}
               >
                 <Package className="w-5 h-5" />
                 <span className="text-[10px] leading-tight">{t("products")}</span>
               </button>
               <button 
                 onClick={() => handleTabChange("announcements")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "announcements" ? "text-primary" : "text-muted-foreground"}`}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "announcements" ? "bg-accent text-white" : "text-muted-foreground"}`}
               >
                 <Megaphone className="w-5 h-5" />
                 <span className="text-[10px] leading-tight">{t("announcements")}</span>
               </button>
               <button 
                 onClick={() => handleTabChange("materials")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "materials" ? "text-primary" : "text-muted-foreground"}`}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "materials" ? "bg-accent text-white" : "text-muted-foreground"}`}
               >
                 <Library className="w-5 h-5" />
                 <span className="text-[10px] leading-tight">{t("materials")}</span>
               </button>
               <button 
                 onClick={() => handleTabChange("schedule")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "schedule" ? "text-primary" : "text-muted-foreground"}`}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "schedule" ? "bg-accent text-white" : "text-muted-foreground"}`}
               >
                 <Calendar className="w-5 h-5" />
                 <span className="text-[10px] leading-tight">{t("schedule")}</span>
               </button>
               <button 
                 onClick={() => handleTabChange("users")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "users" ? "text-primary" : "text-muted-foreground"}`}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "users" ? "bg-accent text-white" : "text-muted-foreground"}`}
               >
                 <Users className="w-5 h-5" />
                 <span className="text-[10px] leading-tight">{t("users")}</span>
