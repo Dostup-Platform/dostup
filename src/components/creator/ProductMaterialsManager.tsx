@@ -594,6 +594,8 @@ interface FormData {
           <div
             className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}`}
             tabIndex={0}
+            role="button"
+            onClick={() => fileInputRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
             onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
             onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
@@ -621,6 +623,7 @@ interface FormData {
                 addFilesToForm(files);
               }
             }}
+            style={{ cursor: 'pointer' }}
           >
            <input
              ref={fileInputRef}
@@ -635,12 +638,10 @@ interface FormData {
              className="hidden"
              id="file-upload"
            />
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                 {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)"}
-              </p>
-            </label>
+            <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground pointer-events-none">
+              {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы) — нажмите, перетащите или вставьте (Ctrl+V)" : "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)"}
+            </p>
          </div>
         </div>}
 
