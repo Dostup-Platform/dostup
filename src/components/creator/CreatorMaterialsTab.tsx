@@ -1,54 +1,72 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
-import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, ChevronRight, Library } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Library, Plus } from "lucide-react";
 import ProductMaterialsManager from "./ProductMaterialsManager";
+import ProductSwitcher from "./ProductSwitcher";
+import NoProductsEmptyState from "./NoProductsEmptyState";
+import { useLanguage } from "@/contexts/LanguageContext";
 
-interface Props { creatorName: string; }
+interface Props { creatorName: string; onGoToProducts?: () => void; }
 
-const CreatorMaterialsTab = ({ creatorName }: Props) => {
+const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const { data: products = [], isLoading } = useCreatorProducts();
-  const [selected, setSelected] = useState<string | null>(null);
+  const { language } = useLanguage();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [managerOpen, setManagerOpen] = useState(false);
 
-  const product = products.find((p) => p.id === selected);
+  useEffect(() => {
+    if (!selectedId && products.length > 0) {
+      setSelectedId(products[0].id);
+      setManagerOpen(true);
+    }
+  }, [products, selectedId]);
 
-  return (
-    <>
+  const product = products.find((p) => p.id === selectedId);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (products.length === 0) {
+    return (
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Library className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-semibold">Материалы</h2>
+          <h2 className="text-lg font-semibold">{language === "kk" ? "Материалдар" : "Материалы"}</h2>
         </div>
-        <p className="text-sm text-muted-foreground">Выберите продукт, чтобы управлять его материалами.</p>
-        {isLoading ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-        ) : products.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">Пока нет продуктов.</p>
-        ) : (
-          <div className="space-y-2">
-            {products.map((p) => (
-              <Card key={p.id} className="cursor-pointer hover:bg-accent/40 transition-colors" onClick={() => setSelected(p.id)}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{p.title}</div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        <NoProductsEmptyState section="materials" onGoToProducts={onGoToProducts} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <ProductSwitcher
+          products={products.map((p) => ({ id: p.id, title: p.title }))}
+          selectedId={selectedId}
+          onChange={(id) => { setSelectedId(id); setManagerOpen(true); }}
+        />
+        <Button size="sm" onClick={() => setManagerOpen(true)} className="gap-2">
+          <Plus className="w-4 h-4" />
+          {language === "kk" ? "Материалдарды басқару" : "Управлять материалами"}
+        </Button>
       </div>
 
       {product && (
         <ProductMaterialsManager
           productId={product.id}
           productTitle={product.title}
-          isOpen={!!selected}
-          onClose={() => setSelected(null)}
+          isOpen={managerOpen}
+          onClose={() => setManagerOpen(false)}
         />
       )}
-    </>
+    </div>
   );
 };
 
