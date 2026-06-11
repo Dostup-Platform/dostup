@@ -109,7 +109,7 @@ interface FormData {
       filePermissions: [],
       fileEntries: [],
       allow_download: true,
-      teacher_allow_download: true,
+      teacher_allow_download: false,
       scheduleAccess: false,
       availableAt: "",
       linkUrl: "",
