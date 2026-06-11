@@ -248,7 +248,7 @@ const TeacherDashboard = () => {
             </h1>
             <p className="text-sm text-muted-foreground">{teacherName}</p>
           </div>
-          
+          <TeacherSupportButton activeTab={activeTab} teacherName={teacherName} teacherId={teacherUser?.id} onClick={() => handleTabChange("support")} />
         </div>
       </header>
 
@@ -297,6 +297,9 @@ const TeacherDashboard = () => {
           </TabsContent>
           <TabsContent value="account" className="mt-0 animate-fade-in">
             <TeacherAccountTab teacherName={teacherName} teacherId={teacherUser?.id} />
+          </TabsContent>
+          <TabsContent value="support" className="mt-0 animate-fade-in">
+            <SupportChat userType="teacher" userRef={teacherUser?.id || teacherName} displayName={teacherName} />
           </TabsContent>
         </Tabs>
       </main>
