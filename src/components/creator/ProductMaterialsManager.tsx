@@ -721,16 +721,7 @@ interface FormData {
         <div className="space-y-3">
           <Label>Доступ</Label>
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium text-muted-foreground">Для учителя:</p>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <Checkbox
-                checked={formData.teacher_allow_download}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, teacher_allow_download: !!checked }))}
-              />
-              <Download className="w-4 h-4" />
-              Скачивание файла
-            </label>
-            <p className="text-xs font-medium text-muted-foreground mt-2">Для ученика:</p>
+            <p className="text-xs font-medium text-muted-foreground">Для ученика:</p>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox
                 checked={formData.allow_download}
