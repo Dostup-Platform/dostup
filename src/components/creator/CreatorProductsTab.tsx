@@ -106,7 +106,7 @@ const ProductForm = ({
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [removeImageOpen, setRemoveImageOpen] = useState(false);
   const [removeVideoOpen, setRemoveVideoOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(true);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
 
