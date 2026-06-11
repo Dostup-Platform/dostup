@@ -122,7 +122,7 @@ interface FormData {
     const newEntries: FileEntry[] = arr.map(file => ({
       file,
       customName: "",
-      permissions: { allow_download: true, teacher_allow_download: true }
+      permissions: { allow_download: true, teacher_allow_download: false }
     }));
     setFormData(prev => ({
       ...prev,
