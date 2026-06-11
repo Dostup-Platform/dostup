@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, FileText, Bell, User, Loader2 } from "lucide-react";
+import { Calendar, FileText, Bell, User, Loader2, MessageCircle } from "lucide-react";
+import SupportChat from "@/components/SupportChat";
+import { useSupportUnread } from "@/hooks/useSupportUnread";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import { useTeacherProducts } from "@/hooks/useProductTeachers";
