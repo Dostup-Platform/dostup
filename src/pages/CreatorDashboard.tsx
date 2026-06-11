@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Users, Calendar, Loader2, Bell, User, Megaphone, Library } from "lucide-react";
 import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
@@ -21,6 +20,16 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 import { useAppResume } from "@/hooks/useAppResume";
+
+const navItems = [
+  { key: "products", labelKey: "products", icon: Package },
+  { key: "announcements", labelKey: "announcements", icon: Megaphone },
+  { key: "materials", labelKey: "materials", icon: Library },
+  { key: "schedule", labelKey: "schedule", icon: Calendar },
+  { key: "users", labelKey: "users", icon: Users },
+  { key: "notifications", labelKey: "notifications", icon: Bell, badge: true },
+  { key: "account", labelKey: "account", icon: User },
+];
 
 const CreatorDashboard = () => {
   const [activeTab, setActiveTab] = useState("products");
@@ -220,134 +229,141 @@ const CreatorDashboard = () => {
         </div>
       </header>
 
-      {/* Content */}
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          {/* Desktop Top Tabs */}
-          {!isMobile && (
-            <TabsList className="w-full h-12 grid grid-cols-7 mb-6">
-              <TabsTrigger value="products" className="gap-2">
-                <Package className="w-4 h-4" />
-                {t("products")}
-              </TabsTrigger>
-              <TabsTrigger value="announcements" className="gap-2">
-                <Megaphone className="w-4 h-4" />
-                {t("announcements")}
-              </TabsTrigger>
-              <TabsTrigger value="materials" className="gap-2">
-                <Library className="w-4 h-4" />
-                {t("materials")}
-              </TabsTrigger>
-              <TabsTrigger value="schedule" className="gap-2">
-                <Calendar className="w-4 h-4" />
-                {t("schedule")}
-              </TabsTrigger>
-              <TabsTrigger value="users" className="gap-2">
-                <Users className="w-4 h-4" />
-                {t("users")}
-              </TabsTrigger>
-              <TabsTrigger value="notifications" className="gap-2 relative">
-                <Bell className="w-4 h-4" />
-                {t("notifications")}
-                {newNotificationsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="account" className="gap-2">
-                <User className="w-4 h-4" />
-                {t("account")}
-              </TabsTrigger>
-            </TabsList>
-          )}
+      {/* Desktop: sidebar + content */}
+      {/* Mobile: content only */}
+      <div className={`${isMobile ? "" : "flex gap-6 items-start max-w-7xl mx-auto px-4 py-6"}`}>
+        
+        {/* Left Sidebar - Desktop Only */}
+        {!isMobile && (
+          <aside className="w-56 flex-shrink-0 sticky top-[88px] self-start">
+            <nav className="flex flex-col gap-1">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => handleTabChange(item.key)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                      isActive
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent/50"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="flex-1">{t(item.labelKey as any)}</span>
+                    {item.badge && newNotificationsCount > 0 && (
+                      <span className="ml-auto w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
+                        {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+        )}
 
-          <TabsContent value="products" className="mt-0 animate-fade-in">
-            <CreatorProductsTab creatorName={creatorName} />
-          </TabsContent>
-          <TabsContent value="announcements" className="mt-0 animate-fade-in">
-            <CreatorAnnouncementsTab creatorName={creatorName} />
-          </TabsContent>
-          <TabsContent value="materials" className="mt-0 animate-fade-in">
-            <CreatorMaterialsTab creatorName={creatorName} />
-          </TabsContent>
-          <TabsContent value="schedule" className="mt-0 animate-fade-in">
-            <CreatorScheduleTab creatorName={creatorName} />
-          </TabsContent>
-          <TabsContent value="users" className="mt-0 animate-fade-in">
-            <CreatorUsersTab creatorName={creatorName} />
-          </TabsContent>
-          <TabsContent value="notifications" className="mt-0 animate-fade-in">
-            <CreatorNotificationsTab creatorName={creatorName} lastViewedAt={lastViewedAt} />
-          </TabsContent>
-          <TabsContent value="account" className="mt-0 animate-fade-in">
-            <CreatorAccountTab creatorName={creatorName} />
-          </TabsContent>
-        </Tabs>
-      </main>
+        {/* Main Content */}
+        <main className={isMobile ? "max-w-4xl mx-auto px-4 py-6" : "flex-1 min-w-0"}>
+          {activeTab === "products" && (
+            <div className="animate-fade-in">
+              <CreatorProductsTab creatorName={creatorName} />
+            </div>
+          )}
+          {activeTab === "announcements" && (
+            <div className="animate-fade-in">
+              <CreatorAnnouncementsTab creatorName={creatorName} />
+            </div>
+          )}
+          {activeTab === "materials" && (
+            <div className="animate-fade-in">
+              <CreatorMaterialsTab creatorName={creatorName} />
+            </div>
+          )}
+          {activeTab === "schedule" && (
+            <div className="animate-fade-in">
+              <CreatorScheduleTab creatorName={creatorName} />
+            </div>
+          )}
+          {activeTab === "users" && (
+            <div className="animate-fade-in">
+              <CreatorUsersTab creatorName={creatorName} />
+            </div>
+          )}
+          {activeTab === "notifications" && (
+            <div className="animate-fade-in">
+              <CreatorNotificationsTab creatorName={creatorName} lastViewedAt={lastViewedAt} />
+            </div>
+          )}
+          {activeTab === "account" && (
+            <div className="animate-fade-in">
+              <CreatorAccountTab creatorName={creatorName} />
+            </div>
+          )}
+        </main>
+      </div>
 
       {/* Bottom Navigation - Mobile Only */}
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
           <div className="max-w-2xl mx-auto">
-            <Tabs value={activeTab} onValueChange={handleTabChange}>
-              <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-7 gap-0">
-                <TabsTrigger 
-                  value="products" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-                >
-                  <Package className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("products")}</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="announcements" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-                >
-                  <Megaphone className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("announcements")}</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="materials" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-                >
-                  <Library className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("materials")}</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="schedule" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-                >
-                  <Calendar className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("schedule")}</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="users" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-                >
-                  <Users className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("users")}</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="notifications" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none relative px-1"
-                >
-                  <Bell className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("notifications")}</span>
-                  {newNotificationsCount > 0 && (
-                    <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                      {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                    </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="account" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-                >
-                  <User className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("account")}</span>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="w-full h-16 bg-transparent rounded-none grid grid-cols-7 gap-0">
+              <button 
+                onClick={() => handleTabChange("products")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "products" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Package className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("products")}</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange("announcements")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "announcements" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Megaphone className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("announcements")}</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange("materials")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "materials" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Library className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("materials")}</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange("schedule")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "schedule" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Calendar className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("schedule")}</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange("users")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "users" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Users className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("users")}</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange("notifications")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none relative px-1 ${activeTab === "notifications" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Bell className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("notifications")}</span>
+                {newNotificationsCount > 0 && (
+                  <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
+                  </span>
+                )}
+              </button>
+              <button 
+                onClick={() => handleTabChange("account")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "account" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <User className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("account")}</span>
+              </button>
+            </div>
           </div>
         </nav>
       )}
