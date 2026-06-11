@@ -33,7 +33,10 @@ const Index = () => {
     const creatorName = localStorage.getItem("creator_name");
     const teacherData = localStorage.getItem("teacher_data");
     const creatorAccountType = localStorage.getItem("creator_account_type");
-    if (creatorName) {
+    const moderatorToken = localStorage.getItem("moderator_token");
+    if (moderatorToken) {
+      navigate("/moderator");
+    } else if (creatorName) {
       navigate(creatorAccountType === "online_school" ? "/school" : "/creator");
     } else if (teacherData) {
       navigate("/teacher");
