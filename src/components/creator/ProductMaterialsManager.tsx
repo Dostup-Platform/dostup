@@ -933,13 +933,18 @@ interface FormData {
              )}
  
              {/* Materials list */}
-             {mode === "add" ? null : isLoading ? (
+              {mode === "add" ? null : (
+                <MaterialsSearchBar value={searchQuery} onChange={setSearchQuery} resultCount={materials.length} />
+              )}
+              {mode === "add" ? null : isLoading ? (
                <div className="flex justify-center py-8">
                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
                </div>
              ) : materials.length === 0 && !isAdding ? (
                <div className="text-center py-8 text-muted-foreground">
-                 {currentFolderId ? (
+                  {searchQuery.trim() ? (
+                    <p>{language === "kk" ? "Ештеңе табылмады" : "Ничего не найдено"}</p>
+                  ) : currentFolderId ? (
                    <>
                      <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
                      <p>Папка пуста</p>
