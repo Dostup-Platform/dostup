@@ -357,7 +357,7 @@ interface FormData {
             title: formData.title,
             allow_view: true,
             allow_download: formData.allow_download,
-            teacher_allow_download: formData.teacher_allow_download,
+            teacher_allow_download: false,
             available_at: formData.scheduleAccess && formData.availableAt 
               ? new Date(formData.availableAt).toISOString() 
               : null,
