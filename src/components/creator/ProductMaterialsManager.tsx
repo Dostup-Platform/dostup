@@ -201,7 +201,7 @@ interface FormData {
    };
  
     const resetForm = () => {
-      setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true, teacher_allow_download: true, scheduleAccess: false, availableAt: "", linkUrl: "", content: "" });
+      setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true, teacher_allow_download: false, scheduleAccess: false, availableAt: "", linkUrl: "", content: "" });
       if (fileInputRef.current) fileInputRef.current.value = "";
     };
  
