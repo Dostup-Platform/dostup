@@ -309,64 +309,62 @@ const CreatorDashboard = () => {
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
           <div className="max-w-2xl mx-auto">
-            <Tabs value={activeTab} onValueChange={handleTabChange}>
-              <div className="w-full h-16 bg-transparent rounded-none grid grid-cols-7 gap-0">
-                <button 
-                  onClick={() => handleTabChange("products")}
-                  className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "products" ? "text-primary" : "text-muted-foreground"}`}
-                >
-                  <Package className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("products")}</span>
-                </button>
-                <button 
-                  onClick={() => handleTabChange("announcements")}
-                  className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "announcements" ? "text-primary" : "text-muted-foreground"}`}
-                >
-                  <Megaphone className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("announcements")}</span>
-                </button>
-                <button 
-                  onClick={() => handleTabChange("materials")}
-                  className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "materials" ? "text-primary" : "text-muted-foreground"}`}
-                >
-                  <Library className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("materials")}</span>
-                </button>
-                <button 
-                  onClick={() => handleTabChange("schedule")}
-                  className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "schedule" ? "text-primary" : "text-muted-foreground"}`}
-                >
-                  <Calendar className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("schedule")}</span>
-                </button>
-                <button 
-                  onClick={() => handleTabChange("users")}
-                  className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "users" ? "text-primary" : "text-muted-foreground"}`}
-                >
-                  <Users className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("users")}</span>
-                </button>
-                <button 
-                  onClick={() => handleTabChange("notifications")}
-                  className={`flex flex-col items-center justify-center h-full gap-1 rounded-none relative px-1 ${activeTab === "notifications" ? "text-primary" : "text-muted-foreground"}`}
-                >
-                  <Bell className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("notifications")}</span>
-                  {newNotificationsCount > 0 && (
-                    <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                      {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                    </span>
-                  )}
-                </button>
-                <button 
-                  onClick={() => handleTabChange("account")}
-                  className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "account" ? "text-primary" : "text-muted-foreground"}`}
-                >
-                  <User className="w-5 h-5" />
-                  <span className="text-[10px] leading-tight">{t("account")}</span>
-                </button>
-              </div>
-            </Tabs>
+            <div className="w-full h-16 bg-transparent rounded-none grid grid-cols-7 gap-0">
+              <button 
+                onClick={() => handleTabChange("products")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "products" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Package className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("products")}</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange("announcements")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "announcements" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Megaphone className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("announcements")}</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange("materials")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "materials" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Library className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("materials")}</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange("schedule")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "schedule" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Calendar className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("schedule")}</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange("users")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "users" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Users className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("users")}</span>
+              </button>
+              <button 
+                onClick={() => handleTabChange("notifications")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none relative px-1 ${activeTab === "notifications" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <Bell className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("notifications")}</span>
+                {newNotificationsCount > 0 && (
+                  <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
+                  </span>
+                )}
+              </button>
+              <button 
+                onClick={() => handleTabChange("account")}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "account" ? "text-primary" : "text-muted-foreground"}`}
+              >
+                <User className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("account")}</span>
+              </button>
+            </div>
           </div>
         </nav>
       )}
