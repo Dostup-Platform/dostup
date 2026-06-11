@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import RescheduleSlotDialog from "@/components/RescheduleSlotDialog";
 import EditSlotTimeDialog from "@/components/EditSlotTimeDialog";
 import { useCreatorCancelBooking, useEditSlotTime, useCreatorRescheduleRequest } from "@/hooks/useSimplePurchases";
 import { useCreatorProducts } from "@/hooks/useProducts";
+import ProductSwitcher from "./ProductSwitcher";
+import NoProductsEmptyState from "./NoProductsEmptyState";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -73,9 +75,10 @@ interface Booking {
 
 interface CreatorScheduleTabProps {
   creatorName: string;
+  onGoToProducts?: () => void;
 }
 
-const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
+const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabProps) => {
   const { t, language } = useLanguage();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
@@ -128,7 +131,17 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
 
   // Fetch products
   const { data: products = [], isLoading: productsLoading } = useCreatorProducts(creatorName);
-  const productIds = useMemo(() => products.map(p => p.id), [products]);
+  const allProductIds = useMemo(() => products.map(p => p.id), [products]);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!selectedProductId && products.length > 0) {
+      setSelectedProductId(products[0].id);
+    }
+    if (selectedProductId && !products.some(p => p.id === selectedProductId) && products.length > 0) {
+      setSelectedProductId(products[0].id);
+    }
+  }, [products, selectedProductId]);
+  const productIds = useMemo(() => selectedProductId ? [selectedProductId] : [], [selectedProductId]);
 
   // Fetch creator's own schedules (where teacher_id IS NULL)
   const { data: schedules = [], isLoading: schedulesLoading } = useQuery({
@@ -660,6 +673,18 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
   }
 
   if (productIds.length === 0) {
+    if (allProductIds.length === 0) {
+      return <NoProductsEmptyState section="schedule" onGoToProducts={onGoToProducts} />;
+    }
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Legacy guard kept for safety
+  if (false) {
     return (
       <div className="text-center py-12">
         <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
@@ -672,6 +697,15 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Product Switcher */}
+      <div className="flex items-center">
+        <ProductSwitcher
+          products={products.map((p) => ({ id: p.id, title: p.title }))}
+          selectedId={selectedProductId}
+          onChange={setSelectedProductId}
+        />
+      </div>
+
       {/* Schedule Type Toggle + Create/Delete Buttons */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex gap-2">
@@ -696,9 +730,7 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => {
-            if (products.length === 1) {
-              setScheduleForm({ ...scheduleForm, productId: products[0].id });
-            }
+            setScheduleForm({ ...scheduleForm, productId: selectedProductId || "" });
             setIsAddingSchedule(true);
           }}>
             <Plus className="w-4 h-4 mr-2" />
@@ -1085,26 +1117,12 @@ const CreatorScheduleTab = ({ creatorName }: CreatorScheduleTabProps) => {
             <DialogTitle>{language === "ru" ? "Создать расписание" : "Кесте жасау"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); createSchedule.mutate(); }} className="space-y-4 mt-4">
-            {products.length > 1 && (
-              <div className="space-y-2">
-                <Label>{language === "ru" ? "Продукт" : "Өнім"} *</Label>
-                <Select value={scheduleForm.productId} onValueChange={(v) => setScheduleForm({ ...scheduleForm, productId: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={language === "ru" ? "Выберите продукт" : "Өнімді таңдаңыз"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {products.length === 1 && (
-              <div className="text-sm text-muted-foreground">
-                {language === "ru" ? "Продукт" : "Өнім"}: <span className="font-medium text-foreground">{products[0].title}</span>
-              </div>
-            )}
+            <div className="text-sm text-muted-foreground">
+              {language === "ru" ? "Продукт" : "Өнім"}:{" "}
+              <span className="font-medium text-foreground">
+                {products.find(p => p.id === selectedProductId)?.title}
+              </span>
+            </div>
             <div className="space-y-2">
               <Label>{language === "ru" ? "Название" : "Атауы"} *</Label>
               <Input
