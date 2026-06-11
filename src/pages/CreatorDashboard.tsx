@@ -267,29 +267,41 @@ const CreatorDashboard = () => {
 
         {/* Main Content */}
         <main className={isMobile ? "max-w-4xl mx-auto px-4 py-6" : "flex-1 min-w-0"}>
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsContent value="products" className="mt-0 animate-fade-in">
+          {activeTab === "products" && (
+            <div className="animate-fade-in">
               <CreatorProductsTab creatorName={creatorName} />
-            </TabsContent>
-            <TabsContent value="announcements" className="mt-0 animate-fade-in">
+            </div>
+          )}
+          {activeTab === "announcements" && (
+            <div className="animate-fade-in">
               <CreatorAnnouncementsTab creatorName={creatorName} />
-            </TabsContent>
-            <TabsContent value="materials" className="mt-0 animate-fade-in">
+            </div>
+          )}
+          {activeTab === "materials" && (
+            <div className="animate-fade-in">
               <CreatorMaterialsTab creatorName={creatorName} />
-            </TabsContent>
-            <TabsContent value="schedule" className="mt-0 animate-fade-in">
+            </div>
+          )}
+          {activeTab === "schedule" && (
+            <div className="animate-fade-in">
               <CreatorScheduleTab creatorName={creatorName} />
-            </TabsContent>
-            <TabsContent value="users" className="mt-0 animate-fade-in">
+            </div>
+          )}
+          {activeTab === "users" && (
+            <div className="animate-fade-in">
               <CreatorUsersTab creatorName={creatorName} />
-            </TabsContent>
-            <TabsContent value="notifications" className="mt-0 animate-fade-in">
+            </div>
+          )}
+          {activeTab === "notifications" && (
+            <div className="animate-fade-in">
               <CreatorNotificationsTab creatorName={creatorName} lastViewedAt={lastViewedAt} />
-            </TabsContent>
-            <TabsContent value="account" className="mt-0 animate-fade-in">
+            </div>
+          )}
+          {activeTab === "account" && (
+            <div className="animate-fade-in">
               <CreatorAccountTab creatorName={creatorName} />
-            </TabsContent>
-          </Tabs>
+            </div>
+          )}
         </main>
       </div>
 
