@@ -209,7 +209,7 @@ const Dashboard = () => {
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold text-foreground">{t("myDashboard")}</h1>
-          
+          <StudentSupportButton activeTab={activeTab} userId={user.id} userName={user.name} onClick={() => handleTabChange("support")} />
         </div>
       </header>
 
@@ -229,6 +229,9 @@ const Dashboard = () => {
           </TabsContent>
           <TabsContent value="account" className="mt-0 animate-fade-in">
             <AccountTab />
+          </TabsContent>
+          <TabsContent value="support" className="mt-0 animate-fade-in">
+            <SupportChat userType="student" userRef={user.id} displayName={user.name} />
           </TabsContent>
         </Tabs>
       </main>
