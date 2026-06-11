@@ -38,6 +38,7 @@ import { Checkbox } from "@/components/ui/checkbox";
    productTitle: string;
    isOpen: boolean;
    onClose: () => void;
+   mode?: "add" | "edit";
  }
  
  type ItemType = "file" | "folder" | "link" | "text";
@@ -83,7 +84,7 @@ interface FormData {
    content: string;
  }
  
- const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: ProductMaterialsManagerProps) => {
+ const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose, mode = "edit" }: ProductMaterialsManagerProps) => {
    const { t, language } = useLanguage();
    const { data: allMaterials = [], isLoading } = useProductMaterials(productId, { creatorOnly: true });
    const createMaterial = useCreateMaterial();
@@ -98,6 +99,8 @@ interface FormData {
    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
    const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [renamingFolder, setRenamingFolder] = useState(false);
+  const [folderRenameValue, setFolderRenameValue] = useState("");
 
     const [formData, setFormData] = useState<FormData>({
       title: "",
@@ -156,6 +159,17 @@ interface FormData {
     window.addEventListener("paste", handler);
     return () => window.removeEventListener("paste", handler);
   }, [isOpen, addFilesToForm, formData.itemType]);
+
+  // Auto-open add form when in "add" mode
+  useEffect(() => {
+    if (!isOpen) return;
+    if (mode === "add") {
+      setIsAdding(true);
+      setEditingId(null);
+    } else {
+      setIsAdding(false);
+    }
+  }, [isOpen, mode]);
  
    // Filter materials for current folder level
    const materials = useMemo(() => {
@@ -304,6 +318,9 @@ interface FormData {
 
         setIsAdding(false);
         resetForm();
+        if (mode === "add") {
+          onClose();
+        }
       } catch (err) {
         console.error(err);
         toast.error("Ошибка при добавлении");
@@ -676,7 +693,11 @@ interface FormData {
            type="button"
            variant="outline"
            className="flex-1"
-           onClick={() => { setIsAdding(false); resetForm(); }}
+           onClick={() => {
+             resetForm();
+             if (mode === "add") onClose();
+             else setIsAdding(false);
+           }}
          >
            {t("cancel")}
          </Button>
@@ -823,11 +844,14 @@ interface FormData {
  
    return (
      <>
-       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setCurrentFolderId(null); } }}>
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setCurrentFolderId(null); setRenamingFolder(false); } }}>
          <DialogContent mobileFullScreen className="max-w-3xl sm:w-[95vw]">
            <DialogHeader>
              <DialogTitle className="flex items-center gap-2">
-               Материалы: {productTitle}
+               {mode === "add"
+                 ? (language === "kk" ? "Материал қосу" : "Добавить материалы")
+                 : (language === "kk" ? "Материалдарды өңдеу" : "Редактировать материалы")}
+               : {productTitle}
              </DialogTitle>
            </DialogHeader>
  
@@ -838,32 +862,81 @@ interface FormData {
                  <Button 
                    variant="ghost" 
                    size="sm" 
-                   onClick={() => setCurrentFolderId(currentFolder?.parent_id || null)}
+                   onClick={() => { setRenamingFolder(false); setCurrentFolderId(currentFolder?.parent_id || null); }}
                    className="h-auto p-1"
                  >
                    <ChevronLeft className="w-4 h-4 mr-1" />
                    Назад
                  </Button>
                  <span className="text-muted-foreground">/</span>
-                 {getBreadcrumbPath().map((folder, idx) => (
-                   <div key={folder.id} className="flex items-center gap-2">
-                     <button
-                       onClick={() => setCurrentFolderId(folder.id)}
-                       className="hover:text-primary transition-colors flex items-center gap-1"
-                     >
-                       <FolderOpen className="w-4 h-4" />
-                       {folder.title}
-                     </button>
-                     {idx < getBreadcrumbPath().length - 1 && (
-                       <span className="text-muted-foreground">/</span>
-                     )}
-                   </div>
-                 ))}
+                 {getBreadcrumbPath().map((folder, idx) => {
+                   const isCurrent = idx === getBreadcrumbPath().length - 1;
+                   return (
+                     <div key={folder.id} className="flex items-center gap-2">
+                       {isCurrent && renamingFolder && mode === "edit" ? (
+                         <form
+                           onSubmit={async (e) => {
+                             e.preventDefault();
+                             const newTitle = folderRenameValue.trim();
+                             if (!newTitle) return;
+                             try {
+                               await updateMaterial.mutateAsync({ id: folder.id, productId, title: newTitle });
+                               toast.success(language === "kk" ? "Сақталды" : "Сохранено");
+                               setRenamingFolder(false);
+                             } catch {
+                               toast.error("Ошибка");
+                             }
+                           }}
+                           className="flex items-center gap-1"
+                         >
+                           <FolderOpen className="w-4 h-4" />
+                           <Input
+                             value={folderRenameValue}
+                             onChange={(e) => setFolderRenameValue(e.target.value)}
+                             autoFocus
+                             className="h-7 w-40 text-sm"
+                           />
+                           <Button type="submit" size="icon" variant="ghost" className="h-7 w-7" disabled={updateMaterial.isPending}>
+                             {updateMaterial.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span className="text-xs">OK</span>}
+                           </Button>
+                           <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setRenamingFolder(false)}>
+                             <X className="w-3.5 h-3.5" />
+                           </Button>
+                         </form>
+                       ) : (
+                         <>
+                           <button
+                             onClick={() => setCurrentFolderId(folder.id)}
+                             className="hover:text-primary transition-colors flex items-center gap-1"
+                           >
+                             <FolderOpen className="w-4 h-4" />
+                             {folder.title}
+                           </button>
+                           {isCurrent && mode === "edit" && (
+                             <Button
+                               type="button"
+                               size="icon"
+                               variant="ghost"
+                               className="h-6 w-6"
+                               title={language === "kk" ? "Қалтаның атын өзгерту" : "Переименовать папку"}
+                               onClick={() => { setFolderRenameValue(folder.title); setRenamingFolder(true); }}
+                             >
+                               <Edit className="w-3.5 h-3.5" />
+                             </Button>
+                           )}
+                         </>
+                       )}
+                       {idx < getBreadcrumbPath().length - 1 && (
+                         <span className="text-muted-foreground">/</span>
+                       )}
+                     </div>
+                   );
+                 })}
                </div>
              )}
  
              {/* Add button */}
-             {!isAdding && !editingId && (
+             {mode === "edit" && !isAdding && !editingId && (
                <Button onClick={() => setIsAdding(true)} variant="outline" className="w-full">
                  <Plus className="w-4 h-4 mr-2" />
                  {currentFolderId ? "Добавить в папку" : "Добавить материал"}
@@ -880,7 +953,7 @@ interface FormData {
              )}
  
              {/* Materials list */}
-             {isLoading ? (
+             {mode === "add" ? null : isLoading ? (
                <div className="flex justify-center py-8">
                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
                </div>
@@ -985,7 +1058,12 @@ interface FormData {
                                     </>
                                   );
                                 })()}
-                                 <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={() => handleEdit(material)}>
+                                 <Button
+                                   variant="ghost"
+                                   size="icon"
+                                   className="h-7 w-7 sm:h-8 sm:w-8"
+                                   onClick={() => material.type === "folder" ? handleOpenFolder(material.id) : handleEdit(material)}
+                                 >
                                    <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                  </Button>
                                  <Button
