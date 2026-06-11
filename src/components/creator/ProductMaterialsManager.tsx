@@ -109,7 +109,7 @@ interface FormData {
       filePermissions: [],
       fileEntries: [],
       allow_download: true,
-      teacher_allow_download: true,
+      teacher_allow_download: false,
       scheduleAccess: false,
       availableAt: "",
       linkUrl: "",
@@ -122,7 +122,7 @@ interface FormData {
     const newEntries: FileEntry[] = arr.map(file => ({
       file,
       customName: "",
-      permissions: { allow_download: true, teacher_allow_download: true }
+      permissions: { allow_download: true, teacher_allow_download: false }
     }));
     setFormData(prev => ({
       ...prev,
@@ -201,7 +201,7 @@ interface FormData {
    };
  
     const resetForm = () => {
-      setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true, teacher_allow_download: true, scheduleAccess: false, availableAt: "", linkUrl: "", content: "" });
+      setFormData({ title: "", itemType: "file", files: [], filePermissions: [], fileEntries: [], allow_download: true, teacher_allow_download: false, scheduleAccess: false, availableAt: "", linkUrl: "", content: "" });
       if (fileInputRef.current) fileInputRef.current.value = "";
     };
  
@@ -357,7 +357,7 @@ interface FormData {
             title: formData.title,
             allow_view: true,
             allow_download: formData.allow_download,
-            teacher_allow_download: formData.teacher_allow_download,
+            teacher_allow_download: false,
             available_at: formData.scheduleAccess && formData.availableAt 
               ? new Date(formData.availableAt).toISOString() 
               : null,
@@ -565,27 +565,9 @@ interface FormData {
                       <X className="w-4 h-4" />
                     </Button>
                    </div>
-                  <div className="pl-6 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Для учителя:</p>
-                    <label className="flex items-center gap-2 text-xs cursor-pointer">
-                      <Checkbox
-                        checked={entry.permissions.teacher_allow_download}
-                        onCheckedChange={(checked) => {
-                          setFormData(prev => {
-                            const newEntries = [...prev.fileEntries];
-                            newEntries[index] = { 
-                              ...newEntries[index], 
-                              permissions: { ...newEntries[index].permissions, teacher_allow_download: !!checked }
-                            };
-                            return { ...prev, fileEntries: newEntries };
-                          });
-                        }}
-                      />
-                      <Download className="w-3 h-3" />
-                      Скачивание
-                    </label>
-                    <p className="text-xs font-medium text-muted-foreground mt-2">Для ученика:</p>
-                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                   <div className="pl-6 space-y-2">
+                     <p className="text-xs font-medium text-muted-foreground">Для ученика:</p>
+                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox
                         checked={entry.permissions.allow_download}
                         onCheckedChange={(checked) => {
@@ -612,6 +594,8 @@ interface FormData {
           <div
             className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}`}
             tabIndex={0}
+            role="button"
+            onClick={() => fileInputRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
             onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
             onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
@@ -639,6 +623,7 @@ interface FormData {
                 addFilesToForm(files);
               }
             }}
+            style={{ cursor: 'pointer' }}
           >
            <input
              ref={fileInputRef}
@@ -653,12 +638,10 @@ interface FormData {
              className="hidden"
              id="file-upload"
            />
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                 {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы)" : "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)"}
-              </p>
-            </label>
+            <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground pointer-events-none">
+              {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы) — нажмите, перетащите или вставьте (Ctrl+V)" : "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)"}
+            </p>
          </div>
         </div>}
 
@@ -739,16 +722,7 @@ interface FormData {
         <div className="space-y-3">
           <Label>Доступ</Label>
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium text-muted-foreground">Для учителя:</p>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <Checkbox
-                checked={formData.teacher_allow_download}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, teacher_allow_download: !!checked }))}
-              />
-              <Download className="w-4 h-4" />
-              Скачивание файла
-            </label>
-            <p className="text-xs font-medium text-muted-foreground mt-2">Для ученика:</p>
+            <p className="text-xs font-medium text-muted-foreground">Для ученика:</p>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <Checkbox
                 checked={formData.allow_download}

@@ -552,7 +552,47 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                   </div>
                 )}
 
-                <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
+                <div
+                  className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const files = e.dataTransfer.files;
+                    if (files && files.length > 0) {
+                      const newEntries: FileEntry[] = Array.from(files).map(file => ({
+                        file,
+                        customName: "",
+                        permissions: { allow_download: true }
+                      }));
+                      setFormData(prev => ({ ...prev, fileEntries: [...prev.fileEntries, ...newEntries] }));
+                    }
+                  }}
+                  onPaste={(e) => {
+                    const items = e.clipboardData?.items;
+                    if (!items) return;
+                    const files: File[] = [];
+                    for (let i = 0; i < items.length; i++) {
+                      const it = items[i];
+                      if (it.kind === "file") {
+                        const f = it.getAsFile();
+                        if (f) files.push(f);
+                      }
+                    }
+                    if (files.length > 0) {
+                      e.preventDefault();
+                      const newEntries: FileEntry[] = files.map(file => ({
+                        file,
+                        customName: "",
+                        permissions: { allow_download: true }
+                      }));
+                      setFormData(prev => ({ ...prev, fileEntries: [...prev.fileEntries, ...newEntries] }));
+                    }
+                  }}
+                >
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -574,14 +614,12 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                     className="hidden"
                     id="teacher-file-upload"
                   />
-                  <label htmlFor="teacher-file-upload" className="cursor-pointer">
-                    <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      {formData.fileEntries.length > 0 
-                        ? (language === "ru" ? "Добавить ещё файл(ы)" : "Тағы файл қосу")
-                        : (language === "ru" ? "Нажмите для выбора файла(ов)" : "Файл таңдау үшін басыңыз")}
-                    </p>
-                  </label>
+                  <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2 pointer-events-none" />
+                  <p className="text-sm text-muted-foreground pointer-events-none">
+                    {formData.fileEntries.length > 0
+                      ? (language === "ru" ? "Добавить ещё — нажмите, перетащите или вставьте (Ctrl+V)" : "Тағы қосу — басыңыз, сүйреп әкеліңіз немесе қойыңыз (Ctrl+V)")
+                      : (language === "ru" ? "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)" : "Файлды басып таңдаңыз, сүйреңіз немесе қойыңыз (Ctrl+V)")}
+                  </p>
                 </div>
               </div>}
 
