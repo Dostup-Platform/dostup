@@ -327,13 +327,26 @@ const ProductForm = ({
               </AlertDialog>
             </div>
           ) : (
-            <label className="flex items-center justify-center gap-2 h-24 border-2 border-dashed border-border rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
+            <label
+              className={`flex items-center justify-center gap-2 h-24 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
+                isImageDragging ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+              }`}
+              onDragOver={(e) => { e.preventDefault(); setIsImageDragging(true); }}
+              onDragLeave={() => setIsImageDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsImageDragging(false);
+                const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith("image/"));
+                if (file) void processImageFile(file);
+                else toast.error("Перетащите изображение");
+              }}
+            >
               {uploadingImage ? (
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               ) : (
                 <>
                   <ImageIcon className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Загрузить изображение</span>
+                  <span className="text-sm text-muted-foreground">Нажмите, перетащите или вставьте (Ctrl+V) изображение</span>
                 </>
               )}
               <input
@@ -385,13 +398,26 @@ const ProductForm = ({
               </AlertDialog>
             </div>
           ) : (
-            <label className="flex items-center justify-center gap-2 h-24 border-2 border-dashed border-border rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
+            <label
+              className={`flex items-center justify-center gap-2 h-24 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
+                isVideoDragging ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+              }`}
+              onDragOver={(e) => { e.preventDefault(); setIsVideoDragging(true); }}
+              onDragLeave={() => setIsVideoDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsVideoDragging(false);
+                const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith("video/"));
+                if (file) void processVideoFile(file);
+                else toast.error("Перетащите видео");
+              }}
+            >
               {uploadingVideo ? (
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               ) : (
                 <>
                   <VideoIcon className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Загрузить видео</span>
+                  <span className="text-sm text-muted-foreground">Нажмите, перетащите или вставьте (Ctrl+V) видео</span>
                 </>
               )}
               <input
