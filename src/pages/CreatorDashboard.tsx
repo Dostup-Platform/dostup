@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, Users, Calendar, Loader2, Bell, User, Megaphone, Library } from "lucide-react";
+import { Package, Users, Calendar, Loader2, Bell, User, Megaphone, Library, MessageCircle } from "lucide-react";
+import SupportChat from "@/components/SupportChat";
+import { useSupportUnread } from "@/hooks/useSupportUnread";
 import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
 import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
@@ -224,6 +226,7 @@ const CreatorDashboard = () => {
             <p className="text-sm text-muted-foreground truncate">{creatorName}</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <SupportHeaderButton activeTab={activeTab} onClick={() => handleTabChange("support")} userType="creator" userRef={creatorName!} />
             <button
               onClick={() => handleTabChange("notifications")}
               aria-label={t("notifications" as any)}
