@@ -17,6 +17,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline min-h-0",
         cta: "gradient-primary text-primary-foreground shadow-cta hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
         success: "bg-success text-success-foreground hover:bg-success/90",
+        toggle: "border border-input bg-background text-foreground hover:bg-muted hover:text-foreground",
       },
       size: {
         default: "h-11 px-5 py-2",

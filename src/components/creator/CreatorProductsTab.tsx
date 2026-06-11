@@ -552,14 +552,14 @@ const ProductForm = ({
           <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"
-              variant={formData.isPaid ? "outline" : "default"}
+              variant={formData.isPaid ? "toggle" : "default"}
               onClick={() => setFormData(prev => ({ ...prev, isPaid: false }))}
             >
               Бесплатно
             </Button>
             <Button
               type="button"
-              variant={formData.isPaid ? "default" : "outline"}
+              variant={formData.isPaid ? "default" : "toggle"}
               onClick={() => setFormData(prev => ({ ...prev, isPaid: true }))}
             >
               Платно
@@ -587,14 +587,14 @@ const ProductForm = ({
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   type="button"
-                  variant={formData.kaspiMethod === "link" ? "default" : "outline"}
+                  variant={formData.kaspiMethod === "link" ? "default" : "toggle"}
                   onClick={() => setFormData(prev => ({ ...prev, kaspiMethod: "link" }))}
                 >
                   Ссылка
                 </Button>
                 <Button
                   type="button"
-                  variant={formData.kaspiMethod === "phone" ? "default" : "outline"}
+                  variant={formData.kaspiMethod === "phone" ? "default" : "toggle"}
                   onClick={() => setFormData(prev => ({ ...prev, kaspiMethod: "phone" }))}
                 >
                   Номер телефона
@@ -627,14 +627,14 @@ const ProductForm = ({
           <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"
-              variant={formData.accessMode === "forever" ? "default" : "outline"}
+              variant={formData.accessMode === "forever" ? "default" : "toggle"}
               onClick={() => setFormData(prev => ({ ...prev, accessMode: "forever" }))}
             >
               Навсегда
             </Button>
             <Button
               type="button"
-              variant={formData.accessMode === "limited" ? "default" : "outline"}
+              variant={formData.accessMode === "limited" ? "default" : "toggle"}
               onClick={() => setFormData(prev => ({ ...prev, accessMode: "limited" }))}
             >
               На время
@@ -649,7 +649,7 @@ const ProductForm = ({
                     key={p.value}
                     type="button"
                     size="sm"
-                    variant={formData.accessDurationDays === p.value ? "default" : "outline"}
+                    variant={formData.accessDurationDays === p.value ? "default" : "toggle"}
                     onClick={() => setFormData(prev => ({ ...prev, accessDurationDays: p.value }))}
                   >
                     {p.label}

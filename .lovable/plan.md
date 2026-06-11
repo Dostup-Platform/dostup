@@ -1,36 +1,29 @@
-Add drag-and-drop + paste (Ctrl/Cmd+V) support to the cover image and video upload zones in the product create/edit form, matching the materials section behavior.
+## Проблема
 
-## File
-`src/components/creator/CreatorProductsTab.tsx` (inside `ProductForm`)
+В `src/index.css` токены `--accent` и `--primary` имеют одинаковый оранжевый цвет. Кнопки с `variant="outline"` используют `hover:bg-accent hover:text-accent-foreground`, поэтому при наведении на неактивную кнопку она становится такой же оранжевой, как активная — визуально кажется, что обе выбраны.
 
-## Changes
+Предыдущая попытка не сработала, потому что замена `variant="outline"` не была применена ко всем кнопкам-переключателям, и сам `outline` всё ещё подсвечивается через `accent`.
 
-1. **Extract shared logic** from `handleImageChange` and `handleVideoChange` into two helpers that take a raw `File`:
-   - `processImageFile(file: File)` — validate it's an image, then either set `pendingImageFile` (create mode) or upload via `uploadProductMedia` (edit mode).
-   - `processVideoFile(file: File)` — run `getVideoDuration` + 3-min limit check, then set pending or upload (same branching as today).
-   - Keep `handleImageChange`/`handleVideoChange` as thin wrappers that pull `e.target.files[0]` and call the helpers.
+## Решение
 
-2. **Drag & drop** on each dropzone `<label>` (image and video):
-   - Add `onDragOver` (preventDefault + visual highlight via state `isImageDragging` / `isVideoDragging`), `onDragLeave`, and `onDrop` (preventDefault, take first matching file from `e.dataTransfer.files`).
-   - Dropzone keeps `cursor-pointer` and `border-dashed`; when dragging, swap border color to `border-primary` and background to `bg-primary/5`.
+1. **`src/components/ui/button.tsx`** — добавить новый вариант `toggle` в `buttonVariants`:
+   ```
+   toggle: "border border-input bg-background text-foreground hover:bg-muted hover:text-foreground"
+   ```
+   Нейтральный hover (серый `muted`), без оранжевого `accent`.
 
-3. **Paste** support:
-   - Add a `useEffect` that attaches a `paste` listener to `window` while the form is mounted (the dialog is the only thing on screen) and either zone is empty.
-   - On paste, look at `e.clipboardData?.files`. If there's an image file and image slot is empty → `processImageFile`. If there's a video file and video slot is empty → `processVideoFile`. If both empty and both present, prefer image.
-   - Cleanup on unmount.
+2. **`src/components/creator/CreatorProductsTab.tsx`** — заменить `variant="outline"` на `variant="toggle"` в неактивном состоянии для всех групп-переключателей (строки 555, 562, 590, 597, 630, 637, 652):
+   - Бесплатно / Платно
+   - Ссылка / Номер телефона (Kaspi)
+   - Навсегда / На время (доступ)
+   - Пресеты длительности (7 дней / 2 недели / 1 месяц)
 
-4. **No changes** to upload endpoint, FAQ, payment section, schema, or any other file. The "replace existing media" flow still goes through the existing AlertDialog `XIcon` button — drop/paste only fills empty slots so users don't accidentally overwrite the current image/video.
+   Активная кнопка остаётся `variant="default"` (оранжевая). Неактивная — `variant="toggle"` (белая с серым hover).
 
-## ASCII
+3. **Пресеты длительности**: уже сравниваются по `formData.accessDurationDays === p.value`. Когда пользователь вручную правит поле, значение перестаёт совпадать с пресетом и кнопка автоматически становится `toggle` (белой). Дополнительная логика не нужна.
 
-```text
-[ Обложка (изображение) ]
-┌────────────────────────────┐
-│  drag · drop · paste · click │  ← same dashed zone, now accepts all 3
-└────────────────────────────┘
+## Что не меняется
 
-[ Видео-презентация (до 3 минут) ]
-┌────────────────────────────┐
-│  drag · drop · paste · click │
-└────────────────────────────┘
-```
+- Файлы дизайн-системы (`index.css`, `tailwind.config.ts`) — не трогаем, чтобы не поломать другие оранжевые акценты в приложении.
+- Остальные `variant="outline"` кнопки (Отмена, иконки действий и т.п.) — оставляем как есть.
+- Бизнес-логика, схема, аплоады — без изменений.
