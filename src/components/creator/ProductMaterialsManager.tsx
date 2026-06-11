@@ -693,7 +693,11 @@ interface FormData {
            type="button"
            variant="outline"
            className="flex-1"
-           onClick={() => { setIsAdding(false); resetForm(); }}
+           onClick={() => {
+             resetForm();
+             if (mode === "add") onClose();
+             else setIsAdding(false);
+           }}
          >
            {t("cancel")}
          </Button>
