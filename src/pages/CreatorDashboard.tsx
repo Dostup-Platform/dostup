@@ -317,17 +317,17 @@ const CreatorDashboard = () => {
           )}
           {activeTab === "announcements" && (
             <div className="animate-fade-in">
-              <CreatorAnnouncementsTab creatorName={creatorName} />
+              <CreatorAnnouncementsTab creatorName={creatorName} onGoToProducts={() => handleTabChange("products")} />
             </div>
           )}
           {activeTab === "materials" && (
             <div className="animate-fade-in">
-              <CreatorMaterialsTab creatorName={creatorName} />
+              <CreatorMaterialsTab creatorName={creatorName} onGoToProducts={() => handleTabChange("products")} />
             </div>
           )}
           {activeTab === "schedule" && (
             <div className="animate-fade-in">
-              <CreatorScheduleTab creatorName={creatorName} />
+              <CreatorScheduleTab creatorName={creatorName} onGoToProducts={() => handleTabChange("products")} />
             </div>
           )}
           {activeTab === "users" && (
