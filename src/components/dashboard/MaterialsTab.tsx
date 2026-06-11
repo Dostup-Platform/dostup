@@ -8,6 +8,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder, User, Lock, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 
 const getIcon = (type: string) => {
   switch (type) {
@@ -170,6 +171,7 @@ const MaterialsTab = () => {
   const [expandedTexts, setExpandedTexts] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const toggleVideoExpand = (materialId: string) => {
     setExpandedVideos(prev => {
@@ -482,8 +484,31 @@ const MaterialsTab = () => {
             {t("purchaseToAccess")}
           </p>
         </div>
-      ) : (
+      ) : (() => {
+        const q = searchQuery.trim().toLowerCase();
+        const searchResults = q
+          ? (materials || []).filter(m => m.title?.toLowerCase().includes(q))
+          : [];
+        return (
         <>
+          <MaterialsSearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            resultCount={q ? searchResults.length : undefined}
+          />
+
+          {q ? (
+            searchResults.length === 0 ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                {language === "ru" ? "Ничего не найдено" : "Ештеңе табылмады"}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {searchResults.map((m, i) => renderMaterialCard(m, i))}
+              </div>
+            )
+          ) : (
+          <>
           {/* Creator Materials */}
           {Object.keys(groupCreatorMaterials).length > 0 && (
             <div className="space-y-4">
@@ -515,8 +540,11 @@ const MaterialsTab = () => {
               ))}
             </div>
           )}
+          </>
+          )}
         </>
-      )}
+        );
+      })()}
 
       {/* Fullscreen Video Modal */}
       {fullscreenVideo && (
