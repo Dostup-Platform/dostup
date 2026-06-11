@@ -56,7 +56,7 @@ const CreatorAnnouncementsTab = ({ creatorName, onGoToProducts }: Props) => {
         productTitle={product.title}
         initialGroupLinkUrl={(product as any).telegram_link || null}
         initialGroupLinkLabel={(product as any).group_link_label || null}
-        onBack={() => { /* switcher replaces back button */ }}
+        hideBackButton
       />
     </div>
   );
