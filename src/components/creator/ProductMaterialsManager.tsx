@@ -446,20 +446,6 @@ interface FormData {
                 Папка
               </Label>
             </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="link" id="type-link" />
-              <Label htmlFor="type-link" className="cursor-pointer flex items-center gap-2">
-                <LinkIcon className="w-4 h-4" />
-                Ссылка
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="text" id="type-text" />
-              <Label htmlFor="type-text" className="cursor-pointer flex items-center gap-2">
-                <Type className="w-4 h-4" />
-                Текст
-              </Label>
-            </div>
           </RadioGroup>
         </div>
   

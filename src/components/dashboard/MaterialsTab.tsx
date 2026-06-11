@@ -472,25 +472,6 @@ const MaterialsTab = () => {
 
   return (
     <div className="space-y-6">
-      {/* Telegram links on top */}
-      {allTelegramProducts.length > 0 && (
-        <div className="space-y-3">
-          {allTelegramProducts.map(purchase => (
-            <div key={purchase.product_id} className="space-y-2">
-              <h3 className="font-medium text-muted-foreground">{purchase.product?.title}</h3>
-              <a
-                href={purchase.product!.telegram_link!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-3 rounded-lg bg-[hsl(200,80%,50%)]/10 text-[hsl(200,80%,40%)] hover:bg-[hsl(200,80%,50%)]/20 transition-colors font-medium text-sm"
-              >
-                {language === "ru" ? "Вступить в группу (Telegram/Discord или др.)" : "Топқа қосылу (Telegram/Discord т.б.)"}
-              </a>
-            </div>
-          ))}
-        </div>
-      )}
-
       <h2 className="text-lg font-semibold text-foreground">{t("myMaterials")}</h2>
 
       {hasNoMaterials ? (
