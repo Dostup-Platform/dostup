@@ -291,6 +291,7 @@ export type Database = {
           created_at: string
           display_name: string
           id: string
+          is_blocked: boolean
           login: string
           password_hash: string
           updated_at: string
@@ -300,6 +301,7 @@ export type Database = {
           created_at?: string
           display_name: string
           id?: string
+          is_blocked?: boolean
           login: string
           password_hash: string
           updated_at?: string
@@ -309,6 +311,7 @@ export type Database = {
           created_at?: string
           display_name?: string
           id?: string
+          is_blocked?: boolean
           login?: string
           password_hash?: string
           updated_at?: string
@@ -480,6 +483,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      moderator_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token?: string
+        }
+        Relationships: []
       }
       notification_preferences: {
         Row: {
@@ -990,6 +1014,80 @@ export type Database = {
           phone?: string
           role?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      support_messages: {
+        Row: {
+          created_at: string
+          id: string
+          read_at: string | null
+          sender: string
+          text: string
+          thread_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender: string
+          text: string
+          thread_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender?: string
+          text?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "support_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_threads: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          last_message_at: string
+          last_message_preview: string | null
+          unread_for_moderator: number
+          unread_for_user: number
+          updated_at: string
+          user_ref: string
+          user_type: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          last_message_at?: string
+          last_message_preview?: string | null
+          unread_for_moderator?: number
+          unread_for_user?: number
+          updated_at?: string
+          user_ref: string
+          user_type: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          last_message_at?: string
+          last_message_preview?: string | null
+          unread_for_moderator?: number
+          unread_for_user?: number
+          updated_at?: string
+          user_ref?: string
+          user_type?: string
         }
         Relationships: []
       }
