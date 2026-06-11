@@ -22,6 +22,8 @@ export const translations = {
     
     // Navigation
     materials: "Материалы",
+    home: "Главная",
+    announcements: "Объявления",
     schedule: "Расписание",
     account: "Аккаунт",
     products: "Продукты",
@@ -317,6 +319,8 @@ export const translations = {
     
     // Navigation
     materials: "Материалдар",
+    home: "Басты",
+    announcements: "Хабарландырулар",
     schedule: "Кесте",
     account: "Аккаунт",
     products: "Өнімдер",
