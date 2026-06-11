@@ -38,6 +38,7 @@ import { Checkbox } from "@/components/ui/checkbox";
    productTitle: string;
    isOpen: boolean;
    onClose: () => void;
+   mode?: "add" | "edit";
  }
  
  type ItemType = "file" | "folder" | "link" | "text";
@@ -83,7 +84,7 @@ interface FormData {
    content: string;
  }
  
- const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose }: ProductMaterialsManagerProps) => {
+ const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose, mode = "edit" }: ProductMaterialsManagerProps) => {
    const { t, language } = useLanguage();
    const { data: allMaterials = [], isLoading } = useProductMaterials(productId, { creatorOnly: true });
    const createMaterial = useCreateMaterial();
@@ -98,6 +99,8 @@ interface FormData {
    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
    const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [renamingFolder, setRenamingFolder] = useState(false);
+  const [folderRenameValue, setFolderRenameValue] = useState("");
 
     const [formData, setFormData] = useState<FormData>({
       title: "",
@@ -156,6 +159,17 @@ interface FormData {
     window.addEventListener("paste", handler);
     return () => window.removeEventListener("paste", handler);
   }, [isOpen, addFilesToForm, formData.itemType]);
+
+  // Auto-open add form when in "add" mode
+  useEffect(() => {
+    if (!isOpen) return;
+    if (mode === "add") {
+      setIsAdding(true);
+      setEditingId(null);
+    } else {
+      setIsAdding(false);
+    }
+  }, [isOpen, mode]);
  
    // Filter materials for current folder level
    const materials = useMemo(() => {
