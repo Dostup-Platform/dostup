@@ -62,7 +62,7 @@ const ProductAnnouncementsManager = ({ productId, productTitle, initialGroupLink
   };
 
   const handleCreate = async (html: string) => {
-    if (!html || html === "<p></p>") return toast.error("Пост пустой");
+    if (!html || html === "<p></p>") { toast.error("Пост пустой"); return; }
     try {
       await createMut.mutateAsync({ productId, contentHtml: html });
       setIsAdding(false);
