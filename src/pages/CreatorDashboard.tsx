@@ -345,6 +345,11 @@ const CreatorDashboard = () => {
               <CreatorAccountTab creatorName={creatorName} />
             </div>
           )}
+          {activeTab === "support" && (
+            <div className="animate-fade-in">
+              <SupportChat userType="creator" userRef={creatorName} displayName={creatorName} />
+            </div>
+          )}
         </main>
       </div>
 
