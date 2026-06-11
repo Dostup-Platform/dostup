@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Users, Calendar, Loader2, Bell, User } from "lucide-react";
+import { Package, Users, Calendar, Loader2, Bell, User, Megaphone } from "lucide-react";
 import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
 import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
 import CreatorNotificationsTab from "@/components/creator/CreatorNotificationsTab";
 import CreatorAccountTab from "@/components/creator/CreatorAccountTab";
+import CreatorAnnouncementsTab from "@/components/creator/CreatorAnnouncementsTab";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import { useCreatorProducts } from "@/hooks/useProducts";
@@ -21,7 +22,7 @@ import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 import { useAppResume } from "@/hooks/useAppResume";
 
 const CreatorDashboard = () => {
-  const [activeTab, setActiveTab] = useState("products");
+  const [activeTab, setActiveTab] = useState("announcements");
   const [creatorName, setCreatorName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
@@ -223,7 +224,11 @@ const CreatorDashboard = () => {
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           {/* Desktop Top Tabs */}
           {!isMobile && (
-            <TabsList className="w-full h-12 grid grid-cols-5 mb-6">
+            <TabsList className="w-full h-12 grid grid-cols-6 mb-6">
+              <TabsTrigger value="announcements" className="gap-2">
+                <Megaphone className="w-4 h-4" />
+                {t("announcements")}
+              </TabsTrigger>
               <TabsTrigger value="products" className="gap-2">
                 <Package className="w-4 h-4" />
                 {t("products")}
@@ -252,6 +257,9 @@ const CreatorDashboard = () => {
             </TabsList>
           )}
 
+          <TabsContent value="announcements" className="mt-0 animate-fade-in">
+            <CreatorAnnouncementsTab creatorName={creatorName} />
+          </TabsContent>
           <TabsContent value="products" className="mt-0 animate-fade-in">
             <CreatorProductsTab creatorName={creatorName} />
           </TabsContent>
@@ -275,7 +283,14 @@ const CreatorDashboard = () => {
         <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
           <div className="max-w-2xl mx-auto">
             <Tabs value={activeTab} onValueChange={handleTabChange}>
-              <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-0">
+              <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-6 gap-0">
+                <TabsTrigger 
+                  value="announcements" 
+                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
+                >
+                  <Megaphone className="w-5 h-5" />
+                  <span className="text-[10px] leading-tight">{t("announcements")}</span>
+                </TabsTrigger>
                 <TabsTrigger 
                   value="products" 
                   className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"

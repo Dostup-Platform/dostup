@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      announcements: {
+        Row: {
+          content_html: string
+          created_at: string
+          creator_id: string
+          id: string
+          order_index: number
+          product_id: string
+          updated_at: string
+        }
+        Insert: {
+          content_html?: string
+          created_at?: string
+          creator_id: string
+          id?: string
+          order_index?: number
+          product_id: string
+          updated_at?: string
+        }
+        Update: {
+          content_html?: string
+          created_at?: string
+          creator_id?: string
+          id?: string
+          order_index?: number
+          product_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           created_at: string
@@ -512,6 +550,7 @@ export type Database = {
           creator_id: string
           description: string | null
           faq: Json
+          group_link_label: string | null
           has_schedule: boolean
           headline: string | null
           id: string
@@ -532,6 +571,7 @@ export type Database = {
           creator_id: string
           description?: string | null
           faq?: Json
+          group_link_label?: string | null
           has_schedule?: boolean
           headline?: string | null
           id?: string
@@ -552,6 +592,7 @@ export type Database = {
           creator_id?: string
           description?: string | null
           faq?: Json
+          group_link_label?: string | null
           has_schedule?: boolean
           headline?: string | null
           id?: string

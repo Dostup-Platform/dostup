@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Calendar, User, Bell, Loader2 } from "lucide-react";
+import { FileText, Calendar, User, Bell, Loader2, Home as HomeIcon } from "lucide-react";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,13 +11,14 @@ import MaterialsTab from "@/components/dashboard/MaterialsTab";
 import ScheduleTab from "@/components/dashboard/ScheduleTab";
 import AccountTab from "@/components/dashboard/AccountTab";
 import NotificationsTab from "@/components/dashboard/NotificationsTab";
+import HomeTab from "@/components/dashboard/HomeTab";
 import { useRealtimeStudentNotifications } from "@/hooks/useRealtimeStudentNotifications";
 import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 import { useAppResume } from "@/hooks/useAppResume";
 
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState("materials");
+  const [activeTab, setActiveTab] = useState("home");
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
   const previousTab = useRef(activeTab);
   const { user, loading } = useSimpleAuth();
@@ -212,6 +213,9 @@ const Dashboard = () => {
 
       <main className="max-w-2xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <TabsContent value="home" className="mt-0 animate-fade-in">
+            <HomeTab />
+          </TabsContent>
           <TabsContent value="materials" className="mt-0 animate-fade-in">
             <MaterialsTab />
           </TabsContent>
@@ -230,7 +234,14 @@ const Dashboard = () => {
       <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
         <div className="max-w-2xl mx-auto">
           <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-4 gap-1">
+            <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-1">
+              <TabsTrigger 
+                value="home" 
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+              >
+                <HomeIcon className="w-5 h-5" />
+                <span className="text-xs">{t("home")}</span>
+              </TabsTrigger>
               <TabsTrigger 
                 value="materials" 
                 className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
