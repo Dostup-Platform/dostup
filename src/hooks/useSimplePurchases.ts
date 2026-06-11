@@ -16,6 +16,7 @@ interface SimplePurchase {
     title: string;
     headline: string | null;
     telegram_link: string | null;
+    group_link_label: string | null;
   } | null;
 }
 
@@ -81,7 +82,7 @@ export const useSimplePurchases = () => {
       const productIds = data.map(p => p.product_id);
       const { data: products } = await supabase
         .from("products")
-        .select("id, title, headline, telegram_link")
+        .select("id, title, headline, telegram_link, group_link_label")
         .in("id", productIds);
 
       return data.map(purchase => ({
