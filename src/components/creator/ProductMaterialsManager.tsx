@@ -31,6 +31,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { Checkbox } from "@/components/ui/checkbox";
+import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 
  
  interface ProductMaterialsManagerProps {
@@ -101,6 +102,7 @@ interface FormData {
   const [isDragging, setIsDragging] = useState(false);
   const [renamingFolder, setRenamingFolder] = useState(false);
   const [folderRenameValue, setFolderRenameValue] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
     const [formData, setFormData] = useState<FormData>({
       title: "",
@@ -173,10 +175,14 @@ interface FormData {
  
    // Filter materials for current folder level
    const materials = useMemo(() => {
+     const q = searchQuery.trim().toLowerCase();
+     if (q) {
+       return (allMaterials as Material[]).filter(m => m.title.toLowerCase().includes(q));
+     }
      return (allMaterials as Material[]).filter(m => 
        currentFolderId ? m.parent_id === currentFolderId : !m.parent_id
      );
-   }, [allMaterials, currentFolderId]);
+   }, [allMaterials, currentFolderId, searchQuery]);
  
    // Get current folder info
    const currentFolder = useMemo(() => {
@@ -927,13 +933,18 @@ interface FormData {
              )}
  
              {/* Materials list */}
-             {mode === "add" ? null : isLoading ? (
+              {mode === "add" ? null : (
+                <MaterialsSearchBar value={searchQuery} onChange={setSearchQuery} resultCount={materials.length} />
+              )}
+              {mode === "add" ? null : isLoading ? (
                <div className="flex justify-center py-8">
                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
                </div>
              ) : materials.length === 0 && !isAdding ? (
                <div className="text-center py-8 text-muted-foreground">
-                 {currentFolderId ? (
+                  {searchQuery.trim() ? (
+                    <p>{language === "kk" ? "Ештеңе табылмады" : "Ничего не найдено"}</p>
+                  ) : currentFolderId ? (
                    <>
                      <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
                      <p>Папка пуста</p>

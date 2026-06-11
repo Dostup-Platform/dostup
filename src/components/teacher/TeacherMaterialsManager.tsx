@@ -29,6 +29,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { Checkbox } from "@/components/ui/checkbox";
+import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 
 interface TeacherMaterialsManagerProps {
   teacherId: string;
@@ -90,6 +91,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
   const [uploadProgress, setUploadProgress] = useState(0);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   
   
   const [formData, setFormData] = useState<FormData>({
@@ -105,10 +107,14 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
 
   // Filter materials for current folder level
   const materials = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      return (allMaterials as Material[]).filter(m => m.title.toLowerCase().includes(q));
+    }
     return (allMaterials as Material[]).filter(m => 
       currentFolderId ? m.parent_id === currentFolderId : !m.parent_id
     );
-  }, [allMaterials, currentFolderId]);
+  }, [allMaterials, currentFolderId, searchQuery]);
 
   // Get current folder info
   const currentFolder = useMemo(() => {
@@ -647,17 +653,25 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
       )}
 
       {/* Materials List */}
+      <MaterialsSearchBar value={searchQuery} onChange={setSearchQuery} resultCount={materials.length} />
+
       {materials.length === 0 && !isAdding ? (
         <div className="text-center py-8 text-muted-foreground">
-          <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">
-            {language === "ru" ? "Нет материалов" : "Материалдар жоқ"}
-          </p>
-          <p className="text-xs mt-1">
-            {language === "ru" 
-              ? "Добавьте файлы или папки для ваших учеников"
-              : "Оқушыларыңыз үшін файлдар немесе қалталар қосыңыз"}
-          </p>
+          {searchQuery.trim() ? (
+            <p className="text-sm">{language === "ru" ? "Ничего не найдено" : "Ештеңе табылмады"}</p>
+          ) : (
+            <>
+              <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">
+                {language === "ru" ? "Нет материалов" : "Материалдар жоқ"}
+              </p>
+              <p className="text-xs mt-1">
+                {language === "ru" 
+                  ? "Добавьте файлы или папки для ваших учеников"
+                  : "Оқушыларыңыз үшін файлдар немесе қалталар қосыңыз"}
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
