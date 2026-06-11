@@ -94,6 +94,12 @@ serve(async (req) => {
     let resolvedName = trimmedName
 
     if (account) {
+      if ((account as any).is_blocked) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Account blocked' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
       isValid = await verifyPbkdf2(password, account.password_hash)
       accountType = account.account_type as 'course_creator' | 'online_school'
       resolvedName = account.login

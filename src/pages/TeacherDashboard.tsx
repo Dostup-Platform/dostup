@@ -1,7 +1,29 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, FileText, Bell, User, Loader2 } from "lucide-react";
+import { Calendar, FileText, Bell, User, Loader2, MessageCircle } from "lucide-react";
+import SupportChat from "@/components/SupportChat";
+import { useSupportUnread } from "@/hooks/useSupportUnread";
+
+const TeacherSupportButton = ({ activeTab, teacherName, teacherId, onClick }: { activeTab: string; teacherName: string; teacherId?: string; onClick: () => void }) => {
+  const unread = useSupportUnread("teacher", teacherId || teacherName);
+  return (
+    <button
+      onClick={onClick}
+      aria-label="Сообщения"
+      className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+        activeTab === "support" ? "bg-accent text-white" : "text-muted-foreground hover:bg-accent/50"
+      }`}
+    >
+      <MessageCircle className="w-5 h-5" />
+      {unread > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      )}
+    </button>
+  );
+};
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import { useTeacherProducts } from "@/hooks/useProductTeachers";
@@ -246,7 +268,7 @@ const TeacherDashboard = () => {
             </h1>
             <p className="text-sm text-muted-foreground">{teacherName}</p>
           </div>
-          
+          <TeacherSupportButton activeTab={activeTab} teacherName={teacherName} teacherId={teacherUser?.id} onClick={() => handleTabChange("support")} />
         </div>
       </header>
 
@@ -295,6 +317,9 @@ const TeacherDashboard = () => {
           </TabsContent>
           <TabsContent value="account" className="mt-0 animate-fade-in">
             <TeacherAccountTab teacherName={teacherName} teacherId={teacherUser?.id} />
+          </TabsContent>
+          <TabsContent value="support" className="mt-0 animate-fade-in">
+            <SupportChat userType="teacher" userRef={teacherUser?.id || teacherName} displayName={teacherName} />
           </TabsContent>
         </Tabs>
       </main>

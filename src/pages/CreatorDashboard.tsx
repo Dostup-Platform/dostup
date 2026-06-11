@@ -1,6 +1,28 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, Users, Calendar, Loader2, Bell, User, Megaphone, Library } from "lucide-react";
+import { Package, Users, Calendar, Loader2, Bell, User, Megaphone, Library, MessageCircle } from "lucide-react";
+import SupportChat from "@/components/SupportChat";
+import { useSupportUnread } from "@/hooks/useSupportUnread";
+
+const SupportHeaderButton = ({ activeTab, onClick, userType, userRef }: { activeTab: string; onClick: () => void; userType: "creator" | "teacher" | "student"; userRef: string }) => {
+  const unread = useSupportUnread(userType, userRef);
+  return (
+    <button
+      onClick={onClick}
+      aria-label="Сообщения"
+      className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+        activeTab === "support" ? "bg-accent text-white" : "text-muted-foreground hover:bg-accent/50"
+      }`}
+    >
+      <MessageCircle className="w-5 h-5" />
+      {unread > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      )}
+    </button>
+  );
+};
 import CreatorProductsTab from "@/components/creator/CreatorProductsTab";
 import CreatorUsersTab from "@/components/creator/CreatorUsersTab";
 import CreatorScheduleTab from "@/components/creator/CreatorScheduleTab";
@@ -224,6 +246,7 @@ const CreatorDashboard = () => {
             <p className="text-sm text-muted-foreground truncate">{creatorName}</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <SupportHeaderButton activeTab={activeTab} onClick={() => handleTabChange("support")} userType="creator" userRef={creatorName!} />
             <button
               onClick={() => handleTabChange("notifications")}
               aria-label={t("notifications" as any)}
@@ -320,6 +343,11 @@ const CreatorDashboard = () => {
           {activeTab === "account" && (
             <div className="animate-fade-in">
               <CreatorAccountTab creatorName={creatorName} />
+            </div>
+          )}
+          {activeTab === "support" && (
+            <div className="animate-fade-in">
+              <SupportChat userType="creator" userRef={creatorName} displayName={creatorName} />
             </div>
           )}
         </main>

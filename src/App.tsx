@@ -14,6 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import CreatorDashboard from "./pages/CreatorDashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import SchoolDashboard from "./pages/SchoolDashboard";
+import ModeratorDashboard from "./pages/ModeratorDashboard";
 import InstallPage from "./pages/InstallPage";
 import NotFound from "./pages/NotFound";
 
@@ -37,6 +38,7 @@ const App = () => (
                 <Route path="/creator" element={<CreatorDashboard />} />
                 <Route path="/teacher" element={<TeacherDashboard />} />
                 <Route path="/school" element={<SchoolDashboard />} />
+                <Route path="/moderator" element={<ModeratorDashboard />} />
                 <Route path="/install" element={<InstallPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
