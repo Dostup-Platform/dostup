@@ -131,7 +131,17 @@ type ListProps = {
 };
 
 const MaterialList = (props: ListProps) => {
-  const { items, draggingId, dragOverId, dropPosition, isNoop } = props;
+  const {
+    items,
+    draggingId,
+    dragOverId,
+    dropPosition,
+    isNoop,
+    setDragOverId,
+    setDropPosition,
+    setDraggingId,
+    onReorder,
+  } = props;
 
   const isGapLit = (gapIndex: number): boolean => {
     if (!draggingId || !dragOverId || !dropPosition || dropPosition === "inside") return false;
@@ -142,9 +152,49 @@ const MaterialList = (props: ListProps) => {
     return !isNoop(draggingId, dragOverId, dropPosition);
   };
 
-  const Gap = ({ index }: { index: number }) => (
-    <div className={`h-1 rounded transition-colors ${isGapLit(index) ? "bg-primary" : "bg-transparent"}`} />
-  );
+  // Привязываем гэп к карточке: гэп 0 = before items[0], остальные = after items[i-1].
+  const resolveGapTarget = (gapIndex: number): { targetId: string; position: "before" | "after" } | null => {
+    if (items.length === 0) return null;
+    if (gapIndex === 0) return { targetId: items[0].id, position: "before" };
+    const prev = items[gapIndex - 1];
+    if (!prev) return null;
+    return { targetId: prev.id, position: "after" };
+  };
+
+  const Gap = ({ index, tall }: { index: number; tall?: boolean }) => {
+    const lit = isGapLit(index);
+    const handleOver = (e: React.DragEvent) => {
+      if (!draggingId) return;
+      const t = resolveGapTarget(index);
+      if (!t || t.targetId === draggingId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      if (dragOverId !== t.targetId) setDragOverId(t.targetId);
+      if (dropPosition !== t.position) setDropPosition(t.position);
+    };
+    const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = draggingId;
+      const t = resolveGapTarget(index);
+      setDragOverId(null);
+      setDropPosition(null);
+      setDraggingId(null);
+      if (id && t && t.targetId !== id && !isNoop(id, t.targetId, t.position)) {
+        onReorder(id, t.targetId, t.position);
+      }
+    };
+    return (
+      <div
+        className={tall ? "relative py-3 -my-2" : "relative"}
+        onDragOver={handleOver}
+        onDrop={handleDrop}
+      >
+        <div className={`h-1 rounded transition-colors ${lit ? "bg-primary" : "bg-transparent"}`} />
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-1">
@@ -180,7 +230,7 @@ const MaterialList = (props: ListProps) => {
             isNoop={props.isNoop}
             draggedParentId={props.draggedParentId}
           />
-          <Gap index={i + 1} />
+          <Gap index={i + 1} tall={i === items.length - 1} />
         </div>
       ))}
     </div>
