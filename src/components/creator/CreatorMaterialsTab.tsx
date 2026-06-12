@@ -185,8 +185,15 @@ const MaterialList = (props: ListProps) => {
       }
     };
     return (
-      <div className="relative" onDragOver={handleOver} onDrop={handleDrop}>
-        <div className={`h-1 rounded transition-colors ${lit ? "bg-primary" : "bg-transparent"}`} />
+      <div
+        className="relative h-4"
+        onDragEnter={handleOver}
+        onDragOver={handleOver}
+        onDrop={handleDrop}
+      >
+        <div
+          className={`absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 rounded transition-colors ${lit ? "bg-primary" : "bg-transparent"}`}
+        />
       </div>
     );
   };
@@ -223,11 +230,12 @@ const MaterialList = (props: ListProps) => {
     return (
       <div
         className="relative"
-        style={{ minHeight: 48 }}
+        style={{ minHeight: 56 }}
+        onDragEnter={handleOver}
         onDragOver={handleOver}
         onDrop={handleDrop}
       >
-        <div className={`h-1 rounded transition-colors ${active ? "bg-primary" : "bg-transparent"}`} />
+        <div className={`absolute left-0 right-0 top-2 h-px rounded transition-colors ${active ? "bg-primary" : "bg-transparent"}`} />
       </div>
     );
   };
@@ -256,13 +264,13 @@ const MaterialList = (props: ListProps) => {
 
   return (
     <div
-      className="flex flex-col gap-1"
+      className="flex flex-col"
       onDragOver={handleContainerOver}
       onDrop={handleContainerDrop}
     >
       <Gap index={0} />
       {items.map((m, i) => (
-        <div key={m.id} className="flex flex-col gap-1">
+        <div key={m.id} className="flex flex-col">
           <MaterialNode
             material={m}
             getIcon={props.getIcon}
