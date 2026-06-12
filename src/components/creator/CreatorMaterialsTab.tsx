@@ -126,11 +126,10 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<"before" | "after" | "inside" | null>(null);
 
-  const draggedItem = draggingId ? list.find((m) => m.id === draggingId) ?? null : null;
-  const draggedParentId = draggedItem?.parent_id ?? null;
-
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
+  const draggedItem = draggingId ? list.find((m) => m.id === draggingId) ?? null : null;
+  const draggedParentId = draggedItem?.parent_id ?? null;
 
   const filtered = useMemo(() => {
     if (!q) return list.filter((m) => !m.parent_id);
