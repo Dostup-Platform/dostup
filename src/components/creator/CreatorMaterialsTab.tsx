@@ -163,43 +163,70 @@ const CreatorMaterialsReadOnlyList = ({ productId }: { productId: string }) => {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((m) => {
-            const isFolder = m.type === "folder";
-            const isOpen = expanded.has(m.id);
-            const kids = isFolder && !q ? childrenOf(m.id) : [];
-            return (
-              <div key={m.id}>
-                <Card
-                  className={isFolder && !q ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""}
-                  onClick={() => isFolder && !q && toggle(m.id)}
-                >
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      {getIcon(m.type)}
-                    </div>
-                    <p className="font-medium text-sm truncate flex-1" title={m.title}>{m.title}</p>
-                    {isFolder && !q && (
-                      isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    )}
-                  </CardContent>
-                </Card>
-                {isFolder && !q && isOpen && kids.length > 0 && (
-                  <div className="ml-4 mt-2 space-y-2 border-l-2 border-border pl-2">
-                    {kids.map((c) => (
-                      <Card key={c.id}>
-                        <CardContent className="p-3 flex items-center gap-3">
-                          <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            {getIcon(c.type)}
-                          </div>
-                          <p className="font-medium text-sm truncate flex-1" title={c.title}>{c.title}</p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {filtered.map((m) => (
+            <MaterialNode
+              key={m.id}
+              material={m}
+              childrenOf={childrenOf}
+              expanded={expanded}
+              toggle={toggle}
+              getIcon={getIcon}
+              flat={!!q}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MaterialNode = ({
+  material,
+  childrenOf,
+  expanded,
+  toggle,
+  getIcon,
+  flat,
+}: {
+  material: Mat;
+  childrenOf: (id: string) => Mat[];
+  expanded: Set<string>;
+  toggle: (id: string) => void;
+  getIcon: (type: string) => JSX.Element;
+  flat: boolean;
+}) => {
+  const isFolder = material.type === "folder";
+  const isOpen = expanded.has(material.id);
+  const kids = isFolder && !flat ? childrenOf(material.id) : [];
+  return (
+    <div>
+      <Card
+        className={isFolder && !flat ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""}
+        onClick={() => isFolder && !flat && toggle(material.id)}
+      >
+        <CardContent className="p-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
+            {getIcon(material.type)}
+          </div>
+          <p className="font-medium text-sm truncate flex-1" title={material.title}>{material.title}</p>
+          {isFolder && !flat && (
+            isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          )}
+        </CardContent>
+      </Card>
+      {isFolder && !flat && isOpen && kids.length > 0 && (
+        <div className="ml-4 mt-2 space-y-2 border-l-2 border-border pl-2">
+          {kids.map((c) => (
+            <MaterialNode
+              key={c.id}
+              material={c}
+              childrenOf={childrenOf}
+              expanded={expanded}
+              toggle={toggle}
+              getIcon={getIcon}
+              flat={flat}
+            />
+          ))}
         </div>
       )}
     </div>
