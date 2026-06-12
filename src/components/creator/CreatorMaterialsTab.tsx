@@ -161,7 +161,7 @@ const MaterialList = (props: ListProps) => {
     return { targetId: prev.id, position: "after" };
   };
 
-  const Gap = ({ index, tall }: { index: number; tall?: boolean }) => {
+  const Gap = ({ index }: { index: number }) => {
     const lit = isGapLit(index);
     const handleOver = (e: React.DragEvent) => {
       if (!draggingId) return;
@@ -186,18 +186,81 @@ const MaterialList = (props: ListProps) => {
       }
     };
     return (
-      <div
-        className={tall ? "relative py-3 -my-2" : "relative"}
-        onDragOver={handleOver}
-        onDrop={handleDrop}
-      >
+      <div className="relative" onDragOver={handleOver} onDrop={handleDrop}>
         <div className={`h-1 rounded transition-colors ${lit ? "bg-primary" : "bg-transparent"}`} />
       </div>
     );
   };
 
+  // Явная посадочная зона под последней карточкой. Большая по высоте,
+  // ловит дроп «в самый низ» даже если курсор попал в пустую область.
+  const EndZone = () => {
+    if (items.length === 0) return null;
+    const last = items[items.length - 1];
+    const active =
+      !!draggingId &&
+      dragOverId === last.id &&
+      dropPosition === "after" &&
+      !isNoop(draggingId, last.id, "after");
+    const handleOver = (e: React.DragEvent) => {
+      if (!draggingId || draggingId === last.id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      if (dragOverId !== last.id) setDragOverId(last.id);
+      if (dropPosition !== "after") setDropPosition("after");
+    };
+    const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = draggingId;
+      setDragOverId(null);
+      setDropPosition(null);
+      setDraggingId(null);
+      if (id && id !== last.id && !isNoop(id, last.id, "after")) {
+        onReorder(id, last.id, "after");
+      }
+    };
+    return (
+      <div
+        className="relative"
+        style={{ minHeight: 48 }}
+        onDragOver={handleOver}
+        onDrop={handleDrop}
+      >
+        <div className={`h-1 rounded transition-colors ${active ? "bg-primary" : "bg-transparent"}`} />
+      </div>
+    );
+  };
+
+  // Fallback на уровне контейнера: если дроп прошёл мимо карточек/гэпов
+  // (например, в пустое пространство ниже), сажаем под последний материал.
+  const handleContainerOver = (e: React.DragEvent) => {
+    if (!draggingId || items.length === 0) return;
+    const last = items[items.length - 1];
+    if (last.id === draggingId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+  const handleContainerDrop = (e: React.DragEvent) => {
+    if (!draggingId || items.length === 0) return;
+    e.preventDefault();
+    const id = draggingId;
+    const last = items[items.length - 1];
+    setDragOverId(null);
+    setDropPosition(null);
+    setDraggingId(null);
+    if (id !== last.id && !isNoop(id, last.id, "after")) {
+      onReorder(id, last.id, "after");
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-1">
+    <div
+      className="flex flex-col gap-1"
+      onDragOver={handleContainerOver}
+      onDrop={handleContainerDrop}
+    >
       <Gap index={0} />
       {items.map((m, i) => (
         <div key={m.id} className="flex flex-col gap-1">
@@ -230,9 +293,10 @@ const MaterialList = (props: ListProps) => {
             isNoop={props.isNoop}
             draggedParentId={props.draggedParentId}
           />
-          <Gap index={i + 1} tall={i === items.length - 1} />
+          {i < items.length - 1 && <Gap index={i + 1} />}
         </div>
       ))}
+      <EndZone />
     </div>
   );
 };
