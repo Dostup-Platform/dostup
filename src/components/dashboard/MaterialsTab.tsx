@@ -312,8 +312,8 @@ const MaterialsTab = () => {
     const needsOfficeAsync = material.type === "file" && material.file_url && !isLocked
       && isOfficeDocument(material.title) && isS3Path(material.file_url);
 
-    // Folder rendering
-    if (isFolder && children.length > 0) {
+    // Folder rendering (including empty folders)
+    if (isFolder) {
       return (
         <div key={material.id} className="animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
           <Card
