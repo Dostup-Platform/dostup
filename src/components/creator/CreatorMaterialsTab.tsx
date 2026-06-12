@@ -469,6 +469,7 @@ const MaterialNode = ({
               onOpen={onOpen}
               getFileUrl={getFileUrl}
               language={language}
+              onAddInFolder={onAddInFolder}
             />
           ))}
         </div>
