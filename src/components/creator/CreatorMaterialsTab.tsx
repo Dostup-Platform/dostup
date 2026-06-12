@@ -103,10 +103,9 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
 type ListProps = {
   items: Mat[];
   childrenOf: (id: string) => Mat[];
-  expanded: Set<string>;
-  toggle: (id: string) => void;
   getIcon: (type: string) => JSX.Element;
   flat: boolean;
+  onOpenFolder: (id: string) => void;
   renamingId: string | null;
   renameValue: string;
   setRenameValue: (v: string) => void;
@@ -267,10 +266,9 @@ const MaterialList = (props: ListProps) => {
           <MaterialNode
             material={m}
             childrenOf={props.childrenOf}
-            expanded={props.expanded}
-            toggle={props.toggle}
             getIcon={props.getIcon}
             flat={props.flat}
+            onOpenFolder={props.onOpenFolder}
             renamingId={props.renamingId}
             renameValue={props.renameValue}
             setRenameValue={props.setRenameValue}
