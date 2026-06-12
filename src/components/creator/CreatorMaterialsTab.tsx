@@ -317,7 +317,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   const updateMaterial = useUpdateMaterial();
   const deleteMaterial = useDeleteMaterial();
   const [query, setQuery] = useState("");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [folderPath, setFolderPath] = useState<Mat[]>([]);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deletingMat, setDeletingMat] = useState<Mat | null>(null);
@@ -329,11 +329,26 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   const list = allMaterials as Mat[];
   const draggedItem = draggingId ? list.find((m) => m.id === draggingId) ?? null : null;
   const draggedParentId = draggedItem?.parent_id ?? null;
+  const currentFolderId = folderPath.length > 0 ? folderPath[folderPath.length - 1].id : null;
+
+  // Если текущая папка была удалена/переименована-перемещена, чистим путь до валидной части.
+  useEffect(() => {
+    if (folderPath.length === 0) return;
+    const validPath: Mat[] = [];
+    let expectedParent: string | null = null;
+    for (const f of folderPath) {
+      const fresh = list.find((m) => m.id === f.id);
+      if (!fresh || fresh.type !== "folder" || (fresh.parent_id ?? null) !== expectedParent) break;
+      validPath.push(fresh);
+      expectedParent = fresh.id;
+    }
+    if (validPath.length !== folderPath.length) setFolderPath(validPath);
+  }, [list]);
 
   const filtered = useMemo(() => {
-    if (!q) return list.filter((m) => !m.parent_id);
+    if (!q) return list.filter((m) => (m.parent_id ?? null) === currentFolderId);
     return list.filter((m) => m.title.toLowerCase().includes(q));
-  }, [list, q]);
+  }, [list, q, currentFolderId]);
 
   const getIcon = (type: string) => {
     if (type === "folder") return <Folder className="w-4 h-4 text-primary" />;
@@ -342,12 +357,17 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
     return <FileText className="w-4 h-4 text-primary" />;
   };
 
-  const toggle = (id: string) =>
-    setExpanded((p) => {
-      const n = new Set(p);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
+  const openFolder = (id: string) => {
+    const folder = list.find((m) => m.id === id);
+    if (!folder || folder.type !== "folder") return;
+    setFolderPath((p) => [...p, folder]);
+  };
+
+  const goToPathIndex = (index: number) => {
+    // index = -1 → дом (корень)
+    if (index < 0) setFolderPath([]);
+    else setFolderPath((p) => p.slice(0, index + 1));
+  };
 
   const childrenOf = (id: string) => list.filter((m) => m.parent_id === id);
 
@@ -512,6 +532,36 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
     <div className="space-y-3">
       <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
 
+      {!q && folderPath.length > 0 && (
+        <nav className="flex items-center gap-1 text-sm flex-wrap" aria-label="breadcrumb">
+          <button
+            type="button"
+            onClick={() => goToPathIndex(-1)}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Home className="w-3.5 h-3.5" />
+            {language === "kk" ? "Үй" : "Дом"}
+          </button>
+          {folderPath.map((f, i) => (
+            <div key={f.id} className="flex items-center gap-1">
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+              {i === folderPath.length - 1 ? (
+                <span className="px-2 py-1 font-medium truncate max-w-[180px]" title={f.title}>{f.title}</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => goToPathIndex(i)}
+                  className="px-2 py-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors truncate max-w-[180px]"
+                  title={f.title}
+                >
+                  {f.title}
+                </button>
+              )}
+            </div>
+          ))}
+        </nav>
+      )}
+
       {filtered.length === 0 ? (
         <div className="text-center py-6 text-sm text-muted-foreground">
           {q
@@ -522,10 +572,9 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
         <MaterialList
           items={filtered}
           childrenOf={childrenOf}
-          expanded={expanded}
-          toggle={toggle}
           getIcon={getIcon}
           flat={!!q}
+          onOpenFolder={openFolder}
           renamingId={renamingId}
           renameValue={renameValue}
           setRenameValue={setRenameValue}
