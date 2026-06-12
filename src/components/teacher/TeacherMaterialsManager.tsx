@@ -750,6 +750,22 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      {material.type === "folder" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title={language === "ru" ? "Добавить в папку" : "Қалтаға қосу"}
+                          onClick={() => {
+                            setCurrentFolderId(material.id);
+                            setIsAdding(true);
+                            setEditingId(null);
+                            resetForm();
+                          }}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      )}
                       {material.type === "link" && material.file_url && (
                         <a
                           href={material.file_url}

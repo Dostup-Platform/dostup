@@ -40,6 +40,7 @@ import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
    isOpen: boolean;
    onClose: () => void;
    mode?: "add" | "edit";
+   initialFolderId?: string | null;
  }
  
  type ItemType = "file" | "folder" | "link" | "text";
@@ -85,7 +86,7 @@ interface FormData {
    content: string;
  }
  
- const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose, mode = "edit" }: ProductMaterialsManagerProps) => {
+ const ProductMaterialsManager = ({ productId, productTitle, isOpen, onClose, mode = "edit", initialFolderId = null }: ProductMaterialsManagerProps) => {
    const { t, language } = useLanguage();
    const { data: allMaterials = [], isLoading } = useProductMaterials(productId, { creatorOnly: true });
    const createMaterial = useCreateMaterial();
@@ -172,6 +173,13 @@ interface FormData {
       setIsAdding(false);
     }
   }, [isOpen, mode]);
+
+  // Apply initial folder when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentFolderId(initialFolderId ?? null);
+    }
+  }, [isOpen, initialFolderId]);
  
    // Filter materials for current folder level
    const materials = useMemo(() => {
