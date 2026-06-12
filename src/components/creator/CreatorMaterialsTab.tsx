@@ -122,6 +122,8 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deletingMat, setDeletingMat] = useState<Mat | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
@@ -146,6 +148,34 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
     });
 
   const childrenOf = (id: string) => list.filter((m) => m.parent_id === id);
+
+  const reorder = async (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+    const dragged = list.find((m) => m.id === draggedId);
+    const target = list.find((m) => m.id === targetId);
+    if (!dragged || !target) return;
+    if ((dragged.parent_id ?? null) !== (target.parent_id ?? null)) return;
+    const siblings = list
+      .filter((m) => (m.parent_id ?? null) === (dragged.parent_id ?? null))
+      .slice()
+      .sort((a, b) => {
+        const ai = list.indexOf(a);
+        const bi = list.indexOf(b);
+        return ai - bi;
+      });
+    const without = siblings.filter((s) => s.id !== draggedId);
+    const targetIdx = without.findIndex((s) => s.id === targetId);
+    without.splice(targetIdx, 0, dragged);
+    try {
+      await Promise.all(
+        without.map((s, i) =>
+          updateMaterial.mutateAsync({ id: s.id, productId, order_index: i })
+        )
+      );
+    } catch {
+      toast.error(language === "kk" ? "Қате" : "Ошибка");
+    }
+  };
 
   const getFileUrl = (m: Mat, action: 'view' | 'download'): string | null => {
     if (!m.file_url) return null;
@@ -248,6 +278,11 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
               getFileUrl={getFileUrl}
               language={language}
               onAddInFolder={onAddInFolder}
+              draggingId={draggingId}
+              dragOverId={dragOverId}
+              setDraggingId={setDraggingId}
+              setDragOverId={setDragOverId}
+              onReorder={reorder}
             />
           ))}
         </div>
