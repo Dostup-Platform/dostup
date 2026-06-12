@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Library, Plus, Edit, FolderCog, Folder, FileText, Link as LinkIcon, Type, ChevronDown, ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X, FolderPlus } from "lucide-react";
+import { Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type, ChevronDown, ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X, GripVertical } from "lucide-react";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
 import NoProductsEmptyState from "./NoProductsEmptyState";
@@ -33,7 +32,6 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const { language } = useLanguage();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [addParentId, setAddParentId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -72,34 +70,10 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
           selectedId={selectedId}
           onChange={(id) => setSelectedId(id)}
         />
-        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-          <PopoverTrigger asChild>
-            <Button size="sm" className="gap-2">
-              <FolderCog className="w-4 h-4" />
-              {language === "kk" ? "Материалдарды басқару" : "Управление материалами"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-48 p-2">
-            <div className="flex flex-col gap-1">
-              <Button
-                variant="ghost"
-                className="justify-start gap-2"
-                onClick={() => { setMode("add"); setMenuOpen(false); }}
-              >
-                <Plus className="w-4 h-4" />
-                {language === "kk" ? "Қосу" : "Добавить"}
-              </Button>
-              <Button
-                variant="ghost"
-                className="justify-start gap-2"
-                onClick={() => { setMode("edit"); setMenuOpen(false); }}
-              >
-                <Edit className="w-4 h-4" />
-                {language === "kk" ? "Өңдеу" : "Редактировать"}
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <Button size="sm" className="gap-2" onClick={() => { setAddParentId(null); setMode("add"); }}>
+          <Plus className="w-4 h-4" />
+          {language === "kk" ? "Материалдар қосу" : "Добавить материалы"}
+        </Button>
       </div>
 
       {product && (
@@ -148,6 +122,8 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deletingMat, setDeletingMat] = useState<Mat | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
@@ -172,6 +148,34 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
     });
 
   const childrenOf = (id: string) => list.filter((m) => m.parent_id === id);
+
+  const reorder = async (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+    const dragged = list.find((m) => m.id === draggedId);
+    const target = list.find((m) => m.id === targetId);
+    if (!dragged || !target) return;
+    if ((dragged.parent_id ?? null) !== (target.parent_id ?? null)) return;
+    const siblings = list
+      .filter((m) => (m.parent_id ?? null) === (dragged.parent_id ?? null))
+      .slice()
+      .sort((a, b) => {
+        const ai = list.indexOf(a);
+        const bi = list.indexOf(b);
+        return ai - bi;
+      });
+    const without = siblings.filter((s) => s.id !== draggedId);
+    const targetIdx = without.findIndex((s) => s.id === targetId);
+    without.splice(targetIdx, 0, dragged);
+    try {
+      await Promise.all(
+        without.map((s, i) =>
+          updateMaterial.mutateAsync({ id: s.id, productId, order_index: i })
+        )
+      );
+    } catch {
+      toast.error(language === "kk" ? "Қате" : "Ошибка");
+    }
+  };
 
   const getFileUrl = (m: Mat, action: 'view' | 'download'): string | null => {
     if (!m.file_url) return null;
@@ -274,6 +278,11 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
               getFileUrl={getFileUrl}
               language={language}
               onAddInFolder={onAddInFolder}
+              draggingId={draggingId}
+              dragOverId={dragOverId}
+              setDraggingId={setDraggingId}
+              setDragOverId={setDragOverId}
+              onReorder={reorder}
             />
           ))}
         </div>
@@ -320,6 +329,11 @@ const MaterialNode = ({
   getFileUrl,
   language,
   onAddInFolder,
+  draggingId,
+  dragOverId,
+  setDraggingId,
+  setDragOverId,
+  onReorder,
 }: {
   material: Mat;
   childrenOf: (id: string) => Mat[];
@@ -339,6 +353,11 @@ const MaterialNode = ({
   getFileUrl: (m: Mat, action: 'view' | 'download') => string | null;
   language: string;
   onAddInFolder: (folderId: string) => void;
+  draggingId: string | null;
+  dragOverId: string | null;
+  setDraggingId: (id: string | null) => void;
+  setDragOverId: (id: string | null) => void;
+  onReorder: (draggedId: string, targetId: string) => void;
 }) => {
   const isFolder = material.type === "folder";
   const isOpen = expanded.has(material.id);
@@ -346,6 +365,7 @@ const MaterialNode = ({
   const isRenaming = renamingId === material.id;
   const downloadUrl = material.type === "file" && material.file_url && material.allow_download !== false
     ? getFileUrl(material, 'download') : null;
+  const isDragOver = dragOverId === material.id && draggingId && draggingId !== material.id;
 
   const handleCardClick = () => {
     if (isRenaming) return;
@@ -356,10 +376,40 @@ const MaterialNode = ({
   return (
     <div>
       <Card
-        className={!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""}
+        className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${isDragOver ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
         onClick={handleCardClick}
+        draggable={!isRenaming && !flat}
+        onDragStart={(e) => {
+          e.stopPropagation();
+          setDraggingId(material.id);
+          e.dataTransfer.effectAllowed = "move";
+          try { e.dataTransfer.setData("text/plain", material.id); } catch {}
+        }}
+        onDragOver={(e) => {
+          if (!draggingId || draggingId === material.id) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "move";
+          if (dragOverId !== material.id) setDragOverId(material.id);
+        }}
+        onDragLeave={(e) => {
+          e.stopPropagation();
+          if (dragOverId === material.id) setDragOverId(null);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = draggingId;
+          setDragOverId(null);
+          setDraggingId(null);
+          if (id && id !== material.id) onReorder(id, material.id);
+        }}
+        onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
       >
-        <CardContent className="p-3 flex items-center gap-3">
+        <CardContent className="p-3 flex items-center gap-2">
+          {!flat && (
+            <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0 cursor-grab" />
+          )}
           <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
             {getIcon(material.type)}
           </div>
@@ -384,16 +434,16 @@ const MaterialNode = ({
             </form>
           ) : (
             <>
-              <div className="flex items-center gap-1 min-w-0 flex-1">
+              <div className="flex items-center gap-0.5 min-w-0 flex-1">
                 <p className="font-medium text-sm truncate" title={material.title}>{material.title}</p>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 min-h-0 flex-shrink-0 text-muted-foreground"
+                  className="h-6 w-6 min-h-0 flex-shrink-0 text-muted-foreground"
                   title={language === "kk" ? "Атын өзгерту" : "Переименовать"}
                   onClick={(e) => { e.stopPropagation(); startRename(material); }}
                 >
-                  <Pencil className="w-3.5 h-3.5" />
+                  <Pencil className="w-3 h-3" />
                 </Button>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -470,6 +520,11 @@ const MaterialNode = ({
               getFileUrl={getFileUrl}
               language={language}
               onAddInFolder={onAddInFolder}
+              draggingId={draggingId}
+              dragOverId={dragOverId}
+              setDraggingId={setDraggingId}
+              setDragOverId={setDragOverId}
+              onReorder={onReorder}
             />
           ))}
         </div>
