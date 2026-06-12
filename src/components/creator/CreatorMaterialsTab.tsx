@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type, ChevronDown, ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X, GripVertical } from "lucide-react";
+import { Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type, ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X, GripVertical, Home } from "lucide-react";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
 import NoProductsEmptyState from "./NoProductsEmptyState";
