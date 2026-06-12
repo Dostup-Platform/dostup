@@ -100,6 +100,93 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   );
 };
 
+type ListProps = {
+  items: Mat[];
+  childrenOf: (id: string) => Mat[];
+  expanded: Set<string>;
+  toggle: (id: string) => void;
+  getIcon: (type: string) => JSX.Element;
+  flat: boolean;
+  renamingId: string | null;
+  renameValue: string;
+  setRenameValue: (v: string) => void;
+  startRename: (m: Mat) => void;
+  cancelRename: () => void;
+  submitRename: () => void;
+  isSavingRename: boolean;
+  onDelete: (m: Mat) => void;
+  onOpen: (m: Mat) => void;
+  getFileUrl: (m: Mat, action: 'view' | 'download') => string | null;
+  language: string;
+  onAddInFolder: (folderId: string) => void;
+  draggingId: string | null;
+  dragOverId: string | null;
+  dropPosition: "before" | "after" | "inside" | null;
+  setDraggingId: (id: string | null) => void;
+  setDragOverId: (id: string | null) => void;
+  setDropPosition: (p: "before" | "after" | "inside" | null) => void;
+  onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
+  isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
+  draggedParentId: string | null;
+};
+
+const MaterialList = (props: ListProps) => {
+  const { items, draggingId, dragOverId, dropPosition, isNoop } = props;
+
+  const isGapLit = (gapIndex: number): boolean => {
+    if (!draggingId || !dragOverId || !dropPosition || dropPosition === "inside") return false;
+    const overIdx = items.findIndex((it) => it.id === dragOverId);
+    if (overIdx === -1) return false;
+    const targetGap = dropPosition === "before" ? overIdx : overIdx + 1;
+    if (targetGap !== gapIndex) return false;
+    return !isNoop(draggingId, dragOverId, dropPosition);
+  };
+
+  const Gap = ({ index }: { index: number }) => (
+    <div className={`h-1 rounded transition-colors ${isGapLit(index) ? "bg-primary" : "bg-transparent"}`} />
+  );
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Gap index={0} />
+      {items.map((m, i) => (
+        <div key={m.id} className="flex flex-col gap-1">
+          <MaterialNode
+            material={m}
+            childrenOf={props.childrenOf}
+            expanded={props.expanded}
+            toggle={props.toggle}
+            getIcon={props.getIcon}
+            flat={props.flat}
+            renamingId={props.renamingId}
+            renameValue={props.renameValue}
+            setRenameValue={props.setRenameValue}
+            startRename={props.startRename}
+            cancelRename={props.cancelRename}
+            submitRename={props.submitRename}
+            isSavingRename={props.isSavingRename}
+            onDelete={props.onDelete}
+            onOpen={props.onOpen}
+            getFileUrl={props.getFileUrl}
+            language={props.language}
+            onAddInFolder={props.onAddInFolder}
+            draggingId={props.draggingId}
+            dragOverId={props.dragOverId}
+            dropPosition={props.dropPosition}
+            setDraggingId={props.setDraggingId}
+            setDragOverId={props.setDragOverId}
+            setDropPosition={props.setDropPosition}
+            onReorder={props.onReorder}
+            isNoop={props.isNoop}
+            draggedParentId={props.draggedParentId}
+          />
+          <Gap index={i + 1} />
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export default CreatorMaterialsTab;
 
 interface Mat {
@@ -128,6 +215,8 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
 
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
+  const draggedItem = draggingId ? list.find((m) => m.id === draggingId) ?? null : null;
+  const draggedParentId = draggedItem?.parent_id ?? null;
 
   const filtered = useMemo(() => {
     if (!q) return list.filter((m) => !m.parent_id);
@@ -318,39 +407,35 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
             : language === "kk" ? "Әзірге материалдар жоқ" : "Пока нет материалов"}
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((m) => (
-            <MaterialNode
-              key={m.id}
-              material={m}
-              childrenOf={childrenOf}
-              expanded={expanded}
-              toggle={toggle}
-              getIcon={getIcon}
-              flat={!!q}
-              renamingId={renamingId}
-              renameValue={renameValue}
-              setRenameValue={setRenameValue}
-              startRename={startRename}
-              cancelRename={cancelRename}
-              submitRename={submitRename}
-              isSavingRename={updateMaterial.isPending}
-              onDelete={(mat) => setDeletingMat(mat)}
-              onOpen={openMaterial}
-              getFileUrl={getFileUrl}
-              language={language}
-              onAddInFolder={onAddInFolder}
-              draggingId={draggingId}
-              dragOverId={dragOverId}
-              dropPosition={dropPosition}
-              setDraggingId={setDraggingId}
-              setDragOverId={setDragOverId}
-              setDropPosition={setDropPosition}
-              onReorder={reorder}
-              isNoop={isNoop}
-            />
-          ))}
-        </div>
+        <MaterialList
+          items={filtered}
+          childrenOf={childrenOf}
+          expanded={expanded}
+          toggle={toggle}
+          getIcon={getIcon}
+          flat={!!q}
+          renamingId={renamingId}
+          renameValue={renameValue}
+          setRenameValue={setRenameValue}
+          startRename={startRename}
+          cancelRename={cancelRename}
+          submitRename={submitRename}
+          isSavingRename={updateMaterial.isPending}
+          onDelete={(mat) => setDeletingMat(mat)}
+          onOpen={openMaterial}
+          getFileUrl={getFileUrl}
+          language={language}
+          onAddInFolder={onAddInFolder}
+          draggingId={draggingId}
+          dragOverId={dragOverId}
+          dropPosition={dropPosition}
+          setDraggingId={setDraggingId}
+          setDragOverId={setDragOverId}
+          setDropPosition={setDropPosition}
+          onReorder={reorder}
+          isNoop={isNoop}
+          draggedParentId={draggedParentId}
+        />
       )}
 
       <AlertDialog open={!!deletingMat} onOpenChange={(o) => !o && setDeletingMat(null)}>
@@ -402,6 +487,7 @@ const MaterialNode = ({
   setDropPosition,
   onReorder,
   isNoop,
+  draggedParentId,
 }: {
   material: Mat;
   childrenOf: (id: string) => Mat[];
@@ -429,6 +515,7 @@ const MaterialNode = ({
   setDropPosition: (p: "before" | "after" | "inside" | null) => void;
   onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
   isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
+  draggedParentId: string | null;
 }) => {
   const isFolder = material.type === "folder";
   const isOpen = expanded.has(material.id);
@@ -441,8 +528,6 @@ const MaterialNode = ({
     ? isNoop(draggingId!, material.id, dropPosition)
     : false;
   const showInsideRing = isActiveTarget && dropPosition === "inside" && isFolder && !positionIsNoop;
-  const showLineBefore = isActiveTarget && dropPosition === "before" && !positionIsNoop;
-  const showLineAfter = isActiveTarget && dropPosition === "after" && !positionIsNoop;
 
   const handleCardClick = () => {
     if (isRenaming) return;
@@ -452,9 +537,6 @@ const MaterialNode = ({
 
   return (
     <div>
-      <div
-        className={`h-1 -my-0.5 rounded transition-colors ${showLineBefore ? "bg-primary" : "bg-transparent"}`}
-      />
       <Card
         className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${showInsideRing ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
         onClick={handleCardClick}
@@ -474,7 +556,8 @@ const MaterialNode = ({
           const y = e.clientY - rect.top;
           const h = rect.height;
           let pos: "before" | "after" | "inside";
-          if (isFolder) {
+          const suppressInside = isFolder && draggedParentId === material.id;
+          if (isFolder && !suppressInside) {
             if (y < h * 0.25) pos = "before";
             else if (y > h * 0.75) pos = "after";
             else pos = "inside";
@@ -600,42 +683,37 @@ const MaterialNode = ({
           )}
         </CardContent>
       </Card>
-      <div
-        className={`h-1 -my-0.5 rounded transition-colors ${showLineAfter ? "bg-primary" : "bg-transparent"}`}
-      />
       {isFolder && !flat && isOpen && kids.length > 0 && (
-        <div className="ml-4 mt-2 space-y-2 border-l-2 border-border pl-2">
-          {kids.map((c) => (
-            <MaterialNode
-              key={c.id}
-              material={c}
-              childrenOf={childrenOf}
-              expanded={expanded}
-              toggle={toggle}
-              getIcon={getIcon}
-              flat={flat}
-              renamingId={renamingId}
-              renameValue={renameValue}
-              setRenameValue={setRenameValue}
-              startRename={startRename}
-              cancelRename={cancelRename}
-              submitRename={submitRename}
-              isSavingRename={isSavingRename}
-              onDelete={onDelete}
-              onOpen={onOpen}
-              getFileUrl={getFileUrl}
-              language={language}
-              onAddInFolder={onAddInFolder}
-              draggingId={draggingId}
-              dragOverId={dragOverId}
-              dropPosition={dropPosition}
-              setDraggingId={setDraggingId}
-              setDragOverId={setDragOverId}
-              setDropPosition={setDropPosition}
-              onReorder={onReorder}
-              isNoop={isNoop}
-            />
-          ))}
+        <div className="ml-4 mt-2 border-l-2 border-border pl-2">
+          <MaterialList
+            items={kids}
+            childrenOf={childrenOf}
+            expanded={expanded}
+            toggle={toggle}
+            getIcon={getIcon}
+            flat={flat}
+            renamingId={renamingId}
+            renameValue={renameValue}
+            setRenameValue={setRenameValue}
+            startRename={startRename}
+            cancelRename={cancelRename}
+            submitRename={submitRename}
+            isSavingRename={isSavingRename}
+            onDelete={onDelete}
+            onOpen={onOpen}
+            getFileUrl={getFileUrl}
+            language={language}
+            onAddInFolder={onAddInFolder}
+            draggingId={draggingId}
+            dragOverId={dragOverId}
+            dropPosition={dropPosition}
+            setDraggingId={setDraggingId}
+            setDragOverId={setDragOverId}
+            setDropPosition={setDropPosition}
+            onReorder={onReorder}
+            isNoop={isNoop}
+            draggedParentId={draggedParentId}
+          />
         </div>
       )}
     </div>
