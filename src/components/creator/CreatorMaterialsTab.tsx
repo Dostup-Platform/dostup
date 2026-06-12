@@ -124,6 +124,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   const [deletingMat, setDeletingMat] = useState<Mat | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<"before" | "after" | "inside" | null>(null);
 
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
@@ -149,28 +150,59 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
 
   const childrenOf = (id: string) => list.filter((m) => m.parent_id === id);
 
-  const reorder = async (draggedId: string, targetId: string) => {
+  const isDescendant = (parentId: string, maybeChildId: string): boolean => {
+    let cur = list.find((m) => m.id === maybeChildId);
+    while (cur?.parent_id) {
+      if (cur.parent_id === parentId) return true;
+      cur = list.find((m) => m.id === cur!.parent_id);
+    }
+    return false;
+  };
+
+  const reorder = async (
+    draggedId: string,
+    targetId: string,
+    position: "before" | "after" | "inside",
+  ) => {
     if (draggedId === targetId) return;
     const dragged = list.find((m) => m.id === draggedId);
     const target = list.find((m) => m.id === targetId);
     if (!dragged || !target) return;
-    if ((dragged.parent_id ?? null) !== (target.parent_id ?? null)) return;
+    if (dragged.type === "folder" && isDescendant(draggedId, targetId)) return;
+
+    let newParent: string | null;
+    if (position === "inside") {
+      if (target.type !== "folder") return;
+      newParent = target.id;
+    } else {
+      newParent = target.parent_id ?? null;
+    }
+
     const siblings = list
-      .filter((m) => (m.parent_id ?? null) === (dragged.parent_id ?? null))
+      .filter((m) => (m.parent_id ?? null) === newParent && m.id !== draggedId)
       .slice()
-      .sort((a, b) => {
-        const ai = list.indexOf(a);
-        const bi = list.indexOf(b);
-        return ai - bi;
-      });
-    const without = siblings.filter((s) => s.id !== draggedId);
-    const targetIdx = without.findIndex((s) => s.id === targetId);
-    without.splice(targetIdx, 0, dragged);
+      .sort((a, b) => list.indexOf(a) - list.indexOf(b));
+
+    let insertIdx: number;
+    if (position === "inside") {
+      insertIdx = siblings.length;
+    } else {
+      const ti = siblings.findIndex((s) => s.id === targetId);
+      insertIdx = position === "before" ? ti : ti + 1;
+      if (insertIdx < 0) insertIdx = siblings.length;
+    }
+    siblings.splice(insertIdx, 0, dragged);
+
     try {
       await Promise.all(
-        without.map((s, i) =>
-          updateMaterial.mutateAsync({ id: s.id, productId, order_index: i })
-        )
+        siblings.map((s, i) =>
+          updateMaterial.mutateAsync({
+            id: s.id,
+            productId,
+            order_index: i,
+            ...(s.id === draggedId ? { parent_id: newParent } : {}),
+          }),
+        ),
       );
     } catch {
       toast.error(language === "kk" ? "Қате" : "Ошибка");
@@ -280,8 +312,10 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
               onAddInFolder={onAddInFolder}
               draggingId={draggingId}
               dragOverId={dragOverId}
+              dropPosition={dropPosition}
               setDraggingId={setDraggingId}
               setDragOverId={setDragOverId}
+              setDropPosition={setDropPosition}
               onReorder={reorder}
             />
           ))}
