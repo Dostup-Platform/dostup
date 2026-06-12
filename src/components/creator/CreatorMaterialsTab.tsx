@@ -3,7 +3,7 @@ import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Library, Plus, Edit, FolderCog, Folder, FileText, Link as LinkIcon, Type, ChevronDown, ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X } from "lucide-react";
+import { Loader2, Library, Plus, Edit, FolderCog, Folder, FileText, Link as LinkIcon, Type, ChevronDown, ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X, FolderPlus } from "lucide-react";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
 import NoProductsEmptyState from "./NoProductsEmptyState";
@@ -319,6 +319,7 @@ const MaterialNode = ({
   onOpen,
   getFileUrl,
   language,
+  onAddInFolder,
 }: {
   material: Mat;
   childrenOf: (id: string) => Mat[];
@@ -337,6 +338,7 @@ const MaterialNode = ({
   onOpen: (m: Mat) => void;
   getFileUrl: (m: Mat, action: 'view' | 'download') => string | null;
   language: string;
+  onAddInFolder: (folderId: string) => void;
 }) => {
   const isFolder = material.type === "folder";
   const isOpen = expanded.has(material.id);
@@ -382,17 +384,30 @@ const MaterialNode = ({
             </form>
           ) : (
             <>
-              <p className="font-medium text-sm truncate flex-1" title={material.title}>{material.title}</p>
-              <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-1 min-w-0 flex-1">
+                <p className="font-medium text-sm truncate" title={material.title}>{material.title}</p>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 min-h-0"
+                  className="h-7 w-7 min-h-0 flex-shrink-0 text-muted-foreground"
                   title={language === "kk" ? "Атын өзгерту" : "Переименовать"}
-                  onClick={() => startRename(material)}
+                  onClick={(e) => { e.stopPropagation(); startRename(material); }}
                 >
-                  <Pencil className="w-4 h-4" />
+                  <Pencil className="w-3.5 h-3.5" />
                 </Button>
+              </div>
+              <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                {isFolder && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 min-h-0"
+                    title={language === "kk" ? "Папкаға қосу" : "Добавить в папку"}
+                    onClick={() => onAddInFolder(material.id)}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                )}
                 {downloadUrl && (
                   <a
                     href={downloadUrl}
