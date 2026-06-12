@@ -329,6 +329,11 @@ const MaterialNode = ({
   getFileUrl,
   language,
   onAddInFolder,
+  draggingId,
+  dragOverId,
+  setDraggingId,
+  setDragOverId,
+  onReorder,
 }: {
   material: Mat;
   childrenOf: (id: string) => Mat[];
@@ -348,6 +353,11 @@ const MaterialNode = ({
   getFileUrl: (m: Mat, action: 'view' | 'download') => string | null;
   language: string;
   onAddInFolder: (folderId: string) => void;
+  draggingId: string | null;
+  dragOverId: string | null;
+  setDraggingId: (id: string | null) => void;
+  setDragOverId: (id: string | null) => void;
+  onReorder: (draggedId: string, targetId: string) => void;
 }) => {
   const isFolder = material.type === "folder";
   const isOpen = expanded.has(material.id);
@@ -355,6 +365,7 @@ const MaterialNode = ({
   const isRenaming = renamingId === material.id;
   const downloadUrl = material.type === "file" && material.file_url && material.allow_download !== false
     ? getFileUrl(material, 'download') : null;
+  const isDragOver = dragOverId === material.id && draggingId && draggingId !== material.id;
 
   const handleCardClick = () => {
     if (isRenaming) return;
@@ -365,10 +376,40 @@ const MaterialNode = ({
   return (
     <div>
       <Card
-        className={!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""}
+        className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${isDragOver ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
         onClick={handleCardClick}
+        draggable={!isRenaming && !flat}
+        onDragStart={(e) => {
+          e.stopPropagation();
+          setDraggingId(material.id);
+          e.dataTransfer.effectAllowed = "move";
+          try { e.dataTransfer.setData("text/plain", material.id); } catch {}
+        }}
+        onDragOver={(e) => {
+          if (!draggingId || draggingId === material.id) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "move";
+          if (dragOverId !== material.id) setDragOverId(material.id);
+        }}
+        onDragLeave={(e) => {
+          e.stopPropagation();
+          if (dragOverId === material.id) setDragOverId(null);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = draggingId;
+          setDragOverId(null);
+          setDraggingId(null);
+          if (id && id !== material.id) onReorder(id, material.id);
+        }}
+        onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
       >
-        <CardContent className="p-3 flex items-center gap-3">
+        <CardContent className="p-3 flex items-center gap-2">
+          {!flat && (
+            <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0 cursor-grab" />
+          )}
           <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
             {getIcon(material.type)}
           </div>
@@ -393,16 +434,16 @@ const MaterialNode = ({
             </form>
           ) : (
             <>
-              <div className="flex items-center gap-1 min-w-0 flex-1">
+              <div className="flex items-center gap-0.5 min-w-0 flex-1">
                 <p className="font-medium text-sm truncate" title={material.title}>{material.title}</p>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 min-h-0 flex-shrink-0 text-muted-foreground"
+                  className="h-6 w-6 min-h-0 flex-shrink-0 text-muted-foreground"
                   title={language === "kk" ? "Атын өзгерту" : "Переименовать"}
                   onClick={(e) => { e.stopPropagation(); startRename(material); }}
                 >
-                  <Pencil className="w-3.5 h-3.5" />
+                  <Pencil className="w-3 h-3" />
                 </Button>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
