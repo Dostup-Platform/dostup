@@ -623,11 +623,9 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
 
 const MaterialNode = ({
   material,
-  childrenOf,
-  expanded,
-  toggle,
   getIcon,
   flat,
+  onOpenFolder,
   renamingId,
   renameValue,
   setRenameValue,
@@ -651,11 +649,9 @@ const MaterialNode = ({
   draggedParentId,
 }: {
   material: Mat;
-  childrenOf: (id: string) => Mat[];
-  expanded: Set<string>;
-  toggle: (id: string) => void;
   getIcon: (type: string) => JSX.Element;
   flat: boolean;
+  onOpenFolder: (id: string) => void;
   renamingId: string | null;
   renameValue: string;
   setRenameValue: (v: string) => void;
@@ -679,8 +675,6 @@ const MaterialNode = ({
   draggedParentId: string | null;
 }) => {
   const isFolder = material.type === "folder";
-  const isOpen = expanded.has(material.id);
-  const kids = isFolder && !flat ? childrenOf(material.id) : [];
   const isRenaming = renamingId === material.id;
   const downloadUrl = material.type === "file" && material.file_url && material.allow_download !== false
     ? getFileUrl(material, 'download') : null;
@@ -692,7 +686,7 @@ const MaterialNode = ({
 
   const handleCardClick = () => {
     if (isRenaming) return;
-    if (isFolder && !flat) { toggle(material.id); return; }
+    if (isFolder && !flat) { onOpenFolder(material.id); return; }
     if (!isFolder) onOpen(material);
   };
 
@@ -837,46 +831,13 @@ const MaterialNode = ({
                   <Trash2 className="w-4 h-4" />
                 </Button>
                 {isFolder && !flat && (
-                  isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground ml-1" /> : <ChevronRight className="w-4 h-4 text-muted-foreground ml-1" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground ml-1" />
                 )}
               </div>
             </>
           )}
         </CardContent>
       </Card>
-      {isFolder && !flat && isOpen && kids.length > 0 && (
-        <div className="ml-4 mt-2 border-l-2 border-border pl-2">
-          <MaterialList
-            items={kids}
-            childrenOf={childrenOf}
-            expanded={expanded}
-            toggle={toggle}
-            getIcon={getIcon}
-            flat={flat}
-            renamingId={renamingId}
-            renameValue={renameValue}
-            setRenameValue={setRenameValue}
-            startRename={startRename}
-            cancelRename={cancelRename}
-            submitRename={submitRename}
-            isSavingRename={isSavingRename}
-            onDelete={onDelete}
-            onOpen={onOpen}
-            getFileUrl={getFileUrl}
-            language={language}
-            onAddInFolder={onAddInFolder}
-            draggingId={draggingId}
-            dragOverId={dragOverId}
-            dropPosition={dropPosition}
-            setDraggingId={setDraggingId}
-            setDragOverId={setDragOverId}
-            setDropPosition={setDropPosition}
-            onReorder={onReorder}
-            isNoop={isNoop}
-            draggedParentId={draggedParentId}
-          />
-        </div>
-      )}
     </div>
   );
 };
