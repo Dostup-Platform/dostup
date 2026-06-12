@@ -520,6 +520,11 @@ const MaterialNode = ({
               getFileUrl={getFileUrl}
               language={language}
               onAddInFolder={onAddInFolder}
+              draggingId={draggingId}
+              dragOverId={dragOverId}
+              setDraggingId={setDraggingId}
+              setDragOverId={setDragOverId}
+              onReorder={onReorder}
             />
           ))}
         </div>
