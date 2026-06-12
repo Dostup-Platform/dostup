@@ -9,6 +9,7 @@ import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
+import MaterialsProtectionNotice from "@/components/materials/MaterialsProtectionNotice";
 
 const getIcon = (type: string) => {
   switch (type) {
@@ -475,6 +476,7 @@ const MaterialsTab = () => {
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-semibold text-foreground">{t("myMaterials")}</h2>
+      <MaterialsProtectionNotice />
 
       {hasNoMaterials ? (
         <div className="text-center py-12">

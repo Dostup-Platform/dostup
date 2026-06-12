@@ -10,6 +10,7 @@ import NoProductsEmptyState from "./NoProductsEmptyState";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useProductMaterials } from "@/hooks/useMaterials";
 import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
+import MaterialsProtectionNotice from "@/components/materials/MaterialsProtectionNotice";
 import { useMemo } from "react";
 
 interface Props { creatorName: string; onGoToProducts?: () => void; }
@@ -153,6 +154,7 @@ const CreatorMaterialsReadOnlyList = ({ productId }: { productId: string }) => {
 
   return (
     <div className="space-y-3">
+      <MaterialsProtectionNotice />
       <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
 
       {filtered.length === 0 ? (
