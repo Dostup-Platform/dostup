@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -407,7 +407,7 @@ const MaterialNode = ({
   const showInsideRing = isActiveTarget && dropPosition === "inside" && isFolder;
   const showLineBefore = isActiveTarget && dropPosition === "before";
   const showLineAfter = isActiveTarget && dropPosition === "after";
-  const insideTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const insideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearInsideTimer = () => {
     if (insideTimerRef.current) {
@@ -447,15 +447,24 @@ const MaterialNode = ({
           const h = rect.height;
           let pos: "before" | "after" | "inside";
           if (isFolder) {
-            if (y < h * 0.25) pos = "before";
-            else if (y > h * 0.75) pos = "after";
-            else pos = "inside";
+            if (y < h * 0.3) pos = "before";
+            else if (y > h * 0.7) pos = "after";
+            else {
+              // Middle of folder: keep current 'after' until long-hover promotes to 'inside'
+              pos = dropPosition === "inside" && dragOverId === material.id ? "inside" : "after";
+              if (!insideTimerRef.current && dropPosition !== "inside") {
+                insideTimerRef.current = setTimeout(() => {
+                  setDropPosition("inside");
+                  insideTimerRef.current = null;
+                }, 600);
+              }
+            }
           } else {
             pos = y < h / 2 ? "before" : "after";
           }
           if (dragOverId !== material.id) setDragOverId(material.id);
           if (dropPosition !== pos) setDropPosition(pos);
-          if (pos !== "inside") clearInsideTimer();
+          if (pos !== "inside" && !(isFolder && y >= h * 0.3 && y <= h * 0.7)) clearInsideTimer();
         }}
         onDragLeave={(e) => {
           e.stopPropagation();
