@@ -265,7 +265,6 @@ const MaterialList = (props: ListProps) => {
         <div key={m.id} className="flex flex-col gap-1">
           <MaterialNode
             material={m}
-            childrenOf={props.childrenOf}
             getIcon={props.getIcon}
             flat={props.flat}
             onOpenFolder={props.onOpenFolder}
