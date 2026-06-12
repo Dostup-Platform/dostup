@@ -448,9 +448,6 @@ const MaterialNode = ({
 
   return (
     <div>
-      <div
-        className={`h-1 -my-0.5 rounded transition-colors ${showLineBefore ? "bg-primary" : "bg-transparent"}`}
-      />
       <Card
         className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${showInsideRing ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
         onClick={handleCardClick}
@@ -470,7 +467,8 @@ const MaterialNode = ({
           const y = e.clientY - rect.top;
           const h = rect.height;
           let pos: "before" | "after" | "inside";
-          if (isFolder) {
+          const suppressInside = isFolder && draggedParentId === material.id;
+          if (isFolder && !suppressInside) {
             if (y < h * 0.25) pos = "before";
             else if (y > h * 0.75) pos = "after";
             else pos = "inside";
@@ -596,42 +594,37 @@ const MaterialNode = ({
           )}
         </CardContent>
       </Card>
-      <div
-        className={`h-1 -my-0.5 rounded transition-colors ${showLineAfter ? "bg-primary" : "bg-transparent"}`}
-      />
       {isFolder && !flat && isOpen && kids.length > 0 && (
-        <div className="ml-4 mt-2 space-y-2 border-l-2 border-border pl-2">
-          {kids.map((c) => (
-            <MaterialNode
-              key={c.id}
-              material={c}
-              childrenOf={childrenOf}
-              expanded={expanded}
-              toggle={toggle}
-              getIcon={getIcon}
-              flat={flat}
-              renamingId={renamingId}
-              renameValue={renameValue}
-              setRenameValue={setRenameValue}
-              startRename={startRename}
-              cancelRename={cancelRename}
-              submitRename={submitRename}
-              isSavingRename={isSavingRename}
-              onDelete={onDelete}
-              onOpen={onOpen}
-              getFileUrl={getFileUrl}
-              language={language}
-              onAddInFolder={onAddInFolder}
-              draggingId={draggingId}
-              dragOverId={dragOverId}
-              dropPosition={dropPosition}
-              setDraggingId={setDraggingId}
-              setDragOverId={setDragOverId}
-              setDropPosition={setDropPosition}
-              onReorder={onReorder}
-              isNoop={isNoop}
-            />
-          ))}
+        <div className="ml-4 mt-2 border-l-2 border-border pl-2">
+          <MaterialList
+            items={kids}
+            childrenOf={childrenOf}
+            expanded={expanded}
+            toggle={toggle}
+            getIcon={getIcon}
+            flat={flat}
+            renamingId={renamingId}
+            renameValue={renameValue}
+            setRenameValue={setRenameValue}
+            startRename={startRename}
+            cancelRename={cancelRename}
+            submitRename={submitRename}
+            isSavingRename={isSavingRename}
+            onDelete={onDelete}
+            onOpen={onOpen}
+            getFileUrl={getFileUrl}
+            language={language}
+            onAddInFolder={onAddInFolder}
+            draggingId={draggingId}
+            dragOverId={dragOverId}
+            dropPosition={dropPosition}
+            setDraggingId={setDraggingId}
+            setDragOverId={setDragOverId}
+            setDropPosition={setDropPosition}
+            onReorder={onReorder}
+            isNoop={isNoop}
+            draggedParentId={draggedParentId}
+          />
         </div>
       )}
     </div>
