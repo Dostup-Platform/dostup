@@ -439,8 +439,6 @@ const MaterialNode = ({
     ? isNoop(draggingId!, material.id, dropPosition)
     : false;
   const showInsideRing = isActiveTarget && dropPosition === "inside" && isFolder && !positionIsNoop;
-  const showLineBefore = isActiveTarget && dropPosition === "before" && !positionIsNoop;
-  const showLineAfter = isActiveTarget && dropPosition === "after" && !positionIsNoop;
 
   const handleCardClick = () => {
     if (isRenaming) return;
