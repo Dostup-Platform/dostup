@@ -400,6 +400,7 @@ const MaterialNode = ({
   setDropPosition,
   onReorder,
   isNoop,
+  draggedParentId,
 }: {
   material: Mat;
   childrenOf: (id: string) => Mat[];
@@ -427,6 +428,7 @@ const MaterialNode = ({
   setDropPosition: (p: "before" | "after" | "inside" | null) => void;
   onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
   isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
+  draggedParentId: string | null;
 }) => {
   const isFolder = material.type === "folder";
   const isOpen = expanded.has(material.id);
