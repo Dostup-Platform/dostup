@@ -34,6 +34,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [addParentId, setAddParentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedId && products.length > 0) {
@@ -102,7 +103,13 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
       </div>
 
       {product && (
-        <CreatorMaterialsReadOnlyList productId={product.id} />
+        <CreatorMaterialsReadOnlyList
+          productId={product.id}
+          onAddInFolder={(folderId) => {
+            setAddParentId(folderId);
+            setMode("add");
+          }}
+        />
       )}
 
       {product && mode && (
@@ -111,7 +118,8 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
           productTitle={product.title}
           isOpen={!!mode}
           mode={mode}
-          onClose={() => setMode(null)}
+          initialFolderId={addParentId}
+          onClose={() => { setMode(null); setAddParentId(null); }}
         />
       )}
     </div>
