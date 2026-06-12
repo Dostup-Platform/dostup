@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -124,6 +124,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   const [deletingMat, setDeletingMat] = useState<Mat | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<"before" | "after" | "inside" | null>(null);
 
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
@@ -149,28 +150,59 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
 
   const childrenOf = (id: string) => list.filter((m) => m.parent_id === id);
 
-  const reorder = async (draggedId: string, targetId: string) => {
+  const isDescendant = (parentId: string, maybeChildId: string): boolean => {
+    let cur = list.find((m) => m.id === maybeChildId);
+    while (cur?.parent_id) {
+      if (cur.parent_id === parentId) return true;
+      cur = list.find((m) => m.id === cur!.parent_id);
+    }
+    return false;
+  };
+
+  const reorder = async (
+    draggedId: string,
+    targetId: string,
+    position: "before" | "after" | "inside",
+  ) => {
     if (draggedId === targetId) return;
     const dragged = list.find((m) => m.id === draggedId);
     const target = list.find((m) => m.id === targetId);
     if (!dragged || !target) return;
-    if ((dragged.parent_id ?? null) !== (target.parent_id ?? null)) return;
+    if (dragged.type === "folder" && isDescendant(draggedId, targetId)) return;
+
+    let newParent: string | null;
+    if (position === "inside") {
+      if (target.type !== "folder") return;
+      newParent = target.id;
+    } else {
+      newParent = target.parent_id ?? null;
+    }
+
     const siblings = list
-      .filter((m) => (m.parent_id ?? null) === (dragged.parent_id ?? null))
+      .filter((m) => (m.parent_id ?? null) === newParent && m.id !== draggedId)
       .slice()
-      .sort((a, b) => {
-        const ai = list.indexOf(a);
-        const bi = list.indexOf(b);
-        return ai - bi;
-      });
-    const without = siblings.filter((s) => s.id !== draggedId);
-    const targetIdx = without.findIndex((s) => s.id === targetId);
-    without.splice(targetIdx, 0, dragged);
+      .sort((a, b) => list.indexOf(a) - list.indexOf(b));
+
+    let insertIdx: number;
+    if (position === "inside") {
+      insertIdx = siblings.length;
+    } else {
+      const ti = siblings.findIndex((s) => s.id === targetId);
+      insertIdx = position === "before" ? ti : ti + 1;
+      if (insertIdx < 0) insertIdx = siblings.length;
+    }
+    siblings.splice(insertIdx, 0, dragged);
+
     try {
       await Promise.all(
-        without.map((s, i) =>
-          updateMaterial.mutateAsync({ id: s.id, productId, order_index: i })
-        )
+        siblings.map((s, i) =>
+          updateMaterial.mutateAsync({
+            id: s.id,
+            productId,
+            order_index: i,
+            ...(s.id === draggedId ? { parent_id: newParent } : {}),
+          }),
+        ),
       );
     } catch {
       toast.error(language === "kk" ? "Қате" : "Ошибка");
@@ -280,8 +312,10 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
               onAddInFolder={onAddInFolder}
               draggingId={draggingId}
               dragOverId={dragOverId}
+              dropPosition={dropPosition}
               setDraggingId={setDraggingId}
               setDragOverId={setDragOverId}
+              setDropPosition={setDropPosition}
               onReorder={reorder}
             />
           ))}
@@ -331,8 +365,10 @@ const MaterialNode = ({
   onAddInFolder,
   draggingId,
   dragOverId,
+  dropPosition,
   setDraggingId,
   setDragOverId,
+  setDropPosition,
   onReorder,
 }: {
   material: Mat;
@@ -355,9 +391,11 @@ const MaterialNode = ({
   onAddInFolder: (folderId: string) => void;
   draggingId: string | null;
   dragOverId: string | null;
+  dropPosition: "before" | "after" | "inside" | null;
   setDraggingId: (id: string | null) => void;
   setDragOverId: (id: string | null) => void;
-  onReorder: (draggedId: string, targetId: string) => void;
+  setDropPosition: (p: "before" | "after" | "inside" | null) => void;
+  onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
 }) => {
   const isFolder = material.type === "folder";
   const isOpen = expanded.has(material.id);
@@ -365,7 +403,18 @@ const MaterialNode = ({
   const isRenaming = renamingId === material.id;
   const downloadUrl = material.type === "file" && material.file_url && material.allow_download !== false
     ? getFileUrl(material, 'download') : null;
-  const isDragOver = dragOverId === material.id && draggingId && draggingId !== material.id;
+  const isActiveTarget = dragOverId === material.id && draggingId && draggingId !== material.id;
+  const showInsideRing = isActiveTarget && dropPosition === "inside" && isFolder;
+  const showLineBefore = isActiveTarget && dropPosition === "before";
+  const showLineAfter = isActiveTarget && dropPosition === "after";
+  const insideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearInsideTimer = () => {
+    if (insideTimerRef.current) {
+      clearTimeout(insideTimerRef.current);
+      insideTimerRef.current = null;
+    }
+  };
 
   const handleCardClick = () => {
     if (isRenaming) return;
@@ -375,8 +424,11 @@ const MaterialNode = ({
 
   return (
     <div>
+      <div
+        className={`h-1 -my-0.5 rounded transition-colors ${showLineBefore ? "bg-primary" : "bg-transparent"}`}
+      />
       <Card
-        className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${isDragOver ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
+        className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${showInsideRing ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
         onClick={handleCardClick}
         draggable={!isRenaming && !flat}
         onDragStart={(e) => {
@@ -390,21 +442,55 @@ const MaterialNode = ({
           e.preventDefault();
           e.stopPropagation();
           e.dataTransfer.dropEffect = "move";
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const y = e.clientY - rect.top;
+          const h = rect.height;
+          let pos: "before" | "after" | "inside";
+          if (isFolder) {
+            if (y < h * 0.3) pos = "before";
+            else if (y > h * 0.7) pos = "after";
+            else {
+              // Middle of folder: keep current 'after' until long-hover promotes to 'inside'
+              pos = dropPosition === "inside" && dragOverId === material.id ? "inside" : "after";
+              if (!insideTimerRef.current && dropPosition !== "inside") {
+                insideTimerRef.current = setTimeout(() => {
+                  setDropPosition("inside");
+                  insideTimerRef.current = null;
+                }, 600);
+              }
+            }
+          } else {
+            pos = y < h / 2 ? "before" : "after";
+          }
           if (dragOverId !== material.id) setDragOverId(material.id);
+          if (dropPosition !== pos) setDropPosition(pos);
+          if (pos !== "inside" && !(isFolder && y >= h * 0.3 && y <= h * 0.7)) clearInsideTimer();
         }}
         onDragLeave={(e) => {
           e.stopPropagation();
-          if (dragOverId === material.id) setDragOverId(null);
+          clearInsideTimer();
+          if (dragOverId === material.id) {
+            setDragOverId(null);
+            setDropPosition(null);
+          }
         }}
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          clearInsideTimer();
           const id = draggingId;
+          const pos = dropPosition ?? "after";
           setDragOverId(null);
+          setDropPosition(null);
           setDraggingId(null);
-          if (id && id !== material.id) onReorder(id, material.id);
+          if (id && id !== material.id) onReorder(id, material.id, pos);
         }}
-        onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
+        onDragEnd={() => {
+          clearInsideTimer();
+          setDraggingId(null);
+          setDragOverId(null);
+          setDropPosition(null);
+        }}
       >
         <CardContent className="p-3 flex items-center gap-2">
           {!flat && (
@@ -497,6 +583,9 @@ const MaterialNode = ({
           )}
         </CardContent>
       </Card>
+      <div
+        className={`h-1 -my-0.5 rounded transition-colors ${showLineAfter ? "bg-primary" : "bg-transparent"}`}
+      />
       {isFolder && !flat && isOpen && kids.length > 0 && (
         <div className="ml-4 mt-2 space-y-2 border-l-2 border-border pl-2">
           {kids.map((c) => (
@@ -522,8 +611,10 @@ const MaterialNode = ({
               onAddInFolder={onAddInFolder}
               draggingId={draggingId}
               dragOverId={dragOverId}
+              dropPosition={dropPosition}
               setDraggingId={setDraggingId}
               setDragOverId={setDragOverId}
+              setDropPosition={setDropPosition}
               onReorder={onReorder}
             />
           ))}
