@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Library, Plus, Edit, FolderCog, Folder, FileText, Link as LinkIcon, Type, ChevronDown, ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X, FolderPlus } from "lucide-react";
+import { Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type, ChevronDown, ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X, GripVertical } from "lucide-react";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
 import NoProductsEmptyState from "./NoProductsEmptyState";
@@ -33,7 +32,6 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const { language } = useLanguage();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [addParentId, setAddParentId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -72,34 +70,10 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
           selectedId={selectedId}
           onChange={(id) => setSelectedId(id)}
         />
-        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-          <PopoverTrigger asChild>
-            <Button size="sm" className="gap-2">
-              <FolderCog className="w-4 h-4" />
-              {language === "kk" ? "Материалдарды басқару" : "Управление материалами"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-48 p-2">
-            <div className="flex flex-col gap-1">
-              <Button
-                variant="ghost"
-                className="justify-start gap-2"
-                onClick={() => { setMode("add"); setMenuOpen(false); }}
-              >
-                <Plus className="w-4 h-4" />
-                {language === "kk" ? "Қосу" : "Добавить"}
-              </Button>
-              <Button
-                variant="ghost"
-                className="justify-start gap-2"
-                onClick={() => { setMode("edit"); setMenuOpen(false); }}
-              >
-                <Edit className="w-4 h-4" />
-                {language === "kk" ? "Өңдеу" : "Редактировать"}
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <Button size="sm" className="gap-2" onClick={() => { setAddParentId(null); setMode("add"); }}>
+          <Plus className="w-4 h-4" />
+          {language === "kk" ? "Материалдар қосу" : "Добавить материалы"}
+        </Button>
       </div>
 
       {product && (
