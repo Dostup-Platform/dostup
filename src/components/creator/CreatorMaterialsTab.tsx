@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -149,6 +149,36 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
     });
 
   const childrenOf = (id: string) => list.filter((m) => m.parent_id === id);
+
+  const siblingsOf = (parentId: string | null) =>
+    list
+      .filter((m) => (m.parent_id ?? null) === parentId)
+      .slice()
+      .sort((a, b) => list.indexOf(a) - list.indexOf(b));
+
+  // Returns true if dropping `draggedId` at `position` relative to `targetId`
+  // would not change anything (already in that spot).
+  const isNoop = (
+    draggedId: string,
+    targetId: string,
+    position: "before" | "after" | "inside",
+  ): boolean => {
+    if (draggedId === targetId) return true;
+    const dragged = list.find((m) => m.id === draggedId);
+    const target = list.find((m) => m.id === targetId);
+    if (!dragged || !target) return false;
+    if (position === "inside") {
+      return dragged.parent_id === target.id;
+    }
+    const targetParent = target.parent_id ?? null;
+    if ((dragged.parent_id ?? null) !== targetParent) return false;
+    const sibs = siblingsOf(targetParent);
+    const di = sibs.findIndex((s) => s.id === draggedId);
+    const ti = sibs.findIndex((s) => s.id === targetId);
+    if (di === -1 || ti === -1) return false;
+    if (position === "before") return di === ti - 1 || di === ti;
+    return di === ti + 1 || di === ti;
+  };
 
   const isDescendant = (parentId: string, maybeChildId: string): boolean => {
     let cur = list.find((m) => m.id === maybeChildId);
@@ -317,6 +347,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
               setDragOverId={setDragOverId}
               setDropPosition={setDropPosition}
               onReorder={reorder}
+              isNoop={isNoop}
             />
           ))}
         </div>
