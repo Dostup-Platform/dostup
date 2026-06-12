@@ -633,6 +633,7 @@ const MaterialNode = ({
               setDragOverId={setDragOverId}
               setDropPosition={setDropPosition}
               onReorder={onReorder}
+              isNoop={isNoop}
             />
           ))}
         </div>
