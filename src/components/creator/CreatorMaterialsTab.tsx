@@ -365,7 +365,7 @@ const MaterialNode = ({
           </div>
           {isRenaming ? (
             <form
-              className="flex-1 flex items-center gap-1"
+              className="flex items-center gap-1 w-1/2"
               onClick={(e) => e.stopPropagation()}
               onSubmit={(e) => { e.preventDefault(); submitRename(); }}
             >
@@ -373,12 +373,12 @@ const MaterialNode = ({
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
                 autoFocus
-                className="h-8 text-sm"
+                className="h-8 text-sm flex-1 min-w-0"
               />
-              <Button type="submit" size="icon" variant="ghost" className="h-8 w-8 min-h-0" disabled={isSavingRename}>
+              <Button type="submit" size="icon" variant="ghost" className="h-8 w-8 min-h-0 flex-shrink-0" disabled={isSavingRename}>
                 {isSavingRename ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               </Button>
-              <Button type="button" size="icon" variant="ghost" className="h-8 w-8 min-h-0" onClick={cancelRename}>
+              <Button type="button" size="icon" variant="ghost" className="h-8 w-8 min-h-0 flex-shrink-0" onClick={cancelRename}>
                 <X className="w-4 h-4" />
               </Button>
             </form>
