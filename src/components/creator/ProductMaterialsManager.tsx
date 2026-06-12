@@ -982,7 +982,7 @@ interface FormData {
                                     <p className="font-medium text-sm truncate" title={material.title}>{material.title}</p>
                                     <p className="text-xs text-muted-foreground truncate">
                                       {material.type === "folder" 
-                                        ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} файл(ов)`
+                                        ? `Папка • ${(allMaterials as Material[]).filter(m => m.parent_id === material.id).length} элем.`
                                         : material.type === "link"
                                         ? "Ссылка"
                                         : material.type === "text"
