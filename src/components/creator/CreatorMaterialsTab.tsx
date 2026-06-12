@@ -569,10 +569,10 @@ const MaterialNode = ({
         }}
         onDragLeave={(e) => {
           e.stopPropagation();
-          if (dragOverId === material.id) {
-            setDragOverId(null);
-            setDropPosition(null);
-          }
+          // Не сбрасываем состояние: иначе линия моргает при переходе
+          // между соседними карточками (через зазор между ними).
+          // Состояние перезапишется в onDragOver следующей карточки
+          // или очистится в onDrop / onDragEnd.
         }}
         onDrop={(e) => {
           e.preventDefault();
