@@ -401,6 +401,7 @@ const MaterialNode = ({
   setDragOverId,
   setDropPosition,
   onReorder,
+  isNoop,
 }: {
   material: Mat;
   childrenOf: (id: string) => Mat[];
@@ -427,6 +428,7 @@ const MaterialNode = ({
   setDragOverId: (id: string | null) => void;
   setDropPosition: (p: "before" | "after" | "inside" | null) => void;
   onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
+  isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
 }) => {
   const isFolder = material.type === "folder";
   const isOpen = expanded.has(material.id);
@@ -434,18 +436,13 @@ const MaterialNode = ({
   const isRenaming = renamingId === material.id;
   const downloadUrl = material.type === "file" && material.file_url && material.allow_download !== false
     ? getFileUrl(material, 'download') : null;
-  const isActiveTarget = dragOverId === material.id && draggingId && draggingId !== material.id;
-  const showInsideRing = isActiveTarget && dropPosition === "inside" && isFolder;
-  const showLineBefore = isActiveTarget && dropPosition === "before";
-  const showLineAfter = isActiveTarget && dropPosition === "after";
-  const insideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearInsideTimer = () => {
-    if (insideTimerRef.current) {
-      clearTimeout(insideTimerRef.current);
-      insideTimerRef.current = null;
-    }
-  };
+  const isActiveTarget = !!(dragOverId === material.id && draggingId && draggingId !== material.id);
+  const positionIsNoop = isActiveTarget && dropPosition
+    ? isNoop(draggingId!, material.id, dropPosition)
+    : false;
+  const showInsideRing = isActiveTarget && dropPosition === "inside" && isFolder && !positionIsNoop;
+  const showLineBefore = isActiveTarget && dropPosition === "before" && !positionIsNoop;
+  const showLineAfter = isActiveTarget && dropPosition === "after" && !positionIsNoop;
 
   const handleCardClick = () => {
     if (isRenaming) return;
@@ -478,28 +475,17 @@ const MaterialNode = ({
           const h = rect.height;
           let pos: "before" | "after" | "inside";
           if (isFolder) {
-            if (y < h * 0.3) pos = "before";
-            else if (y > h * 0.7) pos = "after";
-            else {
-              // Middle of folder: keep current 'after' until long-hover promotes to 'inside'
-              pos = dropPosition === "inside" && dragOverId === material.id ? "inside" : "after";
-              if (!insideTimerRef.current && dropPosition !== "inside") {
-                insideTimerRef.current = setTimeout(() => {
-                  setDropPosition("inside");
-                  insideTimerRef.current = null;
-                }, 600);
-              }
-            }
+            if (y < h * 0.25) pos = "before";
+            else if (y > h * 0.75) pos = "after";
+            else pos = "inside";
           } else {
             pos = y < h / 2 ? "before" : "after";
           }
           if (dragOverId !== material.id) setDragOverId(material.id);
           if (dropPosition !== pos) setDropPosition(pos);
-          if (pos !== "inside" && !(isFolder && y >= h * 0.3 && y <= h * 0.7)) clearInsideTimer();
         }}
         onDragLeave={(e) => {
           e.stopPropagation();
-          clearInsideTimer();
           if (dragOverId === material.id) {
             setDragOverId(null);
             setDropPosition(null);
@@ -508,16 +494,16 @@ const MaterialNode = ({
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          clearInsideTimer();
           const id = draggingId;
           const pos = dropPosition ?? "after";
           setDragOverId(null);
           setDropPosition(null);
           setDraggingId(null);
-          if (id && id !== material.id) onReorder(id, material.id, pos);
+          if (id && id !== material.id && !isNoop(id, material.id, pos)) {
+            onReorder(id, material.id, pos);
+          }
         }}
         onDragEnd={() => {
-          clearInsideTimer();
           setDraggingId(null);
           setDragOverId(null);
           setDropPosition(null);
