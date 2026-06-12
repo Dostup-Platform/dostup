@@ -138,7 +138,7 @@ interface Mat {
   allow_download?: boolean;
 }
 
-const CreatorMaterialsReadOnlyList = ({ productId }: { productId: string }) => {
+const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId: string; onAddInFolder: (folderId: string) => void }) => {
   const { language } = useLanguage();
   const { data: allMaterials = [], isLoading } = useProductMaterials(productId, { creatorOnly: true });
   const updateMaterial = useUpdateMaterial();
@@ -273,6 +273,7 @@ const CreatorMaterialsReadOnlyList = ({ productId }: { productId: string }) => {
               onOpen={openMaterial}
               getFileUrl={getFileUrl}
               language={language}
+              onAddInFolder={onAddInFolder}
             />
           ))}
         </div>
