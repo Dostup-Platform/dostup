@@ -365,8 +365,10 @@ const MaterialNode = ({
   onAddInFolder,
   draggingId,
   dragOverId,
+  dropPosition,
   setDraggingId,
   setDragOverId,
+  setDropPosition,
   onReorder,
 }: {
   material: Mat;
@@ -389,9 +391,11 @@ const MaterialNode = ({
   onAddInFolder: (folderId: string) => void;
   draggingId: string | null;
   dragOverId: string | null;
+  dropPosition: "before" | "after" | "inside" | null;
   setDraggingId: (id: string | null) => void;
   setDragOverId: (id: string | null) => void;
-  onReorder: (draggedId: string, targetId: string) => void;
+  setDropPosition: (p: "before" | "after" | "inside" | null) => void;
+  onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
 }) => {
   const isFolder = material.type === "folder";
   const isOpen = expanded.has(material.id);
@@ -399,7 +403,18 @@ const MaterialNode = ({
   const isRenaming = renamingId === material.id;
   const downloadUrl = material.type === "file" && material.file_url && material.allow_download !== false
     ? getFileUrl(material, 'download') : null;
-  const isDragOver = dragOverId === material.id && draggingId && draggingId !== material.id;
+  const isActiveTarget = dragOverId === material.id && draggingId && draggingId !== material.id;
+  const showInsideRing = isActiveTarget && dropPosition === "inside" && isFolder;
+  const showLineBefore = isActiveTarget && dropPosition === "before";
+  const showLineAfter = isActiveTarget && dropPosition === "after";
+  const insideTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearInsideTimer = () => {
+    if (insideTimerRef.current) {
+      clearTimeout(insideTimerRef.current);
+      insideTimerRef.current = null;
+    }
+  };
 
   const handleCardClick = () => {
     if (isRenaming) return;
@@ -409,8 +424,11 @@ const MaterialNode = ({
 
   return (
     <div>
+      <div
+        className={`h-1 -my-0.5 rounded transition-colors ${showLineBefore ? "bg-primary" : "bg-transparent"}`}
+      />
       <Card
-        className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${isDragOver ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
+        className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${showInsideRing ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
         onClick={handleCardClick}
         draggable={!isRenaming && !flat}
         onDragStart={(e) => {
@@ -424,21 +442,46 @@ const MaterialNode = ({
           e.preventDefault();
           e.stopPropagation();
           e.dataTransfer.dropEffect = "move";
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const y = e.clientY - rect.top;
+          const h = rect.height;
+          let pos: "before" | "after" | "inside";
+          if (isFolder) {
+            if (y < h * 0.25) pos = "before";
+            else if (y > h * 0.75) pos = "after";
+            else pos = "inside";
+          } else {
+            pos = y < h / 2 ? "before" : "after";
+          }
           if (dragOverId !== material.id) setDragOverId(material.id);
+          if (dropPosition !== pos) setDropPosition(pos);
+          if (pos !== "inside") clearInsideTimer();
         }}
         onDragLeave={(e) => {
           e.stopPropagation();
-          if (dragOverId === material.id) setDragOverId(null);
+          clearInsideTimer();
+          if (dragOverId === material.id) {
+            setDragOverId(null);
+            setDropPosition(null);
+          }
         }}
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          clearInsideTimer();
           const id = draggingId;
+          const pos = dropPosition ?? "after";
           setDragOverId(null);
+          setDropPosition(null);
           setDraggingId(null);
-          if (id && id !== material.id) onReorder(id, material.id);
+          if (id && id !== material.id) onReorder(id, material.id, pos);
         }}
-        onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
+        onDragEnd={() => {
+          clearInsideTimer();
+          setDraggingId(null);
+          setDragOverId(null);
+          setDropPosition(null);
+        }}
       >
         <CardContent className="p-3 flex items-center gap-2">
           {!flat && (
@@ -531,6 +574,9 @@ const MaterialNode = ({
           )}
         </CardContent>
       </Card>
+      <div
+        className={`h-1 -my-0.5 rounded transition-colors ${showLineAfter ? "bg-primary" : "bg-transparent"}`}
+      />
       {isFolder && !flat && isOpen && kids.length > 0 && (
         <div className="ml-4 mt-2 space-y-2 border-l-2 border-border pl-2">
           {kids.map((c) => (
@@ -556,8 +602,10 @@ const MaterialNode = ({
               onAddInFolder={onAddInFolder}
               draggingId={draggingId}
               dragOverId={dragOverId}
+              dropPosition={dropPosition}
               setDraggingId={setDraggingId}
               setDragOverId={setDragOverId}
+              setDropPosition={setDropPosition}
               onReorder={onReorder}
             />
           ))}
