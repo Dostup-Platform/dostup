@@ -126,6 +126,9 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<"before" | "after" | "inside" | null>(null);
 
+  const draggedItem = draggingId ? list.find((m) => m.id === draggingId) ?? null : null;
+  const draggedParentId = draggedItem?.parent_id ?? null;
+
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
 
@@ -318,39 +321,35 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
             : language === "kk" ? "Әзірге материалдар жоқ" : "Пока нет материалов"}
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((m) => (
-            <MaterialNode
-              key={m.id}
-              material={m}
-              childrenOf={childrenOf}
-              expanded={expanded}
-              toggle={toggle}
-              getIcon={getIcon}
-              flat={!!q}
-              renamingId={renamingId}
-              renameValue={renameValue}
-              setRenameValue={setRenameValue}
-              startRename={startRename}
-              cancelRename={cancelRename}
-              submitRename={submitRename}
-              isSavingRename={updateMaterial.isPending}
-              onDelete={(mat) => setDeletingMat(mat)}
-              onOpen={openMaterial}
-              getFileUrl={getFileUrl}
-              language={language}
-              onAddInFolder={onAddInFolder}
-              draggingId={draggingId}
-              dragOverId={dragOverId}
-              dropPosition={dropPosition}
-              setDraggingId={setDraggingId}
-              setDragOverId={setDragOverId}
-              setDropPosition={setDropPosition}
-              onReorder={reorder}
-              isNoop={isNoop}
-            />
-          ))}
-        </div>
+        <MaterialList
+          items={filtered}
+          childrenOf={childrenOf}
+          expanded={expanded}
+          toggle={toggle}
+          getIcon={getIcon}
+          flat={!!q}
+          renamingId={renamingId}
+          renameValue={renameValue}
+          setRenameValue={setRenameValue}
+          startRename={startRename}
+          cancelRename={cancelRename}
+          submitRename={submitRename}
+          isSavingRename={updateMaterial.isPending}
+          onDelete={(mat) => setDeletingMat(mat)}
+          onOpen={openMaterial}
+          getFileUrl={getFileUrl}
+          language={language}
+          onAddInFolder={onAddInFolder}
+          draggingId={draggingId}
+          dragOverId={dragOverId}
+          dropPosition={dropPosition}
+          setDraggingId={setDraggingId}
+          setDragOverId={setDragOverId}
+          setDropPosition={setDropPosition}
+          onReorder={reorder}
+          isNoop={isNoop}
+          draggedParentId={draggedParentId}
+        />
       )}
 
       <AlertDialog open={!!deletingMat} onOpenChange={(o) => !o && setDeletingMat(null)}>
