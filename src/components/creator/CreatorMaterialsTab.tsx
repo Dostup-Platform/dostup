@@ -100,6 +100,93 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   );
 };
 
+type ListProps = {
+  items: Mat[];
+  childrenOf: (id: string) => Mat[];
+  expanded: Set<string>;
+  toggle: (id: string) => void;
+  getIcon: (type: string) => JSX.Element;
+  flat: boolean;
+  renamingId: string | null;
+  renameValue: string;
+  setRenameValue: (v: string) => void;
+  startRename: (m: Mat) => void;
+  cancelRename: () => void;
+  submitRename: () => void;
+  isSavingRename: boolean;
+  onDelete: (m: Mat) => void;
+  onOpen: (m: Mat) => void;
+  getFileUrl: (m: Mat, action: 'view' | 'download') => string | null;
+  language: string;
+  onAddInFolder: (folderId: string) => void;
+  draggingId: string | null;
+  dragOverId: string | null;
+  dropPosition: "before" | "after" | "inside" | null;
+  setDraggingId: (id: string | null) => void;
+  setDragOverId: (id: string | null) => void;
+  setDropPosition: (p: "before" | "after" | "inside" | null) => void;
+  onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
+  isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
+  draggedParentId: string | null;
+};
+
+const MaterialList = (props: ListProps) => {
+  const { items, draggingId, dragOverId, dropPosition, isNoop } = props;
+
+  const isGapLit = (gapIndex: number): boolean => {
+    if (!draggingId || !dragOverId || !dropPosition || dropPosition === "inside") return false;
+    const overIdx = items.findIndex((it) => it.id === dragOverId);
+    if (overIdx === -1) return false;
+    const targetGap = dropPosition === "before" ? overIdx : overIdx + 1;
+    if (targetGap !== gapIndex) return false;
+    return !isNoop(draggingId, dragOverId, dropPosition);
+  };
+
+  const Gap = ({ index }: { index: number }) => (
+    <div className={`h-1 rounded transition-colors ${isGapLit(index) ? "bg-primary" : "bg-transparent"}`} />
+  );
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Gap index={0} />
+      {items.map((m, i) => (
+        <div key={m.id} className="flex flex-col gap-1">
+          <MaterialNode
+            material={m}
+            childrenOf={props.childrenOf}
+            expanded={props.expanded}
+            toggle={props.toggle}
+            getIcon={props.getIcon}
+            flat={props.flat}
+            renamingId={props.renamingId}
+            renameValue={props.renameValue}
+            setRenameValue={props.setRenameValue}
+            startRename={props.startRename}
+            cancelRename={props.cancelRename}
+            submitRename={props.submitRename}
+            isSavingRename={props.isSavingRename}
+            onDelete={props.onDelete}
+            onOpen={props.onOpen}
+            getFileUrl={props.getFileUrl}
+            language={props.language}
+            onAddInFolder={props.onAddInFolder}
+            draggingId={props.draggingId}
+            dragOverId={props.dragOverId}
+            dropPosition={props.dropPosition}
+            setDraggingId={props.setDraggingId}
+            setDragOverId={props.setDragOverId}
+            setDropPosition={props.setDropPosition}
+            onReorder={props.onReorder}
+            isNoop={props.isNoop}
+            draggedParentId={props.draggedParentId}
+          />
+          <Gap index={i + 1} />
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export default CreatorMaterialsTab;
 
 interface Mat {
