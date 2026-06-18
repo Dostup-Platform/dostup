@@ -18,7 +18,7 @@ serve(async (req) => {
       console.log('Missing token or creatorName')
       return new Response(
         JSON.stringify({ valid: false }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -40,7 +40,7 @@ serve(async (req) => {
       console.error('Error querying session:', error)
       return new Response(
         JSON.stringify({ valid: false }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -48,7 +48,7 @@ serve(async (req) => {
       console.log('No valid session found for:', creatorName)
       return new Response(
         JSON.stringify({ valid: false }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -62,7 +62,7 @@ serve(async (req) => {
     console.error('Error validating session:', error)
     return new Response(
       JSON.stringify({ valid: false }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
