@@ -334,6 +334,7 @@ interface Mat {
   file_url?: string | null;
   content?: string | null;
   allow_download?: boolean;
+  created_at?: string;
 }
 
 const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId: string; onAddInFolder: (folderId: string) => void }) => {
