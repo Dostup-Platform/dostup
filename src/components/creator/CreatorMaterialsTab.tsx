@@ -2,7 +2,18 @@ import { useEffect, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type, ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X, GripVertical, Home } from "lucide-react";
+import {
+  Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
+  ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
+  GripVertical, Home, ArrowUpDown
+} from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
 import NoProductsEmptyState from "./NoProductsEmptyState";
@@ -12,18 +23,6 @@ import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
-import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 
 interface Props { creatorName: string; onGoToProducts?: () => void; }
 
