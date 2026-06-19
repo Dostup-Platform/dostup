@@ -334,6 +334,7 @@ interface Mat {
   file_url?: string | null;
   content?: string | null;
   allow_download?: boolean;
+  created_at?: string;
 }
 
 const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId: string; onAddInFolder: (folderId: string) => void }) => {
@@ -352,6 +353,20 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   // Подсветка крошки (breadcrumb), на которую тащат материал.
   // "home" → корень; иначе id папки из folderPath.
   const [dragOverCrumb, setDragOverCrumb] = useState<string | null>(null);
+
+  type SortMode = "newest" | "oldest" | "manual";
+  const SORT_STORAGE_KEY = "creator-materials-sort-mode";
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    if (typeof window === "undefined") return "newest";
+    const saved = window.localStorage.getItem(SORT_STORAGE_KEY);
+    if (saved === "newest" || saved === "oldest" || saved === "manual") return saved;
+    return "newest";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(SORT_STORAGE_KEY, sortMode);
+    }
+  }, [sortMode]);
 
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
@@ -374,9 +389,17 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   }, [list]);
 
   const filtered = useMemo(() => {
-    if (!q) return list.filter((m) => (m.parent_id ?? null) === currentFolderId);
-    return list.filter((m) => m.title.toLowerCase().includes(q));
-  }, [list, q, currentFolderId]);
+    const base = !q
+      ? list.filter((m) => (m.parent_id ?? null) === currentFolderId)
+      : list.filter((m) => m.title.toLowerCase().includes(q));
+    if (sortMode === "manual") return base;
+    const sorted = base.slice().sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return sortMode === "newest" ? tb - ta : ta - tb;
+    });
+    return sorted;
+  }, [list, q, currentFolderId, sortMode]);
 
   const getIcon = (type: string) => {
     if (type === "folder") return <Folder className="w-4 h-4 text-primary" />;
@@ -638,6 +661,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
       {/* Гасим нативный drag-over у поисковой строки, чтобы при перетаскивании
           материала не появлялся плюсик-курсор копирования. */}
       <div
+        className="flex items-center gap-2"
         onDragOver={(e) => {
           if (draggingId) {
             e.preventDefault();
@@ -648,7 +672,20 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
           if (draggingId) e.preventDefault();
         }}
       >
-        <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
+        <div className="flex-1 min-w-0">
+          <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
+        </div>
+        <select
+          value={sortMode}
+          onChange={(e) => setSortMode(e.target.value as SortMode)}
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm flex-shrink-0"
+          aria-label={language === "kk" ? "Сұрыптау" : "Сортировка"}
+          title={language === "kk" ? "Сұрыптау" : "Сортировка"}
+        >
+          <option value="newest">{language === "kk" ? "Алдымен жаңалары" : "Сначала новые"}</option>
+          <option value="oldest">{language === "kk" ? "Алдымен ескілері" : "Сначала старые"}</option>
+          <option value="manual">{language === "kk" ? "Қолмен" : "Вручную"}</option>
+        </select>
       </div>
 
       {!q && folderPath.length > 0 && (
