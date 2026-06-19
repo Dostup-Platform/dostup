@@ -36,6 +36,8 @@ import {
 import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 
+interface Props { creatorName: string; onGoToProducts?: () => void; }
+
 const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const { data: products = [], isLoading } = useCreatorProducts();
   const { language } = useLanguage();
