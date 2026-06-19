@@ -229,7 +229,7 @@ const MaterialList = (props: ListProps) => {
     };
     return (
       <div
-        className="relative"
+        className={`relative ${edge === "bottom" ? "flex-1" : ""}`}
         style={{ minHeight: edge === "top" ? 36 : 96 }}
         onDragEnter={handleOver}
         onDragOver={handleOver}
