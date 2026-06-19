@@ -2,7 +2,18 @@ import { useEffect, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type, ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X, GripVertical, Home } from "lucide-react";
+import {
+  Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
+  ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
+  GripVertical, Home, ArrowUpDown
+} from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
 import NoProductsEmptyState from "./NoProductsEmptyState";
@@ -675,17 +686,17 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
         <div className="flex-1 min-w-0">
           <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
         </div>
-        <select
-          value={sortMode}
-          onChange={(e) => setSortMode(e.target.value as SortMode)}
-          className="h-9 rounded-md border border-input bg-background px-2 text-sm flex-shrink-0"
-          aria-label={language === "kk" ? "Сұрыптау" : "Сортировка"}
-          title={language === "kk" ? "Сұрыптау" : "Сортировка"}
-        >
-          <option value="newest">{language === "kk" ? "Алдымен жаңалары" : "Сначала новые"}</option>
-          <option value="oldest">{language === "kk" ? "Алдымен ескілері" : "Сначала старые"}</option>
-          <option value="manual">{language === "kk" ? "Қолмен" : "Вручную"}</option>
-        </select>
+        <Select value={sortMode} onValueChange={(value) => setSortMode(value as SortMode)}>
+          <SelectTrigger className="h-9 w-auto min-w-[160px] gap-2 flex-shrink-0" aria-label={language === "kk" ? "Сұрыптау" : "Сортировка"}>
+            <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">{language === "kk" ? "Алдымен жаңалары" : "Сначала новые"}</SelectItem>
+            <SelectItem value="oldest">{language === "kk" ? "Алдымен ескілері" : "Сначала старые"}</SelectItem>
+            <SelectItem value="manual">{language === "kk" ? "Қолмен" : "Вручную"}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {!q && folderPath.length > 0 && (
