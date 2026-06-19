@@ -661,6 +661,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
       {/* Гасим нативный drag-over у поисковой строки, чтобы при перетаскивании
           материала не появлялся плюсик-курсор копирования. */}
       <div
+        className="flex items-center gap-2"
         onDragOver={(e) => {
           if (draggingId) {
             e.preventDefault();
@@ -671,7 +672,20 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
           if (draggingId) e.preventDefault();
         }}
       >
-        <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
+        <div className="flex-1 min-w-0">
+          <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
+        </div>
+        <select
+          value={sortMode}
+          onChange={(e) => setSortMode(e.target.value as SortMode)}
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm flex-shrink-0"
+          aria-label={language === "kk" ? "Сұрыптау" : "Сортировка"}
+          title={language === "kk" ? "Сұрыптау" : "Сортировка"}
+        >
+          <option value="newest">{language === "kk" ? "Алдымен жаңалары" : "Сначала новые"}</option>
+          <option value="oldest">{language === "kk" ? "Алдымен ескілері" : "Сначала старые"}</option>
+          <option value="manual">{language === "kk" ? "Қолмен" : "Вручную"}</option>
+        </select>
       </div>
 
       {!q && folderPath.length > 0 && (
