@@ -726,7 +726,7 @@ const MaterialNode = ({
           e.stopPropagation();
           setDraggingId(material.id);
           e.dataTransfer.effectAllowed = "move";
-          try { e.dataTransfer.setData("text/plain", material.id); } catch {}
+          e.dataTransfer.setData("text/plain", material.id);
         }}
         onDragOver={(e) => {
           if (!draggingId || draggingId === material.id) return;
