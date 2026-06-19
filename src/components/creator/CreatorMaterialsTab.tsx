@@ -534,12 +534,16 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = "copy";
+        setDragOverId(null);
+        setDropPosition(null);
         if (dragOverCrumb !== crumbId) setDragOverCrumb(crumbId);
       },
       onDragEnter: (e: React.DragEvent) => {
         if (!canDrop()) return;
         e.preventDefault();
         e.stopPropagation();
+        setDragOverId(null);
+        setDropPosition(null);
         if (dragOverCrumb !== crumbId) setDragOverCrumb(crumbId);
       },
       onDragLeave: (e: React.DragEvent) => {
