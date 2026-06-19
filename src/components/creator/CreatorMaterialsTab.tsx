@@ -349,6 +349,9 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<"before" | "after" | "inside" | null>(null);
+  // Подсветка крошки (breadcrumb), на которую тащат материал.
+  // "home" → корень; иначе id папки из folderPath.
+  const [dragOverCrumb, setDragOverCrumb] = useState<string | null>(null);
 
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
@@ -485,6 +488,80 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
     }
   };
 
+  // Перенос материала в самый верх указанной папки (или корня, если targetFolderId = null).
+  const moveToFolderTop = async (draggedId: string, targetFolderId: string | null) => {
+    const dragged = list.find((m) => m.id === draggedId);
+    if (!dragged) return;
+    if (dragged.type === "folder" && targetFolderId && isDescendant(draggedId, targetFolderId)) return;
+    const currentSibs = siblingsOf(targetFolderId);
+    if ((dragged.parent_id ?? null) === targetFolderId && currentSibs[0]?.id === draggedId) return;
+
+    const siblings = list
+      .filter((m) => (m.parent_id ?? null) === targetFolderId && m.id !== draggedId)
+      .slice()
+      .sort((a, b) => list.indexOf(a) - list.indexOf(b));
+    siblings.unshift(dragged);
+    try {
+      await Promise.all(
+        siblings.map((s, i) =>
+          updateMaterial.mutateAsync({
+            id: s.id,
+            productId,
+            order_index: i,
+            ...(s.id === draggedId ? { parent_id: targetFolderId } : {}),
+          }),
+        ),
+      );
+    } catch {
+      toast.error(language === "kk" ? "Қате" : "Ошибка");
+    }
+  };
+
+  // Обработчики drag-over/drop для крошек (Home + папки в пути).
+  const makeCrumbDnD = (crumbId: string | "home", targetFolderId: string | null) => {
+    const canDrop = (): boolean => {
+      if (!draggingId) return false;
+      const dragged = list.find((m) => m.id === draggingId);
+      if (!dragged) return false;
+      if (dragged.type === "folder" && targetFolderId && isDescendant(draggingId, targetFolderId)) return false;
+      const sibs = siblingsOf(targetFolderId);
+      // Запрещаем, если материал уже на первом месте именно в этой папке.
+      if ((dragged.parent_id ?? null) === targetFolderId && sibs[0]?.id === draggingId) return false;
+      return true;
+    };
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (!canDrop()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "copy";
+        if (dragOverCrumb !== crumbId) setDragOverCrumb(crumbId);
+      },
+      onDragEnter: (e: React.DragEvent) => {
+        if (!canDrop()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (dragOverCrumb !== crumbId) setDragOverCrumb(crumbId);
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        e.stopPropagation();
+        setDragOverCrumb((cur) => (cur === crumbId ? null : cur));
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = draggingId;
+        setDragOverCrumb(null);
+        setDragOverId(null);
+        setDropPosition(null);
+        setDraggingId(null);
+        if (id && canDrop()) {
+          moveToFolderTop(id, targetFolderId);
+        }
+      },
+    };
+  };
+
   const getFileUrl = (m: Mat, action: 'view' | 'download'): string | null => {
     if (!m.file_url) return null;
     if (isS3Path(m.file_url)) {
@@ -555,14 +632,29 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
 
   return (
     <div className="space-y-3">
-      <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
+      {/* Гасим нативный drag-over у поисковой строки, чтобы при перетаскивании
+          материала не появлялся плюсик-курсор копирования. */}
+      <div
+        onDragOver={(e) => {
+          if (draggingId) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "none";
+          }
+        }}
+        onDrop={(e) => {
+          if (draggingId) e.preventDefault();
+        }}
+      >
+        <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
+      </div>
 
       {!q && folderPath.length > 0 && (
         <nav className="flex items-center gap-1 text-sm flex-wrap" aria-label="breadcrumb">
           <button
             type="button"
             onClick={() => goToPathIndex(-1)}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent text-muted-foreground hover:text-white transition-colors"
+            {...makeCrumbDnD("home", null)}
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent text-muted-foreground hover:text-white transition-colors ${dragOverCrumb === "home" ? "bg-accent text-white ring-2 ring-primary" : ""}`}
           >
             <Home className="w-3.5 h-3.5" />
             {language === "kk" ? "Үй" : "Дом"}
@@ -571,12 +663,19 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
             <div key={f.id} className="flex items-center gap-1">
               <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
               {i === folderPath.length - 1 ? (
-                <span className="px-2 py-1 font-medium truncate max-w-[180px]" title={f.title}>{f.title}</span>
+                <span
+                  {...makeCrumbDnD(f.id, f.id)}
+                  className={`px-2 py-1 font-medium truncate max-w-[180px] rounded-md transition-colors ${dragOverCrumb === f.id ? "bg-accent text-white ring-2 ring-primary" : ""}`}
+                  title={f.title}
+                >
+                  {f.title}
+                </span>
               ) : (
                 <button
                   type="button"
                   onClick={() => goToPathIndex(i)}
-                  className="px-2 py-1 rounded-md hover:bg-accent text-muted-foreground hover:text-white transition-colors truncate max-w-[180px]"
+                  {...makeCrumbDnD(f.id, f.id)}
+                  className={`px-2 py-1 rounded-md hover:bg-accent text-muted-foreground hover:text-white transition-colors truncate max-w-[180px] ${dragOverCrumb === f.id ? "bg-accent text-white ring-2 ring-primary" : ""}`}
                   title={f.title}
                 >
                   {f.title}
