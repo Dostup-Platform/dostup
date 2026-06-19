@@ -544,7 +544,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
           <button
             type="button"
             onClick={() => goToPathIndex(-1)}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent text-muted-foreground hover:text-white transition-colors"
           >
             <Home className="w-3.5 h-3.5" />
             {language === "kk" ? "Үй" : "Дом"}
@@ -558,7 +558,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
                 <button
                   type="button"
                   onClick={() => goToPathIndex(i)}
-                  className="px-2 py-1 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors truncate max-w-[180px]"
+                  className="px-2 py-1 rounded-md hover:bg-accent text-muted-foreground hover:text-white transition-colors truncate max-w-[180px]"
                   title={f.title}
                 >
                   {f.title}
