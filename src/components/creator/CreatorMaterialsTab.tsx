@@ -23,8 +23,18 @@ import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-
-interface Props { creatorName: string; onGoToProducts?: () => void; }
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
+import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 
 const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const { data: products = [], isLoading } = useCreatorProducts();
