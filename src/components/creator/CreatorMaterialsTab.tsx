@@ -198,23 +198,23 @@ const MaterialList = (props: ListProps) => {
     );
   };
 
-  // Явная посадочная зона под последней карточкой. Большая по высоте,
-  // ловит дроп «в самый низ» даже если курсор попал в пустую область.
-  const EndZone = () => {
+  // Большие крайние посадочные зоны: верх списка и пустая область под списком.
+  const EdgeZone = ({ edge }: { edge: "top" | "bottom" }) => {
     if (items.length === 0) return null;
-    const last = items[items.length - 1];
+    const target = edge === "top" ? items[0] : items[items.length - 1];
+    const position: "before" | "after" = edge === "top" ? "before" : "after";
     const active =
       !!draggingId &&
-      dragOverId === last.id &&
-      dropPosition === "after" &&
-      !isNoop(draggingId, last.id, "after");
+      dragOverId === target.id &&
+      dropPosition === position &&
+      !isNoop(draggingId, target.id, position);
     const handleOver = (e: React.DragEvent) => {
-      if (!draggingId || draggingId === last.id) return;
+      if (!draggingId || draggingId === target.id) return;
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = "move";
-      if (dragOverId !== last.id) setDragOverId(last.id);
-      if (dropPosition !== "after") setDropPosition("after");
+      if (dragOverId !== target.id) setDragOverId(target.id);
+      if (dropPosition !== position) setDropPosition(position);
     };
     const handleDrop = (e: React.DragEvent) => {
       e.preventDefault();
@@ -223,52 +223,70 @@ const MaterialList = (props: ListProps) => {
       setDragOverId(null);
       setDropPosition(null);
       setDraggingId(null);
-      if (id && id !== last.id && !isNoop(id, last.id, "after")) {
-        onReorder(id, last.id, "after");
+      if (id && id !== target.id && !isNoop(id, target.id, position)) {
+        onReorder(id, target.id, position);
       }
     };
     return (
       <div
         className="relative"
-        style={{ minHeight: 56 }}
+        style={{ minHeight: edge === "top" ? 36 : 96 }}
         onDragEnter={handleOver}
         onDragOver={handleOver}
         onDrop={handleDrop}
       >
-        <div className={`absolute left-0 right-0 top-2 h-px rounded transition-colors ${active ? "bg-primary" : "bg-transparent"}`} />
+        <div className={`absolute left-0 right-0 ${edge === "top" ? "bottom-2" : "top-2"} h-px rounded transition-colors ${active ? "bg-primary" : "bg-transparent"}`} />
       </div>
     );
   };
 
-  // Fallback на уровне контейнера: если дроп прошёл мимо карточек/гэпов
-  // (например, в пустое пространство ниже), сажаем под последний материал.
+  const getContainerEdgeTarget = (e: React.DragEvent): { targetId: string; position: "before" | "after" } | null => {
+    if (items.length === 0) return null;
+    const cards = Array.from(e.currentTarget.querySelectorAll<HTMLElement>("[data-material-card='true']"));
+    const firstCard = cards[0];
+    const lastCard = cards[cards.length - 1];
+    if (!firstCard || !lastCard) return null;
+    const firstRect = firstCard.getBoundingClientRect();
+    const lastRect = lastCard.getBoundingClientRect();
+    if (e.clientY <= firstRect.top + firstRect.height / 2) {
+      return { targetId: items[0].id, position: "before" };
+    }
+    if (e.clientY >= lastRect.top + lastRect.height / 2) {
+      return { targetId: items[items.length - 1].id, position: "after" };
+    }
+    return null;
+  };
+
+  // Fallback на уровне контейнера: если дроп прошёл мимо карточек/гэпов,
+  // всё равно кладём материал в самый верх или самый низ по положению курсора.
   const handleContainerOver = (e: React.DragEvent) => {
     if (!draggingId || items.length === 0) return;
-    const last = items[items.length - 1];
-    if (last.id === draggingId) return;
+    const target = getContainerEdgeTarget(e);
+    if (!target || target.targetId === draggingId || isNoop(draggingId, target.targetId, target.position)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
+    if (dragOverId !== target.targetId) setDragOverId(target.targetId);
+    if (dropPosition !== target.position) setDropPosition(target.position);
   };
   const handleContainerDrop = (e: React.DragEvent) => {
     if (!draggingId || items.length === 0) return;
+    const target = getContainerEdgeTarget(e);
+    if (!target || target.targetId === draggingId || isNoop(draggingId, target.targetId, target.position)) return;
     e.preventDefault();
     const id = draggingId;
-    const last = items[items.length - 1];
     setDragOverId(null);
     setDropPosition(null);
     setDraggingId(null);
-    if (id !== last.id && !isNoop(id, last.id, "after")) {
-      onReorder(id, last.id, "after");
-    }
+    onReorder(id, target.targetId, target.position);
   };
 
   return (
     <div
-      className="flex flex-col"
+      className={`flex flex-col ${draggingId ? "min-h-[45vh]" : ""}`}
       onDragOver={handleContainerOver}
       onDrop={handleContainerDrop}
     >
-      <Gap index={0} />
+      <EdgeZone edge="top" />
       {items.map((m, i) => (
         <div key={m.id} className="flex flex-col">
           <MaterialNode
@@ -301,7 +319,7 @@ const MaterialList = (props: ListProps) => {
           {i < items.length - 1 && <Gap index={i + 1} />}
         </div>
       ))}
-      <EndZone />
+      <EdgeZone edge="bottom" />
     </div>
   );
 };
@@ -700,6 +718,7 @@ const MaterialNode = ({
   return (
     <div>
       <Card
+        data-material-card="true"
         className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${showInsideRing ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
         onClick={handleCardClick}
         draggable={!isRenaming && !flat}
@@ -707,7 +726,7 @@ const MaterialNode = ({
           e.stopPropagation();
           setDraggingId(material.id);
           e.dataTransfer.effectAllowed = "move";
-          try { e.dataTransfer.setData("text/plain", material.id); } catch {}
+          e.dataTransfer.setData("text/plain", material.id);
         }}
         onDragOver={(e) => {
           if (!draggingId || draggingId === material.id) return;
