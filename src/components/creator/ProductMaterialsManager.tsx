@@ -134,30 +134,37 @@ interface FormData {
     toast.success(arr.length > 1 ? `Добавлено файлов: ${arr.length}` : "Файл добавлен");
   }, []);
 
-  // Global paste listener: when dialog is open and a file/folder is being created,
+  const getFilesFromClipboard = useCallback((clipboardData: DataTransfer | null): File[] => {
+    if (!clipboardData) return [];
+    const directFiles = Array.from(clipboardData.files || []).filter(file => file.size > 0 || file.type);
+    if (directFiles.length > 0) return directFiles;
+
+    return Array.from(clipboardData.items || []).reduce<File[]>((acc, item) => {
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        if (file) acc.push(file);
+      }
+      return acc;
+    }, []);
+  }, []);
+
+  // Global paste listener: when the add form is open and a file/folder is being created,
   // pasting a file anywhere in the dialog adds it to the form.
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: ClipboardEvent) => {
+      if (!isAdding) return;
       if (formData.itemType !== "file" && formData.itemType !== "folder") return;
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      const files: File[] = [];
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i];
-        if (it.kind === "file") {
-          const f = it.getAsFile();
-          if (f) files.push(f);
-        }
-      }
+      const files = getFilesFromClipboard(e.clipboardData);
       if (files.length > 0) {
         e.preventDefault();
+        e.stopPropagation();
         addFilesToForm(files);
       }
     };
-    window.addEventListener("paste", handler);
-    return () => window.removeEventListener("paste", handler);
-  }, [isOpen, addFilesToForm, formData.itemType]);
+    window.addEventListener("paste", handler, true);
+    return () => window.removeEventListener("paste", handler, true);
+  }, [isOpen, isAdding, addFilesToForm, getFilesFromClipboard, formData.itemType]);
 
   // Auto-open add form when in "add" mode
   useEffect(() => {
@@ -618,18 +625,10 @@ interface FormData {
               }
             }}
             onPaste={(e) => {
-              const items = e.clipboardData?.items;
-              if (!items) return;
-              const files: File[] = [];
-              for (let i = 0; i < items.length; i++) {
-                const it = items[i];
-                if (it.kind === "file") {
-                  const f = it.getAsFile();
-                  if (f) files.push(f);
-                }
-              }
+              const files = getFilesFromClipboard(e.clipboardData);
               if (files.length > 0) {
                 e.preventDefault();
+                e.stopPropagation();
                 addFilesToForm(files);
               }
             }}
