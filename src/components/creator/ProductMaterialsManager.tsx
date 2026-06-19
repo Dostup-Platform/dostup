@@ -139,10 +139,6 @@ interface FormData {
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: ClipboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-        return;
-      }
       if (formData.itemType !== "file" && formData.itemType !== "folder") return;
       const items = e.clipboardData?.items;
       if (!items) return;
