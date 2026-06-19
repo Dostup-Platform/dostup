@@ -524,9 +524,8 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
       const dragged = list.find((m) => m.id === draggingId);
       if (!dragged) return false;
       if (dragged.type === "folder" && targetFolderId && isDescendant(draggingId, targetFolderId)) return false;
-      const sibs = siblingsOf(targetFolderId);
-      // Запрещаем, если материал уже на первом месте именно в этой папке.
-      if ((dragged.parent_id ?? null) === targetFolderId && sibs[0]?.id === draggingId) return false;
+      // Запрещаем перенос в ту же папку.
+      if ((dragged.parent_id ?? null) === targetFolderId) return false;
       return true;
     };
     return {
