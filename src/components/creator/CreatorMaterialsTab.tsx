@@ -354,6 +354,20 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   // "home" → корень; иначе id папки из folderPath.
   const [dragOverCrumb, setDragOverCrumb] = useState<string | null>(null);
 
+  type SortMode = "newest" | "oldest" | "manual";
+  const SORT_STORAGE_KEY = "creator-materials-sort-mode";
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    if (typeof window === "undefined") return "newest";
+    const saved = window.localStorage.getItem(SORT_STORAGE_KEY);
+    if (saved === "newest" || saved === "oldest" || saved === "manual") return saved;
+    return "newest";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(SORT_STORAGE_KEY, sortMode);
+    }
+  }, [sortMode]);
+
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
   const draggedItem = draggingId ? list.find((m) => m.id === draggingId) ?? null : null;
@@ -375,9 +389,17 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   }, [list]);
 
   const filtered = useMemo(() => {
-    if (!q) return list.filter((m) => (m.parent_id ?? null) === currentFolderId);
-    return list.filter((m) => m.title.toLowerCase().includes(q));
-  }, [list, q, currentFolderId]);
+    const base = !q
+      ? list.filter((m) => (m.parent_id ?? null) === currentFolderId)
+      : list.filter((m) => m.title.toLowerCase().includes(q));
+    if (sortMode === "manual") return base;
+    const sorted = base.slice().sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return sortMode === "newest" ? tb - ta : ta - tb;
+    });
+    return sorted;
+  }, [list, q, currentFolderId, sortMode]);
 
   const getIcon = (type: string) => {
     if (type === "folder") return <Folder className="w-4 h-4 text-primary" />;
