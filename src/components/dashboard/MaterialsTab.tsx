@@ -10,6 +10,15 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 import MaterialsProtectionNotice from "@/components/materials/MaterialsProtectionNotice";
+import MaterialsSectionsNav, { type MaterialsSection } from "@/components/materials/MaterialsSectionsNav";
+import BookmarkStars from "@/components/materials/BookmarkStars";
+import { useMemo } from "react";
+import {
+  indexBookmarks,
+  useMaterialBookmarks,
+  useToggleBookmark,
+  type BookmarkViewer,
+} from "@/hooks/useMaterialBookmarks";
 
 const getIcon = (type: string) => {
   switch (type) {
@@ -173,6 +182,23 @@ const MaterialsTab = () => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [section, setSection] = useState<MaterialsSection>("library");
+
+  const viewer: BookmarkViewer | null = user?.id
+    ? { userType: "student", userRef: user.id }
+    : null;
+  const { data: bookmarkRows = [] } = useMaterialBookmarks(viewer);
+  const bookmarkIndex = useMemo(() => indexBookmarks(bookmarkRows, viewer), [bookmarkRows, viewer]);
+  const toggleBookmark = useToggleBookmark(viewer);
+  const myBookmarkedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of bookmarkRows) {
+      if (viewer && r.user_type === viewer.userType && r.user_ref === viewer.userRef) {
+        ids.add(r.material_id);
+      }
+    }
+    return ids;
+  }, [bookmarkRows, viewer]);
 
   const toggleVideoExpand = (materialId: string) => {
     setExpandedVideos(prev => {
