@@ -405,6 +405,10 @@ const MaterialList = (props: ListProps) => {
             isNoop={props.isNoop}
             draggedParentId={props.draggedParentId}
             reorderWithinParent={reorderWithinParent}
+            bookmarkState={props.bookmarkFor(m.id)}
+            onToggleBookmark={() => props.onToggleBookmark(m)}
+            onTogglePublic={() => props.onTogglePublic(m)}
+            viewerType={props.viewerType}
           />
           {i < items.length - 1 && <Gap index={i + 1} />}
         </div>
