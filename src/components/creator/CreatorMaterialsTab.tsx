@@ -471,6 +471,7 @@ const CreatorMaterialsReadOnlyList = ({
   const list = allMaterials as Mat[];
   const bookmarkIndex = useMemo(() => indexBookmarks(bookmarkRows, viewer), [bookmarkRows, viewer]);
   const isBookmarksSection = section === "bookmarks";
+  const isTrashSection = section === "trash";
   // List of material ids in current product that the viewer personally bookmarked.
   const myBookmarkedIds = useMemo(() => {
     const ids = new Set<string>();
