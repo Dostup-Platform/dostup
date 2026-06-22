@@ -202,6 +202,10 @@ type ListProps = {
   isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
   draggedParentId: string | null;
   reorderWithinParent: boolean;
+  bookmarkFor: (id: string) => BookmarkState | undefined;
+  onToggleBookmark: (m: Mat) => void;
+  onTogglePublic: (m: Mat) => void;
+  viewerType: "creator";
 };
 
 const MaterialList = (props: ListProps) => {
