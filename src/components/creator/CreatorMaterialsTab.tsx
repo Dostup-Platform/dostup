@@ -20,6 +20,9 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
 } from "@/components/ui/context-menu";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
@@ -179,6 +182,8 @@ type ListProps = {
   onToggleBookmark: (m: Mat) => void;
   onTogglePublic: (m: Mat) => void;
   viewerType: "creator";
+  allFolders: Mat[];
+  onMoveToFolder: (materialId: string, target: string | null) => void;
 };
 
 const MaterialList = (props: ListProps) => {
@@ -382,6 +387,8 @@ const MaterialList = (props: ListProps) => {
             onToggleBookmark={() => props.onToggleBookmark(m)}
             onTogglePublic={() => props.onTogglePublic(m)}
             viewerType={props.viewerType}
+            allFolders={props.allFolders}
+            onMoveToFolder={props.onMoveToFolder}
           />
           {i < items.length - 1 && <Gap index={i + 1} />}
         </div>
@@ -915,6 +922,8 @@ const CreatorMaterialsReadOnlyList = ({
           onToggleBookmark={handleToggleBookmark}
           onTogglePublic={handleTogglePublic}
           viewerType="creator"
+          allFolders={list.filter((m) => m.type === "folder")}
+          onMoveToFolder={moveToFolderTop}
         />
       )}
 
@@ -971,6 +980,8 @@ const MaterialNode = ({
   onToggleBookmark,
   onTogglePublic,
   viewerType,
+  allFolders,
+  onMoveToFolder,
 }: {
   material: Mat;
   getIcon: (type: string) => JSX.Element;
@@ -1002,6 +1013,8 @@ const MaterialNode = ({
   onToggleBookmark: () => void;
   onTogglePublic: () => void;
   viewerType: "creator";
+  allFolders: Mat[];
+  onMoveToFolder: (materialId: string, target: string | null) => void;
 }) => {
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
@@ -1199,6 +1212,34 @@ const MaterialNode = ({
               ? (language === "kk" ? "Белгіні алу" : "Снять пометку")
               : (language === "kk" ? "Белгілеу" : "Пометить")}
           </ContextMenuItem>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <Folder className="w-4 h-4 mr-2" />
+              {language === "kk" ? "Папкаға жылжыту" : "Переместить в папку"}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-56 max-h-72 overflow-y-auto">
+              {(material.parent_id ?? null) !== null && (
+                <ContextMenuItem onSelect={() => onMoveToFolder(material.id, null)}>
+                  <Home className="w-4 h-4 mr-2" />
+                  {language === "kk" ? "Басты бет" : "Дом"}
+                </ContextMenuItem>
+              )}
+              {allFolders
+                .filter((f) => f.id !== material.id && f.id !== (material.parent_id ?? null))
+                .map((f) => (
+                  <ContextMenuItem key={f.id} onSelect={() => onMoveToFolder(material.id, f.id)}>
+                    <Folder className="w-4 h-4 mr-2" />
+                    {f.title}
+                  </ContextMenuItem>
+                ))}
+              {allFolders.filter((f) => f.id !== material.id && f.id !== (material.parent_id ?? null)).length === 0 &&
+                (material.parent_id ?? null) === null && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    {language === "kk" ? "Папкалар жоқ" : "Нет других папок"}
+                  </div>
+                )}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
           {isFolder && (
             <ContextMenuItem onSelect={() => onAddInFolder(material.id)}>
               <Plus className="w-4 h-4 mr-2" />
