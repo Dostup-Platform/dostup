@@ -31,7 +31,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { Checkbox } from "@/components/ui/checkbox";
-import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
+  import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
+  import {
+    ContextMenu,
+    ContextMenuTrigger,
+    ContextMenuContent,
+    ContextMenuItem,
+  } from "@/components/ui/context-menu";
 
  
  interface ProductMaterialsManagerProps {
