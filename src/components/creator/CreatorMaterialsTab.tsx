@@ -89,6 +89,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
 
   const product = products.find((p) => p.id === selectedId);
   const viewer: BookmarkViewer = { userType: "creator", userRef: creatorName };
+  const { data: trashItems = [] } = useDeletedMaterials(product?.id);
 
   if (isLoading) {
     return (
@@ -129,6 +130,8 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
           value={section}
           onChange={setSection}
           addButton={addButton}
+          showTrash
+          trashCount={trashItems.length}
         />
       </div>
 
