@@ -981,7 +981,9 @@ interface FormData {
              {mode === "edit" && !isAdding && !editingId && (
                <Button onClick={() => setIsAdding(true)} variant="outline" className="w-full">
                  <Plus className="w-4 h-4 mr-2" />
-                 {currentFolderId ? "Добавить в папку" : "Добавить материал"}
+                  {currentFolderId
+                    ? (language === "kk" ? "Папкаға қосу" : "Добавить в папку")
+                    : (language === "kk" ? "Қосу" : "Добавить")}
                </Button>
              )}
  
