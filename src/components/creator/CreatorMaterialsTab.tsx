@@ -1001,6 +1001,10 @@ const MaterialNode = ({
   isNoop,
   draggedParentId,
   reorderWithinParent,
+  bookmarkState,
+  onToggleBookmark,
+  onTogglePublic,
+  viewerType,
 }: {
   material: Mat;
   getIcon: (type: string) => JSX.Element;
@@ -1028,6 +1032,10 @@ const MaterialNode = ({
   isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
   draggedParentId: string | null;
   reorderWithinParent: boolean;
+  bookmarkState: BookmarkState | undefined;
+  onToggleBookmark: () => void;
+  onTogglePublic: () => void;
+  viewerType: "creator";
 }) => {
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
