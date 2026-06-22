@@ -774,6 +774,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
           onReorder={reorder}
           isNoop={isNoop}
           draggedParentId={draggedParentId}
+          reorderWithinParent={sortMode === "manual"}
         />
       )}
 
