@@ -138,6 +138,7 @@ type ListProps = {
   onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
   isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
   draggedParentId: string | null;
+  reorderWithinParent: boolean;
 };
 
 const MaterialList = (props: ListProps) => {
@@ -151,6 +152,7 @@ const MaterialList = (props: ListProps) => {
     setDropPosition,
     setDraggingId,
     onReorder,
+    reorderWithinParent,
   } = props;
 
   const isGapLit = (gapIndex: number): boolean => {
@@ -294,10 +296,10 @@ const MaterialList = (props: ListProps) => {
   return (
     <div
       className={`flex flex-col ${draggingId ? "min-h-[45vh]" : ""}`}
-      onDragOver={handleContainerOver}
-      onDrop={handleContainerDrop}
+      onDragOver={reorderWithinParent ? handleContainerOver : undefined}
+      onDrop={reorderWithinParent ? handleContainerDrop : undefined}
     >
-      <EdgeZone edge="top" />
+      {reorderWithinParent && <EdgeZone edge="top" />}
       {items.map((m, i) => (
         <div key={m.id} className="flex flex-col">
           <MaterialNode
@@ -326,11 +328,12 @@ const MaterialList = (props: ListProps) => {
             onReorder={props.onReorder}
             isNoop={props.isNoop}
             draggedParentId={props.draggedParentId}
+            reorderWithinParent={reorderWithinParent}
           />
-          {i < items.length - 1 && <Gap index={i + 1} />}
+          {reorderWithinParent && i < items.length - 1 && <Gap index={i + 1} />}
         </div>
       ))}
-      <EdgeZone edge="bottom" />
+      {reorderWithinParent && <EdgeZone edge="bottom" />}
     </div>
   );
 };
@@ -368,10 +371,10 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   type SortMode = "newest" | "oldest" | "manual";
   const SORT_STORAGE_KEY = "creator-materials-sort-mode";
   const [sortMode, setSortMode] = useState<SortMode>(() => {
-    if (typeof window === "undefined") return "newest";
+    if (typeof window === "undefined") return "manual";
     const saved = window.localStorage.getItem(SORT_STORAGE_KEY);
     if (saved === "newest" || saved === "oldest" || saved === "manual") return saved;
-    return "newest";
+    return "manual";
   });
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -771,6 +774,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
           onReorder={reorder}
           isNoop={isNoop}
           draggedParentId={draggedParentId}
+          reorderWithinParent={sortMode === "manual"}
         />
       )}
 
@@ -822,6 +826,7 @@ const MaterialNode = ({
   onReorder,
   isNoop,
   draggedParentId,
+  reorderWithinParent,
 }: {
   material: Mat;
   getIcon: (type: string) => JSX.Element;
@@ -848,6 +853,7 @@ const MaterialNode = ({
   onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
   isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
   draggedParentId: string | null;
+  reorderWithinParent: boolean;
 }) => {
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
@@ -880,9 +886,6 @@ const MaterialNode = ({
         }}
         onDragOver={(e) => {
           if (!draggingId || draggingId === material.id) return;
-          e.preventDefault();
-          e.stopPropagation();
-          e.dataTransfer.dropEffect = "move";
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
           const y = e.clientY - rect.top;
           const h = rect.height;
@@ -895,6 +898,12 @@ const MaterialNode = ({
           } else {
             pos = y < h / 2 ? "before" : "after";
           }
+          // В режимах сортировки newest/oldest менять порядок внутри одного
+          // родителя нельзя — разрешён только drop «внутрь» папки.
+          if (!reorderWithinParent && pos !== "inside") return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "move";
           if (dragOverId !== material.id) setDragOverId(material.id);
           if (dropPosition !== pos) setDropPosition(pos);
         }}

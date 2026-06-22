@@ -248,6 +248,15 @@ interface FormData {
       try {
         setIsUploading(true);
         setUploadProgress(0);
+        // Новые материалы вставляются в самый верх текущей папки/корня.
+        // Берём минимальный order_index среди соседей и опускаемся ниже него.
+        const siblingsHere = (allMaterials as Material[]).filter(
+          (m) => (m.parent_id ?? null) === (currentFolderId ?? null)
+        );
+        const minSiblingIdx = siblingsHere.length
+          ? Math.min(...siblingsHere.map((s) => s.order_index ?? 0))
+          : 0;
+        const topIndex = siblingsHere.length ? minSiblingIdx - 1 : 0;
         if (formData.itemType === "link") {
           await createMaterial.mutateAsync({
             product_id: productId,
@@ -255,7 +264,7 @@ interface FormData {
             type: "link",
             content: null,
             file_url: formData.linkUrl,
-            order_index: materials.length,
+            order_index: topIndex,
             parent_id: currentFolderId,
             available_at: formData.scheduleAccess && formData.availableAt 
               ? new Date(formData.availableAt).toISOString() 
@@ -269,7 +278,7 @@ interface FormData {
             type: "text",
             content: formData.content,
             file_url: null,
-            order_index: materials.length,
+            order_index: topIndex,
             parent_id: currentFolderId,
             available_at: formData.scheduleAccess && formData.availableAt 
               ? new Date(formData.availableAt).toISOString() 
@@ -284,7 +293,7 @@ interface FormData {
             type: "folder",
             content: null,
             file_url: null,
-            order_index: materials.length,
+            order_index: topIndex,
             parent_id: currentFolderId,
           });
 
@@ -320,7 +329,9 @@ interface FormData {
                type: "file",
                content: null,
                file_url: fileUrl,
-                order_index: materials.length + i,
+                // Сохраняем порядок выбора: первый файл оказывается сверху,
+                // остальные — ниже него, но всё ещё выше существующих материалов.
+                order_index: topIndex - (formData.fileEntries.length - 1 - i),
                 parent_id: currentFolderId,
                 allow_view: true,
                 allow_download: entry.permissions.allow_download,
