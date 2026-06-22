@@ -980,6 +980,8 @@ const MaterialNode = ({
   onToggleBookmark,
   onTogglePublic,
   viewerType,
+  allFolders,
+  onMoveToFolder,
 }: {
   material: Mat;
   getIcon: (type: string) => JSX.Element;
@@ -1011,6 +1013,8 @@ const MaterialNode = ({
   onToggleBookmark: () => void;
   onTogglePublic: () => void;
   viewerType: "creator";
+  allFolders: Mat[];
+  onMoveToFolder: (materialId: string, target: string | null) => void;
 }) => {
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
