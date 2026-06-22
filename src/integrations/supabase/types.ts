@@ -369,6 +369,41 @@ export type Database = {
         }
         Relationships: []
       }
+      material_bookmarks: {
+        Row: {
+          created_at: string
+          id: string
+          is_public: boolean
+          material_id: string
+          user_ref: string
+          user_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          material_id: string
+          user_ref: string
+          user_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          material_id?: string
+          user_ref?: string
+          user_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_bookmarks_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_unlocks: {
         Row: {
           id: string
