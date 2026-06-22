@@ -1182,17 +1182,6 @@ const MaterialNode = ({
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
-                {isFolder && !flat && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 min-h-0 ml-1"
-                    title={language === "kk" ? "Ашу" : "Открыть"}
-                    onClick={(e) => { e.stopPropagation(); onOpenFolder(material.id); }}
-                  >
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  </Button>
-                )}
               </div>
             </>
           )}
