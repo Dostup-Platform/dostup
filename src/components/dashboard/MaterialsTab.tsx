@@ -513,7 +513,14 @@ const MaterialsTab = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-foreground">{t("myMaterials")}</h2>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-lg font-semibold text-foreground">{t("myMaterials")}</h2>
+        <MaterialsSectionsNav
+          value={section}
+          onChange={setSection}
+          showAdd={false}
+        />
+      </div>
       <MaterialsProtectionNotice />
 
       {hasNoMaterials ? (
@@ -526,18 +533,39 @@ const MaterialsTab = () => {
         </div>
       ) : (() => {
         const q = searchQuery.trim().toLowerCase();
+        const isBookmarks = section === "bookmarks";
+        const bookmarkedList = (materials || []).filter((m) => myBookmarkedIds.has(m.id));
         const searchResults = q
-          ? (materials || []).filter(m => m.title?.toLowerCase().includes(q))
+          ? (materials || []).filter((m) => m.title?.toLowerCase().includes(q))
           : [];
+        const bookmarkedFiltered = q
+          ? bookmarkedList.filter((m) => m.title?.toLowerCase().includes(q))
+          : bookmarkedList;
         return (
         <>
           <MaterialsSearchBar
             value={searchQuery}
             onChange={setSearchQuery}
-            resultCount={q ? searchResults.length : undefined}
+            resultCount={
+              isBookmarks
+                ? bookmarkedFiltered.length
+                : q
+                  ? searchResults.length
+                  : undefined
+            }
           />
 
-          {q ? (
+          {isBookmarks ? (
+            bookmarkedFiltered.length === 0 ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                {language === "ru" ? "Нет помеченных материалов" : "Белгіленген материалдар жоқ"}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {bookmarkedFiltered.map((m, i) => renderMaterialCard(m, i))}
+              </div>
+            )
+          ) : q ? (
             searchResults.length === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
                 {language === "ru" ? "Ничего не найдено" : "Ештеңе табылмады"}
