@@ -368,10 +368,10 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   type SortMode = "newest" | "oldest" | "manual";
   const SORT_STORAGE_KEY = "creator-materials-sort-mode";
   const [sortMode, setSortMode] = useState<SortMode>(() => {
-    if (typeof window === "undefined") return "newest";
+    if (typeof window === "undefined") return "manual";
     const saved = window.localStorage.getItem(SORT_STORAGE_KEY);
     if (saved === "newest" || saved === "oldest" || saved === "manual") return saved;
-    return "newest";
+    return "manual";
   });
   useEffect(() => {
     if (typeof window !== "undefined") {
