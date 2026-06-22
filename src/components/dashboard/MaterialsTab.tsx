@@ -427,6 +427,18 @@ const MaterialsTab = () => {
                ) : null}
               </div>
             )}
+
+            {!isFolder && viewer && (
+              <BookmarkStars
+                viewerType="student"
+                state={bookmarkIndex.get(material.id)}
+                onToggleMine={() => {
+                  const existing = bookmarkIndex.get(material.id)?.mine?.id ?? null;
+                  toggleBookmark.mutate({ materialId: material.id, existingId: existing });
+                }}
+                size="md"
+              />
+            )}
             
             {isVideo && canPlay && !isLocked && (
               <Button 
