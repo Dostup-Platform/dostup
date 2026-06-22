@@ -150,7 +150,8 @@ interface FormData {
         const file = item.getAsFile();
         if (file) acc.push(file);
       }
-    return acc;
+      return acc;
+    }, []);
   }, []);
 
   const handlePasteFromMenu = useCallback(async () => {
@@ -180,7 +181,6 @@ interface FormData {
       toast.info(language === "kk" ? "Буферге кіру мүмкін емес. Ctrl+V пайдаланыңыз." : "Нет доступа к буферу обмена. Используйте Ctrl+V.");
     }
   }, [addFilesToForm, language]);
-  }, []);
 
   // Global paste listener: when the add form is open and a file/folder is being created,
   // pasting a file anywhere in the dialog adds it to the form.
