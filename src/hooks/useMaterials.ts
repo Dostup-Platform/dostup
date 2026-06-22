@@ -170,10 +170,22 @@ export const useDeleteMaterial = () => {
 
   return useMutation({
     mutationFn: async ({ id, productId }: { id: string; productId: string; file_url?: string | null }) => {
-      // Soft delete — move to trash. File stays in storage until permanent removal.
+      // Soft delete — move to trash. Snapshot the source folder so we can restore
+      // back to it. We also clear parent_id to avoid cascade deletes from the
+      // parent folder hard-deleting trashed children.
+      const { data: cur } = await supabase
+        .from("materials")
+        .select("parent_id, original_parent_id")
+        .eq("id", id)
+        .maybeSingle();
+      const snapshot = cur?.original_parent_id ?? cur?.parent_id ?? null;
       const { error } = await supabase
         .from("materials")
-        .update({ deleted_at: new Date().toISOString() })
+        .update({
+          deleted_at: new Date().toISOString(),
+          original_parent_id: snapshot,
+          parent_id: null,
+        })
         .eq("id", id);
       if (error) throw error;
       return { id, productId };
@@ -208,13 +220,51 @@ export const useDeletedMaterials = (productId: string | undefined) => {
 export const useRestoreMaterial = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, productId }: { id: string; productId: string }) => {
+    mutationFn: async ({
+      id,
+      productId,
+      targetParentId,
+    }: {
+      id: string;
+      productId: string;
+      // undefined → auto (original folder if exists, otherwise root)
+      // null     → forced root
+      // string   → forced into that folder
+      targetParentId?: string | null;
+    }) => {
+      const { data: cur } = await supabase
+        .from("materials")
+        .select("original_parent_id")
+        .eq("id", id)
+        .maybeSingle();
+      const orig = cur?.original_parent_id ?? null;
+
+      let parent: string | null = null;
+      let restoredTo: "original" | "root" | "custom" = "root";
+
+      if (targetParentId === undefined) {
+        if (orig) {
+          const { data: folder } = await supabase
+            .from("materials")
+            .select("id, title, deleted_at")
+            .eq("id", orig)
+            .maybeSingle();
+          if (folder && !folder.deleted_at) {
+            parent = orig;
+            restoredTo = "original";
+          }
+        }
+      } else if (targetParentId) {
+        parent = targetParentId;
+        restoredTo = "custom";
+      }
+
       const { error } = await supabase
         .from("materials")
-        .update({ deleted_at: null })
+        .update({ deleted_at: null, parent_id: parent, original_parent_id: null })
         .eq("id", id);
       if (error) throw error;
-      return { id, productId };
+      return { id, productId, restoredTo, parentId: parent };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["materials", data.productId] });
