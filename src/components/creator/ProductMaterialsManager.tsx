@@ -374,6 +374,7 @@ interface FormData {
                 available_at: formData.scheduleAccess && formData.availableAt 
                   ? new Date(formData.availableAt).toISOString() 
                   : null,
+                file_size: entry.file.size,
               });
            }
           toast.success(formData.fileEntries.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");
