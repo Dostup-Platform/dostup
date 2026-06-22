@@ -920,6 +920,8 @@ const CreatorMaterialsReadOnlyList = ({
           onToggleBookmark={handleToggleBookmark}
           onTogglePublic={handleTogglePublic}
           viewerType="creator"
+          allFolders={list.filter((m) => m.type === "folder")}
+          onMoveToFolder={moveToFolderTop}
         />
       )}
 
