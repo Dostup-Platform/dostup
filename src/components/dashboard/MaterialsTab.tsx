@@ -10,6 +10,15 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 import MaterialsProtectionNotice from "@/components/materials/MaterialsProtectionNotice";
+import MaterialsSectionsNav, { type MaterialsSection } from "@/components/materials/MaterialsSectionsNav";
+import BookmarkStars from "@/components/materials/BookmarkStars";
+import { useMemo } from "react";
+import {
+  indexBookmarks,
+  useMaterialBookmarks,
+  useToggleBookmark,
+  type BookmarkViewer,
+} from "@/hooks/useMaterialBookmarks";
 
 const getIcon = (type: string) => {
   switch (type) {
@@ -173,6 +182,23 @@ const MaterialsTab = () => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [section, setSection] = useState<MaterialsSection>("library");
+
+  const viewer: BookmarkViewer | null = user?.id
+    ? { userType: "student", userRef: user.id }
+    : null;
+  const { data: bookmarkRows = [] } = useMaterialBookmarks(viewer);
+  const bookmarkIndex = useMemo(() => indexBookmarks(bookmarkRows, viewer), [bookmarkRows, viewer]);
+  const toggleBookmark = useToggleBookmark(viewer);
+  const myBookmarkedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of bookmarkRows) {
+      if (viewer && r.user_type === viewer.userType && r.user_ref === viewer.userRef) {
+        ids.add(r.material_id);
+      }
+    }
+    return ids;
+  }, [bookmarkRows, viewer]);
 
   const toggleVideoExpand = (materialId: string) => {
     setExpandedVideos(prev => {
@@ -401,6 +427,18 @@ const MaterialsTab = () => {
                ) : null}
               </div>
             )}
+
+            {!isFolder && viewer && (
+              <BookmarkStars
+                viewerType="student"
+                state={bookmarkIndex.get(material.id)}
+                onToggleMine={() => {
+                  const existing = bookmarkIndex.get(material.id)?.mine?.id ?? null;
+                  toggleBookmark.mutate({ materialId: material.id, existingId: existing });
+                }}
+                size="md"
+              />
+            )}
             
             {isVideo && canPlay && !isLocked && (
               <Button 
@@ -475,7 +513,14 @@ const MaterialsTab = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-foreground">{t("myMaterials")}</h2>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-lg font-semibold text-foreground">{t("myMaterials")}</h2>
+        <MaterialsSectionsNav
+          value={section}
+          onChange={setSection}
+          showAdd={false}
+        />
+      </div>
       <MaterialsProtectionNotice />
 
       {hasNoMaterials ? (
@@ -488,18 +533,39 @@ const MaterialsTab = () => {
         </div>
       ) : (() => {
         const q = searchQuery.trim().toLowerCase();
+        const isBookmarks = section === "bookmarks";
+        const bookmarkedList = (materials || []).filter((m) => myBookmarkedIds.has(m.id));
         const searchResults = q
-          ? (materials || []).filter(m => m.title?.toLowerCase().includes(q))
+          ? (materials || []).filter((m) => m.title?.toLowerCase().includes(q))
           : [];
+        const bookmarkedFiltered = q
+          ? bookmarkedList.filter((m) => m.title?.toLowerCase().includes(q))
+          : bookmarkedList;
         return (
         <>
           <MaterialsSearchBar
             value={searchQuery}
             onChange={setSearchQuery}
-            resultCount={q ? searchResults.length : undefined}
+            resultCount={
+              isBookmarks
+                ? bookmarkedFiltered.length
+                : q
+                  ? searchResults.length
+                  : undefined
+            }
           />
 
-          {q ? (
+          {isBookmarks ? (
+            bookmarkedFiltered.length === 0 ? (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                {language === "ru" ? "Нет помеченных материалов" : "Белгіленген материалдар жоқ"}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {bookmarkedFiltered.map((m, i) => renderMaterialCard(m, i))}
+              </div>
+            )
+          ) : q ? (
             searchResults.length === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
                 {language === "ru" ? "Ничего не найдено" : "Ештеңе табылмады"}

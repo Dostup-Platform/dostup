@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
   ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
-  GripVertical, Home, ArrowUpDown
+  GripVertical, Home, ArrowUpDown, Star, Eye, EyeOff
 } from "lucide-react";
 import {
   Select,
@@ -27,6 +27,17 @@ import NoProductsEmptyState from "./NoProductsEmptyState";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useProductMaterials, useUpdateMaterial, useDeleteMaterial } from "@/hooks/useMaterials";
 import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
+import MaterialsSectionsNav, { type MaterialsSection } from "@/components/materials/MaterialsSectionsNav";
+import BookmarkStars from "@/components/materials/BookmarkStars";
+import {
+  indexBookmarks,
+  useBulkSetBookmarksPublic,
+  useMaterialBookmarks,
+  useToggleBookmark,
+  useToggleBookmarkPublic,
+  type BookmarkState,
+  type BookmarkViewer,
+} from "@/hooks/useMaterialBookmarks";
 import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -51,6 +62,12 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [addParentId, setAddParentId] = useState<string | null>(null);
+  const [section, setSection] = useState<MaterialsSection>("library");
+
+  // Reset section when switching products so user always lands in library.
+  useEffect(() => {
+    setSection("library");
+  }, [selectedId]);
 
   useEffect(() => {
     if (!selectedId && products.length > 0) {
@@ -59,6 +76,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   }, [products, selectedId]);
 
   const product = products.find((p) => p.id === selectedId);
+  const viewer: BookmarkViewer = { userType: "creator", userRef: creatorName };
 
   if (isLoading) {
     return (
@@ -80,29 +98,67 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
     );
   }
 
+  const addButton = (
+    <Button size="sm" className="gap-2 w-full justify-center" onClick={() => { setAddParentId(null); setMode("add"); }}>
+      <Plus className="w-4 h-4" />
+      {language === "kk" ? "Қосу" : "Добавить"}
+    </Button>
+  );
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center justify-between gap-3 flex-wrap md:hidden">
         <ProductSwitcher
           products={products.map((p) => ({ id: p.id, title: p.title }))}
           selectedId={selectedId}
           onChange={(id) => setSelectedId(id)}
         />
-        <Button size="sm" className="gap-2" onClick={() => { setAddParentId(null); setMode("add"); }}>
-          <Plus className="w-4 h-4" />
-          {language === "kk" ? "Материалдар қосу" : "Добавить материалы"}
-        </Button>
+        <MaterialsSectionsNav
+          value={section}
+          onChange={setSection}
+          addButton={addButton}
+        />
       </div>
 
-      {product && (
-        <CreatorMaterialsReadOnlyList
-          productId={product.id}
-          onAddInFolder={(folderId) => {
-            setAddParentId(folderId);
-            setMode("add");
-          }}
+      <div className="hidden md:flex md:items-start md:gap-4">
+        <div className="flex-1 min-w-0 space-y-4">
+          <ProductSwitcher
+            products={products.map((p) => ({ id: p.id, title: p.title }))}
+            selectedId={selectedId}
+            onChange={(id) => setSelectedId(id)}
+          />
+          {product && (
+            <CreatorMaterialsReadOnlyList
+              productId={product.id}
+              section={section}
+              viewer={viewer}
+              onAddInFolder={(folderId) => {
+                setAddParentId(folderId);
+                setMode("add");
+              }}
+            />
+          )}
+        </div>
+        <MaterialsSectionsNav
+          value={section}
+          onChange={setSection}
+          addButton={addButton}
         />
-      )}
+      </div>
+
+      <div className="md:hidden">
+        {product && (
+          <CreatorMaterialsReadOnlyList
+            productId={product.id}
+            section={section}
+            viewer={viewer}
+            onAddInFolder={(folderId) => {
+              setAddParentId(folderId);
+              setMode("add");
+            }}
+          />
+        )}
+      </div>
 
       {product && mode && (
         <ProductMaterialsManager
@@ -146,6 +202,10 @@ type ListProps = {
   isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
   draggedParentId: string | null;
   reorderWithinParent: boolean;
+  bookmarkFor: (id: string) => BookmarkState | undefined;
+  onToggleBookmark: (m: Mat) => void;
+  onTogglePublic: (m: Mat) => void;
+  viewerType: "creator";
 };
 
 const MaterialList = (props: ListProps) => {
@@ -345,6 +405,10 @@ const MaterialList = (props: ListProps) => {
             isNoop={props.isNoop}
             draggedParentId={props.draggedParentId}
             reorderWithinParent={reorderWithinParent}
+            bookmarkState={props.bookmarkFor(m.id)}
+            onToggleBookmark={() => props.onToggleBookmark(m)}
+            onTogglePublic={() => props.onTogglePublic(m)}
+            viewerType={props.viewerType}
           />
           {i < items.length - 1 && <Gap index={i + 1} />}
         </div>
@@ -367,11 +431,25 @@ interface Mat {
   created_at?: string;
 }
 
-const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId: string; onAddInFolder: (folderId: string) => void }) => {
+const CreatorMaterialsReadOnlyList = ({
+  productId,
+  onAddInFolder,
+  section,
+  viewer,
+}: {
+  productId: string;
+  onAddInFolder: (folderId: string) => void;
+  section: MaterialsSection;
+  viewer: BookmarkViewer;
+}) => {
   const { language } = useLanguage();
   const { data: allMaterials = [], isLoading } = useProductMaterials(productId, { creatorOnly: true });
   const updateMaterial = useUpdateMaterial();
   const deleteMaterial = useDeleteMaterial();
+  const { data: bookmarkRows = [] } = useMaterialBookmarks(viewer);
+  const toggleBookmark = useToggleBookmark(viewer);
+  const togglePublic = useToggleBookmarkPublic(viewer);
+  const bulkSetPublic = useBulkSetBookmarksPublic(viewer);
   const [query, setQuery] = useState("");
   const [folderPath, setFolderPath] = useState<Mat[]>([]);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -400,6 +478,34 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
 
   const q = query.trim().toLowerCase();
   const list = allMaterials as Mat[];
+  const bookmarkIndex = useMemo(() => indexBookmarks(bookmarkRows, viewer), [bookmarkRows, viewer]);
+  const isBookmarksSection = section === "bookmarks";
+  // List of material ids in current product that the viewer personally bookmarked.
+  const myBookmarkedIds = useMemo(() => {
+    const ids = new Set<string>();
+    const productMatIds = new Set(list.map((m) => m.id));
+    for (const row of bookmarkRows) {
+      if (
+        row.user_type === viewer.userType &&
+        row.user_ref === viewer.userRef &&
+        productMatIds.has(row.material_id)
+      ) {
+        ids.add(row.material_id);
+      }
+    }
+    return ids;
+  }, [bookmarkRows, viewer, list]);
+  const myBookmarksInProduct = useMemo(
+    () => bookmarkRows.filter(
+      (r) =>
+        r.user_type === viewer.userType &&
+        r.user_ref === viewer.userRef &&
+        myBookmarkedIds.has(r.material_id),
+    ),
+    [bookmarkRows, viewer, myBookmarkedIds],
+  );
+  const allMyArePublic = myBookmarksInProduct.length > 0 &&
+    myBookmarksInProduct.every((r) => r.is_public);
   const draggedItem = draggingId ? list.find((m) => m.id === draggingId) ?? null : null;
   const draggedParentId = draggedItem?.parent_id ?? null;
   const currentFolderId = folderPath.length > 0 ? folderPath[folderPath.length - 1].id : null;
@@ -419,9 +525,15 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
   }, [list]);
 
   const filtered = useMemo(() => {
-    const base = !q
-      ? list.filter((m) => (m.parent_id ?? null) === currentFolderId)
-      : list.filter((m) => m.title.toLowerCase().includes(q));
+    let base: Mat[];
+    if (isBookmarksSection) {
+      base = list.filter((m) => myBookmarkedIds.has(m.id));
+      if (q) base = base.filter((m) => m.title.toLowerCase().includes(q));
+    } else if (q) {
+      base = list.filter((m) => m.title.toLowerCase().includes(q));
+    } else {
+      base = list.filter((m) => (m.parent_id ?? null) === currentFolderId);
+    }
     if (sortMode === "manual") return base;
     const sorted = base.slice().sort((a, b) => {
       const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -429,7 +541,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
       return sortMode === "newest" ? tb - ta : ta - tb;
     });
     return sorted;
-  }, [list, q, currentFolderId, sortMode]);
+  }, [list, q, currentFolderId, sortMode, isBookmarksSection, myBookmarkedIds]);
 
   const getIcon = (type: string) => {
     if (type === "folder") return <Folder className="w-4 h-4 text-primary" />;
@@ -678,6 +790,21 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
     }
   };
 
+  const handleToggleBookmark = (mat: Mat) => {
+    const existing = bookmarkIndex.get(mat.id)?.mine?.id ?? null;
+    toggleBookmark.mutate({ materialId: mat.id, existingId: existing });
+  };
+
+  const handleTogglePublic = (mat: Mat) => {
+    const mine = bookmarkIndex.get(mat.id)?.mine;
+    if (!mine) return;
+    togglePublic.mutate({ id: mine.id, isPublic: !mine.is_public });
+  };
+
+  const handleBulkPublic = (next: boolean) => {
+    bulkSetPublic.mutate({ ids: myBookmarksInProduct.map((r) => r.id), isPublic: next });
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-6">
@@ -705,6 +832,7 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
         <div className="flex-1 min-w-0">
           <MaterialsSearchBar value={query} onChange={setQuery} resultCount={filtered.length} />
         </div>
+        {!isBookmarksSection && (
         <Select value={sortMode} onValueChange={(value) => setSortMode(value as SortMode)}>
           <SelectTrigger className="h-9 w-auto min-w-[160px] gap-2 flex-shrink-0" aria-label={language === "kk" ? "Сұрыптау" : "Сортировка"}>
             <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" />
@@ -716,9 +844,10 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
             <SelectItem value="manual">{language === "kk" ? "Қолмен" : "Вручную"}</SelectItem>
           </SelectContent>
         </Select>
+        )}
       </div>
 
-      {!q && folderPath.length > 0 && (
+      {!isBookmarksSection && !q && folderPath.length > 0 && (
         <nav className="flex items-center gap-1 text-sm flex-wrap" aria-label="breadcrumb">
           <button
             type="button"
@@ -756,18 +885,43 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
         </nav>
       )}
 
+      {isBookmarksSection && myBookmarksInProduct.length > 0 && (
+        <div className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/40">
+          <span className="text-sm text-muted-foreground">
+            {language === "kk"
+              ? "Менің белгілерімді оқушыларға көрсету"
+              : "Показывать мои пометки ученикам"}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant={allMyArePublic ? "default" : "outline"}
+            className="gap-1.5"
+            onClick={() => handleBulkPublic(!allMyArePublic)}
+            disabled={bulkSetPublic.isPending}
+          >
+            {allMyArePublic ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            {allMyArePublic
+              ? language === "kk" ? "Көрсетіледі" : "Показаны"
+              : language === "kk" ? "Жасырылған" : "Скрыты"}
+          </Button>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="text-center py-6 text-sm text-muted-foreground">
           {q
             ? language === "kk" ? "Ештеңе табылмады" : "Ничего не найдено"
-            : language === "kk" ? "Әзірге материалдар жоқ" : "Пока нет материалов"}
+            : isBookmarksSection
+              ? language === "kk" ? "Белгіленген материалдар жоқ" : "Нет помеченных материалов"
+              : language === "kk" ? "Әзірге материалдар жоқ" : "Пока нет материалов"}
         </div>
       ) : (
         <MaterialList
           items={filtered}
           childrenOf={childrenOf}
           getIcon={getIcon}
-          flat={!!q}
+          flat={!!q || isBookmarksSection}
           onOpenFolder={openFolder}
           renamingId={renamingId}
           renameValue={renameValue}
@@ -790,7 +944,11 @@ const CreatorMaterialsReadOnlyList = ({ productId, onAddInFolder }: { productId:
           onReorder={reorder}
           isNoop={isNoop}
           draggedParentId={draggedParentId}
-          reorderWithinParent={sortMode === "manual"}
+          reorderWithinParent={sortMode === "manual" && !isBookmarksSection}
+          bookmarkFor={(id) => bookmarkIndex.get(id)}
+          onToggleBookmark={handleToggleBookmark}
+          onTogglePublic={handleTogglePublic}
+          viewerType="creator"
         />
       )}
 
@@ -843,6 +1001,10 @@ const MaterialNode = ({
   isNoop,
   draggedParentId,
   reorderWithinParent,
+  bookmarkState,
+  onToggleBookmark,
+  onTogglePublic,
+  viewerType,
 }: {
   material: Mat;
   getIcon: (type: string) => JSX.Element;
@@ -870,6 +1032,10 @@ const MaterialNode = ({
   isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
   draggedParentId: string | null;
   reorderWithinParent: boolean;
+  bookmarkState: BookmarkState | undefined;
+  onToggleBookmark: () => void;
+  onTogglePublic: () => void;
+  viewerType: "creator";
 }) => {
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
@@ -1002,6 +1168,12 @@ const MaterialNode = ({
                 </Button>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <BookmarkStars
+                  viewerType={viewerType}
+                  state={bookmarkState}
+                  onToggleMine={onToggleBookmark}
+                  onTogglePublic={onTogglePublic}
+                />
                 {isFolder && (
                   <Button
                     variant="ghost"
@@ -1066,6 +1238,24 @@ const MaterialNode = ({
             <Pencil className="w-4 h-4 mr-2" />
             {language === "kk" ? "Атын өзгерту" : "Переименовать"}
           </ContextMenuItem>
+          <ContextMenuItem onSelect={onToggleBookmark}>
+            <Star className={`w-4 h-4 mr-2 ${bookmarkState?.mine ? "text-yellow-500 fill-yellow-500" : ""}`} />
+            {bookmarkState?.mine
+              ? (language === "kk" ? "Белгіні алу" : "Снять пометку")
+              : (language === "kk" ? "Белгілеу" : "Пометить")}
+          </ContextMenuItem>
+          {bookmarkState?.mine && (
+            <ContextMenuItem onSelect={onTogglePublic}>
+              {bookmarkState.mine.is_public ? (
+                <EyeOff className="w-4 h-4 mr-2" />
+              ) : (
+                <Eye className="w-4 h-4 mr-2" />
+              )}
+              {bookmarkState.mine.is_public
+                ? (language === "kk" ? "Оқушылардан жасыру" : "Скрыть от учеников")
+                : (language === "kk" ? "Оқушыларға көрсету" : "Показать ученикам")}
+            </ContextMenuItem>
+          )}
           {isFolder && (
             <ContextMenuItem onSelect={() => onAddInFolder(material.id)}>
               <Plus className="w-4 h-4 mr-2" />
