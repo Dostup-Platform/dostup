@@ -1168,6 +1168,12 @@ const MaterialNode = ({
                 </Button>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <BookmarkStars
+                  viewerType={viewerType}
+                  state={bookmarkState}
+                  onToggleMine={onToggleBookmark}
+                  onTogglePublic={onTogglePublic}
+                />
                 {isFolder && (
                   <Button
                     variant="ghost"
@@ -1232,6 +1238,24 @@ const MaterialNode = ({
             <Pencil className="w-4 h-4 mr-2" />
             {language === "kk" ? "Атын өзгерту" : "Переименовать"}
           </ContextMenuItem>
+          <ContextMenuItem onSelect={onToggleBookmark}>
+            <Star className={`w-4 h-4 mr-2 ${bookmarkState?.mine ? "text-yellow-500 fill-yellow-500" : ""}`} />
+            {bookmarkState?.mine
+              ? (language === "kk" ? "Белгіні алу" : "Снять пометку")
+              : (language === "kk" ? "Белгілеу" : "Пометить")}
+          </ContextMenuItem>
+          {bookmarkState?.mine && (
+            <ContextMenuItem onSelect={onTogglePublic}>
+              {bookmarkState.mine.is_public ? (
+                <EyeOff className="w-4 h-4 mr-2" />
+              ) : (
+                <Eye className="w-4 h-4 mr-2" />
+              )}
+              {bookmarkState.mine.is_public
+                ? (language === "kk" ? "Оқушылардан жасыру" : "Скрыть от учеников")
+                : (language === "kk" ? "Оқушыларға көрсету" : "Показать ученикам")}
+            </ContextMenuItem>
+          )}
           {isFolder && (
             <ContextMenuItem onSelect={() => onAddInFolder(material.id)}>
               <Plus className="w-4 h-4 mr-2" />
