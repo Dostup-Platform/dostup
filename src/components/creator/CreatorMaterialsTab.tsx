@@ -1548,6 +1548,71 @@ const CreatorTrashList = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!restorePick} onOpenChange={(o) => !o && setRestorePick(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === "kk" ? "Қалпына келтіру" : "Восстановить материал"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {language === "kk"
+                ? "Қалта жойылған. Файл үйге қалпына келтіріледі, немесе басқа қалтаны таңдаңыз."
+                : "Папка была удалена. Файл будет восстановлен в Дом, либо можете выбрать в какую папку хотите."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Select value={pickedFolder} onValueChange={setPickedFolder}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__home__">
+                  <span className="inline-flex items-center gap-2">
+                    <Home className="w-4 h-4" />
+                    {homeLabel}
+                  </span>
+                </SelectItem>
+                {liveFolders.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <Folder className="w-4 h-4" />
+                      {f.title}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{language === "kk" ? "Болдырмау" : "Отмена"}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!restorePick) return;
+                const target = pickedFolder === "__home__" ? null : pickedFolder;
+                restore.mutate(
+                  { id: restorePick.id, productId, targetParentId: target },
+                  {
+                    onSuccess: () => {
+                      const name =
+                        target ? folderMap.get(target) ?? "—" : homeLabel;
+                      toast.success(
+                        language === "kk"
+                          ? `"${name}" қалтасына қалпына келтірілді`
+                          : `Восстановлено в "${name}"`,
+                      );
+                      setRestorePick(null);
+                    },
+                    onError: () => toast.error(language === "kk" ? "Қате" : "Ошибка"),
+                  },
+                );
+              }}
+            >
+              {language === "kk" ? "Қалпына келтіру" : "Восстановить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
