@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
   ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
-  GripVertical, Home, ArrowUpDown
+  GripVertical, Home, ArrowUpDown, Star, Eye, EyeOff
 } from "lucide-react";
 import {
   Select,
@@ -27,6 +27,17 @@ import NoProductsEmptyState from "./NoProductsEmptyState";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useProductMaterials, useUpdateMaterial, useDeleteMaterial } from "@/hooks/useMaterials";
 import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
+import MaterialsSectionsNav, { type MaterialsSection } from "@/components/materials/MaterialsSectionsNav";
+import BookmarkStars from "@/components/materials/BookmarkStars";
+import {
+  indexBookmarks,
+  useBulkSetBookmarksPublic,
+  useMaterialBookmarks,
+  useToggleBookmark,
+  useToggleBookmarkPublic,
+  type BookmarkState,
+  type BookmarkViewer,
+} from "@/hooks/useMaterialBookmarks";
 import { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -51,6 +62,12 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [addParentId, setAddParentId] = useState<string | null>(null);
+  const [section, setSection] = useState<MaterialsSection>("library");
+
+  // Reset section when switching products so user always lands in library.
+  useEffect(() => {
+    setSection("library");
+  }, [selectedId]);
 
   useEffect(() => {
     if (!selectedId && products.length > 0) {
@@ -59,6 +76,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   }, [products, selectedId]);
 
   const product = products.find((p) => p.id === selectedId);
+  const viewer: BookmarkViewer = { userType: "creator", userRef: creatorName };
 
   if (isLoading) {
     return (
@@ -80,29 +98,67 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
     );
   }
 
+  const addButton = (
+    <Button size="sm" className="gap-2 w-full justify-center" onClick={() => { setAddParentId(null); setMode("add"); }}>
+      <Plus className="w-4 h-4" />
+      {language === "kk" ? "Қосу" : "Добавить"}
+    </Button>
+  );
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center justify-between gap-3 flex-wrap md:hidden">
         <ProductSwitcher
           products={products.map((p) => ({ id: p.id, title: p.title }))}
           selectedId={selectedId}
           onChange={(id) => setSelectedId(id)}
         />
-        <Button size="sm" className="gap-2" onClick={() => { setAddParentId(null); setMode("add"); }}>
-          <Plus className="w-4 h-4" />
-          {language === "kk" ? "Материалдар қосу" : "Добавить материалы"}
-        </Button>
+        <MaterialsSectionsNav
+          value={section}
+          onChange={setSection}
+          addButton={addButton}
+        />
       </div>
 
-      {product && (
-        <CreatorMaterialsReadOnlyList
-          productId={product.id}
-          onAddInFolder={(folderId) => {
-            setAddParentId(folderId);
-            setMode("add");
-          }}
+      <div className="hidden md:flex md:items-start md:gap-4">
+        <div className="flex-1 min-w-0 space-y-4">
+          <ProductSwitcher
+            products={products.map((p) => ({ id: p.id, title: p.title }))}
+            selectedId={selectedId}
+            onChange={(id) => setSelectedId(id)}
+          />
+          {product && (
+            <CreatorMaterialsReadOnlyList
+              productId={product.id}
+              section={section}
+              viewer={viewer}
+              onAddInFolder={(folderId) => {
+                setAddParentId(folderId);
+                setMode("add");
+              }}
+            />
+          )}
+        </div>
+        <MaterialsSectionsNav
+          value={section}
+          onChange={setSection}
+          addButton={addButton}
         />
-      )}
+      </div>
+
+      <div className="md:hidden">
+        {product && (
+          <CreatorMaterialsReadOnlyList
+            productId={product.id}
+            section={section}
+            viewer={viewer}
+            onAddInFolder={(folderId) => {
+              setAddParentId(folderId);
+              setMode("add");
+            }}
+          />
+        )}
+      </div>
 
       {product && mode && (
         <ProductMaterialsManager
