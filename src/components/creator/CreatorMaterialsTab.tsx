@@ -387,6 +387,8 @@ const MaterialList = (props: ListProps) => {
             onToggleBookmark={() => props.onToggleBookmark(m)}
             onTogglePublic={() => props.onTogglePublic(m)}
             viewerType={props.viewerType}
+            allFolders={props.allFolders}
+            onMoveToFolder={props.onMoveToFolder}
           />
           {i < items.length - 1 && <Gap index={i + 1} />}
         </div>
