@@ -454,9 +454,11 @@ export type Database = {
           content: string | null
           created_at: string
           deleted_at: string | null
+          file_size: number | null
           file_url: string | null
           id: string
           order_index: number
+          original_parent_id: string | null
           parent_id: string | null
           product_id: string
           teacher_allow_download: boolean
@@ -471,9 +473,11 @@ export type Database = {
           content?: string | null
           created_at?: string
           deleted_at?: string | null
+          file_size?: number | null
           file_url?: string | null
           id?: string
           order_index?: number
+          original_parent_id?: string | null
           parent_id?: string | null
           product_id: string
           teacher_allow_download?: boolean
@@ -488,9 +492,11 @@ export type Database = {
           content?: string | null
           created_at?: string
           deleted_at?: string | null
+          file_size?: number | null
           file_url?: string | null
           id?: string
           order_index?: number
+          original_parent_id?: string | null
           parent_id?: string | null
           product_id?: string
           teacher_allow_download?: boolean

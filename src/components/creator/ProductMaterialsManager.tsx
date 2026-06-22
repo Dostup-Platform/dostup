@@ -347,6 +347,7 @@ interface FormData {
                  allow_view: true,
                  allow_download: entry.permissions.allow_download,
                  teacher_allow_download: entry.permissions.teacher_allow_download,
+                file_size: entry.file.size,
                });
             }
           }
@@ -373,6 +374,7 @@ interface FormData {
                 available_at: formData.scheduleAccess && formData.availableAt 
                   ? new Date(formData.availableAt).toISOString() 
                   : null,
+                file_size: entry.file.size,
               });
            }
           toast.success(formData.fileEntries.length > 1 ? "Файлы добавлены!" : "Файл добавлен!");

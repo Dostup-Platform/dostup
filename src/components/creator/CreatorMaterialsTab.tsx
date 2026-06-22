@@ -1302,11 +1302,65 @@ const CreatorTrashList = ({
   getIcon: (type: string) => JSX.Element;
 }) => {
   const { data: items = [], isLoading } = useDeletedMaterials(productId);
+  const { data: liveMaterials = [] } = useProductMaterials(productId, { creatorOnly: true });
   const restore = useRestoreMaterial();
   const permanentDelete = usePermanentlyDeleteMaterial();
   const emptyTrash = useEmptyTrash();
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; title: string; file_url: string | null } | null>(null);
+  const [restorePick, setRestorePick] = useState<{ id: string; title: string; missingFolderTitle: string | null } | null>(null);
+  const [pickedFolder, setPickedFolder] = useState<string>("__home__");
+
+  const folderMap = useMemo(() => {
+    const m = new Map<string, string>();
+    liveMaterials.forEach((x) => {
+      if (x.type === "folder") m.set(x.id, x.title);
+    });
+    return m;
+  }, [liveMaterials]);
+
+  const liveFolders = useMemo(
+    () => liveMaterials.filter((x) => x.type === "folder"),
+    [liveMaterials],
+  );
+
+  const formatSize = (bytes?: number | null) => {
+    if (!bytes || bytes <= 0) return "—";
+    const units = ["B", "KB", "MB", "GB"];
+    let v = bytes;
+    let i = 0;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+  };
+
+  const homeLabel = language === "kk" ? "Үй" : "Дом";
+
+  const handleRestoreClick = (m: typeof items[number]) => {
+    const origId = m.original_parent_id ?? null;
+    const origExists = origId ? folderMap.has(origId) : true; // null = home, always exists
+    if (origExists) {
+      const target = origId ? folderMap.get(origId)! : homeLabel;
+      restore.mutate(
+        { id: m.id, productId },
+        {
+          onSuccess: () =>
+            toast.success(
+              language === "kk"
+                ? `"${target}" қалтасына қалпына келтірілді`
+                : `Восстановлено в "${target}"`,
+            ),
+          onError: () => toast.error(language === "kk" ? "Қате" : "Ошибка"),
+        },
+      );
+    } else {
+      setPickedFolder("__home__");
+      setRestorePick({
+        id: m.id,
+        title: m.title,
+        missingFolderTitle: null, // folder title is gone, only id was stored
+      });
+    }
+  };
 
   const daysLeft = (deletedAt: string | null) => {
     if (!deletedAt) return TRASH_TTL_DAYS;
@@ -1363,9 +1417,27 @@ const CreatorTrashList = ({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">{m.title}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {language === "kk" ? "Жойылған" : "Удалено"}:{" "}
-                      {m.deleted_at ? new Date(m.deleted_at).toLocaleDateString(language === "kk" ? "kk-KZ" : "ru-RU") : "—"}
+                    <div className="text-xs text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5">
+                      <span>
+                        {language === "kk" ? "Жойылған" : "Удалено"}:{" "}
+                        {m.deleted_at
+                          ? new Date(m.deleted_at).toLocaleDateString(
+                              language === "kk" ? "kk-KZ" : "ru-RU",
+                            )
+                          : "—"}
+                      </span>
+                      <span>
+                        {language === "kk" ? "Қалта" : "Папка"}:{" "}
+                        {m.original_parent_id
+                          ? folderMap.get(m.original_parent_id) ??
+                            (language === "kk" ? "(жойылған)" : "(удалена)")
+                          : homeLabel}
+                      </span>
+                      {m.type === "file" && (
+                        <span>
+                          {language === "kk" ? "Өлшемі" : "Размер"}: {formatSize(m.file_size)}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-center px-2 flex-shrink-0">
@@ -1384,7 +1456,7 @@ const CreatorTrashList = ({
                       size="icon"
                       variant="ghost"
                       title={language === "kk" ? "Қалпына келтіру" : "Восстановить"}
-                      onClick={() => restore.mutate({ id: m.id, productId })}
+                      onClick={() => handleRestoreClick(m)}
                       disabled={restore.isPending}
                     >
                       <RotateCcw className="w-4 h-4" />
@@ -1472,6 +1544,71 @@ const CreatorTrashList = ({
               }}
             >
               {language === "kk" ? "Жою" : "Удалить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!restorePick} onOpenChange={(o) => !o && setRestorePick(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === "kk" ? "Қалпына келтіру" : "Восстановить материал"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {language === "kk"
+                ? "Қалта жойылған. Файл үйге қалпына келтіріледі, немесе басқа қалтаны таңдаңыз."
+                : "Папка была удалена. Файл будет восстановлен в Дом, либо можете выбрать в какую папку хотите."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Select value={pickedFolder} onValueChange={setPickedFolder}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__home__">
+                  <span className="inline-flex items-center gap-2">
+                    <Home className="w-4 h-4" />
+                    {homeLabel}
+                  </span>
+                </SelectItem>
+                {liveFolders.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <Folder className="w-4 h-4" />
+                      {f.title}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{language === "kk" ? "Болдырмау" : "Отмена"}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!restorePick) return;
+                const target = pickedFolder === "__home__" ? null : pickedFolder;
+                restore.mutate(
+                  { id: restorePick.id, productId, targetParentId: target },
+                  {
+                    onSuccess: () => {
+                      const name =
+                        target ? folderMap.get(target) ?? "—" : homeLabel;
+                      toast.success(
+                        language === "kk"
+                          ? `"${name}" қалтасына қалпына келтірілді`
+                          : `Восстановлено в "${name}"`,
+                      );
+                      setRestorePick(null);
+                    },
+                    onError: () => toast.error(language === "kk" ? "Қате" : "Ошибка"),
+                  },
+                );
+              }}
+            >
+              {language === "kk" ? "Қалпына келтіру" : "Восстановить"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
