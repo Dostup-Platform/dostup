@@ -1289,3 +1289,193 @@ const MaterialNode = ({
     </div>
   );
 };
+
+const TRASH_TTL_DAYS = 30;
+
+const CreatorTrashList = ({
+  productId,
+  language,
+  getIcon,
+}: {
+  productId: string;
+  language: string;
+  getIcon: (type: string) => JSX.Element;
+}) => {
+  const { data: items = [], isLoading } = useDeletedMaterials(productId);
+  const restore = useRestoreMaterial();
+  const permanentDelete = usePermanentlyDeleteMaterial();
+  const emptyTrash = useEmptyTrash();
+  const [confirmEmpty, setConfirmEmpty] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; title: string; file_url: string | null } | null>(null);
+
+  const daysLeft = (deletedAt: string | null) => {
+    if (!deletedAt) return TRASH_TTL_DAYS;
+    const ms = new Date(deletedAt).getTime() + TRASH_TTL_DAYS * 86400_000 - Date.now();
+    return Math.max(0, Math.ceil(ms / 86400_000));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-6">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Trash2 className="w-4 h-4" />
+          <span>
+            {language === "kk"
+              ? `Себет — 30 күннен кейін мәңгілікке жойылады`
+              : `Корзина — удаляется навсегда через 30 дней`}
+          </span>
+        </div>
+        {items.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setConfirmEmpty(true)}
+          >
+            <Trash2 className="w-4 h-4 mr-1" />
+            {language === "kk" ? "Тазалау" : "Очистить"}
+          </Button>
+        )}
+      </div>
+
+      {items.length === 0 ? (
+        <div className="text-center py-10 text-sm text-muted-foreground">
+          {language === "kk" ? "Себет бос" : "Корзина пуста"}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {items.map((m) => {
+            const left = daysLeft(m.deleted_at as string | null);
+            const isCritical = left <= 5;
+            return (
+              <Card key={m.id}>
+                <CardContent className="flex items-center gap-3 p-3">
+                  <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                    {getIcon(m.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">{m.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {language === "kk" ? "Жойылған" : "Удалено"}:{" "}
+                      {m.deleted_at ? new Date(m.deleted_at).toLocaleDateString(language === "kk" ? "kk-KZ" : "ru-RU") : "—"}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center px-2 flex-shrink-0">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground leading-none">
+                      {language === "kk" ? "қалды" : "осталось"}
+                    </span>
+                    <span className={`text-lg font-bold leading-tight ${isCritical ? "text-destructive" : "text-orange-500"}`}>
+                      {left}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground leading-none">
+                      {language === "kk" ? "күн" : "дн."}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title={language === "kk" ? "Қалпына келтіру" : "Восстановить"}
+                      onClick={() => restore.mutate({ id: m.id, productId })}
+                      disabled={restore.isPending}
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      title={language === "kk" ? "Мәңгілікке жою" : "Удалить навсегда"}
+                      onClick={() => setConfirmDelete({ id: m.id, title: m.title, file_url: m.file_url ?? null })}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <AlertDialog open={confirmEmpty} onOpenChange={(o) => !o && setConfirmEmpty(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === "kk" ? "Себетті тазалау?" : "Очистить корзину?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {language === "kk"
+                ? "Барлық материалдар мәңгілікке жойылады. Бұл әрекетті болдырмау мүмкін емес."
+                : "Все материалы будут удалены навсегда. Это действие нельзя отменить."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{language === "kk" ? "Болдырмау" : "Отмена"}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => {
+                emptyTrash.mutate(
+                  { productId },
+                  {
+                    onSuccess: () => {
+                      toast.success(language === "kk" ? "Себет тазаланды" : "Корзина очищена");
+                      setConfirmEmpty(false);
+                    },
+                    onError: () => toast.error(language === "kk" ? "Қате" : "Ошибка"),
+                  },
+                );
+              }}
+            >
+              {language === "kk" ? "Тазалау" : "Очистить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === "kk" ? "Мәңгілікке жою керек пе?" : "Удалить навсегда?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {language === "kk"
+                ? `"${confirmDelete?.title}" мәңгілікке жойылады.`
+                : `"${confirmDelete?.title}" будет удалён навсегда.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{language === "kk" ? "Болдырмау" : "Отмена"}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => {
+                if (!confirmDelete) return;
+                permanentDelete.mutate(
+                  { id: confirmDelete.id, productId, file_url: confirmDelete.file_url },
+                  {
+                    onSuccess: () => {
+                      toast.success(language === "kk" ? "Жойылды" : "Удалено");
+                      setConfirmDelete(null);
+                    },
+                    onError: () => toast.error(language === "kk" ? "Қате" : "Ошибка"),
+                  },
+                );
+              }}
+            >
+              {language === "kk" ? "Жою" : "Удалить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
