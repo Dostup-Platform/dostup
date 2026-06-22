@@ -176,7 +176,7 @@ const MaterialList = (props: ListProps) => {
   const Gap = ({ index }: { index: number }) => {
     const lit = isGapLit(index);
     const handleOver = (e: React.DragEvent) => {
-      if (!draggingId) return;
+      if (!draggingId || !reorderWithinParent) return;
       const t = resolveGapTarget(index);
       if (!t || t.targetId === draggingId) return;
       e.preventDefault();
@@ -186,6 +186,7 @@ const MaterialList = (props: ListProps) => {
       if (dropPosition !== t.position) setDropPosition(t.position);
     };
     const handleDrop = (e: React.DragEvent) => {
+      if (!reorderWithinParent) return;
       e.preventDefault();
       e.stopPropagation();
       const id = draggingId;
@@ -222,7 +223,7 @@ const MaterialList = (props: ListProps) => {
       dropPosition === position &&
       !isNoop(draggingId, target.id, position);
     const handleOver = (e: React.DragEvent) => {
-      if (!draggingId || draggingId === target.id) return;
+      if (!draggingId || draggingId === target.id || !reorderWithinParent) return;
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = "move";
@@ -230,6 +231,7 @@ const MaterialList = (props: ListProps) => {
       if (dropPosition !== position) setDropPosition(position);
     };
     const handleDrop = (e: React.DragEvent) => {
+      if (!reorderWithinParent) return;
       e.preventDefault();
       e.stopPropagation();
       const id = draggingId;
@@ -273,7 +275,7 @@ const MaterialList = (props: ListProps) => {
   // Fallback на уровне контейнера: если дроп прошёл мимо карточек/гэпов,
   // всё равно кладём материал в самый верх или самый низ по положению курсора.
   const handleContainerOver = (e: React.DragEvent) => {
-    if (!draggingId || items.length === 0) return;
+    if (!draggingId || items.length === 0 || !reorderWithinParent) return;
     const target = getContainerEdgeTarget(e);
     if (!target || target.targetId === draggingId || isNoop(draggingId, target.targetId, target.position)) return;
     e.preventDefault();
@@ -282,7 +284,7 @@ const MaterialList = (props: ListProps) => {
     if (dropPosition !== target.position) setDropPosition(target.position);
   };
   const handleContainerDrop = (e: React.DragEvent) => {
-    if (!draggingId || items.length === 0) return;
+    if (!draggingId || items.length === 0 || !reorderWithinParent) return;
     const target = getContainerEdgeTarget(e);
     if (!target || target.targetId === draggingId || isNoop(draggingId, target.targetId, target.position)) return;
     e.preventDefault();
