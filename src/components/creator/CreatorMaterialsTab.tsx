@@ -182,6 +182,8 @@ type ListProps = {
   onToggleBookmark: (m: Mat) => void;
   onTogglePublic: (m: Mat) => void;
   viewerType: "creator";
+  allFolders: Mat[];
+  onMoveToFolder: (materialId: string, target: string | null) => void;
 };
 
 const MaterialList = (props: ListProps) => {
