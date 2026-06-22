@@ -453,6 +453,7 @@ export type Database = {
           available_at: string | null
           content: string | null
           created_at: string
+          deleted_at: string | null
           file_url: string | null
           id: string
           order_index: number
@@ -469,6 +470,7 @@ export type Database = {
           available_at?: string | null
           content?: string | null
           created_at?: string
+          deleted_at?: string | null
           file_url?: string | null
           id?: string
           order_index?: number
@@ -485,6 +487,7 @@ export type Database = {
           available_at?: string | null
           content?: string | null
           created_at?: string
+          deleted_at?: string | null
           file_url?: string | null
           id?: string
           order_index?: number
