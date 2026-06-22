@@ -1,4 +1,4 @@
-import { Library, Star, MoreVertical } from "lucide-react";
+import { Library, Star, MoreVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -10,7 +10,7 @@ import {
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useState, type ReactNode } from "react";
 
-export type MaterialsSection = "library" | "bookmarks";
+export type MaterialsSection = "library" | "bookmarks" | "trash";
 
 interface Props {
   value: MaterialsSection;
@@ -19,9 +19,13 @@ interface Props {
   addButton?: ReactNode;
   /** Hide the Add button entirely. */
   showAdd?: boolean;
+  /** Show the Trash section (creator only). */
+  showTrash?: boolean;
+  /** Optional badge next to Trash (count of items). */
+  trashCount?: number;
 }
 
-export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = true }: Props) => {
+export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = true, showTrash = false, trashCount = 0 }: Props) => {
   const { language } = useLanguage();
   const [open, setOpen] = useState(false);
 
@@ -37,6 +41,13 @@ export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = tru
       icon: Star,
     },
   ];
+  if (showTrash) {
+    items.push({
+      key: "trash",
+      label: language === "kk" ? "Себет" : "Корзина",
+      icon: Trash2,
+    });
+  }
 
   return (
     <div className="flex items-center gap-2 flex-shrink-0">
@@ -74,7 +85,12 @@ export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = tru
                   }`}
                 >
                   <Icon className="w-4 h-4" />
-                  <span>{it.label}</span>
+                  <span className="flex-1">{it.label}</span>
+                  {it.key === "trash" && trashCount > 0 && (
+                    <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-orange-500 text-white font-semibold">
+                      {trashCount}
+                    </span>
+                  )}
                 </button>
               );
             })}
