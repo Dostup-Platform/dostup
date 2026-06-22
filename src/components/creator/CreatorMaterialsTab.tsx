@@ -826,6 +826,7 @@ const MaterialNode = ({
   onReorder,
   isNoop,
   draggedParentId,
+  reorderWithinParent,
 }: {
   material: Mat;
   getIcon: (type: string) => JSX.Element;
@@ -852,6 +853,7 @@ const MaterialNode = ({
   onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
   isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
   draggedParentId: string | null;
+  reorderWithinParent: boolean;
 }) => {
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
@@ -884,9 +886,6 @@ const MaterialNode = ({
         }}
         onDragOver={(e) => {
           if (!draggingId || draggingId === material.id) return;
-          e.preventDefault();
-          e.stopPropagation();
-          e.dataTransfer.dropEffect = "move";
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
           const y = e.clientY - rect.top;
           const h = rect.height;
@@ -899,6 +898,12 @@ const MaterialNode = ({
           } else {
             pos = y < h / 2 ? "before" : "after";
           }
+          // В режимах сортировки newest/oldest менять порядок внутри одного
+          // родителя нельзя — разрешён только drop «внутрь» папки.
+          if (!reorderWithinParent && pos !== "inside") return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "move";
           if (dragOverId !== material.id) setDragOverId(material.id);
           if (dropPosition !== pos) setDropPosition(pos);
         }}
