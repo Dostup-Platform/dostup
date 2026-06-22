@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
   ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
-  GripVertical, Home, ArrowUpDown, Star, Eye, EyeOff
+  GripVertical, Home, ArrowUpDown, Star
 } from "lucide-react";
 import {
   Select,
@@ -29,6 +29,7 @@ import { useProductMaterials, useUpdateMaterial, useDeleteMaterial } from "@/hoo
 import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 import MaterialsSectionsNav, { type MaterialsSection } from "@/components/materials/MaterialsSectionsNav";
 import BookmarkStars from "@/components/materials/BookmarkStars";
+import { Switch } from "@/components/ui/switch";
 import {
   indexBookmarks,
   useBulkSetBookmarksPublic,
@@ -858,25 +859,18 @@ const CreatorMaterialsReadOnlyList = ({
       )}
 
       {isBookmarksSection && myBookmarksInProduct.length > 0 && (
-        <div className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/40">
-          <span className="text-sm text-muted-foreground">
+        <div className="flex items-center justify-between gap-3 p-3 rounded-md bg-muted/40">
+          <span className="text-sm text-foreground">
             {language === "kk"
-              ? "Менің белгілерімді оқушыларға көрсету"
-              : "Показывать мои пометки ученикам"}
+              ? "Оқушыларға көрсету"
+              : "Показывать ученикам"}
           </span>
-          <Button
-            type="button"
-            size="sm"
-            variant={allMyArePublic ? "default" : "outline"}
-            className="gap-1.5"
-            onClick={() => handleBulkPublic(!allMyArePublic)}
+          <Switch
+            checked={allMyArePublic}
+            onCheckedChange={(next) => handleBulkPublic(next)}
             disabled={bulkSetPublic.isPending}
-          >
-            {allMyArePublic ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            {allMyArePublic
-              ? language === "kk" ? "Көрсетіледі" : "Показаны"
-              : language === "kk" ? "Жасырылған" : "Скрыты"}
-          </Button>
+            aria-label={language === "kk" ? "Оқушыларға көрсету" : "Показывать ученикам"}
+          />
         </div>
       )}
 

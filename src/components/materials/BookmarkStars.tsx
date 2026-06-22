@@ -1,4 +1,4 @@
-import { Star, Eye, EyeOff } from "lucide-react";
+import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { BookmarkState, BookmarkUserType } from "@/hooks/useMaterialBookmarks";
@@ -7,9 +7,10 @@ interface Props {
   viewerType: BookmarkUserType;
   state: BookmarkState | undefined;
   onToggleMine: () => void;
+  /** Deprecated — public visibility is now controlled by a single bulk switch in the bookmarks section. */
   onTogglePublic?: () => void;
   size?: "sm" | "md";
-  /** Show the eye toggle only for creators when they have a personal bookmark. */
+  /** Deprecated — see onTogglePublic. */
   allowMakePublic?: boolean;
   disabled?: boolean;
 }
@@ -18,9 +19,7 @@ export const BookmarkStars = ({
   viewerType,
   state,
   onToggleMine,
-  onTogglePublic,
   size = "sm",
-  allowMakePublic,
   disabled,
 }: Props) => {
   const { language } = useLanguage();
@@ -32,8 +31,6 @@ export const BookmarkStars = ({
 
   const iconSize = size === "md" ? "w-5 h-5" : "w-4 h-4";
   const btnSize = size === "md" ? "h-10 w-10" : "h-8 w-8";
-
-  const canMakePublic = isCreator && !!mine && (allowMakePublic ?? true);
 
   return (
     <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -65,30 +62,6 @@ export const BookmarkStars = ({
           className={`${iconSize} ${mine ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`}
         />
       </Button>
-      {canMakePublic && onTogglePublic && (
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className={`${btnSize} min-h-0`}
-          disabled={disabled}
-          onClick={(e) => {
-            e.stopPropagation();
-            onTogglePublic();
-          }}
-          title={
-            mine?.is_public
-              ? language === "kk" ? "Оқушылардан жасыру" : "Скрыть от учеников"
-              : language === "kk" ? "Оқушыларға көрсету" : "Показать ученикам"
-          }
-        >
-          {mine?.is_public ? (
-            <Eye className={`${iconSize} text-primary`} />
-          ) : (
-            <EyeOff className={`${iconSize} text-muted-foreground`} />
-          )}
-        </Button>
-      )}
     </div>
   );
 };
