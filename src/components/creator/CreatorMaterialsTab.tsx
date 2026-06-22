@@ -805,6 +805,10 @@ const CreatorMaterialsReadOnlyList = ({
     );
   }
 
+  if (isTrashSection) {
+    return <CreatorTrashList productId={productId} language={language} getIcon={getIcon} />;
+  }
+
   return (
     <div className="space-y-3">
       {/* Гасим нативный drag-over у поисковой строки, чтобы при перетаскивании
