@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
   ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
-  GripVertical, Home, ArrowUpDown, Star
+  GripVertical, Home, ArrowUpDown, Star, RotateCcw
 } from "lucide-react";
 import {
   Select,
@@ -28,7 +28,15 @@ import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
 import NoProductsEmptyState from "./NoProductsEmptyState";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useProductMaterials, useUpdateMaterial, useDeleteMaterial } from "@/hooks/useMaterials";
+import {
+  useProductMaterials,
+  useUpdateMaterial,
+  useDeleteMaterial,
+  useDeletedMaterials,
+  useRestoreMaterial,
+  usePermanentlyDeleteMaterial,
+  useEmptyTrash,
+} from "@/hooks/useMaterials";
 import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 import MaterialsSectionsNav, { type MaterialsSection } from "@/components/materials/MaterialsSectionsNav";
 import BookmarkStars from "@/components/materials/BookmarkStars";
