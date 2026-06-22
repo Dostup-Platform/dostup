@@ -14,6 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
 import NoProductsEmptyState from "./NoProductsEmptyState";
@@ -880,9 +887,22 @@ const MaterialNode = ({
     if (!isFolder) onOpen(material);
   };
 
+  const triggerDownload = () => {
+    if (!downloadUrl) return;
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.rel = "noopener";
+    a.download = material.title || "";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
   return (
     <div>
-      <Card
+      <ContextMenu>
+        <ContextMenuTrigger asChild disabled={isRenaming}>
+        <Card
         data-material-card="true"
         className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${showInsideRing ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
         onClick={handleCardClick}
@@ -1039,7 +1059,43 @@ const MaterialNode = ({
             </>
           )}
         </CardContent>
-      </Card>
+        </Card>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="w-52">
+          <ContextMenuItem onSelect={() => startRename(material)}>
+            <Pencil className="w-4 h-4 mr-2" />
+            {language === "kk" ? "Атын өзгерту" : "Переименовать"}
+          </ContextMenuItem>
+          {isFolder && (
+            <ContextMenuItem onSelect={() => onAddInFolder(material.id)}>
+              <Plus className="w-4 h-4 mr-2" />
+              {language === "kk" ? "Папкаға қосу" : "Добавить в папку"}
+            </ContextMenuItem>
+          )}
+          {downloadUrl && (
+            <ContextMenuItem onSelect={triggerDownload}>
+              <Download className="w-4 h-4 mr-2" />
+              {language === "kk" ? "Жүктеу" : "Скачать"}
+            </ContextMenuItem>
+          )}
+          {material.type === "link" && material.file_url && (
+            <ContextMenuItem
+              onSelect={() => window.open(material.file_url!, "_blank", "noopener,noreferrer")}
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              {language === "kk" ? "Ашу" : "Открыть"}
+            </ContextMenuItem>
+          )}
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            onSelect={() => onDelete(material)}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            {language === "kk" ? "Жою" : "Удалить"}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     </div>
   );
 };
