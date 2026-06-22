@@ -138,6 +138,7 @@ type ListProps = {
   onReorder: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => void;
   isNoop: (draggedId: string, targetId: string, position: "before" | "after" | "inside") => boolean;
   draggedParentId: string | null;
+  reorderWithinParent: boolean;
 };
 
 const MaterialList = (props: ListProps) => {
@@ -151,6 +152,7 @@ const MaterialList = (props: ListProps) => {
     setDropPosition,
     setDraggingId,
     onReorder,
+    reorderWithinParent,
   } = props;
 
   const isGapLit = (gapIndex: number): boolean => {
@@ -294,10 +296,10 @@ const MaterialList = (props: ListProps) => {
   return (
     <div
       className={`flex flex-col ${draggingId ? "min-h-[45vh]" : ""}`}
-      onDragOver={handleContainerOver}
-      onDrop={handleContainerDrop}
+      onDragOver={reorderWithinParent ? handleContainerOver : undefined}
+      onDrop={reorderWithinParent ? handleContainerDrop : undefined}
     >
-      <EdgeZone edge="top" />
+      {reorderWithinParent && <EdgeZone edge="top" />}
       {items.map((m, i) => (
         <div key={m.id} className="flex flex-col">
           <MaterialNode
@@ -326,11 +328,12 @@ const MaterialList = (props: ListProps) => {
             onReorder={props.onReorder}
             isNoop={props.isNoop}
             draggedParentId={props.draggedParentId}
+            reorderWithinParent={reorderWithinParent}
           />
-          {i < items.length - 1 && <Gap index={i + 1} />}
+          {reorderWithinParent && i < items.length - 1 && <Gap index={i + 1} />}
         </div>
       ))}
-      <EdgeZone edge="bottom" />
+      {reorderWithinParent && <EdgeZone edge="bottom" />}
     </div>
   );
 };
