@@ -18,6 +18,7 @@ interface Material {
   allow_download?: boolean;
   available_at?: string | null;
   teacher_allow_download?: boolean;
+  deleted_at?: string | null;
 }
 
 export const useMaterials = (productId: string | undefined, options?: { creatorOnly?: boolean }) => {
