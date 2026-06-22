@@ -296,10 +296,10 @@ const MaterialList = (props: ListProps) => {
   return (
     <div
       className={`flex flex-col ${draggingId ? "min-h-[45vh]" : ""}`}
-      onDragOver={reorderWithinParent ? handleContainerOver : undefined}
-      onDrop={reorderWithinParent ? handleContainerDrop : undefined}
+      onDragOver={handleContainerOver}
+      onDrop={handleContainerDrop}
     >
-      {reorderWithinParent && <EdgeZone edge="top" />}
+      <EdgeZone edge="top" />
       {items.map((m, i) => (
         <div key={m.id} className="flex flex-col">
           <MaterialNode
@@ -330,10 +330,10 @@ const MaterialList = (props: ListProps) => {
             draggedParentId={props.draggedParentId}
             reorderWithinParent={reorderWithinParent}
           />
-          {reorderWithinParent && i < items.length - 1 && <Gap index={i + 1} />}
+          {i < items.length - 1 && <Gap index={i + 1} />}
         </div>
       ))}
-      {reorderWithinParent && <EdgeZone edge="bottom" />}
+      <EdgeZone edge="bottom" />
     </div>
   );
 };
