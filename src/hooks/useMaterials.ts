@@ -19,6 +19,8 @@ interface Material {
   available_at?: string | null;
   teacher_allow_download?: boolean;
   deleted_at?: string | null;
+  file_size?: number | null;
+  original_parent_id?: string | null;
 }
 
 export const useMaterials = (productId: string | undefined, options?: { creatorOnly?: boolean }) => {
@@ -104,6 +106,7 @@ interface CreateMaterialInput {
   allow_download?: boolean;
   available_at?: string | null;
   teacher_allow_download?: boolean;
+  file_size?: number | null;
 }
 
 export const useCreateMaterial = () => {
@@ -125,6 +128,7 @@ export const useCreateMaterial = () => {
           allow_download: material.allow_download !== false,
           available_at: material.available_at || null,
           teacher_allow_download: material.teacher_allow_download !== false,
+          file_size: material.file_size ?? null,
         })
         .select()
         .single();
