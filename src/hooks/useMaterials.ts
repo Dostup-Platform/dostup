@@ -18,6 +18,7 @@ interface Material {
   allow_download?: boolean;
   available_at?: string | null;
   teacher_allow_download?: boolean;
+  deleted_at?: string | null;
 }
 
 export const useMaterials = (productId: string | undefined, options?: { creatorOnly?: boolean }) => {
@@ -29,7 +30,8 @@ export const useMaterials = (productId: string | undefined, options?: { creatorO
       let query = supabase
         .from("materials")
         .select("*")
-        .eq("product_id", productId);
+        .eq("product_id", productId)
+        .is("deleted_at", null);
       
       // Filter to only creator materials (teacher_id is null)
       if (options?.creatorOnly) {
@@ -163,26 +165,108 @@ export const useDeleteMaterial = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, productId, file_url }: { id: string; productId: string; file_url?: string | null }) => {
-      // Delete file from storage if exists
-      if (file_url) {
-        const path = file_url.split("/materials/")[1];
-        if (path) {
-          await supabase.storage.from("materials").remove([path]);
-        }
-      }
-      
+    mutationFn: async ({ id, productId }: { id: string; productId: string; file_url?: string | null }) => {
+      // Soft delete — move to trash. File stays in storage until permanent removal.
       const { error } = await supabase
         .from("materials")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq("id", id);
-      
       if (error) throw error;
       return { id, productId };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["materials", data.productId] });
       queryClient.invalidateQueries({ queryKey: ["user-materials"] });
+      queryClient.invalidateQueries({ queryKey: ["deleted-materials", data.productId] });
+    },
+  });
+};
+
+export const useDeletedMaterials = (productId: string | undefined) => {
+  return useQuery({
+    queryKey: ["deleted-materials", productId],
+    queryFn: async () => {
+      if (!productId) return [];
+      const { data, error } = await supabase
+        .from("materials")
+        .select("*")
+        .eq("product_id", productId)
+        .is("teacher_id", null)
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Material[];
+    },
+    enabled: !!productId,
+  });
+};
+
+export const useRestoreMaterial = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, productId }: { id: string; productId: string }) => {
+      const { error } = await supabase
+        .from("materials")
+        .update({ deleted_at: null })
+        .eq("id", id);
+      if (error) throw error;
+      return { id, productId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["materials", data.productId] });
+      queryClient.invalidateQueries({ queryKey: ["deleted-materials", data.productId] });
+    },
+  });
+};
+
+export const usePermanentlyDeleteMaterial = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, productId, file_url }: { id: string; productId: string; file_url?: string | null }) => {
+      if (file_url) {
+        const path = file_url.split("/materials/")[1];
+        if (path) {
+          await supabase.storage.from("materials").remove([path]);
+        }
+      }
+      const { error } = await supabase.from("materials").delete().eq("id", id);
+      if (error) throw error;
+      return { id, productId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["deleted-materials", data.productId] });
+      queryClient.invalidateQueries({ queryKey: ["materials", data.productId] });
+    },
+  });
+};
+
+export const useEmptyTrash = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ productId }: { productId: string }) => {
+      const { data: rows } = await supabase
+        .from("materials")
+        .select("id, file_url")
+        .eq("product_id", productId)
+        .is("teacher_id", null)
+        .not("deleted_at", "is", null);
+      const paths = (rows ?? [])
+        .map((r: { file_url: string | null }) => r.file_url?.split("/materials/")[1])
+        .filter((p): p is string => !!p);
+      if (paths.length) {
+        await supabase.storage.from("materials").remove(paths);
+      }
+      const { error } = await supabase
+        .from("materials")
+        .delete()
+        .eq("product_id", productId)
+        .is("teacher_id", null)
+        .not("deleted_at", "is", null);
+      if (error) throw error;
+      return { productId };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["deleted-materials", data.productId] });
     },
   });
 };
