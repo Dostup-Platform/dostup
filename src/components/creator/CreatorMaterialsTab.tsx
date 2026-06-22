@@ -107,7 +107,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap md:hidden">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <ProductSwitcher
           products={products.map((p) => ({ id: p.id, title: p.title }))}
           selectedId={selectedId}
@@ -120,45 +120,17 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
         />
       </div>
 
-      <div className="hidden md:flex md:items-start md:gap-4">
-        <div className="flex-1 min-w-0 space-y-4">
-          <ProductSwitcher
-            products={products.map((p) => ({ id: p.id, title: p.title }))}
-            selectedId={selectedId}
-            onChange={(id) => setSelectedId(id)}
-          />
-          {product && (
-            <CreatorMaterialsReadOnlyList
-              productId={product.id}
-              section={section}
-              viewer={viewer}
-              onAddInFolder={(folderId) => {
-                setAddParentId(folderId);
-                setMode("add");
-              }}
-            />
-          )}
-        </div>
-        <MaterialsSectionsNav
-          value={section}
-          onChange={setSection}
-          addButton={addButton}
+      {product && (
+        <CreatorMaterialsReadOnlyList
+          productId={product.id}
+          section={section}
+          viewer={viewer}
+          onAddInFolder={(folderId) => {
+            setAddParentId(folderId);
+            setMode("add");
+          }}
         />
-      </div>
-
-      <div className="md:hidden">
-        {product && (
-          <CreatorMaterialsReadOnlyList
-            productId={product.id}
-            section={section}
-            viewer={viewer}
-            onAddInFolder={(folderId) => {
-              setAddParentId(folderId);
-              setMode("add");
-            }}
-          />
-        )}
-      </div>
+      )}
 
       {product && mode && (
         <ProductMaterialsManager
