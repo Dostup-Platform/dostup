@@ -347,6 +347,7 @@ interface FormData {
                  allow_view: true,
                  allow_download: entry.permissions.allow_download,
                  teacher_allow_download: entry.permissions.teacher_allow_download,
+                file_size: entry.file.size,
                });
             }
           }
