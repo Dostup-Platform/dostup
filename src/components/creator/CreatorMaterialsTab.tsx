@@ -1210,18 +1210,6 @@ const MaterialNode = ({
               ? (language === "kk" ? "Белгіні алу" : "Снять пометку")
               : (language === "kk" ? "Белгілеу" : "Пометить")}
           </ContextMenuItem>
-          {bookmarkState?.mine && (
-            <ContextMenuItem onSelect={onTogglePublic}>
-              {bookmarkState.mine.is_public ? (
-                <EyeOff className="w-4 h-4 mr-2" />
-              ) : (
-                <Eye className="w-4 h-4 mr-2" />
-              )}
-              {bookmarkState.mine.is_public
-                ? (language === "kk" ? "Оқушылардан жасыру" : "Скрыть от учеников")
-                : (language === "kk" ? "Оқушыларға көрсету" : "Показать ученикам")}
-            </ContextMenuItem>
-          )}
           {isFolder && (
             <ContextMenuItem onSelect={() => onAddInFolder(material.id)}>
               <Plus className="w-4 h-4 mr-2" />
