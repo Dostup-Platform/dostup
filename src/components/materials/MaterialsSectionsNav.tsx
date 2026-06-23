@@ -8,6 +8,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useState, type ReactNode } from "react";
 
 export type MaterialsSection = "library" | "bookmarks" | "trash";
@@ -28,6 +29,7 @@ interface Props {
 export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = true, showTrash = false, trashCount = 0 }: Props) => {
   const { language } = useLanguage();
   const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const items: { key: MaterialsSection; label: string; icon: typeof Library }[] = [
     {
@@ -47,6 +49,38 @@ export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = tru
       label: language === "kk" ? "Себет" : "Корзина",
       icon: Trash2,
     });
+  }
+
+  // Desktop: inline buttons with text, Add on the left
+  if (!isMobile) {
+    return (
+      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+        {showAdd && addButton}
+        {items.map((it) => {
+          const Icon = it.icon;
+          const active = value === it.key;
+          return (
+            <button
+              key={it.key}
+              onClick={() => onChange(it.key)}
+              className={`relative inline-flex items-center gap-2 h-9 px-3 rounded-lg text-sm font-medium transition-colors border ${
+                active
+                  ? "bg-accent/15 text-accent border-accent/40"
+                  : "bg-background text-muted-foreground border-input hover:bg-accent/10 hover:text-foreground"
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{it.label}</span>
+              {it.key === "trash" && trashCount > 0 && (
+                <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-orange-500 text-white font-semibold">
+                  {trashCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
   }
 
   return (
