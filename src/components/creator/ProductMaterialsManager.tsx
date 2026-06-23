@@ -269,13 +269,13 @@ interface FormData {
         return;
       }
 
-      if (formData.itemType === "link" && (!formData.title || !formData.linkUrl)) {
-        toast.error("Введите название и URL ссылки");
+      if (formData.itemType === "link" && !formData.linkUrl) {
+        toast.error("Введите URL ссылки");
         return;
       }
 
-      if (formData.itemType === "text" && (!formData.title || !formData.content)) {
-        toast.error("Введите название и текст");
+      if (formData.itemType === "text" && !formData.content) {
+        toast.error("Введите текст");
         return;
       }
 
@@ -294,7 +294,7 @@ interface FormData {
         if (formData.itemType === "link") {
           await createMaterial.mutateAsync({
             product_id: productId,
-            title: formData.title,
+            title: formData.title.trim() || formData.linkUrl,
             type: "link",
             content: null,
             file_url: formData.linkUrl,
@@ -308,7 +308,7 @@ interface FormData {
         } else if (formData.itemType === "text") {
           await createMaterial.mutateAsync({
             product_id: productId,
-            title: formData.title,
+            title: formData.title.trim() || formData.content.slice(0, 80),
             type: "text",
             content: formData.content,
             file_url: null,
