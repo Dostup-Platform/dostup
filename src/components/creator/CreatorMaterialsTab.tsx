@@ -139,7 +139,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
         />
       </div>
 
-      {product && (
+      {product && section !== "storage" && (
         <CreatorMaterialsReadOnlyList
           productId={product.id}
           section={section}
