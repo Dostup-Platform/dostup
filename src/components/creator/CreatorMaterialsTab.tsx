@@ -1338,6 +1338,37 @@ const MaterialNode = ({
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
+      {material.type === "text" && (
+        <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="break-words">{material.title}</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap break-words text-sm">
+              {material.content}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+      {material.type === "link" && material.file_url && (
+        <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="break-words">{material.title}</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] overflow-y-auto break-words text-sm">
+              <a
+                href={material.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline break-all"
+              >
+                {material.file_url}
+              </a>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
