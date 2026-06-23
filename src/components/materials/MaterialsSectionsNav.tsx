@@ -1,4 +1,4 @@
-import { Library, Star, MoreVertical, Trash2 } from "lucide-react";
+import { Library, Star, MoreVertical, Trash2, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -11,7 +11,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useState, type ReactNode } from "react";
 
-export type MaterialsSection = "library" | "bookmarks" | "trash";
+export type MaterialsSection = "library" | "bookmarks" | "trash" | "storage";
 
 interface Props {
   value: MaterialsSection;
@@ -24,9 +24,11 @@ interface Props {
   showTrash?: boolean;
   /** Optional badge next to Trash (count of items). */
   trashCount?: number;
+  /** Show the Storage section (creator only). */
+  showStorage?: boolean;
 }
 
-export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = true, showTrash = false, trashCount = 0 }: Props) => {
+export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = true, showTrash = false, trashCount = 0, showStorage = false }: Props) => {
   const { language } = useLanguage();
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -48,6 +50,13 @@ export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = tru
       key: "trash",
       label: language === "kk" ? "Себет" : "Корзина",
       icon: Trash2,
+    });
+  }
+  if (showStorage) {
+    items.push({
+      key: "storage",
+      label: language === "kk" ? "Қойма" : "Хранилище",
+      icon: HardDrive,
     });
   }
 

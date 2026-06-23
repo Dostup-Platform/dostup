@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
   ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
-  GripVertical, Home, ArrowUpDown, Star, RotateCcw
+  GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw
 } from "lucide-react";
 import {
   Select,
@@ -36,7 +36,10 @@ import {
   useRestoreMaterial,
   usePermanentlyDeleteMaterial,
   useEmptyTrash,
+  useAllCreatorMaterials,
 } from "@/hooks/useMaterials";
+import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/integrations/supabase/client";
 import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 import MaterialsSectionsNav, { type MaterialsSection } from "@/components/materials/MaterialsSectionsNav";
 import BookmarkStars from "@/components/materials/BookmarkStars";
@@ -132,10 +135,11 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
           addButton={addButton}
           showTrash
           trashCount={trashItems.length}
+          showStorage
         />
       </div>
 
-      {product && (
+      {product && section !== "storage" && (
         <CreatorMaterialsReadOnlyList
           productId={product.id}
           section={section}
@@ -145,6 +149,10 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
             setMode("add");
           }}
         />
+      )}
+
+      {section === "storage" && (
+        <CreatorStorageList creatorName={creatorName} />
       )}
 
       {product && mode && (
@@ -1613,6 +1621,182 @@ const CreatorTrashList = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+};
+// ============================================================
+// Storage view — creator-only. Shows total bytes used across all
+// of the creator's products with a quota progress bar and a list
+// of all files sorted by size. Read-only: names + sizes only,
+// no open/download. Includes a "refresh sizes" backfill action.
+// ============================================================
+
+const STORAGE_QUOTA_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+
+const formatBytes = (bytes?: number | null) => {
+  if (!bytes || bytes <= 0) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = bytes;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+};
+
+const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
+  const { language } = useLanguage();
+  const { data: files = [], isLoading, refetch } = useAllCreatorMaterials(creatorName);
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const sorted = useMemo(() => {
+    const arr = [...files];
+    arr.sort((a, b) => {
+      const av = a.file_size ?? -1;
+      const bv = b.file_size ?? -1;
+      return sortDir === "desc" ? bv - av : av - bv;
+    });
+    return arr;
+  }, [files, sortDir]);
+
+  const totalBytes = useMemo(
+    () => files.reduce((s, f) => s + (f.file_size ?? 0), 0),
+    [files],
+  );
+  const missingCount = useMemo(
+    () => files.filter((f) => !f.file_size).length,
+    [files],
+  );
+  const pct = Math.min(100, Math.round((totalBytes / STORAGE_QUOTA_BYTES) * 100));
+
+  const handleRefreshSizes = async () => {
+    const token = localStorage.getItem("creator_token") || "";
+    const name = localStorage.getItem("creator_name") || creatorName;
+    if (!token || !name) {
+      toast.error(language === "kk" ? "Авторизация қажет" : "Требуется вход");
+      return;
+    }
+    setRefreshing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "material-file-sizes",
+        { body: { token, creatorName: name } },
+      );
+      if (error) throw error;
+      const updated = (data as { updated?: number } | null)?.updated ?? 0;
+      toast.success(
+        language === "kk"
+          ? `Жаңартылды: ${updated}`
+          : `Обновлено: ${updated}`,
+      );
+      await refetch();
+    } catch (e) {
+      console.error(e);
+      toast.error(language === "kk" ? "Қате" : "Ошибка");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-6">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <HardDrive className="w-5 h-5 text-accent" />
+              <div className="font-medium">
+                {language === "kk" ? "Қойма" : "Хранилище"}
+              </div>
+            </div>
+            <div className="text-sm tabular-nums">
+              <span className="font-semibold">{formatBytes(totalBytes)}</span>
+              <span className="text-muted-foreground">
+                {" "}/ {formatBytes(STORAGE_QUOTA_BYTES)} ({pct}%)
+              </span>
+            </div>
+          </div>
+          <Progress value={pct} className="h-2" />
+          {missingCount > 0 && (
+            <div className="flex items-center justify-between gap-3 flex-wrap text-xs text-muted-foreground">
+              <span>
+                {language === "kk"
+                  ? `${missingCount} файлдың өлшемі белгісіз`
+                  : `У ${missingCount} файлов размер не определён`}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRefreshSizes}
+                disabled={refreshing}
+                className="gap-2"
+              >
+                {refreshing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                {language === "kk" ? "Өлшемдерді есептеу" : "Пересчитать размеры"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm text-muted-foreground">
+          {language === "kk"
+            ? `Барлығы файл: ${files.length}`
+            : `Всего файлов: ${files.length}`}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-2"
+          onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
+        >
+          <ArrowUpDown className="w-4 h-4" />
+          {sortDir === "desc"
+            ? language === "kk" ? "Үлкеннен кішіге" : "От большего к меньшему"
+            : language === "kk" ? "Кішіден үлкенге" : "От меньшего к большему"}
+        </Button>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="text-center py-10 text-sm text-muted-foreground">
+          {language === "kk" ? "Файлдар жоқ" : "Нет файлов"}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {sorted.map((f) => (
+            <Card key={f.id}>
+              <CardContent className="flex items-center gap-3 p-3">
+                <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{f.title}</div>
+                  {f.product_title && (
+                    <div className="text-xs text-muted-foreground truncate">
+                      {f.product_title}
+                    </div>
+                  )}
+                </div>
+                <div className="text-sm tabular-nums font-medium text-muted-foreground flex-shrink-0">
+                  {formatBytes(f.file_size)}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
