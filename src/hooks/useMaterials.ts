@@ -325,6 +325,40 @@ export const useEmptyTrash = () => {
   });
 };
 
+/**
+ * All creator-owned, live (not trashed) materials across all of the creator's products.
+ * Used by the Storage view to compute total usage and list files by size.
+ */
+export const useAllCreatorMaterials = (creatorName: string | undefined) => {
+  return useQuery({
+    queryKey: ["all-creator-materials", creatorName],
+    queryFn: async () => {
+      if (!creatorName) return [];
+      const { data: products, error: pErr } = await supabase
+        .from("products")
+        .select("id, title")
+        .eq("creator_id", creatorName);
+      if (pErr) throw pErr;
+      const ids = (products ?? []).map((p) => p.id);
+      if (ids.length === 0) return [];
+      const { data, error } = await supabase
+        .from("materials")
+        .select("id, product_id, title, type, file_url, file_size, created_at")
+        .in("product_id", ids)
+        .eq("type", "file")
+        .is("teacher_id", null)
+        .is("deleted_at", null);
+      if (error) throw error;
+      const titleMap = new Map((products ?? []).map((p) => [p.id, p.title]));
+      return (data ?? []).map((m) => ({
+        ...m,
+        product_title: titleMap.get(m.product_id) ?? "",
+      }));
+    },
+    enabled: !!creatorName,
+  });
+};
+
 export const uploadMaterialFile = async (
   file: File, 
   productId: string,
