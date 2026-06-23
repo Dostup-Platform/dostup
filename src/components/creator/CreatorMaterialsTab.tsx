@@ -148,7 +148,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-center justify-between gap-3">
         <ProductSwitcher
           products={products.map((p) => ({ id: p.id, title: p.title }))}
           selectedId={selectedId}
