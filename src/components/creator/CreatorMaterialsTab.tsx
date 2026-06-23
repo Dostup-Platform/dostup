@@ -1242,6 +1242,17 @@ const MaterialNode = ({
                     <ExternalLink className="w-4 h-4" />
                   </a>
                 )}
+                {material.type === "text" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 min-h-0"
+                    title={language === "kk" ? "Ашу" : "Открыть"}
+                    onClick={(e) => { e.stopPropagation(); setViewerOpen(true); }}
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
