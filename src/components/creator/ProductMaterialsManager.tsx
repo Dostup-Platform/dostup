@@ -572,18 +572,18 @@ interface FormData {
 
         {formData.itemType === "link" && (
           <>
-            <div className="space-y-2">
+          <div className="space-y-2">
               <Label>Название (необязательно)</Label>
               <Input
-                placeholder="Если пусто — показывается сама ссылка"
+                placeholder="Если пусто — показывается сам текст"
                 value={formData.title}
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
-              <Label>Ссылка или текст *</Label>
+              <Label>Текст *</Label>
               <Textarea
-                placeholder="Вставьте ссылку (https://...) или просто текст"
+                placeholder="Вставьте текст и/или ссылку"
                 value={formData.linkUrl}
                 onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
                 rows={4}
