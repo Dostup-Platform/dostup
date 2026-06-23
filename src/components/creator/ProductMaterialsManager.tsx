@@ -552,7 +552,7 @@ interface FormData {
               <RadioGroupItem value="link" id="type-link" />
               <Label htmlFor="type-link" className="cursor-pointer flex items-center gap-2">
                 <LinkIcon className="w-4 h-4" />
-                Ссылка
+                Текст
               </Label>
             </div>
           </RadioGroup>
