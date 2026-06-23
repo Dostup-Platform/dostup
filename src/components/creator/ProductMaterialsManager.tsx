@@ -269,8 +269,8 @@ interface FormData {
         return;
       }
 
-      if (formData.itemType === "link" && !formData.linkUrl) {
-        toast.error("Введите URL ссылки");
+      if (formData.itemType === "link" && !formData.linkUrl.trim()) {
+        toast.error("Введите ссылку или текст");
         return;
       }
 
@@ -292,19 +292,40 @@ interface FormData {
           : 0;
         const topIndex = siblingsHere.length ? minSiblingIdx - 1 : 0;
         if (formData.itemType === "link") {
-          await createMaterial.mutateAsync({
-            product_id: productId,
-            title: formData.title.trim() || formData.linkUrl,
-            type: "link",
-            content: null,
-            file_url: formData.linkUrl,
-            order_index: topIndex,
-            parent_id: currentFolderId,
-            available_at: formData.scheduleAccess && formData.availableAt 
-              ? new Date(formData.availableAt).toISOString() 
-              : null,
-          });
-          toast.success("Ссылка добавлена!");
+          const raw = formData.linkUrl.trim();
+          // Поле принимает и URL, и обычный текст. Если это URL — создаём ссылку,
+          // иначе сохраняем как текстовый материал.
+          const isUrl = /^(https?:\/\/|\/\/)/i.test(raw) || /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(raw);
+          if (isUrl) {
+            const normalized = /^(https?:\/\/|\/\/)/i.test(raw) ? raw : `https://${raw}`;
+            await createMaterial.mutateAsync({
+              product_id: productId,
+              title: formData.title.trim() || normalized,
+              type: "link",
+              content: null,
+              file_url: normalized,
+              order_index: topIndex,
+              parent_id: currentFolderId,
+              available_at: formData.scheduleAccess && formData.availableAt
+                ? new Date(formData.availableAt).toISOString()
+                : null,
+            });
+            toast.success("Ссылка добавлена!");
+          } else {
+            await createMaterial.mutateAsync({
+              product_id: productId,
+              title: formData.title.trim() || raw.slice(0, 80),
+              type: "text",
+              content: raw,
+              file_url: null,
+              order_index: topIndex,
+              parent_id: currentFolderId,
+              available_at: formData.scheduleAccess && formData.availableAt
+                ? new Date(formData.availableAt).toISOString()
+                : null,
+            });
+            toast.success("Текст добавлен!");
+          }
         } else if (formData.itemType === "text") {
           await createMaterial.mutateAsync({
             product_id: productId,
@@ -534,13 +555,6 @@ interface FormData {
                 Ссылка
               </Label>
             </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="text" id="type-text" />
-              <Label htmlFor="type-text" className="cursor-pointer flex items-center gap-2">
-                <Type className="w-4 h-4" />
-                Текст
-              </Label>
-            </div>
           </RadioGroup>
         </div>
   
@@ -567,33 +581,11 @@ interface FormData {
               />
             </div>
             <div className="space-y-2">
-              <Label>URL ссылки *</Label>
-              <Input
-                placeholder="https://..."
+              <Label>Ссылка или текст *</Label>
+              <Textarea
+                placeholder="Вставьте ссылку (https://...) или просто текст"
                 value={formData.linkUrl}
                 onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
-                required
-              />
-            </div>
-          </>
-        )}
-
-        {formData.itemType === "text" && (
-          <>
-            <div className="space-y-2">
-              <Label>Название (необязательно)</Label>
-              <Input
-                placeholder="Если пусто — показывается сам текст"
-                value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Текст *</Label>
-              <Textarea
-                placeholder="Введите текст..."
-                value={formData.content}
-                onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
                 rows={4}
                 required
               />
