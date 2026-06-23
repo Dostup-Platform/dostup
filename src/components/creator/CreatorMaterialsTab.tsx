@@ -1073,6 +1073,7 @@ const MaterialNode = ({
 }) => {
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
+  const [viewerOpen, setViewerOpen] = useState(false);
   const downloadUrl = material.type === "file" && material.file_url && material.allow_download !== false
     ? getFileUrl(material, 'download') : null;
   const isActiveTarget = !!(dragOverId === material.id && draggingId && draggingId !== material.id);
