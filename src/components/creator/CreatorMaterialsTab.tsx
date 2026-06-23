@@ -159,7 +159,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
           onChange={setSection}
           addButton={addButton}
           showTrash
-          trashCount={trashItems.length}
+          trashCount={trashBadgeCount}
           showStorage
         />
       </div>
