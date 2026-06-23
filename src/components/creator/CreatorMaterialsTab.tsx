@@ -1079,7 +1079,7 @@ const MaterialNode = ({
   const handleCardClick = () => {
     if (isRenaming) return;
     if (isFolder && !flat) { onOpenFolder(material.id); return; }
-    if (material.type === "text" || material.type === "link") { setViewerOpen(true); return; }
+    if (material.type === "text" || material.type === "link") { setViewerOpen((v) => !v); return; }
     if (!isFolder) onOpen(material);
   };
 
@@ -1240,9 +1240,9 @@ const MaterialNode = ({
                     size="icon"
                     className="h-8 w-8 min-h-0"
                     title={language === "kk" ? "Жаю" : "Развернуть"}
-                    onClick={(e) => { e.stopPropagation(); setViewerOpen(true); }}
+                    onClick={(e) => { e.stopPropagation(); setViewerOpen((v) => !v); }}
                   >
-                    <Maximize2 className="w-4 h-4" />
+                    <ChevronRight className={`w-4 h-4 transition-transform ${viewerOpen ? "rotate-90" : ""}`} />
                   </Button>
                 )}
                 <Button
