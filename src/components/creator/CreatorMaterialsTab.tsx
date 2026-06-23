@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
   ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
-  GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw, Eye
+  GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw, Maximize2, Copy
 } from "lucide-react";
 import {
   Select,
@@ -1085,8 +1085,17 @@ const MaterialNode = ({
   const handleCardClick = () => {
     if (isRenaming) return;
     if (isFolder && !flat) { onOpenFolder(material.id); return; }
-    if (material.type === "text") { setViewerOpen(true); return; }
+    if (material.type === "text" || material.type === "link") { setViewerOpen(true); return; }
     if (!isFolder) onOpen(material);
+  };
+
+  const copyToClipboard = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(language === "kk" ? "Көшірілді" : "Скопировано");
+    } catch {
+      toast.error(language === "kk" ? "Қате" : "Ошибка");
+    }
   };
 
   const triggerDownload = () => {
@@ -1231,27 +1240,15 @@ const MaterialNode = ({
                     <Download className="w-4 h-4" />
                   </a>
                 )}
-                {material.type === "link" && material.file_url && (
-                  <a
-                    href={material.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground h-8 w-8"
-                    title={language === "kk" ? "Ашу" : "Открыть"}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                )}
-                {material.type === "text" && (
+                {(material.type === "link" || material.type === "text") && (
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 min-h-0"
-                    title={language === "kk" ? "Ашу" : "Открыть"}
+                    title={language === "kk" ? "Жаю" : "Развернуть"}
                     onClick={(e) => { e.stopPropagation(); setViewerOpen(true); }}
                   >
-                    <Eye className="w-4 h-4" />
+                    <Maximize2 className="w-4 h-4" />
                   </Button>
                 )}
                 <Button
@@ -1347,6 +1344,18 @@ const MaterialNode = ({
             <div className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap break-words text-sm">
               {material.content}
             </div>
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => copyToClipboard(material.content || "")}
+              >
+                <Copy className="w-4 h-4" />
+                {language === "kk" ? "Көшіру" : "Скопировать"}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       )}
@@ -1365,6 +1374,18 @@ const MaterialNode = ({
               >
                 {material.file_url}
               </a>
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => copyToClipboard(material.file_url || "")}
+              >
+                <Copy className="w-4 h-4" />
+                {language === "kk" ? "Көшіру" : "Скопировать"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
