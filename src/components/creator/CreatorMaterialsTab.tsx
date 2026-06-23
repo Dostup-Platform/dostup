@@ -94,6 +94,31 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const viewer: BookmarkViewer = { userType: "creator", userRef: creatorName };
   const { data: trashItems = [] } = useDeletedMaterials(product?.id);
 
+  // Trash badge behaves like notifications: disappears after viewing trash.
+  const trashSeenKey = product?.id ? `trash-seen-${product.id}` : null;
+  const [lastSeenTrash, setLastSeenTrash] = useState<string | null>(() => {
+    if (typeof window === "undefined" || !trashSeenKey) return null;
+    return window.localStorage.getItem(trashSeenKey);
+  });
+
+  useEffect(() => {
+    if (section === "trash" && product?.id) {
+      const now = new Date().toISOString();
+      const key = `trash-seen-${product.id}`;
+      window.localStorage.setItem(key, now);
+      setLastSeenTrash(now);
+    }
+  }, [section, product?.id]);
+
+  const trashBadgeCount = useMemo(() => {
+    if (!lastSeenTrash) return trashItems.length;
+    const seen = new Date(lastSeenTrash).getTime();
+    return trashItems.filter((item) => {
+      const deleted = item.deleted_at ? new Date(item.deleted_at).getTime() : 0;
+      return deleted > seen;
+    }).length;
+  }, [trashItems, lastSeenTrash]);
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -134,7 +159,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
           onChange={setSection}
           addButton={addButton}
           showTrash
-          trashCount={trashItems.length}
+          trashCount={trashBadgeCount}
           showStorage
         />
       </div>
