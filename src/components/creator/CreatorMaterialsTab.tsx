@@ -112,7 +112,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   }
 
   const addButton = (
-    <Button size="sm" className="gap-2 w-full justify-center" onClick={() => { setAddParentId(null); setMode("add"); }}>
+    <Button size="sm" className="gap-2" onClick={() => { setAddParentId(null); setMode("add"); }}>
       <Plus className="w-4 h-4" />
       {language === "kk" ? "Қосу" : "Добавить"}
     </Button>

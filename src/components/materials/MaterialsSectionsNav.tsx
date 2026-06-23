@@ -51,11 +51,10 @@ export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = tru
     });
   }
 
-  // Desktop: inline buttons with text, Add on the left
+  // Desktop: inline buttons with text, Add on the right
   if (!isMobile) {
     return (
       <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-        {showAdd && addButton}
         {items.map((it) => {
           const Icon = it.icon;
           const active = value === it.key;
@@ -79,6 +78,7 @@ export const MaterialsSectionsNav = ({ value, onChange, addButton, showAdd = tru
             </button>
           );
         })}
+        {showAdd && addButton}
       </div>
     );
   }
