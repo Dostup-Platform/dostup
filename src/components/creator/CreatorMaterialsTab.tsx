@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
   ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
-  GripVertical, Home, ArrowUpDown, Star, RotateCcw
+  GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw
 } from "lucide-react";
 import {
   Select,
@@ -36,7 +36,10 @@ import {
   useRestoreMaterial,
   usePermanentlyDeleteMaterial,
   useEmptyTrash,
+  useAllCreatorMaterials,
 } from "@/hooks/useMaterials";
+import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/integrations/supabase/client";
 import MaterialsSearchBar from "@/components/materials/MaterialsSearchBar";
 import MaterialsSectionsNav, { type MaterialsSection } from "@/components/materials/MaterialsSectionsNav";
 import BookmarkStars from "@/components/materials/BookmarkStars";
@@ -132,6 +135,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
           addButton={addButton}
           showTrash
           trashCount={trashItems.length}
+          showStorage
         />
       </div>
 
@@ -145,6 +149,10 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
             setMode("add");
           }}
         />
+      )}
+
+      {section === "storage" && (
+        <CreatorStorageList creatorName={creatorName} />
       )}
 
       {product && mode && (
