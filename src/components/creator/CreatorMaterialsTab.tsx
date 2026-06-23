@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
   ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
-  GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw
+  GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw, Eye
 } from "lucide-react";
 import {
   Select,
@@ -66,6 +66,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 
@@ -1067,6 +1073,7 @@ const MaterialNode = ({
 }) => {
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
+  const [viewerOpen, setViewerOpen] = useState(false);
   const downloadUrl = material.type === "file" && material.file_url && material.allow_download !== false
     ? getFileUrl(material, 'download') : null;
   const isActiveTarget = !!(dragOverId === material.id && draggingId && draggingId !== material.id);
@@ -1078,6 +1085,7 @@ const MaterialNode = ({
   const handleCardClick = () => {
     if (isRenaming) return;
     if (isFolder && !flat) { onOpenFolder(material.id); return; }
+    if (material.type === "text") { setViewerOpen(true); return; }
     if (!isFolder) onOpen(material);
   };
 
@@ -1235,6 +1243,17 @@ const MaterialNode = ({
                     <ExternalLink className="w-4 h-4" />
                   </a>
                 )}
+                {material.type === "text" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 min-h-0"
+                    title={language === "kk" ? "Ашу" : "Открыть"}
+                    onClick={(e) => { e.stopPropagation(); setViewerOpen(true); }}
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1319,6 +1338,37 @@ const MaterialNode = ({
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
+      {material.type === "text" && (
+        <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="break-words">{material.title}</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap break-words text-sm">
+              {material.content}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+      {material.type === "link" && material.file_url && (
+        <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="break-words">{material.title}</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] overflow-y-auto break-words text-sm">
+              <a
+                href={material.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline break-all"
+              >
+                {material.file_url}
+              </a>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

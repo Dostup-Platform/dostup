@@ -269,13 +269,13 @@ interface FormData {
         return;
       }
 
-      if (formData.itemType === "link" && (!formData.title || !formData.linkUrl)) {
-        toast.error("Введите название и URL ссылки");
+      if (formData.itemType === "link" && !formData.linkUrl) {
+        toast.error("Введите URL ссылки");
         return;
       }
 
-      if (formData.itemType === "text" && (!formData.title || !formData.content)) {
-        toast.error("Введите название и текст");
+      if (formData.itemType === "text" && !formData.content) {
+        toast.error("Введите текст");
         return;
       }
 
@@ -294,7 +294,7 @@ interface FormData {
         if (formData.itemType === "link") {
           await createMaterial.mutateAsync({
             product_id: productId,
-            title: formData.title,
+            title: formData.title.trim() || formData.linkUrl,
             type: "link",
             content: null,
             file_url: formData.linkUrl,
@@ -308,7 +308,7 @@ interface FormData {
         } else if (formData.itemType === "text") {
           await createMaterial.mutateAsync({
             product_id: productId,
-            title: formData.title,
+            title: formData.title.trim() || formData.content.slice(0, 80),
             type: "text",
             content: formData.content,
             file_url: null,
@@ -527,6 +527,20 @@ interface FormData {
                 Папка
               </Label>
             </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="link" id="type-link" />
+              <Label htmlFor="type-link" className="cursor-pointer flex items-center gap-2">
+                <LinkIcon className="w-4 h-4" />
+                Ссылка
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="text" id="type-text" />
+              <Label htmlFor="type-text" className="cursor-pointer flex items-center gap-2">
+                <Type className="w-4 h-4" />
+                Текст
+              </Label>
+            </div>
           </RadioGroup>
         </div>
   
@@ -545,12 +559,11 @@ interface FormData {
         {formData.itemType === "link" && (
           <>
             <div className="space-y-2">
-              <Label>Название *</Label>
+              <Label>Название (необязательно)</Label>
               <Input
-                placeholder="Введите название ссылки"
+                placeholder="Если пусто — показывается сама ссылка"
                 value={formData.title}
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                required
               />
             </div>
             <div className="space-y-2">
@@ -568,12 +581,11 @@ interface FormData {
         {formData.itemType === "text" && (
           <>
             <div className="space-y-2">
-              <Label>Название *</Label>
+              <Label>Название (необязательно)</Label>
               <Input
-                placeholder="Введите название"
+                placeholder="Если пусто — показывается сам текст"
                 value={formData.title}
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                required
               />
             </div>
             <div className="space-y-2">
