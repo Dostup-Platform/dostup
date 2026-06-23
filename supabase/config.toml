@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.product-media-redirect]
 verify_jwt = false
+
+[functions.material-file-sizes]
+verify_jwt = false
