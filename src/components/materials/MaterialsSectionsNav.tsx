@@ -97,7 +97,7 @@ export const MaterialsSectionsNav = ({
   return (
     <div
       ref={containerRef}
-      className="relative flex items-center gap-2 w-full min-w-0 overflow-hidden"
+      className="relative flex items-center justify-end gap-2 w-full min-w-0 overflow-hidden"
     >
       {/* Phantom: measures full-label width to decide when to collapse to icons */}
       <div
