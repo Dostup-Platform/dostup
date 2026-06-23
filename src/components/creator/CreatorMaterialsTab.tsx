@@ -66,6 +66,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
 
@@ -1068,6 +1074,7 @@ const MaterialNode = ({
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const downloadUrl = material.type === "file" && material.file_url && material.allow_download !== false
     ? getFileUrl(material, 'download') : null;
   const isActiveTarget = !!(dragOverId === material.id && draggingId && draggingId !== material.id);
@@ -1079,7 +1086,7 @@ const MaterialNode = ({
   const handleCardClick = () => {
     if (isRenaming) return;
     if (isFolder && !flat) { onOpenFolder(material.id); return; }
-    if (material.type === "text" || material.type === "link") { setViewerOpen((v) => !v); return; }
+    if (material.type === "text" || material.type === "link") { setDialogOpen(true); return; }
     if (!isFolder) onOpen(material);
   };
 
@@ -1330,7 +1337,7 @@ const MaterialNode = ({
         </ContextMenuContent>
       </ContextMenu>
       {viewerOpen && material.type === "text" && (
-        <div className="mt-1 ml-10 mr-2 rounded-md border bg-muted/30 p-3 space-y-2">
+        <div className="mt-1 rounded-md border bg-muted/30 p-3 space-y-2">
           <div className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-words text-sm">
             {material.content}
           </div>
@@ -1339,17 +1346,17 @@ const MaterialNode = ({
               type="button"
               variant="outline"
               size="sm"
-              className="gap-2"
+              className="gap-1.5 h-7 px-2 text-xs"
               onClick={(e) => { e.stopPropagation(); copyToClipboard(material.content || ""); }}
             >
-              <Copy className="w-4 h-4" />
+              <Copy className="w-3 h-3" />
               {language === "kk" ? "Көшіру" : "Скопировать"}
             </Button>
           </div>
         </div>
       )}
       {viewerOpen && material.type === "link" && material.file_url && (
-        <div className="mt-1 ml-10 mr-2 rounded-md border bg-muted/30 p-3 space-y-2">
+        <div className="mt-1 rounded-md border bg-muted/30 p-3 space-y-2">
           <div className="max-h-[40vh] overflow-y-auto break-words text-sm">
             <a
               href={material.file_url}
@@ -1366,14 +1373,69 @@ const MaterialNode = ({
               type="button"
               variant="outline"
               size="sm"
-              className="gap-2"
+              className="gap-1.5 h-7 px-2 text-xs"
               onClick={(e) => { e.stopPropagation(); copyToClipboard(material.file_url || ""); }}
             >
-              <Copy className="w-4 h-4" />
+              <Copy className="w-3 h-3" />
               {language === "kk" ? "Көшіру" : "Скопировать"}
             </Button>
           </div>
         </div>
+      )}
+      {material.type === "text" && (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="break-words">{material.title}</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap break-words text-sm">
+              {material.content}
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-7 px-2 text-xs"
+                onClick={() => copyToClipboard(material.content || "")}
+              >
+                <Copy className="w-3 h-3" />
+                {language === "kk" ? "Көшіру" : "Скопировать"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+      {material.type === "link" && material.file_url && (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="break-words">{material.title}</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] overflow-y-auto break-words text-sm">
+              <a
+                href={material.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline break-all"
+              >
+                {material.file_url}
+              </a>
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-7 px-2 text-xs"
+                onClick={() => copyToClipboard(material.file_url || "")}
+              >
+                <Copy className="w-3 h-3" />
+                {language === "kk" ? "Көшіру" : "Скопировать"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
