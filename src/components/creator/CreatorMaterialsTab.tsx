@@ -1085,6 +1085,7 @@ const MaterialNode = ({
   const handleCardClick = () => {
     if (isRenaming) return;
     if (isFolder && !flat) { onOpenFolder(material.id); return; }
+    if (material.type === "text") { setViewerOpen(true); return; }
     if (!isFolder) onOpen(material);
   };
 
