@@ -295,7 +295,7 @@ interface FormData {
         // Новые материалы вставляются в самый верх текущей папки/корня.
         // Берём минимальный order_index среди соседей и опускаемся ниже него.
         const siblingsHere = (allMaterials as Material[]).filter(
-          (m) => (m.parent_id ?? null) === (currentFolderId ?? null)
+          (m) => (m.parent_id ?? null) === (addTargetFolderId ?? null)
         );
         const minSiblingIdx = siblingsHere.length
           ? Math.min(...siblingsHere.map((s) => s.order_index ?? 0))
@@ -315,7 +315,7 @@ interface FormData {
               content: null,
               file_url: normalized,
               order_index: topIndex,
-              parent_id: currentFolderId,
+              parent_id: addTargetFolderId,
               available_at: formData.scheduleAccess && formData.availableAt
                 ? new Date(formData.availableAt).toISOString()
                 : null,
@@ -329,7 +329,7 @@ interface FormData {
               content: raw,
               file_url: null,
               order_index: topIndex,
-              parent_id: currentFolderId,
+              parent_id: addTargetFolderId,
               available_at: formData.scheduleAccess && formData.availableAt
                 ? new Date(formData.availableAt).toISOString()
                 : null,
@@ -344,7 +344,7 @@ interface FormData {
             content: formData.content,
             file_url: null,
             order_index: topIndex,
-            parent_id: currentFolderId,
+            parent_id: addTargetFolderId,
             available_at: formData.scheduleAccess && formData.availableAt 
               ? new Date(formData.availableAt).toISOString() 
               : null,
@@ -359,7 +359,7 @@ interface FormData {
             content: null,
             file_url: null,
             order_index: topIndex,
-            parent_id: currentFolderId,
+            parent_id: addTargetFolderId,
           });
 
           // If files selected, add them to the folder
@@ -398,7 +398,7 @@ interface FormData {
                 // Сохраняем порядок выбора: первый файл оказывается сверху,
                 // остальные — ниже него, но всё ещё выше существующих материалов.
                 order_index: topIndex - (formData.fileEntries.length - 1 - i),
-                parent_id: currentFolderId,
+                parent_id: addTargetFolderId,
                 allow_view: true,
                 allow_download: entry.permissions.allow_download,
                 teacher_allow_download: entry.permissions.teacher_allow_download,
