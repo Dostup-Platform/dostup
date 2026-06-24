@@ -915,18 +915,22 @@ interface FormData {
  
            <div className="space-y-4 mt-4">
              {/* Breadcrumb navigation */}
-             {currentFolderId && (
+            {currentFolderId ? (
                <div className="flex items-center gap-2 text-sm">
-                 <Button 
-                   variant="ghost" 
-                   size="sm" 
-                   onClick={() => { setRenamingFolder(false); setCurrentFolderId(currentFolder?.parent_id || null); }}
-                   className="h-auto p-1"
-                 >
-                   <ChevronLeft className="w-4 h-4 mr-1" />
-                   Назад
-                 </Button>
-                 <span className="text-muted-foreground">/</span>
+                {!(mode === "add" && initialFolderId) && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setRenamingFolder(false); setCurrentFolderId(currentFolder?.parent_id || null); }}
+                      className="h-auto p-1"
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-1" />
+                      Назад
+                    </Button>
+                    <span className="text-muted-foreground">/</span>
+                  </>
+                )}
                  {getBreadcrumbPath().map((folder, idx) => {
                    const isCurrent = idx === getBreadcrumbPath().length - 1;
                    return (
@@ -991,6 +995,11 @@ interface FormData {
                    );
                  })}
                </div>
+            ) : (
+              <div className="flex items-center gap-2 text-sm">
+                <FolderOpen className="w-4 h-4 text-primary" />
+                <span className="font-medium">{language === "kk" ? "Үй" : "Дом"}</span>
+              </div>
              )}
  
              {/* Add button */}
