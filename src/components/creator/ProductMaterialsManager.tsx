@@ -25,7 +25,7 @@ import {
 import { useProductMaterials, useCreateMaterial, useUpdateMaterial, useDeleteMaterial, uploadMaterialFile } from "@/hooks/useMaterials";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X, Clock, Link as LinkIcon, Type, Clipboard } from "lucide-react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ChevronRight, ChevronDown, Home } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -113,6 +113,7 @@ interface FormData {
   const [searchQuery, setSearchQuery] = useState("");
   const [addTargetFolderId, setAddTargetFolderId] = useState<string | null>(null);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+  const [expandedPickerFolders, setExpandedPickerFolders] = useState<Set<string>>(new Set());
 
     const [formData, setFormData] = useState<FormData>({
       title: "",
