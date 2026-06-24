@@ -1023,12 +1023,11 @@ interface FormData {
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setCurrentFolderId(null); setRenamingFolder(false); } }}>
          <DialogContent mobileFullScreen className="max-w-3xl sm:w-[95vw]">
            <DialogHeader>
-             <DialogTitle className="flex items-center gap-2">
-               {mode === "add"
-                 ? (language === "kk" ? "Материал қосу" : "Добавить материалы")
-                 : (language === "kk" ? "Материалдарды өңдеу" : "Редактировать материалы")}
-               : {productTitle}
-             </DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                {mode === "add"
+                  ? (language === "kk" ? "Материал қосу" : "Добавить материалы")
+                  : (language === "kk" ? "Материалдарды өңдеу" : "Редактировать материалы")}
+              </DialogTitle>
            </DialogHeader>
  
            <div className="space-y-4 mt-4">
