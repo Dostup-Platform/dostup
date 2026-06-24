@@ -537,6 +537,81 @@ interface FormData {
 
    const renderAddForm = () => (
      <form onSubmit={handleAdd} className="space-y-4">
+      {(() => {
+        const targetFolder = addTargetFolderId
+          ? (allMaterials as Material[]).find((m) => m.id === addTargetFolderId)
+          : null;
+        const lockTarget = mode === "add" && !!initialFolderId;
+
+        const renderFolderTree = (parentId: string | null, depth: number): JSX.Element[] => {
+          const folders = (allMaterials as Material[]).filter(
+            (m) => m.type === "folder" && (m.parent_id ?? null) === parentId
+          );
+          return folders.flatMap((f) => [
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => { setAddTargetFolderId(f.id); setFolderPickerOpen(false); }}
+              className={`w-full text-left px-2 py-1.5 hover:bg-accent rounded text-sm flex items-center gap-2 ${addTargetFolderId === f.id ? "bg-accent" : ""}`}
+              style={{ paddingLeft: 8 + depth * 16 }}
+            >
+              <Folder className="w-4 h-4 text-primary flex-shrink-0" />
+              <span className="truncate">{f.title}</span>
+            </button>,
+            ...renderFolderTree(f.id, depth + 1),
+          ]);
+        };
+
+        return (
+          <div className="flex items-center gap-2 flex-wrap p-2 bg-muted/30 rounded-md">
+            <span className="text-xs text-muted-foreground">
+              {language === "kk" ? "Қайда қосу:" : "Куда добавить:"}
+            </span>
+            <div className="flex items-center gap-1 text-sm font-medium">
+              {targetFolder ? (
+                <>
+                  <Folder className="w-4 h-4 text-primary" />
+                  <span className="truncate max-w-[180px]">{targetFolder.title}</span>
+                </>
+              ) : (
+                <>
+                  <FolderOpen className="w-4 h-4 text-primary" />
+                  <span>{language === "kk" ? "Үй" : "Дом"}</span>
+                </>
+              )}
+            </div>
+            {!lockTarget && (
+              <Popover open={folderPickerOpen} onOpenChange={setFolderPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto h-7 text-xs"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 mr-1" />
+                    {targetFolder
+                      ? (language === "kk" ? "Өзгерту" : "Изменить")
+                      : (language === "kk" ? "Папканы таңдау" : "Выбрать папку")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-1 max-h-72 overflow-y-auto" align="end">
+                  <button
+                    type="button"
+                    onClick={() => { setAddTargetFolderId(null); setFolderPickerOpen(false); }}
+                    className={`w-full text-left px-2 py-1.5 hover:bg-accent rounded text-sm flex items-center gap-2 ${addTargetFolderId === null ? "bg-accent" : ""}`}
+                  >
+                    <FolderOpen className="w-4 h-4 text-primary" />
+                    {language === "kk" ? "Үй" : "Дом"}
+                  </button>
+                  {renderFolderTree(null, 0)}
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+        );
+      })()}
+
        <div className="space-y-3">
          <Label>Что добавить?</Label>
           <RadioGroup
