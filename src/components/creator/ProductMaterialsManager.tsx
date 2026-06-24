@@ -637,6 +637,16 @@ interface FormData {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 p-1 max-h-72 overflow-y-auto" align="end">
+                  {targetFolder && (
+                    <button
+                      type="button"
+                      onClick={() => { setAddTargetFolderId(null); setFolderPickerOpen(false); }}
+                      className="w-full text-left px-2 py-1.5 hover:bg-accent hover:text-accent-foreground rounded text-sm flex items-center gap-2"
+                    >
+                      <Home className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{language === "kk" ? "Үй" : "Дом"}</span>
+                    </button>
+                  )}
                   {renderFolderTree(null, 0)}
                 </PopoverContent>
               </Popover>
