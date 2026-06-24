@@ -74,7 +74,7 @@ export const MaterialsSectionsNav = ({
           compact ? "w-9 px-0" : "px-3"
         } ${
           active
-            ? "bg-accent/15 text-accent border-accent/40"
+            ? "bg-accent text-accent-foreground border-accent"
             : "bg-background text-muted-foreground border-input hover:bg-accent/10 hover:text-foreground"
         }`}
       >

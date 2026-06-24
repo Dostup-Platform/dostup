@@ -552,7 +552,7 @@ interface FormData {
               key={f.id}
               type="button"
               onClick={() => { setAddTargetFolderId(f.id); setFolderPickerOpen(false); }}
-              className={`w-full text-left px-2 py-1.5 hover:bg-accent rounded text-sm flex items-center gap-2 ${addTargetFolderId === f.id ? "bg-accent" : ""}`}
+              className={`w-full text-left px-2 py-1.5 hover:bg-accent hover:text-accent-foreground rounded text-sm flex items-center gap-2 ${addTargetFolderId === f.id ? "bg-accent text-accent-foreground" : ""}`}
               style={{ paddingLeft: 8 + depth * 16 }}
             >
               <Folder className="w-4 h-4 text-primary flex-shrink-0" />
@@ -596,14 +596,6 @@ interface FormData {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 p-1 max-h-72 overflow-y-auto" align="end">
-                  <button
-                    type="button"
-                    onClick={() => { setAddTargetFolderId(null); setFolderPickerOpen(false); }}
-                    className={`w-full text-left px-2 py-1.5 hover:bg-accent rounded text-sm flex items-center gap-2 ${addTargetFolderId === null ? "bg-accent" : ""}`}
-                  >
-                    <FolderOpen className="w-4 h-4 text-primary" />
-                    {language === "kk" ? "Үй" : "Дом"}
-                  </button>
                   {renderFolderTree(null, 0)}
                 </PopoverContent>
               </Popover>
