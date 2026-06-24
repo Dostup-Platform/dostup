@@ -343,7 +343,7 @@ const MaterialList = (props: ListProps) => {
         style={{
           minHeight:
             edge === "top"
-              ? draggingId ? 28 : 12
+              ? 36
               : draggingId
                 ? Math.max(320, Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.6))
                 : 24,
@@ -849,7 +849,7 @@ const CreatorMaterialsReadOnlyList = ({
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-3">
       {/* Гасим нативный drag-over у поисковой строки, чтобы при перетаскивании
           материала не появлялся плюсик-курсор копирования. */}
       <div
