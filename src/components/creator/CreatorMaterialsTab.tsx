@@ -882,7 +882,7 @@ const CreatorMaterialsReadOnlyList = ({
         )}
       </div>
 
-      {!isBookmarksSection && !q && folderPath.length > 0 && (
+      {!isBookmarksSection && !q && (
         <nav className="flex items-center gap-1 text-sm flex-wrap" aria-label="breadcrumb">
           <button
             type="button"
@@ -893,7 +893,7 @@ const CreatorMaterialsReadOnlyList = ({
             <Home className="w-3.5 h-3.5" />
             {language === "kk" ? "Үй" : "Дом"}
           </button>
-          {folderPath.map((f, i) => (
+          {folderPath.length > 0 && folderPath.map((f, i) => (
             <div key={f.id} className="flex items-center gap-1">
               <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
               {i === folderPath.length - 1 ? (
