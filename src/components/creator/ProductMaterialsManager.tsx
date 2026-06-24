@@ -544,23 +544,63 @@ interface FormData {
           : null;
         const lockTarget = mode === "add" && !!initialFolderId;
 
+        const togglePickerFolder = (id: string) => {
+          setExpandedPickerFolders((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+          });
+        };
+
         const renderFolderTree = (parentId: string | null, depth: number): JSX.Element[] => {
           const folders = (allMaterials as Material[]).filter(
             (m) => m.type === "folder" && (m.parent_id ?? null) === parentId
           );
-          return folders.flatMap((f) => [
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => { setAddTargetFolderId(f.id); setFolderPickerOpen(false); }}
-              className={`w-full text-left px-2 py-1.5 hover:bg-accent hover:text-accent-foreground rounded text-sm flex items-center gap-2 ${addTargetFolderId === f.id ? "bg-accent text-accent-foreground" : ""}`}
-              style={{ paddingLeft: 8 + depth * 16 }}
-            >
-              <Folder className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate">{f.title}</span>
-            </button>,
-            ...renderFolderTree(f.id, depth + 1),
-          ]);
+          return folders.flatMap((f) => {
+            const hasChildren = (allMaterials as Material[]).some(
+              (m) => m.type === "folder" && m.parent_id === f.id
+            );
+            const expanded = expandedPickerFolders.has(f.id);
+            const isCurrent = addTargetFolderId === f.id;
+            const nodes: JSX.Element[] = [];
+            if (!isCurrent) {
+              nodes.push(
+                <div
+                  key={f.id}
+                  className="w-full flex items-center rounded hover:bg-accent hover:text-accent-foreground text-sm group"
+                  style={{ paddingLeft: 4 + depth * 16 }}
+                >
+                  {hasChildren ? (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); togglePickerFolder(f.id); }}
+                      className="p-1 flex-shrink-0 hover:opacity-80"
+                      aria-label={expanded ? "Свернуть" : "Развернуть"}
+                    >
+                      {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    </button>
+                  ) : (
+                    <span className="w-[22px] flex-shrink-0" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setAddTargetFolderId(f.id); setFolderPickerOpen(false); }}
+                    className="flex-1 text-left px-1 py-1.5 flex items-center gap-2 min-w-0"
+                  >
+                    <Folder className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{f.title}</span>
+                  </button>
+                </div>
+              );
+            }
+            // Render children: at same depth if parent hidden, or +1 if expanded
+            if (isCurrent) {
+              nodes.push(...renderFolderTree(f.id, depth));
+            } else if (expanded) {
+              nodes.push(...renderFolderTree(f.id, depth + 1));
+            }
+            return nodes;
+          });
         };
 
         return (
