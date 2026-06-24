@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -110,6 +111,8 @@ interface FormData {
   const [renamingFolder, setRenamingFolder] = useState(false);
   const [folderRenameValue, setFolderRenameValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [addTargetFolderId, setAddTargetFolderId] = useState<string | null>(null);
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
 
     const [formData, setFormData] = useState<FormData>({
       title: "",
@@ -217,6 +220,13 @@ interface FormData {
       setCurrentFolderId(initialFolderId ?? null);
     }
   }, [isOpen, initialFolderId]);
+
+  // Sync the add-form target folder with the current folder whenever the form opens
+  useEffect(() => {
+    if (isAdding) {
+      setAddTargetFolderId(currentFolderId);
+    }
+  }, [isAdding, currentFolderId]);
  
    // Filter materials for current folder level
    const materials = useMemo(() => {
