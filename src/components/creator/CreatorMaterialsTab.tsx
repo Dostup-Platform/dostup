@@ -343,7 +343,7 @@ const MaterialList = (props: ListProps) => {
         style={{
           minHeight:
             edge === "top"
-              ? 12
+              ? draggingId ? 28 : 12
               : draggingId
                 ? Math.max(320, Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.6))
                 : 24,
