@@ -127,7 +127,7 @@ export const useSetGroupLink = () => {
 export const uploadAnnouncementMedia = async (
   file: File,
   productId: string,
-  kind: "image" | "video",
+  kind: "image" | "video" | "file",
 ): Promise<string> => {
   const creatorName = localStorage.getItem("creator_name") || "";
   const creatorToken = localStorage.getItem("creator_token") || "";

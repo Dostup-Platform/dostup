@@ -7,6 +7,7 @@ const corsHeaders = {
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024 // 15 MB
 const MAX_VIDEO_BYTES = 250 * 1024 * 1024 // 250 MB
+const MAX_FILE_BYTES = 50 * 1024 * 1024 // 50 MB (generic attachments)
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -19,7 +20,7 @@ Deno.serve(async (req) => {
     const productId = formData.get('productId') as string | null
     const creatorName = formData.get('creatorName') as string | null
     const creatorToken = formData.get('creatorToken') as string | null
-    const kind = formData.get('kind') as string | null // 'image' | 'video'
+    const kind = formData.get('kind') as string | null // 'image' | 'video' | 'file'
 
     if (!file || !productId || !creatorName || !kind) {
       return new Response(
@@ -28,9 +29,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (kind !== 'image' && kind !== 'video') {
+    if (kind !== 'image' && kind !== 'video' && kind !== 'file') {
       return new Response(
-        JSON.stringify({ error: 'kind must be image or video' }),
+        JSON.stringify({ error: 'kind must be image, video, or file' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -44,7 +45,7 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    const maxBytes = kind === 'video' ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES
+    const maxBytes = kind === 'video' ? MAX_VIDEO_BYTES : kind === 'file' ? MAX_FILE_BYTES : MAX_IMAGE_BYTES
     if (file.size > maxBytes) {
       return new Response(JSON.stringify({ error: `File too large (max ${Math.round(maxBytes / 1024 / 1024)} MB)` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
