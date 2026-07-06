@@ -21,7 +21,7 @@ import {
   useDeleteAnnouncement,
   useSetGroupLink,
 } from "@/hooks/useAnnouncements";
-import AnnouncementEditor from "./AnnouncementEditor";
+import AnnouncementComposer from "./AnnouncementComposer";
 import AnnouncementView from "@/components/dashboard/AnnouncementView";
 import { toast } from "sonner";
 
@@ -124,7 +124,7 @@ const ProductAnnouncementsManager = ({ productId, productTitle, initialGroupLink
       </div>
 
       {isAdding && (
-        <AnnouncementEditor
+        <AnnouncementComposer
           productId={productId}
           onSave={handleCreate}
           onCancel={() => setIsAdding(false)}
@@ -143,7 +143,7 @@ const ProductAnnouncementsManager = ({ productId, productTitle, initialGroupLink
             <Card key={a.id}>
               <CardContent className="p-4 space-y-2">
                 {editingId === a.id ? (
-                  <AnnouncementEditor
+                  <AnnouncementComposer
                     productId={productId}
                     initialHtml={a.content_html}
                     onSave={(html) => handleUpdate(a.id, html)}
