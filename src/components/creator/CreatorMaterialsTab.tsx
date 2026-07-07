@@ -807,6 +807,42 @@ const CreatorMaterialsReadOnlyList = ({
     }
   };
 
+  const downloadFolder = async (folderId: string) => {
+    // Recursively gather every downloadable file under the folder.
+    const collectFiles = (parentId: string, acc: Mat[]): Mat[] => {
+      for (const m of list) {
+        if ((m.parent_id ?? null) !== parentId) continue;
+        if (m.type === "folder") collectFiles(m.id, acc);
+        else if (m.type === "file" && m.file_url && m.allow_download !== false) acc.push(m);
+      }
+      return acc;
+    };
+    const files = collectFiles(folderId, []);
+    if (files.length === 0) {
+      toast.info(language === "kk" ? "Қалтада жүктелетін файлдар жоқ" : "В папке нет файлов для скачивания");
+      return;
+    }
+    toast.success(
+      language === "kk"
+        ? `${files.length} файл жүктелуде...`
+        : `Скачивание ${files.length} файлов...`
+    );
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const url = getFileUrl(f, 'download');
+      if (!url) continue;
+      const a = document.createElement("a");
+      a.href = url;
+      a.rel = "noopener";
+      a.download = f.title || "";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Stagger so the browser doesn't drop concurrent downloads.
+      await new Promise((r) => setTimeout(r, 350));
+    }
+  };
+
   const startRename = (m: Mat) => { setRenamingId(m.id); setRenameValue(m.title); };
   const cancelRename = () => { setRenamingId(null); setRenameValue(""); };
   const submitRename = async () => {
