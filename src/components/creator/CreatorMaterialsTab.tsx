@@ -238,6 +238,7 @@ type ListProps = {
   viewerType: "creator";
   allFolders: Mat[];
   onMoveToFolder: (materialId: string, target: string | null) => void;
+  onDownloadFolder: (folderId: string) => void;
 };
 
 const MaterialList = (props: ListProps) => {
@@ -443,6 +444,7 @@ const MaterialList = (props: ListProps) => {
             viewerType={props.viewerType}
             allFolders={props.allFolders}
             onMoveToFolder={props.onMoveToFolder}
+            onDownloadFolder={props.onDownloadFolder}
           />
           {i < items.length - 1 && <Gap index={i + 1} />}
         </div>
@@ -805,6 +807,42 @@ const CreatorMaterialsReadOnlyList = ({
     }
   };
 
+  const downloadFolder = async (folderId: string) => {
+    // Recursively gather every downloadable file under the folder.
+    const collectFiles = (parentId: string, acc: Mat[]): Mat[] => {
+      for (const m of list) {
+        if ((m.parent_id ?? null) !== parentId) continue;
+        if (m.type === "folder") collectFiles(m.id, acc);
+        else if (m.type === "file" && m.file_url && m.allow_download !== false) acc.push(m);
+      }
+      return acc;
+    };
+    const files = collectFiles(folderId, []);
+    if (files.length === 0) {
+      toast.info(language === "kk" ? "Қалтада жүктелетін файлдар жоқ" : "В папке нет файлов для скачивания");
+      return;
+    }
+    toast.success(
+      language === "kk"
+        ? `${files.length} файл жүктелуде...`
+        : `Скачивание ${files.length} файлов...`
+    );
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const url = getFileUrl(f, 'download');
+      if (!url) continue;
+      const a = document.createElement("a");
+      a.href = url;
+      a.rel = "noopener";
+      a.download = f.title || "";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Stagger so the browser doesn't drop concurrent downloads.
+      await new Promise((r) => setTimeout(r, 350));
+    }
+  };
+
   const startRename = (m: Mat) => { setRenamingId(m.id); setRenameValue(m.title); };
   const cancelRename = () => { setRenamingId(null); setRenameValue(""); };
   const submitRename = async () => {
@@ -989,6 +1027,7 @@ const CreatorMaterialsReadOnlyList = ({
           viewerType="creator"
           allFolders={list.filter((m) => m.type === "folder")}
           onMoveToFolder={moveToFolderTop}
+          onDownloadFolder={downloadFolder}
         />
       )}
 
@@ -1047,6 +1086,7 @@ const MaterialNode = ({
   viewerType,
   allFolders,
   onMoveToFolder,
+  onDownloadFolder,
 }: {
   material: Mat;
   getIcon: (type: string) => JSX.Element;
@@ -1080,6 +1120,7 @@ const MaterialNode = ({
   viewerType: "creator";
   allFolders: Mat[];
   onMoveToFolder: (materialId: string, target: string | null) => void;
+  onDownloadFolder: (folderId: string) => void;
 }) => {
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
@@ -1235,10 +1276,10 @@ const MaterialNode = ({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 min-h-0"
-                    title={language === "kk" ? "Папкаға қосу" : "Добавить в папку"}
-                    onClick={() => onAddInFolder(material.id)}
+                    title={language === "kk" ? "Барлық файлдарды жүктеу" : "Скачать все файлы"}
+                    onClick={(e) => { e.stopPropagation(); onDownloadFolder(material.id); }}
                   >
-                    <Plus className="w-4 h-4" />
+                    <Download className="w-4 h-4" />
                   </Button>
                 )}
                 {downloadUrl && (
@@ -1317,9 +1358,9 @@ const MaterialNode = ({
             </ContextMenuSubContent>
           </ContextMenuSub>
           {isFolder && (
-            <ContextMenuItem onSelect={() => onAddInFolder(material.id)}>
-              <Plus className="w-4 h-4 mr-2" />
-              {language === "kk" ? "Папкаға қосу" : "Добавить в папку"}
+            <ContextMenuItem onSelect={() => onDownloadFolder(material.id)}>
+              <Download className="w-4 h-4 mr-2" />
+              {language === "kk" ? "Барлық файлдарды жүктеу" : "Скачать все файлы"}
             </ContextMenuItem>
           )}
           {downloadUrl && (
