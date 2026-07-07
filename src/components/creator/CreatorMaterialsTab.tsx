@@ -1275,10 +1275,10 @@ const MaterialNode = ({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 min-h-0"
-                    title={language === "kk" ? "Папкаға қосу" : "Добавить в папку"}
-                    onClick={() => onAddInFolder(material.id)}
+                    title={language === "kk" ? "Барлық файлдарды жүктеу" : "Скачать все файлы"}
+                    onClick={(e) => { e.stopPropagation(); onDownloadFolder(material.id); }}
                   >
-                    <Plus className="w-4 h-4" />
+                    <Download className="w-4 h-4" />
                   </Button>
                 )}
                 {downloadUrl && (
@@ -1357,9 +1357,9 @@ const MaterialNode = ({
             </ContextMenuSubContent>
           </ContextMenuSub>
           {isFolder && (
-            <ContextMenuItem onSelect={() => onAddInFolder(material.id)}>
-              <Plus className="w-4 h-4 mr-2" />
-              {language === "kk" ? "Папкаға қосу" : "Добавить в папку"}
+            <ContextMenuItem onSelect={() => onDownloadFolder(material.id)}>
+              <Download className="w-4 h-4 mr-2" />
+              {language === "kk" ? "Барлық файлдарды жүктеу" : "Скачать все файлы"}
             </ContextMenuItem>
           )}
           {downloadUrl && (
