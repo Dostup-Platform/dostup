@@ -470,11 +470,13 @@ const CreatorMaterialsReadOnlyList = ({
   onAddInFolder,
   section,
   viewer,
+  onCurrentFolderChange,
 }: {
   productId: string;
   onAddInFolder: (folderId: string) => void;
   section: MaterialsSection;
   viewer: BookmarkViewer;
+  onCurrentFolderChange?: (id: string | null) => void;
 }) => {
   const { language } = useLanguage();
   const { data: allMaterials = [], isLoading } = useProductMaterials(productId, { creatorOnly: true });
