@@ -547,6 +547,10 @@ const CreatorMaterialsReadOnlyList = ({
   const draggedParentId = draggedItem?.parent_id ?? null;
   const currentFolderId = folderPath.length > 0 ? folderPath[folderPath.length - 1].id : null;
 
+  useEffect(() => {
+    onCurrentFolderChange?.(currentFolderId);
+  }, [currentFolderId, onCurrentFolderChange]);
+
   // Если текущая папка была удалена/переименована-перемещена, чистим путь до валидной части.
   useEffect(() => {
     if (folderPath.length === 0) return;
