@@ -1082,6 +1082,7 @@ const MaterialNode = ({
   viewerType: "creator";
   allFolders: Mat[];
   onMoveToFolder: (materialId: string, target: string | null) => void;
+  onDownloadFolder: (folderId: string) => void;
 }) => {
   const isFolder = material.type === "folder";
   const isRenaming = renamingId === material.id;
