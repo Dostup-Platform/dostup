@@ -84,6 +84,9 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [addParentId, setAddParentId] = useState<string | null>(null);
   const [section, setSection] = useState<MaterialsSection>("library");
+  // Tracks which folder the user is currently browsing inside the read-only list,
+  // so the top "Add" button can default the target to that folder.
+  const [currentBrowseFolderId, setCurrentBrowseFolderId] = useState<string | null>(null);
 
   // Reset section when switching products so user always lands in library.
   useEffect(() => {
@@ -146,7 +149,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   }
 
   const addButton = (
-    <Button size="sm" className="gap-2" onClick={() => { setAddParentId(null); setMode("add"); }}>
+    <Button size="sm" className="gap-2" onClick={() => { setAddParentId(currentBrowseFolderId); setMode("add"); }}>
       <Plus className="w-4 h-4" />
       {language === "kk" ? "Қосу" : "Добавить"}
     </Button>
@@ -179,6 +182,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
             setAddParentId(folderId);
             setMode("add");
           }}
+          onCurrentFolderChange={setCurrentBrowseFolderId}
         />
       )}
 
@@ -466,11 +470,13 @@ const CreatorMaterialsReadOnlyList = ({
   onAddInFolder,
   section,
   viewer,
+  onCurrentFolderChange,
 }: {
   productId: string;
   onAddInFolder: (folderId: string) => void;
   section: MaterialsSection;
   viewer: BookmarkViewer;
+  onCurrentFolderChange?: (id: string | null) => void;
 }) => {
   const { language } = useLanguage();
   const { data: allMaterials = [], isLoading } = useProductMaterials(productId, { creatorOnly: true });
@@ -540,6 +546,10 @@ const CreatorMaterialsReadOnlyList = ({
   const draggedItem = draggingId ? list.find((m) => m.id === draggingId) ?? null : null;
   const draggedParentId = draggedItem?.parent_id ?? null;
   const currentFolderId = folderPath.length > 0 ? folderPath[folderPath.length - 1].id : null;
+
+  useEffect(() => {
+    onCurrentFolderChange?.(currentFolderId);
+  }, [currentFolderId, onCurrentFolderChange]);
 
   // Если текущая папка была удалена/переименована-перемещена, чистим путь до валидной части.
   useEffect(() => {
