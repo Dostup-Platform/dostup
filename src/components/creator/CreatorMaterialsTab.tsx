@@ -84,6 +84,9 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [addParentId, setAddParentId] = useState<string | null>(null);
   const [section, setSection] = useState<MaterialsSection>("library");
+  // Tracks which folder the user is currently browsing inside the read-only list,
+  // so the top "Add" button can default the target to that folder.
+  const [currentBrowseFolderId, setCurrentBrowseFolderId] = useState<string | null>(null);
 
   // Reset section when switching products so user always lands in library.
   useEffect(() => {
@@ -146,7 +149,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   }
 
   const addButton = (
-    <Button size="sm" className="gap-2" onClick={() => { setAddParentId(null); setMode("add"); }}>
+    <Button size="sm" className="gap-2" onClick={() => { setAddParentId(currentBrowseFolderId); setMode("add"); }}>
       <Plus className="w-4 h-4" />
       {language === "kk" ? "Қосу" : "Добавить"}
     </Button>
@@ -179,6 +182,7 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
             setAddParentId(folderId);
             setMode("add");
           }}
+          onCurrentFolderChange={setCurrentBrowseFolderId}
         />
       )}
 
