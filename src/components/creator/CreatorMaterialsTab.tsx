@@ -443,6 +443,7 @@ const MaterialList = (props: ListProps) => {
             viewerType={props.viewerType}
             allFolders={props.allFolders}
             onMoveToFolder={props.onMoveToFolder}
+            onDownloadFolder={(props as ListProps & { onDownloadFolder: (id: string) => void }).onDownloadFolder}
           />
           {i < items.length - 1 && <Gap index={i + 1} />}
         </div>
