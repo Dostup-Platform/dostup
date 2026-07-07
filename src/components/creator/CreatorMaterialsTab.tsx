@@ -238,6 +238,7 @@ type ListProps = {
   viewerType: "creator";
   allFolders: Mat[];
   onMoveToFolder: (materialId: string, target: string | null) => void;
+  onDownloadFolder: (folderId: string) => void;
 };
 
 const MaterialList = (props: ListProps) => {
@@ -443,7 +444,7 @@ const MaterialList = (props: ListProps) => {
             viewerType={props.viewerType}
             allFolders={props.allFolders}
             onMoveToFolder={props.onMoveToFolder}
-            onDownloadFolder={(props as ListProps & { onDownloadFolder: (id: string) => void }).onDownloadFolder}
+            onDownloadFolder={props.onDownloadFolder}
           />
           {i < items.length - 1 && <Gap index={i + 1} />}
         </div>
