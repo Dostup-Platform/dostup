@@ -1086,6 +1086,7 @@ const MaterialNode = ({
   viewerType,
   allFolders,
   onMoveToFolder,
+  onDownloadFolder,
 }: {
   material: Mat;
   getIcon: (type: string) => JSX.Element;
