@@ -1031,103 +1031,107 @@ interface FormData {
            </DialogHeader>
  
            <div className="space-y-4 mt-4">
-             {/* Breadcrumb navigation */}
-            {currentFolderId ? (
-               <div className="flex items-center gap-2 text-sm">
-                {!(mode === "add" && initialFolderId) && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => { setRenamingFolder(false); setCurrentFolderId(currentFolder?.parent_id || null); }}
-                      className="h-auto p-1"
-                    >
-                      <ChevronLeft className="w-4 h-4 mr-1" />
-                      Назад
-                    </Button>
-                    <span className="text-muted-foreground">/</span>
-                  </>
-                )}
-                 {getBreadcrumbPath().map((folder, idx) => {
-                   const isCurrent = idx === getBreadcrumbPath().length - 1;
-                   return (
-                     <div key={folder.id} className="flex items-center gap-2">
-                       {isCurrent && renamingFolder && mode === "edit" ? (
-                         <form
-                           onSubmit={async (e) => {
-                             e.preventDefault();
-                             const newTitle = folderRenameValue.trim();
-                             if (!newTitle) return;
-                             try {
-                               await updateMaterial.mutateAsync({ id: folder.id, productId, title: newTitle });
-                               toast.success(language === "kk" ? "Сақталды" : "Сохранено");
-                               setRenamingFolder(false);
-                             } catch {
-                               toast.error("Ошибка");
-                             }
-                           }}
-                           className="flex items-center gap-1"
-                         >
-                           <FolderOpen className="w-4 h-4" />
-                           <Input
-                             value={folderRenameValue}
-                             onChange={(e) => setFolderRenameValue(e.target.value)}
-                             autoFocus
-                             className="h-7 w-40 text-sm"
-                           />
-                           <Button type="submit" size="icon" variant="ghost" className="h-7 w-7" disabled={updateMaterial.isPending}>
-                             {updateMaterial.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span className="text-xs">OK</span>}
-                           </Button>
-                           <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setRenamingFolder(false)}>
-                             <X className="w-3.5 h-3.5" />
-                           </Button>
-                         </form>
-                       ) : (
-                         <>
-                           <button
-                             onClick={() => setCurrentFolderId(folder.id)}
-                             className="hover:text-primary transition-colors flex items-center gap-1"
-                           >
-                             <FolderOpen className="w-4 h-4" />
-                             {folder.title}
-                           </button>
-                           {isCurrent && mode === "edit" && (
-                             <Button
-                               type="button"
-                               size="icon"
-                               variant="ghost"
-                               className="h-6 w-6"
-                               title={language === "kk" ? "Қалтаның атын өзгерту" : "Переименовать папку"}
-                               onClick={() => { setFolderRenameValue(folder.title); setRenamingFolder(true); }}
-                             >
-                               <Edit className="w-3.5 h-3.5" />
-                             </Button>
-                           )}
-                         </>
-                       )}
-                       {idx < getBreadcrumbPath().length - 1 && (
-                         <span className="text-muted-foreground">/</span>
-                       )}
-                     </div>
-                   );
-                 })}
-               </div>
-            ) : (
-              <div className="flex items-center gap-2 text-sm">
-                <FolderOpen className="w-4 h-4 text-primary" />
-                <span className="font-medium">{language === "kk" ? "Үй" : "Дом"}</span>
-              </div>
-             )}
- 
-             {/* Add button */}
-             {mode === "edit" && !isAdding && !editingId && (
-               <Button onClick={() => setIsAdding(true)} variant="outline" className="w-full">
-                 <Plus className="w-4 h-4 mr-2" />
-                  {currentFolderId
-                    ? (language === "kk" ? "Папкаға қосу" : "Добавить в папку")
-                    : (language === "kk" ? "Қосу" : "Добавить")}
-               </Button>
-             )}
+              {/* Breadcrumb navigation — hidden when adding to avoid duplicate "Home" label */}
+              {!isAdding && (
+                <>
+                  {currentFolderId ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      {!(mode === "add" && initialFolderId) && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setRenamingFolder(false); setCurrentFolderId(currentFolder?.parent_id || null); }}
+                            className="h-auto p-1"
+                          >
+                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            Назад
+                          </Button>
+                          <span className="text-muted-foreground">/</span>
+                        </>
+                      )}
+                      {getBreadcrumbPath().map((folder, idx) => {
+                        const isCurrent = idx === getBreadcrumbPath().length - 1;
+                        return (
+                          <div key={folder.id} className="flex items-center gap-2">
+                            {isCurrent && renamingFolder && mode === "edit" ? (
+                              <form
+                                onSubmit={async (e) => {
+                                  e.preventDefault();
+                                  const newTitle = folderRenameValue.trim();
+                                  if (!newTitle) return;
+                                  try {
+                                    await updateMaterial.mutateAsync({ id: folder.id, productId, title: newTitle });
+                                    toast.success(language === "kk" ? "Сақталды" : "Сохранено");
+                                    setRenamingFolder(false);
+                                  } catch {
+                                    toast.error("Ошибка");
+                                  }
+                                }}
+                                className="flex items-center gap-1"
+                              >
+                                <FolderOpen className="w-4 h-4" />
+                                <Input
+                                  value={folderRenameValue}
+                                  onChange={(e) => setFolderRenameValue(e.target.value)}
+                                  autoFocus
+                                  className="h-7 w-40 text-sm"
+                                />
+                                <Button type="submit" size="icon" variant="ghost" className="h-7 w-7" disabled={updateMaterial.isPending}>
+                                  {updateMaterial.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span className="text-xs">OK</span>}
+                                </Button>
+                                <Button type="button" size="icon" variant="ghost" className="h-7 w-7" onClick={() => setRenamingFolder(false)}>
+                                  <X className="w-3.5 h-3.5" />
+                                </Button>
+                              </form>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => setCurrentFolderId(folder.id)}
+                                  className="hover:text-primary transition-colors flex items-center gap-1"
+                                >
+                                  <FolderOpen className="w-4 h-4" />
+                                  {folder.title}
+                                </button>
+                                {isCurrent && mode === "edit" && (
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6"
+                                    title={language === "kk" ? "Қалтаның атын өзгерту" : "Переименовать папку"}
+                                    onClick={() => { setFolderRenameValue(folder.title); setRenamingFolder(true); }}
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                            {idx < getBreadcrumbPath().length - 1 && (
+                              <span className="text-muted-foreground">/</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm">
+                      <FolderOpen className="w-4 h-4 text-primary" />
+                      <span className="font-medium">{language === "kk" ? "Үй" : "Дом"}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Add button */}
+              {mode === "edit" && !isAdding && !editingId && (
+                <Button onClick={() => setIsAdding(true)} variant="outline" className="w-full">
+                  <Plus className="w-4 h-4 mr-2" />
+                  {currentFolder
+                    ? (language === "kk" ? `«${currentFolder.title}» қалтасына қосу` : `Добавить в «${currentFolder.title}»`)
+                    : (language === "kk" ? "Үйге қосу" : "Добавить в дом")}
+                </Button>
+              )}
  
              {/* Add form */}
              {isAdding && (
