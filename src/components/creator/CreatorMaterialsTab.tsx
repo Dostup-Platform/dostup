@@ -1294,7 +1294,18 @@ const MaterialNode = ({
                     <Download className="w-4 h-4" />
                   </a>
                 )}
-                {(material.type === "link" || material.type === "text") && (
+                {material.type === "link" && material.file_url && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 min-h-0"
+                    title={language === "kk" ? "Сілтемені көшіру" : "Скопировать ссылку"}
+                    onClick={(e) => { e.stopPropagation(); copyToClipboard(material.file_url || ""); }}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                )}
+                {material.type === "text" && (
                   <Button
                     variant="ghost"
                     size="icon"
