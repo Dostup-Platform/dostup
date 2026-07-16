@@ -1383,10 +1383,16 @@ const MaterialNode = ({
             </ContextMenuItem>
           )}
           {material.type === "link" && material.file_url && (
-            <ContextMenuItem onSelect={() => copyToClipboard(material.file_url || "")}>
-              <Copy className="w-4 h-4 mr-2" />
-              {language === "kk" ? "Сілтемені көшіру" : "Скопировать ссылку"}
-            </ContextMenuItem>
+            <>
+              <ContextMenuItem onSelect={() => window.open(material.file_url || "", "_blank", "noopener,noreferrer")}>
+                <ExternalLink className="w-4 h-4 mr-2" />
+                {language === "kk" ? "Ашу" : "Открыть"}
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => copyToClipboard(material.file_url || "")}>
+                <Copy className="w-4 h-4 mr-2" />
+                {language === "kk" ? "Сілтемені көшіру" : "Скопировать ссылку"}
+              </ContextMenuItem>
+            </>
           )}
           <ContextMenuSeparator />
           <ContextMenuItem
