@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
-  ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
+  ChevronRight, Pencil, Trash2, Download, Check, X,
   GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw, Copy
 } from "lucide-react";
 import {
@@ -1137,7 +1137,8 @@ const MaterialNode = ({
   const handleCardClick = () => {
     if (isRenaming) return;
     if (isFolder && !flat) { onOpenFolder(material.id); return; }
-    if (material.type === "text" || material.type === "link") { setDialogOpen(true); return; }
+    if (material.type === "link" && material.file_url) { window.open(material.file_url, "_blank", "noopener,noreferrer"); return; }
+    if (material.type === "text") { setDialogOpen(true); return; }
     if (!isFolder) onOpen(material);
   };
 
@@ -1370,11 +1371,9 @@ const MaterialNode = ({
             </ContextMenuItem>
           )}
           {material.type === "link" && material.file_url && (
-            <ContextMenuItem
-              onSelect={() => window.open(material.file_url!, "_blank", "noopener,noreferrer")}
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              {language === "kk" ? "Ашу" : "Открыть"}
+            <ContextMenuItem onSelect={() => copyToClipboard(material.file_url || "")}>
+              <Copy className="w-4 h-4 mr-2" />
+              {language === "kk" ? "Сілтемені көшіру" : "Скопировать ссылку"}
             </ContextMenuItem>
           )}
           <ContextMenuSeparator />
