@@ -679,8 +679,8 @@ interface FormData {
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="link" id="type-link" />
               <Label htmlFor="type-link" className="cursor-pointer flex items-center gap-2">
-                <Type className="w-4 h-4" />
-                Текст
+                <LinkIcon className="w-4 h-4" />
+                {language === "kk" ? "Сілтеме" : "Ссылка"}
               </Label>
             </div>
           </RadioGroup>
@@ -709,14 +709,17 @@ interface FormData {
               />
             </div>
             <div className="space-y-2">
-              <Label>Текст *</Label>
+              <Label>{language === "kk" ? "Сілтеме *" : "Ссылка *"}</Label>
               <Textarea
-                placeholder="Вставьте текст и/или ссылку"
+                placeholder="https://..."
                 value={formData.linkUrl}
                 onChange={(e) => setFormData(prev => ({ ...prev, linkUrl: e.target.value }))}
                 rows={4}
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                {language === "kk" ? "Сілтемені осында қойыңыз" : "вставьте ссылку"}
+              </p>
             </div>
           </>
         )}
