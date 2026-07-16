@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
   ChevronRight, Pencil, Trash2, Download, Check, X,
-  GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw, Copy
+  GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw, Copy,
+  ExternalLink
 } from "lucide-react";
 import {
   Select,
