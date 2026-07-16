@@ -1423,33 +1423,6 @@ const MaterialNode = ({
           </div>
         </div>
       )}
-      {viewerOpen && material.type === "link" && material.file_url && (
-        <div className="mt-1 rounded-md border bg-muted/30 p-3 space-y-2">
-          <div className="max-h-[40vh] overflow-y-auto break-words text-sm">
-            <a
-              href={material.file_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary underline break-all"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {material.file_url}
-            </a>
-          </div>
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5 h-7 px-2 text-xs"
-              onClick={(e) => { e.stopPropagation(); copyToClipboard(material.file_url || ""); }}
-            >
-              <Copy className="w-3 h-3" />
-              {language === "kk" ? "Көшіру" : "Скопировать"}
-            </Button>
-          </div>
-        </div>
-      )}
       {material.type === "text" && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-2xl">
