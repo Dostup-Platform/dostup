@@ -679,8 +679,8 @@ interface FormData {
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="link" id="type-link" />
               <Label htmlFor="type-link" className="cursor-pointer flex items-center gap-2">
-                <Type className="w-4 h-4" />
-                Текст
+                <LinkIcon className="w-4 h-4" />
+                {language === "kk" ? "Сілтеме" : "Ссылка"}
               </Label>
             </div>
           </RadioGroup>
