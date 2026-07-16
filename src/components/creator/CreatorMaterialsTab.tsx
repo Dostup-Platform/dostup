@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
-  ChevronRight, Pencil, Trash2, Download, ExternalLink, Check, X,
+  ChevronRight, Pencil, Trash2, Download, Check, X,
   GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw, Copy
 } from "lucide-react";
 import {
