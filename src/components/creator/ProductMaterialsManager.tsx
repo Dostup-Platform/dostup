@@ -703,7 +703,7 @@ interface FormData {
           <div className="space-y-2">
               <Label>Название (необязательно)</Label>
               <Input
-                placeholder="Если пусто — показывается сам текст"
+                placeholder={language === "kk" ? "Бос болса — сілтеменің өзі көрсетіледі" : "показывается сама ссылка"}
                 value={formData.title}
                 onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
               />
@@ -717,9 +717,6 @@ interface FormData {
                 rows={4}
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                {language === "kk" ? "Сілтемені осында қойыңыз" : "вставьте ссылку"}
-              </p>
             </div>
           </>
         )}
