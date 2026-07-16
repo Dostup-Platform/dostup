@@ -1137,7 +1137,8 @@ const MaterialNode = ({
   const handleCardClick = () => {
     if (isRenaming) return;
     if (isFolder && !flat) { onOpenFolder(material.id); return; }
-    if (material.type === "text" || material.type === "link") { setDialogOpen(true); return; }
+    if (material.type === "link" && material.file_url) { window.open(material.file_url, "_blank", "noopener,noreferrer"); return; }
+    if (material.type === "text") { setDialogOpen(true); return; }
     if (!isFolder) onOpen(material);
   };
 
