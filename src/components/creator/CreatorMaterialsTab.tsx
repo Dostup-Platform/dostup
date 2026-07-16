@@ -5,7 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, Library, Plus, Folder, FileText, Link as LinkIcon, Type,
   ChevronRight, Pencil, Trash2, Download, Check, X,
-  GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw, Copy
+  GripVertical, Home, ArrowUpDown, Star, RotateCcw, HardDrive, RefreshCw, Copy,
+  ExternalLink
 } from "lucide-react";
 import {
   Select,
@@ -1293,7 +1294,18 @@ const MaterialNode = ({
                     <Download className="w-4 h-4" />
                   </a>
                 )}
-                {(material.type === "link" || material.type === "text") && (
+                {material.type === "link" && material.file_url && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 min-h-0"
+                    title={language === "kk" ? "Сілтемені көшіру" : "Скопировать ссылку"}
+                    onClick={(e) => { e.stopPropagation(); copyToClipboard(material.file_url || ""); }}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                )}
+                {material.type === "text" && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -1371,10 +1383,16 @@ const MaterialNode = ({
             </ContextMenuItem>
           )}
           {material.type === "link" && material.file_url && (
-            <ContextMenuItem onSelect={() => copyToClipboard(material.file_url || "")}>
-              <Copy className="w-4 h-4 mr-2" />
-              {language === "kk" ? "Сілтемені көшіру" : "Скопировать ссылку"}
-            </ContextMenuItem>
+            <>
+              <ContextMenuItem onSelect={() => window.open(material.file_url || "", "_blank", "noopener,noreferrer")}>
+                <ExternalLink className="w-4 h-4 mr-2" />
+                {language === "kk" ? "Ашу" : "Открыть"}
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => copyToClipboard(material.file_url || "")}>
+                <Copy className="w-4 h-4 mr-2" />
+                {language === "kk" ? "Сілтемені көшіру" : "Скопировать ссылку"}
+              </ContextMenuItem>
+            </>
           )}
           <ContextMenuSeparator />
           <ContextMenuItem
@@ -1405,33 +1423,6 @@ const MaterialNode = ({
           </div>
         </div>
       )}
-      {viewerOpen && material.type === "link" && material.file_url && (
-        <div className="mt-1 rounded-md border bg-muted/30 p-3 space-y-2">
-          <div className="max-h-[40vh] overflow-y-auto break-words text-sm">
-            <a
-              href={material.file_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary underline break-all"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {material.file_url}
-            </a>
-          </div>
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5 h-7 px-2 text-xs"
-              onClick={(e) => { e.stopPropagation(); copyToClipboard(material.file_url || ""); }}
-            >
-              <Copy className="w-3 h-3" />
-              {language === "kk" ? "Көшіру" : "Скопировать"}
-            </Button>
-          </div>
-        </div>
-      )}
       {material.type === "text" && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-2xl">
@@ -1448,37 +1439,6 @@ const MaterialNode = ({
                 size="sm"
                 className="gap-1.5 h-7 px-2 text-xs"
                 onClick={() => copyToClipboard(material.content || "")}
-              >
-                <Copy className="w-3 h-3" />
-                {language === "kk" ? "Көшіру" : "Скопировать"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-      {material.type === "link" && material.file_url && (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="break-words">{material.title}</DialogTitle>
-            </DialogHeader>
-            <div className="max-h-[70vh] overflow-y-auto break-words text-sm">
-              <a
-                href={material.file_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline break-all"
-              >
-                {material.file_url}
-              </a>
-            </div>
-            <div className="flex justify-end pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-7 px-2 text-xs"
-                onClick={() => copyToClipboard(material.file_url || "")}
               >
                 <Copy className="w-3 h-3" />
                 {language === "kk" ? "Көшіру" : "Скопировать"}
