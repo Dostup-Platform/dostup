@@ -21,6 +21,8 @@ interface Product {
   faq: Array<{ question: string; answer: string }> | null;
   kaspi_phone: string | null;
   access_duration_days: number | null;
+  is_paused?: boolean;
+  paused_message?: string | null;
 }
 
 export const useProduct = (productId: string | undefined) => {
