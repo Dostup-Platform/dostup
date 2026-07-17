@@ -718,6 +718,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
+  const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
+  const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
+  const [pausingProduct, setPausingProduct] = useState<Product | null>(null);
+  const [pauseMessage, setPauseMessage] = useState<string>("");
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   
