@@ -158,34 +158,6 @@ interface FormData {
     }, []);
   }, []);
 
-  const handlePasteFromMenu = useCallback(async () => {
-    try {
-      if (!navigator.clipboard || !navigator.clipboard.read) {
-        toast.info(language === "kk" ? "Браузер буферді қолдамайды. Ctrl+V пайдаланыңыз." : "Браузер не поддерживает буфер обмена. Используйте Ctrl+V.");
-        return;
-      }
-      const clipboardItems = await navigator.clipboard.read();
-      const pastedFiles: File[] = [];
-      for (const item of clipboardItems) {
-        for (const type of item.types) {
-          if (type.startsWith('image/') || type === 'application/pdf' || type.startsWith('video/') || type.startsWith('audio/')) {
-            const blob = await item.getType(type);
-            const ext = type.split('/')[1] || 'file';
-            const file = new File([blob], `pasted-${Date.now()}.${ext}`, { type });
-            pastedFiles.push(file);
-          }
-        }
-      }
-      if (pastedFiles.length > 0) {
-        addFilesToForm(pastedFiles);
-      } else {
-        toast.info(language === "kk" ? "Буферде файлдар жоқ. Ctrl+V пайдаланыңыз." : "В буфере обмена нет файлов. Используйте Ctrl+V.");
-      }
-    } catch {
-      toast.info(language === "kk" ? "Буферге кіру мүмкін емес. Ctrl+V пайдаланыңыз." : "Нет доступа к буферу обмена. Используйте Ctrl+V.");
-    }
-  }, [addFilesToForm, language]);
-
   // Global paste listener: when the add form is open and a file/folder is being created,
   // pasting a file anywhere in the dialog adds it to the form.
   useEffect(() => {
