@@ -624,8 +624,10 @@ export type Database = {
           id: string
           image_url: string | null
           is_active: boolean
+          is_paused: boolean
           kaspi_link: string | null
           kaspi_phone: string | null
+          paused_message: string | null
           price: number
           slug: string | null
           telegram_link: string | null
@@ -645,8 +647,10 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_paused?: boolean
           kaspi_link?: string | null
           kaspi_phone?: string | null
+          paused_message?: string | null
           price?: number
           slug?: string | null
           telegram_link?: string | null
@@ -666,8 +670,10 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_paused?: boolean
           kaspi_link?: string | null
           kaspi_phone?: string | null
+          paused_message?: string | null
           price?: number
           slug?: string | null
           telegram_link?: string | null
