@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, FileText, ChevronDown } from "lucide-react";
+import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, ChevronDown, Eye, PauseCircle, PlayCircle, Smartphone, Monitor } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +48,8 @@ interface Product {
   faq?: Array<{ question: string; answer: string }> | null;
   kaspi_phone?: string | null;
   access_duration_days?: number | null;
+  is_paused?: boolean;
+  paused_message?: string | null;
 }
 
 const formatPrice = (price: number, currency: string = "KZT") => {
@@ -716,6 +718,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
+  const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
+  const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
+  const [pausingProduct, setPausingProduct] = useState<Product | null>(null);
+  const [pauseMessage, setPauseMessage] = useState<string>("");
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   
@@ -1001,15 +1007,6 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setMaterialsProduct({ id: product.id, title: product.title })}
-                  className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span className="ml-1">{t("materials")}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => {
                     navigator.clipboard.writeText(`https://dostup.lovable.app/product/${product.id}`);
                     toast.success(language === "ru" ? "Ссылка скопирована!" : "Сілтеме көшірілді!");
@@ -1022,11 +1019,51 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => { setPreviewDevice("mobile"); setPreviewProduct(product as Product); }}
+                  className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span className="ml-1">{language === "ru" ? "Предпросмотр" : "Алдын ала қарау"}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => handleEdit(product)}
                   className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
                 >
                   <Edit className="w-3.5 h-3.5" />
                   <span className="ml-1">{t("edit")}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if ((product as any).is_paused) {
+                      updateProduct.mutate(
+                        { id: product.id, is_paused: false } as any,
+                        {
+                          onSuccess: () => toast.success(language === "ru" ? "Продукт возобновлён" : "Өнім қайта іске қосылды"),
+                          onError: () => toast.error(language === "ru" ? "Ошибка" : "Қате"),
+                        }
+                      );
+                    } else {
+                      setPauseMessage(
+                        (product as any).paused_message ||
+                          (language === "ru"
+                            ? "Автор отключил ссылку. Мы набрали достаточное количество учеников — ждите новый поток."
+                            : "Автор сілтемені өшірді. Жаңа ағымды күтіңіз.")
+                      );
+                      setPausingProduct(product as Product);
+                    }
+                  }}
+                  className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
+                >
+                  {(product as any).is_paused ? <PlayCircle className="w-3.5 h-3.5" /> : <PauseCircle className="w-3.5 h-3.5" />}
+                  <span className="ml-1">
+                    {(product as any).is_paused
+                      ? (language === "ru" ? "Возобновить" : "Қайта қосу")
+                      : (language === "ru" ? "Приостановить" : "Тоқтату")}
+                  </span>
                 </Button>
                 <Button
                   variant="outline"
@@ -1058,6 +1095,117 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         onClose={() => setMaterialsProduct(null)}
       />
     )}
+
+    {/* Preview Dialog */}
+    <Dialog open={!!previewProduct} onOpenChange={(open) => { if (!open) setPreviewProduct(null); }}>
+      <DialogContent className="max-w-5xl w-[95vw] p-4">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between gap-3 pr-8">
+            <span className="truncate">
+              {language === "ru" ? "Предпросмотр" : "Алдын ала қарау"}: {previewProduct?.title}
+            </span>
+            <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+              <button
+                type="button"
+                onClick={() => setPreviewDevice("mobile")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                  previewDevice === "mobile" ? "bg-accent text-white" : "text-muted-foreground hover:bg-accent/50"
+                }`}
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                {language === "ru" ? "Телефон" : "Телефон"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewDevice("desktop")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                  previewDevice === "desktop" ? "bg-accent text-white" : "text-muted-foreground hover:bg-accent/50"
+                }`}
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                {language === "ru" ? "Компьютер" : "Компьютер"}
+              </button>
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex justify-center items-start bg-muted/30 rounded-lg p-3 overflow-auto" style={{ height: "70vh" }}>
+          {previewProduct && (
+            <iframe
+              key={`${previewProduct.id}-${previewDevice}`}
+              src={`/product/${previewProduct.id}`}
+              title="preview"
+              className="bg-background border border-border rounded-lg shadow-lg"
+              style={
+                previewDevice === "mobile"
+                  ? { width: 390, height: "100%", maxHeight: 844 }
+                  : { width: "100%", height: "100%" }
+              }
+            />
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Pause Dialog */}
+    <Dialog open={!!pausingProduct} onOpenChange={(open) => { if (!open) setPausingProduct(null); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {language === "ru" ? "Приостановить продукт" : "Өнімді тоқтату"}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 text-sm text-muted-foreground">
+          <p>
+            {language === "ru"
+              ? "Ссылка на продукт, которую вы отправляете ученикам, станет недействительной. По этой ссылке можно будет перейти, но вместо кнопки покупки посетители увидят сообщение ниже. Никто не сможет купить и получить доступ к продукту, пока вы не возобновите его."
+              : "Оқушыларға жіберген өнім сілтемесі жарамсыз болады. Сілтеме ашылады, бірақ сатып алу батырмасының орнына төмендегі хабарлама көрсетіледі."}
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="pause-message">
+              {language === "ru" ? "Сообщение для посетителей" : "Хабарлама"}
+            </Label>
+            <Textarea
+              id="pause-message"
+              rows={4}
+              value={pauseMessage}
+              onChange={(e) => setPauseMessage(e.target.value)}
+              placeholder={language === "ru" ? "Автор отключил ссылку." : "Автор сілтемені өшірді."}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={() => setPausingProduct(null)}>
+            {t("cancel")}
+          </Button>
+          <Button
+            onClick={() => {
+              if (!pausingProduct) return;
+              updateProduct.mutate(
+                {
+                  id: pausingProduct.id,
+                  is_paused: true,
+                  paused_message: pauseMessage.trim() || null,
+                } as any,
+                {
+                  onSuccess: () => {
+                    toast.success(language === "ru" ? "Продукт приостановлен" : "Өнім тоқтатылды");
+                    setPausingProduct(null);
+                  },
+                  onError: () => toast.error(language === "ru" ? "Ошибка" : "Қате"),
+                }
+              );
+            }}
+            disabled={updateProduct.isPending}
+          >
+            {updateProduct.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              language === "ru" ? "Приостановить" : "Тоқтату"
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
 
   </div>
   );

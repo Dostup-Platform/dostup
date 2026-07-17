@@ -55,6 +55,12 @@ const ProductPage = () => {
   const faq: Array<{ question: string; answer: string }> = Array.isArray(faqRaw)
     ? faqRaw.filter((it: any) => it && (it.question || it.answer))
     : [];
+  const isPaused = Boolean((product as any)?.is_paused);
+  const pausedMessage: string =
+    ((product as any)?.paused_message && String((product as any).paused_message).trim()) ||
+    (language === "kk"
+      ? "Автор осы сілтемені уақытша өшірді."
+      : "Автор отключил ссылку.");
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,14 +154,20 @@ const ProductPage = () => {
       {/* Fixed CTA Button */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
         <div className="max-w-lg mx-auto">
-          <Button 
-            variant="cta" 
-            size="xl" 
-            className="w-full"
-            onClick={handleBuy}
-          >
-            {t("getAccess")}
-          </Button>
+          {isPaused ? (
+            <div className="w-full rounded-xl bg-muted/60 border border-border px-4 py-3 text-center text-sm text-foreground whitespace-pre-wrap">
+              {pausedMessage}
+            </div>
+          ) : (
+            <Button
+              variant="cta"
+              size="xl"
+              className="w-full"
+              onClick={handleBuy}
+            >
+              {t("getAccess")}
+            </Button>
+          )}
         </div>
       </div>
     </div>
