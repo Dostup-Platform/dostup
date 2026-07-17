@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, FileText, ChevronDown } from "lucide-react";
+import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, FileText, ChevronDown, Eye, PauseCircle, PlayCircle, Smartphone, Monitor } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +48,8 @@ interface Product {
   faq?: Array<{ question: string; answer: string }> | null;
   kaspi_phone?: string | null;
   access_duration_days?: number | null;
+  is_paused?: boolean;
+  paused_message?: string | null;
 }
 
 const formatPrice = (price: number, currency: string = "KZT") => {
