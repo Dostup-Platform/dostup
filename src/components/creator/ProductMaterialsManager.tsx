@@ -758,61 +758,61 @@ interface FormData {
              </div>
          )}
 
-          {/* Add more files button — supports click, drag & drop, and paste */}
-          <ContextMenu>
-            <ContextMenuTrigger asChild>
-              <div
-                className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}`}
-                tabIndex={0}
-                role="button"
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
-                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
-                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDragging(false);
-                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    addFilesToForm(e.dataTransfer.files);
-                  }
-                }}
-                onPaste={(e) => {
-                  const files = getFilesFromClipboard(e.clipboardData);
-                  if (files.length > 0) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    addFilesToForm(files);
-                  }
-                }}
-                style={{ cursor: 'pointer' }}
-              >
-               <input
-                 ref={fileInputRef}
-                 type="file"
-                 multiple
-                 onChange={(e) => {
-                   if (e.target.files && e.target.files.length > 0) {
-                      addFilesToForm(e.target.files);
-                   }
-                   if (fileInputRef.current) fileInputRef.current.value = "";
-                 }}
-                 className="hidden"
-                 id="file-upload"
-               />
-                <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground pointer-events-none">
-                  {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы) — нажмите, перетащите или вставьте (Ctrl+V)" : "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)"}
-                </p>
-              </div>
-            </ContextMenuTrigger>
-            <ContextMenuContent className="w-48">
-              <ContextMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2">
-                <FolderOpen className="w-4 h-4" />
-                {language === "kk" ? "Компьютерден таңдау" : "Выбрать (из компьютера)"}
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
+          {/* Add more files button — supports click, drag & drop, and native paste.
+              We use a contentEditable element so the browser's native right-click
+              context menu shows "Paste" that fires onPaste directly (no clipboard
+              permission prompt on macOS Safari/Chrome). */}
+          <div
+            className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}`}
+            contentEditable
+            suppressContentEditableWarning
+            role="button"
+            onClick={() => fileInputRef.current?.click()}
+            onBeforeInput={(e) => { e.preventDefault(); }}
+            onKeyDown={(e) => {
+              // Prevent typing into the drop zone; still allow paste/copy shortcuts.
+              const isPaste = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v';
+              if (!isPaste) e.preventDefault();
+            }}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDragging(false);
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                addFilesToForm(e.dataTransfer.files);
+              }
+            }}
+            onPaste={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const files = getFilesFromClipboard(e.clipboardData);
+              if (files.length > 0) {
+                addFilesToForm(files);
+              }
+            }}
+            style={{ cursor: 'pointer', caretColor: 'transparent', outline: 'none' }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                   addFilesToForm(e.target.files);
+                }
+                if (fileInputRef.current) fileInputRef.current.value = "";
+              }}
+              className="hidden"
+              id="file-upload"
+            />
+            <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2 pointer-events-none" />
+            <p className="text-sm text-muted-foreground pointer-events-none select-none">
+              {formData.fileEntries.length > 0 ? "Добавить ещё файл(ы) — нажмите, перетащите или вставьте (Ctrl+V)" : "Нажмите, перетащите или вставьте (Ctrl+V) файл(ы)"}
+            </p>
+          </div>
         </div>}
 
         {/* Schedule access */}
