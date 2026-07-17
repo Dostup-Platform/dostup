@@ -1801,23 +1801,67 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [refreshing, setRefreshing] = useState(false);
 
-  const sorted = useMemo(() => {
-    const arr = [...files];
+  // Split by type
+  const fileItems = useMemo(
+    () => files.filter((f) => f.type === "file" || f.type === "link"),
+    [files],
+  );
+  const folderItems = useMemo(
+    () => files.filter((f) => f.type === "folder"),
+    [files],
+  );
+
+  // Compute recursive folder size: sum of all descendant file sizes.
+  const folderSizes = useMemo(() => {
+    const childrenByParent = new Map<string, typeof files>();
+    for (const m of files) {
+      const p = (m as { parent_id?: string | null }).parent_id ?? null;
+      if (!p) continue;
+      const arr = childrenByParent.get(p) ?? [];
+      arr.push(m);
+      childrenByParent.set(p, arr);
+    }
+    const sizeOf = (id: string): number => {
+      const children = childrenByParent.get(id) ?? [];
+      let total = 0;
+      for (const c of children) {
+        if (c.type === "folder") total += sizeOf(c.id);
+        else if (c.type === "file") total += c.file_size ?? 0;
+      }
+      return total;
+    };
+    const map = new Map<string, number>();
+    for (const f of folderItems) map.set(f.id, sizeOf(f.id));
+    return map;
+  }, [files, folderItems]);
+
+  const sortedFiles = useMemo(() => {
+    const arr = [...fileItems];
     arr.sort((a, b) => {
       const av = a.file_size ?? -1;
       const bv = b.file_size ?? -1;
       return sortDir === "desc" ? bv - av : av - bv;
     });
     return arr;
-  }, [files, sortDir]);
+  }, [fileItems, sortDir]);
+
+  const sortedFolders = useMemo(() => {
+    const arr = [...folderItems];
+    arr.sort((a, b) => {
+      const av = folderSizes.get(a.id) ?? 0;
+      const bv = folderSizes.get(b.id) ?? 0;
+      return sortDir === "desc" ? bv - av : av - bv;
+    });
+    return arr;
+  }, [folderItems, folderSizes, sortDir]);
 
   const totalBytes = useMemo(
-    () => files.reduce((s, f) => s + (f.file_size ?? 0), 0),
-    [files],
+    () => fileItems.reduce((s, f) => s + (f.file_size ?? 0), 0),
+    [fileItems],
   );
   const missingCount = useMemo(
-    () => files.filter((f) => !f.file_size).length,
-    [files],
+    () => fileItems.filter((f) => f.type === "file" && !f.file_size).length,
+    [fileItems],
   );
   const pct = Math.min(100, Math.round((totalBytes / STORAGE_QUOTA_BYTES) * 100));
 
@@ -1906,8 +1950,8 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm text-muted-foreground">
           {language === "kk"
-            ? `Барлығы файл: ${files.length}`
-            : `Всего файлов: ${files.length}`}
+            ? `Барлығы файл: ${fileItems.length}`
+            : `Всего файлов: ${fileItems.length}`}
         </div>
         <Button
           size="sm"
@@ -1922,34 +1966,64 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
         </Button>
       </div>
 
-      {sorted.length === 0 ? (
+      {sortedFolders.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <div className="text-xs font-medium text-muted-foreground px-1">
+            {language === "kk" ? "Қалталар" : "Папки"}
+          </div>
+          {sortedFolders.map((f) => {
+            const size = folderSizes.get(f.id) ?? 0;
+            return (
+              <Card key={f.id} className="opacity-90">
+                <CardContent className="flex items-center gap-3 p-3">
+                  <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                    <Folder className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{f.title}</div>
+                  </div>
+                  <div className="text-sm tabular-nums font-medium text-muted-foreground flex-shrink-0">
+                    {size > 0 ? formatBytes(size) : "—"}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {sortedFiles.length === 0 && sortedFolders.length === 0 ? (
         <div className="text-center py-10 text-sm text-muted-foreground">
           {language === "kk" ? "Файлдар жоқ" : "Нет файлов"}
         </div>
-      ) : (
+      ) : sortedFiles.length > 0 ? (
         <div className="flex flex-col gap-1.5">
-          {sorted.map((f) => (
+          {sortedFolders.length > 0 && (
+            <div className="text-xs font-medium text-muted-foreground px-1 pt-2">
+              {language === "kk" ? "Файлдар" : "Файлы"}
+            </div>
+          )}
+          {sortedFiles.map((f) => (
             <Card key={f.id}>
               <CardContent className="flex items-center gap-3 p-3">
                 <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-muted-foreground" />
+                  {f.type === "link" ? (
+                    <LinkIcon className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{f.title}</div>
-                  {f.product_title && (
-                    <div className="text-xs text-muted-foreground truncate">
-                      {f.product_title}
-                    </div>
-                  )}
                 </div>
                 <div className="text-sm tabular-nums font-medium text-muted-foreground flex-shrink-0">
-                  {formatBytes(f.file_size)}
+                  {f.type === "link" ? "—" : formatBytes(f.file_size)}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 };
