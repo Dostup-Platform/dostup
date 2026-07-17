@@ -1800,6 +1800,7 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
   const { data: files = [], isLoading, refetch } = useAllCreatorMaterials(creatorName);
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [refreshing, setRefreshing] = useState(false);
+  const [view, setView] = useState<"files" | "folders">("files");
 
   // Split by type
   const fileItems = useMemo(
@@ -1949,9 +1950,13 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
 
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm text-muted-foreground">
-          {language === "kk"
-            ? `Барлығы файл: ${fileItems.length}`
-            : `Всего файлов: ${fileItems.length}`}
+          {view === "files"
+            ? language === "kk"
+              ? `Барлығы файл: ${fileItems.length}`
+              : `Всего файлов: ${fileItems.length}`
+            : language === "kk"
+              ? `Барлығы қалта: ${folderItems.length}`
+              : `Всего папок: ${folderItems.length}`}
         </div>
         <Button
           size="sm"
@@ -1966,12 +1971,39 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
         </Button>
       </div>
 
-      {sortedFolders.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <div className="text-xs font-medium text-muted-foreground px-1">
-            {language === "kk" ? "Қалталар" : "Папки"}
+      <div className="inline-flex rounded-lg border p-0.5 bg-muted/40 w-fit">
+        <button
+          type="button"
+          onClick={() => setView("files")}
+          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            view === "files"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {language === "kk" ? "Файлдар" : "Файлы"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("folders")}
+          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            view === "folders"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {language === "kk" ? "Қалталар" : "Папки"}
+        </button>
+      </div>
+
+      {view === "folders" && (
+        sortedFolders.length === 0 ? (
+          <div className="text-center py-10 text-sm text-muted-foreground">
+            {language === "kk" ? "Қалталар жоқ" : "Нет папок"}
           </div>
-          {sortedFolders.map((f) => {
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {sortedFolders.map((f) => {
             const size = folderSizes.get(f.id) ?? 0;
             return (
               <Card key={f.id} className="opacity-90">
@@ -1988,22 +2020,19 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
                 </CardContent>
               </Card>
             );
-          })}
-        </div>
+            })}
+          </div>
+        )
       )}
 
-      {sortedFiles.length === 0 && sortedFolders.length === 0 ? (
-        <div className="text-center py-10 text-sm text-muted-foreground">
-          {language === "kk" ? "Файлдар жоқ" : "Нет файлов"}
-        </div>
-      ) : sortedFiles.length > 0 ? (
-        <div className="flex flex-col gap-1.5">
-          {sortedFolders.length > 0 && (
-            <div className="text-xs font-medium text-muted-foreground px-1 pt-2">
-              {language === "kk" ? "Файлдар" : "Файлы"}
-            </div>
-          )}
-          {sortedFiles.map((f) => (
+      {view === "files" && (
+        sortedFiles.length === 0 ? (
+          <div className="text-center py-10 text-sm text-muted-foreground">
+            {language === "kk" ? "Файлдар жоқ" : "Нет файлов"}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {sortedFiles.map((f) => (
             <Card key={f.id}>
               <CardContent className="flex items-center gap-3 p-3">
                 <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
@@ -2021,9 +2050,10 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      ) : null}
+            ))}
+          </div>
+        )
+      )}
     </div>
   );
 };
