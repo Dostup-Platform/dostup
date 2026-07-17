@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, FileText, ChevronDown, Eye, PauseCircle, PlayCircle, Smartphone, Monitor } from "lucide-react";
+import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, ChevronDown, Eye, PauseCircle, PlayCircle, Smartphone, Monitor } from "lucide-react";
 import {
   Dialog,
   DialogContent,
