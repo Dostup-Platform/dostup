@@ -343,9 +343,9 @@ export const useAllCreatorMaterials = (creatorName: string | undefined) => {
       if (ids.length === 0) return [];
       const { data, error } = await supabase
         .from("materials")
-        .select("id, product_id, title, type, file_url, file_size, created_at")
+        .select("id, product_id, title, type, file_url, file_size, created_at, parent_id")
         .in("product_id", ids)
-        .eq("type", "file")
+        .in("type", ["file", "folder", "link"])
         .is("teacher_id", null)
         .is("deleted_at", null);
       if (error) throw error;
