@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useProductMaterials, useCreateMaterial, useUpdateMaterial, useDeleteMaterial, uploadMaterialFile } from "@/hooks/useMaterials";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X, Clock, Link as LinkIcon, Type, Clipboard } from "lucide-react";
+import { Plus, FileText, Folder, Trash2, Edit, Loader2, Upload, GripVertical, ChevronLeft, FolderOpen, Download, X, Clock, Link as LinkIcon, Type } from "lucide-react";
 import { ExternalLink, ChevronRight, ChevronDown, Home } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -157,34 +157,6 @@ interface FormData {
       return acc;
     }, []);
   }, []);
-
-  const handlePasteFromMenu = useCallback(async () => {
-    try {
-      if (!navigator.clipboard || !navigator.clipboard.read) {
-        toast.info(language === "kk" ? "Браузер буферді қолдамайды. Ctrl+V пайдаланыңыз." : "Браузер не поддерживает буфер обмена. Используйте Ctrl+V.");
-        return;
-      }
-      const clipboardItems = await navigator.clipboard.read();
-      const pastedFiles: File[] = [];
-      for (const item of clipboardItems) {
-        for (const type of item.types) {
-          if (type.startsWith('image/') || type === 'application/pdf' || type.startsWith('video/') || type.startsWith('audio/')) {
-            const blob = await item.getType(type);
-            const ext = type.split('/')[1] || 'file';
-            const file = new File([blob], `pasted-${Date.now()}.${ext}`, { type });
-            pastedFiles.push(file);
-          }
-        }
-      }
-      if (pastedFiles.length > 0) {
-        addFilesToForm(pastedFiles);
-      } else {
-        toast.info(language === "kk" ? "Буферде файлдар жоқ. Ctrl+V пайдаланыңыз." : "В буфере обмена нет файлов. Используйте Ctrl+V.");
-      }
-    } catch {
-      toast.info(language === "kk" ? "Буферге кіру мүмкін емес. Ctrl+V пайдаланыңыз." : "Нет доступа к буферу обмена. Используйте Ctrl+V.");
-    }
-  }, [addFilesToForm, language]);
 
   // Global paste listener: when the add form is open and a file/folder is being created,
   // pasting a file anywhere in the dialog adds it to the form.
@@ -835,10 +807,6 @@ interface FormData {
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-48">
-              <ContextMenuItem onClick={handlePasteFromMenu} className="gap-2">
-                <Clipboard className="w-4 h-4" />
-                {language === "kk" ? "Қою" : "Вставить"}
-              </ContextMenuItem>
               <ContextMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2">
                 <FolderOpen className="w-4 h-4" />
                 {language === "kk" ? "Компьютерден таңдау" : "Выбрать (из компьютера)"}
