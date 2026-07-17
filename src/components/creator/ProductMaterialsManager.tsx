@@ -835,10 +835,6 @@ interface FormData {
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-48">
-              <ContextMenuItem onClick={handlePasteFromMenu} className="gap-2">
-                <Clipboard className="w-4 h-4" />
-                {language === "kk" ? "Қою" : "Вставить"}
-              </ContextMenuItem>
               <ContextMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2">
                 <FolderOpen className="w-4 h-4" />
                 {language === "kk" ? "Компьютерден таңдау" : "Выбрать (из компьютера)"}
