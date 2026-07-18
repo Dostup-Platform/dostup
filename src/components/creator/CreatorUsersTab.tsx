@@ -223,6 +223,24 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
     },
   });
 
+  // Мутация для отклонения ожидающей оплаты
+  const rejectPayment = useMutation({
+    mutationFn: async (purchaseId: string) => {
+      const { error } = await supabase
+        .from("simple_purchases")
+        .update({ status: "rejected" } as any)
+        .eq("id", purchaseId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-purchases"] });
+      toast.success(language === "ru" ? "Запрос отклонён" : "Сұраныс қабылданбады");
+    },
+    onError: () => {
+      toast.error(language === "ru" ? "Ошибка при отклонении" : "Қабылдамау қатесі");
+    },
+  });
+
   // Мутация для изменения назначенного учителя
   const updateTeacherAssignment = useMutation({
     mutationFn: async ({ purchaseId, teacherId, canChoose }: { purchaseId: string; teacherId: string | null; canChoose: boolean }) => {
