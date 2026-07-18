@@ -457,6 +457,26 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     },
   });
 
+  // Мутация для отклонения покупки
+  const rejectPurchase = useMutation({
+    mutationFn: async (purchaseId: string) => {
+      const { error } = await supabase
+        .from("simple_purchases")
+        .update({ status: "rejected" } as any)
+        .eq("id", purchaseId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases-count"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-purchases"] });
+      toast.success(language === "ru" ? "Запрос отклонён" : "Сұраныс қабылданбады");
+    },
+    onError: () => {
+      toast.error(language === "ru" ? "Ошибка при отклонении" : "Қабылдамау қатесі");
+    },
+  });
+
   const handleCancelBookingWithReason = async (reasons: string[], comment: string) => {
     if (!cancelingBooking) return;
     try {
