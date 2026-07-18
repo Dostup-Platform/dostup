@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { useProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
 import { Loader2, Play } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import heroBackground from "@/assets/hero-background.jpg";
