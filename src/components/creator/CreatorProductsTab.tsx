@@ -1098,13 +1098,13 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
     {/* Preview Dialog */}
     <Dialog open={!!previewProduct} onOpenChange={(open) => { if (!open) setPreviewProduct(null); }}>
-      <DialogContent className="max-w-5xl w-[95vw] p-4">
+      <DialogContent className="max-w-5xl w-[95vw] p-4 dialog-mobile-fullscreen flex flex-col max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between gap-3 pr-8">
-            <span className="truncate">
+          <DialogTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 pr-8">
+            <span className="truncate text-base sm:text-lg">
               {language === "ru" ? "Предпросмотр" : "Алдын ала қарау"}: {previewProduct?.title}
             </span>
-            <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+            <div className="flex items-center gap-1 rounded-md border border-border p-0.5 self-start sm:self-auto shrink-0">
               <button
                 type="button"
                 onClick={() => setPreviewDevice("mobile")}
@@ -1128,16 +1128,16 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
             </div>
           </DialogTitle>
         </DialogHeader>
-        <div className="flex justify-center items-start bg-muted/30 rounded-lg p-3 overflow-auto" style={{ height: "70vh" }}>
+        <div className="flex-1 min-h-0 flex justify-center items-start bg-muted/30 rounded-lg p-2 sm:p-3 overflow-auto">
           {previewProduct && (
             <iframe
               key={`${previewProduct.id}-${previewDevice}`}
               src={`/product/${previewProduct.id}`}
               title="preview"
-              className="bg-background border border-border rounded-lg shadow-lg"
+              className="bg-background border border-border rounded-lg shadow-lg max-w-full"
               style={
                 previewDevice === "mobile"
-                  ? { width: 390, height: "100%", maxHeight: 844 }
+                  ? { width: "min(390px, 100%)", height: "100%", maxHeight: 844 }
                   : { width: "100%", height: "100%" }
               }
             />
