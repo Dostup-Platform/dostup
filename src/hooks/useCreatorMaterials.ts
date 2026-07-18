@@ -3,14 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Material, MaterialType } from "./useMaterials";
 
 async function nextOrderIndex(productId: string, parentId: string | null): Promise<number> {
-  const { data } = await supabase
+  let query = supabase
     .from("materials")
     .select("order_index")
     .eq("product_id", productId)
     .is("deleted_at", null)
-    .filter("parent_id", parentId ? "eq" : "is", parentId ?? (null as never))
     .order("order_index", { ascending: false })
     .limit(1);
+  query = parentId ? query.eq("parent_id", parentId) : query.is("parent_id", null);
+  const { data } = await query;
   const max = data?.[0]?.order_index ?? -1;
   return max + 1;
 }
