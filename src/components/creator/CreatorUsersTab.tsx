@@ -360,18 +360,37 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
                       {purchase.product.title} · {formatPrice(Number(purchase.amount))}
                     </p>
                   </div>
-                  <Button 
-                    size="sm"
-                    className="h-7 text-xs flex-shrink-0"
-                    onClick={() => confirmPayment.mutate(purchase.id)}
-                    disabled={confirmPayment.isPending}
-                  >
-                    {confirmPayment.isPending ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Check className="w-3 h-3" />
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs px-2 text-destructive border-destructive/40 hover:bg-destructive hover:text-destructive-foreground"
+                      onClick={() => {
+                        if (window.confirm(language === "ru" ? "Отклонить запрос на оплату?" : "Төлем сұранысын қабылдамайсыз ба?")) {
+                          rejectPayment.mutate(purchase.id);
+                        }
+                      }}
+                      disabled={confirmPayment.isPending || rejectPayment.isPending}
+                    >
+                      {rejectPayment.isPending ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <X className="w-3 h-3" />
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => confirmPayment.mutate(purchase.id)}
+                      disabled={confirmPayment.isPending || rejectPayment.isPending}
+                    >
+                      {confirmPayment.isPending ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Check className="w-3 h-3" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
