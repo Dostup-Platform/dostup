@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, ChevronDown, Eye, PauseCircle, PlayCircle, Smartphone, Monitor } from "lucide-react";
+import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, ChevronDown, Eye, PauseCircle, PlayCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -719,7 +719,6 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
-  const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">("mobile");
   const [pausingProduct, setPausingProduct] = useState<Product | null>(null);
   const [pauseMessage, setPauseMessage] = useState<string>("");
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
@@ -1019,7 +1018,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => { setPreviewDevice("mobile"); setPreviewProduct(product as Product); }}
+                  onClick={() => setPreviewProduct(product as Product)}
                   className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
                 >
                   <Eye className="w-3.5 h-3.5" />
@@ -1098,48 +1097,22 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
     {/* Preview Dialog */}
     <Dialog open={!!previewProduct} onOpenChange={(open) => { if (!open) setPreviewProduct(null); }}>
-      <DialogContent className="max-w-5xl w-[95vw] p-4 dialog-mobile-fullscreen flex flex-col max-h-[90vh]">
+      <DialogContent className="max-w-md w-[95vw] p-4 dialog-mobile-fullscreen flex flex-col max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 pr-8">
+          <DialogTitle className="flex items-center gap-2 pr-8">
             <span className="truncate text-base sm:text-lg">
               {language === "ru" ? "Предпросмотр" : "Алдын ала қарау"}: {previewProduct?.title}
             </span>
-            <div className="flex items-center gap-1 rounded-md border border-border p-0.5 self-start sm:self-auto shrink-0">
-              <button
-                type="button"
-                onClick={() => setPreviewDevice("mobile")}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                  previewDevice === "mobile" ? "bg-accent text-white" : "text-muted-foreground hover:bg-accent/50"
-                }`}
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-                {language === "ru" ? "Телефон" : "Телефон"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreviewDevice("desktop")}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                  previewDevice === "desktop" ? "bg-accent text-white" : "text-muted-foreground hover:bg-accent/50"
-                }`}
-              >
-                <Monitor className="w-3.5 h-3.5" />
-                {language === "ru" ? "Компьютер" : "Компьютер"}
-              </button>
-            </div>
           </DialogTitle>
         </DialogHeader>
         <div className="flex-1 min-h-0 flex justify-center items-stretch bg-muted/30 rounded-lg p-2 sm:p-3 overflow-auto">
           {previewProduct && (
             <iframe
-              key={`${previewProduct.id}-${previewDevice}`}
+              key={previewProduct.id}
               src={`/product/${previewProduct.id}`}
               title="preview"
               className="bg-background border border-border rounded-lg shadow-lg max-w-full h-full"
-              style={
-                previewDevice === "mobile"
-                  ? { width: "min(390px, 100%)", minHeight: 600 }
-                  : { width: "100%", minHeight: 600 }
-              }
+              style={{ width: "min(390px, 100%)", minHeight: 600 }}
             />
           )}
         </div>
