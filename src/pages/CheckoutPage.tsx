@@ -23,7 +23,7 @@ const formatPrice = (price: number) => {
 const CheckoutPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { data: product, isLoading } = useProduct(productId);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -96,6 +96,41 @@ const CheckoutPage = () => {
   };
 
   const hasKaspiLink = !!displayProduct.kaspi_link;
+
+  const isPaused = Boolean((product as any)?.is_paused);
+  const pausedMessage: string =
+    ((product as any)?.paused_message && String((product as any).paused_message).trim()) ||
+    (language === "kk"
+      ? "Автор осы сілтемені уақытша өшірді."
+      : "Автор отключил ссылку.");
+
+  if (product && isPaused) {
+    return (
+      <div className="min-h-screen bg-muted/30 py-6 px-4">
+        <div className="max-w-lg mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground touch-manipulation"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>{t("back")}</span>
+            </button>
+          </div>
+          <Card className="animate-fade-in">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg">{displayProduct.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-xl bg-muted/60 border border-border px-4 py-4 text-center text-sm text-foreground whitespace-pre-wrap">
+                {pausedMessage}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/30 py-6 px-4">
