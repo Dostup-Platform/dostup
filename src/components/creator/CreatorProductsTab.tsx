@@ -1128,17 +1128,17 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
             </div>
           </DialogTitle>
         </DialogHeader>
-        <div className="flex-1 min-h-0 flex justify-center items-start bg-muted/30 rounded-lg p-2 sm:p-3 overflow-auto">
+        <div className="flex-1 min-h-0 flex justify-center items-stretch bg-muted/30 rounded-lg p-2 sm:p-3 overflow-auto">
           {previewProduct && (
             <iframe
               key={`${previewProduct.id}-${previewDevice}`}
               src={`/product/${previewProduct.id}`}
               title="preview"
-              className="bg-background border border-border rounded-lg shadow-lg max-w-full"
+              className="bg-background border border-border rounded-lg shadow-lg max-w-full h-full"
               style={
                 previewDevice === "mobile"
-                  ? { width: "min(390px, 100%)", height: "100%", maxHeight: 844 }
-                  : { width: "100%", height: "100%" }
+                  ? { width: "min(390px, 100%)", minHeight: 600 }
+                  : { width: "100%", minHeight: 600 }
               }
             />
           )}
