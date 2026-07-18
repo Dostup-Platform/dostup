@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/button";
 import { useProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCreatePurchase } from "@/hooks/usePurchases";
-import { toast } from "sonner";
 import { Loader2, Play } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import heroBackground from "@/assets/hero-background.jpg";
@@ -25,25 +23,14 @@ const ProductPage = () => {
   const { data: product, isLoading } = useProduct(productId);
   const [isPlaying, setIsPlaying] = useState(false);
   const { user } = useAuth();
-  const createPurchase = useCreatePurchase();
 
-  const handleBuy = async () => {
+  const handleBuy = () => {
     if (!productId || !product) return;
     if (!user) {
       navigate(`/auth?mode=signup&product=${productId}`);
       return;
     }
-    try {
-      await createPurchase.mutateAsync({
-        productId,
-        userId: user.id,
-        amount: Number(product.price),
-      });
-      toast.success("Заявка создана. Ждите подтверждения оплаты.");
-      navigate("/dashboard");
-    } catch (e) {
-      toast.error((e as Error).message || "Не удалось создать заявку");
-    }
+    navigate(`/checkout/${productId}`);
   };
 
   if (isLoading) {
