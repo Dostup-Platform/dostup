@@ -21,6 +21,7 @@ export type Database = {
           creator_id: string
           id: string
           order_index: number
+          owner_id: string | null
           product_id: string
           updated_at: string
         }
@@ -30,6 +31,7 @@ export type Database = {
           creator_id: string
           id?: string
           order_index?: number
+          owner_id?: string | null
           product_id: string
           updated_at?: string
         }
@@ -39,6 +41,7 @@ export type Database = {
           creator_id?: string
           id?: string
           order_index?: number
+          owner_id?: string | null
           product_id?: string
           updated_at?: string
         }
@@ -85,9 +88,9 @@ export type Database = {
           product_title: string
           schedule_id: string | null
           schedule_title: string | null
-          simple_user_id: string | null
           slot_date: string
           slot_time: string
+          user_id: string | null
           user_name: string
           user_phone: string | null
         }
@@ -102,9 +105,9 @@ export type Database = {
           product_title: string
           schedule_id?: string | null
           schedule_title?: string | null
-          simple_user_id?: string | null
           slot_date: string
           slot_time: string
+          user_id?: string | null
           user_name: string
           user_phone?: string | null
         }
@@ -119,9 +122,9 @@ export type Database = {
           product_title?: string
           schedule_id?: string | null
           schedule_title?: string | null
-          simple_user_id?: string | null
           slot_date?: string
           slot_time?: string
+          user_id?: string | null
           user_name?: string
           user_phone?: string | null
         }
@@ -151,10 +154,10 @@ export type Database = {
           reminder_type: string
           scheduled_at: string
           sent_at: string | null
-          simple_user_id: string | null
           slot_date: string | null
           slot_time: string | null
           target_role: string
+          user_id: string | null
         }
         Insert: {
           booking_id?: string | null
@@ -164,10 +167,10 @@ export type Database = {
           reminder_type: string
           scheduled_at: string
           sent_at?: string | null
-          simple_user_id?: string | null
           slot_date?: string | null
           slot_time?: string | null
           target_role?: string
+          user_id?: string | null
         }
         Update: {
           booking_id?: string | null
@@ -177,20 +180,12 @@ export type Database = {
           reminder_type?: string
           scheduled_at?: string
           sent_at?: string | null
-          simple_user_id?: string | null
           slot_date?: string | null
           slot_time?: string | null
           target_role?: string
+          user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "booking_reminders_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "simple_bookings"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       booking_reschedules: {
         Row: {
@@ -207,7 +202,7 @@ export type Database = {
           reasons: string[] | null
           rescheduled_by: string
           schedule_id: string | null
-          simple_user_id: string | null
+          user_id: string | null
         }
         Insert: {
           booking_id: string
@@ -223,7 +218,7 @@ export type Database = {
           reasons?: string[] | null
           rescheduled_by?: string
           schedule_id?: string | null
-          simple_user_id?: string | null
+          user_id?: string | null
         }
         Update: {
           booking_id?: string
@@ -239,7 +234,7 @@ export type Database = {
           reasons?: string[] | null
           rescheduled_by?: string
           schedule_id?: string | null
-          simple_user_id?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -285,63 +280,6 @@ export type Database = {
           },
         ]
       }
-      creator_accounts: {
-        Row: {
-          account_type: string
-          created_at: string
-          display_name: string
-          id: string
-          is_blocked: boolean
-          login: string
-          password_hash: string
-          updated_at: string
-        }
-        Insert: {
-          account_type: string
-          created_at?: string
-          display_name: string
-          id?: string
-          is_blocked?: boolean
-          login: string
-          password_hash: string
-          updated_at?: string
-        }
-        Update: {
-          account_type?: string
-          created_at?: string
-          display_name?: string
-          id?: string
-          is_blocked?: boolean
-          login?: string
-          password_hash?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      creator_sessions: {
-        Row: {
-          created_at: string | null
-          creator_name: string
-          expires_at: string
-          id: string
-          token: string
-        }
-        Insert: {
-          created_at?: string | null
-          creator_name: string
-          expires_at: string
-          id?: string
-          token: string
-        }
-        Update: {
-          created_at?: string | null
-          creator_name?: string
-          expires_at?: string
-          id?: string
-          token?: string
-        }
-        Relationships: []
-      }
       material_access_tokens: {
         Row: {
           created_at: string
@@ -375,24 +313,21 @@ export type Database = {
           id: string
           is_public: boolean
           material_id: string
-          user_ref: string
-          user_type: string
+          user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           is_public?: boolean
           material_id: string
-          user_ref: string
-          user_type: string
+          user_id: string
         }
         Update: {
           created_at?: string
           id?: string
           is_public?: boolean
           material_id?: string
-          user_ref?: string
-          user_type?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -412,6 +347,7 @@ export type Database = {
           product_id: string | null
           product_title: string
           unlocked_at: string | null
+          user_id: string | null
         }
         Insert: {
           id?: string
@@ -420,6 +356,7 @@ export type Database = {
           product_id?: string | null
           product_title: string
           unlocked_at?: string | null
+          user_id?: string | null
         }
         Update: {
           id?: string
@@ -428,6 +365,7 @@ export type Database = {
           product_id?: string | null
           product_title?: string
           unlocked_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -519,35 +457,7 @@ export type Database = {
             referencedRelation: "products"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "materials_teacher_id_fkey"
-            columns: ["teacher_id"]
-            isOneToOne: false
-            referencedRelation: "simple_users"
-            referencedColumns: ["id"]
-          },
         ]
-      }
-      moderator_sessions: {
-        Row: {
-          created_at: string
-          expires_at: string
-          id: string
-          token: string
-        }
-        Insert: {
-          created_at?: string
-          expires_at?: string
-          id?: string
-          token: string
-        }
-        Update: {
-          created_at?: string
-          expires_at?: string
-          id?: string
-          token?: string
-        }
-        Relationships: []
       }
       notification_preferences: {
         Row: {
@@ -558,7 +468,7 @@ export type Database = {
           reminder_2h: boolean
           reminder_morning: boolean
           updated_at: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -568,7 +478,7 @@ export type Database = {
           reminder_2h?: boolean
           reminder_morning?: boolean
           updated_at?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string
@@ -578,7 +488,7 @@ export type Database = {
           reminder_2h?: boolean
           reminder_morning?: boolean
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -587,19 +497,19 @@ export type Database = {
           created_at: string
           id: string
           product_id: string
-          teacher_name: string
+          teacher_user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           product_id: string
-          teacher_name: string
+          teacher_user_id: string
         }
         Update: {
           created_at?: string
           id?: string
           product_id?: string
-          teacher_name?: string
+          teacher_user_id?: string
         }
         Relationships: [
           {
@@ -627,6 +537,7 @@ export type Database = {
           is_paused: boolean
           kaspi_link: string | null
           kaspi_phone: string | null
+          owner_id: string | null
           paused_message: string | null
           price: number
           slug: string | null
@@ -650,6 +561,7 @@ export type Database = {
           is_paused?: boolean
           kaspi_link?: string | null
           kaspi_phone?: string | null
+          owner_id?: string | null
           paused_message?: string | null
           price?: number
           slug?: string | null
@@ -673,6 +585,7 @@ export type Database = {
           is_paused?: boolean
           kaspi_link?: string | null
           kaspi_phone?: string | null
+          owner_id?: string | null
           paused_message?: string | null
           price?: number
           slug?: string | null
@@ -685,30 +598,39 @@ export type Database = {
       }
       profiles: {
         Row: {
+          active_role: Database["public"]["Enums"]["app_role"] | null
           avatar_url: string | null
           created_at: string
+          display_name: string | null
           email: string | null
           id: string
+          login: string | null
           name: string | null
           phone: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          active_role?: Database["public"]["Enums"]["app_role"] | null
           avatar_url?: string | null
           created_at?: string
+          display_name?: string | null
           email?: string | null
           id?: string
+          login?: string | null
           name?: string | null
           phone?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          active_role?: Database["public"]["Enums"]["app_role"] | null
           avatar_url?: string | null
           created_at?: string
+          display_name?: string | null
           email?: string | null
           id?: string
+          login?: string | null
           name?: string | null
           phone?: string | null
           updated_at?: string
@@ -761,7 +683,7 @@ export type Database = {
           fcm_token: string
           id: string
           updated_at: string
-          user_id: string | null
+          user_id: string
           user_role: string
         }
         Insert: {
@@ -770,7 +692,7 @@ export type Database = {
           fcm_token: string
           id?: string
           updated_at?: string
-          user_id?: string | null
+          user_id: string
           user_role?: string
         }
         Update: {
@@ -779,7 +701,7 @@ export type Database = {
           fcm_token?: string
           id?: string
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
           user_role?: string
         }
         Relationships: []
@@ -801,9 +723,9 @@ export type Database = {
           responded_at: string | null
           response_comment: string | null
           schedule_id: string | null
-          simple_user_id: string | null
           status: string
           teacher_id: string | null
+          user_id: string | null
         }
         Insert: {
           booking_id: string
@@ -821,9 +743,9 @@ export type Database = {
           responded_at?: string | null
           response_comment?: string | null
           schedule_id?: string | null
-          simple_user_id?: string | null
           status?: string
           teacher_id?: string | null
+          user_id?: string | null
         }
         Update: {
           booking_id?: string
@@ -841,9 +763,9 @@ export type Database = {
           responded_at?: string | null
           response_comment?: string | null
           schedule_id?: string | null
-          simple_user_id?: string | null
           status?: string
           teacher_id?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -883,187 +805,29 @@ export type Database = {
             referencedRelation: "products"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "schedules_teacher_id_fkey"
-            columns: ["teacher_id"]
-            isOneToOne: false
-            referencedRelation: "simple_users"
-            referencedColumns: ["id"]
-          },
         ]
       }
-      signup_tokens: {
+      school_teachers: {
         Row: {
-          created_at: string
-          email: string
-          expires_at: string
+          accepted_at: string | null
           id: string
-          name: string
-          product_id: string | null
-          token: string
-          used_at: string | null
+          invited_at: string
+          school_user_id: string
+          teacher_user_id: string
         }
         Insert: {
-          created_at?: string
-          email: string
-          expires_at: string
+          accepted_at?: string | null
           id?: string
-          name: string
-          product_id?: string | null
-          token: string
-          used_at?: string | null
+          invited_at?: string
+          school_user_id: string
+          teacher_user_id: string
         }
         Update: {
-          created_at?: string
-          email?: string
-          expires_at?: string
+          accepted_at?: string | null
           id?: string
-          name?: string
-          product_id?: string | null
-          token?: string
-          used_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "signup_tokens_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      simple_bookings: {
-        Row: {
-          created_at: string
-          id: string
-          schedule_id: string
-          simple_user_id: string
-          status: string
-          time_slot_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          schedule_id: string
-          simple_user_id: string
-          status?: string
-          time_slot_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          schedule_id?: string
-          simple_user_id?: string
-          status?: string
-          time_slot_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "simple_bookings_schedule_id_fkey"
-            columns: ["schedule_id"]
-            isOneToOne: false
-            referencedRelation: "schedules"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "simple_bookings_simple_user_id_fkey"
-            columns: ["simple_user_id"]
-            isOneToOne: false
-            referencedRelation: "simple_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "simple_bookings_time_slot_id_fkey"
-            columns: ["time_slot_id"]
-            isOneToOne: false
-            referencedRelation: "time_slots"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      simple_purchases: {
-        Row: {
-          amount: number
-          assigned_teacher_id: string | null
-          can_choose_teacher: boolean | null
-          confirmed_at: string | null
-          created_at: string
-          id: string
-          product_id: string
-          simple_user_id: string
-          status: string
-        }
-        Insert: {
-          amount: number
-          assigned_teacher_id?: string | null
-          can_choose_teacher?: boolean | null
-          confirmed_at?: string | null
-          created_at?: string
-          id?: string
-          product_id: string
-          simple_user_id: string
-          status?: string
-        }
-        Update: {
-          amount?: number
-          assigned_teacher_id?: string | null
-          can_choose_teacher?: boolean | null
-          confirmed_at?: string | null
-          created_at?: string
-          id?: string
-          product_id?: string
-          simple_user_id?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "simple_purchases_assigned_teacher_id_fkey"
-            columns: ["assigned_teacher_id"]
-            isOneToOne: false
-            referencedRelation: "simple_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "simple_purchases_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "simple_purchases_simple_user_id_fkey"
-            columns: ["simple_user_id"]
-            isOneToOne: false
-            referencedRelation: "simple_users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      simple_users: {
-        Row: {
-          created_at: string
-          id: string
-          name: string
-          phone: string
-          role: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name: string
-          phone: string
-          role?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string
-          phone?: string
-          role?: string
-          updated_at?: string
+          invited_at?: string
+          school_user_id?: string
+          teacher_user_id?: string
         }
         Relationships: []
       }
@@ -1112,8 +876,7 @@ export type Database = {
           unread_for_moderator: number
           unread_for_user: number
           updated_at: string
-          user_ref: string
-          user_type: string
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -1124,8 +887,7 @@ export type Database = {
           unread_for_moderator?: number
           unread_for_user?: number
           updated_at?: string
-          user_ref: string
-          user_type: string
+          user_id: string
         }
         Update: {
           created_at?: string
@@ -1136,8 +898,37 @@ export type Database = {
           unread_for_moderator?: number
           unread_for_user?: number
           updated_at?: string
-          user_ref?: string
-          user_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      teacher_invites: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          school_user_id: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          school_user_id: string
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          school_user_id?: string
+          token?: string
         }
         Relationships: []
       }
@@ -1213,6 +1004,14 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_product_teacher: {
+        Args: { _product_id: string; _user_id: string }
+        Returns: boolean
+      }
+      owns_product: {
+        Args: { _product_id: string; _user_id: string }
         Returns: boolean
       }
     }
