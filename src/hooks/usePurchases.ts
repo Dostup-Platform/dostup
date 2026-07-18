@@ -60,7 +60,7 @@ export const useCreatorPurchases = (ownerId: string | undefined) =>
 export const useCreatePurchase = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ productId, userId, amount }: { productId: string; userId: string; amount: number }) => {
+    mutationFn: async ({ productId, userId, amount, paymentIntentId }: { productId: string; userId: string; amount: number; paymentIntentId?: string | null }) => {
       const { data: existing } = await supabase
         .from("purchases").select("id,status")
         .eq("user_id", userId).eq("product_id", productId)
@@ -68,7 +68,7 @@ export const useCreatePurchase = () => {
       if (existing) return existing;
       const { data, error } = await supabase
         .from("purchases")
-        .insert({ user_id: userId, product_id: productId, amount, status: "pending" })
+        .insert({ user_id: userId, product_id: productId, amount, status: "pending", payment_intent_id: paymentIntentId ?? null })
         .select().single();
       if (error) throw error;
       return data;
