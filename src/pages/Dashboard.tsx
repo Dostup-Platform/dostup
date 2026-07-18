@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen, FolderOpen, Calendar } from "lucide-react";
 import { toast } from "sonner";
+import CreatorProductsTab from "@/components/CreatorProductsTab";
 
 const roleLabels: Record<AppRole, string> = {
   admin: "Администратор",
@@ -92,12 +93,20 @@ const CreatorView = ({ userId }: { userId: string }) => {
   const { data: purchases = [], isLoading } = useCreatorPurchases(userId);
   const approve = useApprovePurchase();
   const reject = useRejectPurchase();
+  const { data: profile } = useQuery({
+    queryKey: ["profile-name", userId],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("name,display_name,email").eq("user_id", userId).maybeSingle();
+      return data;
+    },
+  });
+  const creatorName = profile?.name || profile?.display_name || (profile?.email ?? "").split("@")[0] || "creator";
 
   const { data: myProducts = [] } = useQuery({
-    queryKey: ["my-products", userId],
+    queryKey: ["my-products-links", userId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("products").select("id,title,is_active,is_paused,price,image_url,has_schedule")
+        .from("products").select("id,title,has_schedule")
         .eq("owner_id", userId).order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -144,22 +153,16 @@ const CreatorView = ({ userId }: { userId: string }) => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>Мои продукты ({myProducts.length})</CardTitle></CardHeader>
-        <CardContent>
-          {myProducts.length === 0 ? (
-            <p className="text-muted-foreground">У вас пока нет продуктов.</p>
-          ) : (
+      <CreatorProductsTab userId={userId} creatorName={creatorName} />
+
+      {myProducts.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle>Материалы и расписание</CardTitle></CardHeader>
+          <CardContent>
             <div className="space-y-2">
               {myProducts.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                  {p.image_url ? <img src={p.image_url} alt="" className="w-12 h-12 rounded object-cover" /> : <div className="w-12 h-12 rounded bg-muted" />}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{p.title}</div>
-                    <div className="text-sm text-muted-foreground">{formatKZT(Number(p.price))}</div>
-                  </div>
-                  {p.is_paused && <Badge variant="secondary">На паузе</Badge>}
-                  {!p.is_active && <Badge variant="destructive">Скрыт</Badge>}
+                <div key={p.id} className="flex items-center gap-2 p-2 border rounded-lg">
+                  <div className="flex-1 min-w-0 truncate font-medium">{p.title}</div>
                   <Button asChild size="sm" variant="outline">
                     <Link to={`/creator/products/${p.id}/materials`}><FolderOpen className="w-4 h-4 mr-1" />Материалы</Link>
                   </Button>
@@ -168,15 +171,12 @@ const CreatorView = ({ userId }: { userId: string }) => {
                       <Link to={`/creator/products/${p.id}/schedule`}><Calendar className="w-4 h-4 mr-1" />Расписание</Link>
                     </Button>
                   )}
-                  <Button asChild size="sm" variant="ghost">
-                    <Link to={`/product/${p.id}`}><ExternalLink className="w-4 h-4" /></Link>
-                  </Button>
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {history.length > 0 && (
         <Card>
