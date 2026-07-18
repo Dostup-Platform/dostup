@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Check, Clock, Loader2, UserX, Users, ChevronDown } from "lucide-react";
+import { Search, Check, Clock, Loader2, UserX, Users, ChevronDown, X } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -223,6 +223,24 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
     },
   });
 
+  // Мутация для отклонения ожидающей оплаты
+  const rejectPayment = useMutation({
+    mutationFn: async (purchaseId: string) => {
+      const { error } = await supabase
+        .from("simple_purchases")
+        .update({ status: "rejected" } as any)
+        .eq("id", purchaseId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-purchases"] });
+      toast.success(language === "ru" ? "Запрос отклонён" : "Сұраныс қабылданбады");
+    },
+    onError: () => {
+      toast.error(language === "ru" ? "Ошибка при отклонении" : "Қабылдамау қатесі");
+    },
+  });
+
   // Мутация для изменения назначенного учителя
   const updateTeacherAssignment = useMutation({
     mutationFn: async ({ purchaseId, teacherId, canChoose }: { purchaseId: string; teacherId: string | null; canChoose: boolean }) => {
@@ -342,18 +360,37 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
                       {purchase.product.title} · {formatPrice(Number(purchase.amount))}
                     </p>
                   </div>
-                  <Button 
-                    size="sm"
-                    className="h-7 text-xs flex-shrink-0"
-                    onClick={() => confirmPayment.mutate(purchase.id)}
-                    disabled={confirmPayment.isPending}
-                  >
-                    {confirmPayment.isPending ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Check className="w-3 h-3" />
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs px-2 text-destructive border-destructive/40 hover:bg-destructive hover:text-destructive-foreground"
+                      onClick={() => {
+                        if (window.confirm(language === "ru" ? "Отклонить запрос на оплату?" : "Төлем сұранысын қабылдамайсыз ба?")) {
+                          rejectPayment.mutate(purchase.id);
+                        }
+                      }}
+                      disabled={confirmPayment.isPending || rejectPayment.isPending}
+                    >
+                      {rejectPayment.isPending ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <X className="w-3 h-3" />
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => confirmPayment.mutate(purchase.id)}
+                      disabled={confirmPayment.isPending || rejectPayment.isPending}
+                    >
+                      {confirmPayment.isPending ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Check className="w-3 h-3" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

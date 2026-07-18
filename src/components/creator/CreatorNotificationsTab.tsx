@@ -457,6 +457,26 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     },
   });
 
+  // Мутация для отклонения покупки
+  const rejectPurchase = useMutation({
+    mutationFn: async (purchaseId: string) => {
+      const { error } = await supabase
+        .from("simple_purchases")
+        .update({ status: "rejected" } as any)
+        .eq("id", purchaseId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases-count"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-purchases"] });
+      toast.success(language === "ru" ? "Запрос отклонён" : "Сұраныс қабылданбады");
+    },
+    onError: () => {
+      toast.error(language === "ru" ? "Ошибка при отклонении" : "Қабылдамау қатесі");
+    },
+  });
+
   const handleCancelBookingWithReason = async (reasons: string[], comment: string) => {
     if (!cancelingBooking) return;
     try {
@@ -583,21 +603,37 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                         <span className="text-sm font-semibold text-foreground">
                           {formatPrice(Number(purchase.amount))}
                         </span>
-                        <Button
-                          size="sm"
-                          onClick={() => confirmPurchase.mutate(purchase.id)}
-                          disabled={confirmPurchase.isPending}
-                          className="h-7 text-xs px-2"
-                        >
-                          {confirmPurchase.isPending ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <>
-                              <Check className="w-3.5 h-3.5 mr-1" />
-                              {t("confirmPayment")}
-                            </>
-                          )}
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              if (window.confirm(language === "ru" ? "Отклонить запрос на оплату?" : "Төлем сұранысын қабылдамайсыз ба?")) {
+                                rejectPurchase.mutate(purchase.id);
+                              }
+                            }}
+                            disabled={confirmPurchase.isPending || rejectPurchase.isPending}
+                            className="h-7 text-xs px-2 text-destructive border-destructive/40 hover:bg-destructive hover:text-destructive-foreground"
+                          >
+                            <X className="w-3.5 h-3.5 mr-1" />
+                            {language === "ru" ? "Отклонить" : "Қабылдамау"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => confirmPurchase.mutate(purchase.id)}
+                            disabled={confirmPurchase.isPending || rejectPurchase.isPending}
+                            className="h-7 text-xs px-2"
+                          >
+                            {confirmPurchase.isPending ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <>
+                                <Check className="w-3.5 h-3.5 mr-1" />
+                                {t("confirmPayment")}
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
