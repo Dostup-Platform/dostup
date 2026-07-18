@@ -1,196 +1,58 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 
-interface Product {
+export interface Product {
   id: string;
   creator_id: string;
+  owner_id: string | null;
   title: string;
   headline: string | null;
   description: string | null;
   price: number;
   image_url: string | null;
-  video_url: string | null;
   has_schedule: boolean;
   is_active: boolean;
   slug: string | null;
-  created_at: string;
-  updated_at: string;
   kaspi_link: string | null;
   telegram_link: string | null;
-  faq: Array<{ question: string; answer: string }> | null;
+  video_url: string | null;
+  faq: unknown;
   kaspi_phone: string | null;
   access_duration_days: number | null;
-  is_paused?: boolean;
-  paused_message?: string | null;
+  group_link_label: string | null;
+  is_paused: boolean;
+  paused_message: string | null;
+  created_at: string;
+  updated_at: string;
 }
+
+export const useProducts = () => {
+  return useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as Product[];
+    },
+  });
+};
 
 export const useProduct = (productId: string | undefined) => {
   return useQuery({
     queryKey: ["product", productId],
+    enabled: !!productId,
     queryFn: async () => {
-      if (!productId) return null;
-      
-      // Try to find by slug first, then by id
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from("products")
         .select("*")
-        .eq("slug", productId)
-        .eq("is_active", true)
+        .eq("id", productId!)
         .maybeSingle();
-      
-      if (!data) {
-        const result = await supabase
-          .from("products")
-          .select("*")
-          .eq("id", productId)
-          .eq("is_active", true)
-          .maybeSingle();
-        
-        data = result.data;
-        error = result.error;
-      }
-      
       if (error) throw error;
       return data as unknown as Product | null;
-    },
-    enabled: !!productId,
-  });
-};
-
-export const useCreatorId = (passedCreatorName?: string | null) => {
-  const { user } = useSimpleAuth();
-  const localStorageName = typeof window !== 'undefined' ? localStorage.getItem("creator_name") : null;
-  const creatorName = passedCreatorName ?? localStorageName;
-  
-  // If logged in via SimpleAuth as creator
-  if (user && user.role === "creator") {
-    return user.id;
-  }
-  
-  // If logged in via creator_name (localStorage or passed)
-  if (creatorName) {
-    return creatorName; // Use creator name as ID
-  }
-  
-  return null;
-};
-
-export const useCreatorProducts = (passedCreatorName?: string | null) => {
-  const creatorId = useCreatorId(passedCreatorName);
-
-  return useQuery({
-    queryKey: ["creator-products", creatorId],
-    queryFn: async () => {
-      if (!creatorId) return [];
-      
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("creator_id", creatorId)
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data as unknown as Product[];
-    },
-    enabled: !!creatorId,
-    staleTime: 0,
-    refetchOnMount: 'always',
-  });
-};
-
-interface CreateProductInput {
-  title: string;
-  headline?: string | null;
-  description?: string | null;
-  price: number;
-  kaspi_link?: string | null;
-  telegram_link?: string | null;
-  has_schedule?: boolean;
-  is_active?: boolean;
-  image_url?: string | null;
-  video_url?: string | null;
-  slug?: string | null;
-  faq?: Array<{ question: string; answer: string }> | null;
-  kaspi_phone?: string | null;
-  access_duration_days?: number | null;
-}
-
-export const useCreateProduct = () => {
-  const queryClient = useQueryClient();
-  const creatorId = useCreatorId();
-
-  return useMutation({
-    mutationFn: async (product: CreateProductInput) => {
-      if (!creatorId) throw new Error("Not authenticated");
-      
-      const { data, error } = await supabase
-        .from("products")
-        .insert({
-          title: product.title,
-          headline: product.headline || null,
-          description: product.description || null,
-          price: product.price,
-          kaspi_link: product.kaspi_link || null,
-          telegram_link: product.telegram_link || null,
-          has_schedule: product.has_schedule || false,
-          is_active: product.is_active ?? true,
-          image_url: product.image_url || null,
-          video_url: product.video_url || null,
-          slug: product.slug || null,
-          faq: (product.faq as any) ?? [],
-          creator_id: creatorId,
-          kaspi_phone: product.kaspi_phone ?? null,
-          access_duration_days: product.access_duration_days ?? null,
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-products"] });
-    },
-  });
-};
-
-export const useUpdateProduct = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Product> & { id: string }) => {
-      const { data, error } = await supabase
-        .from("products")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-products"] });
-      queryClient.invalidateQueries({ queryKey: ["product"] });
-    },
-  });
-};
-
-export const useDeleteProduct = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (productId: string) => {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", productId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-products"] });
     },
   });
 };

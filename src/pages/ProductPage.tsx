@@ -26,9 +26,7 @@ const ProductPage = () => {
   
   // Передаём параметры учителя на страницу checkout
   const handleBuy = () => {
-    const teacherParam = searchParams.get("teacher");
-    const checkoutUrl = `/checkout/${productId || "demo"}${teacherParam ? `?teacher=${encodeURIComponent(teacherParam)}` : ""}`;
-    navigate(checkoutUrl);
+    navigate(`/auth?mode=signup&product=${productId ?? ""}`);
   };
 
   if (isLoading) {

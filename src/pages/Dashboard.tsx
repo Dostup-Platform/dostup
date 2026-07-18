@@ -1,309 +1,87 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Calendar, User, Bell, Loader2, Home as HomeIcon, MessageCircle } from "lucide-react";
-import SupportChat from "@/components/SupportChat";
-import { useSupportUnread } from "@/hooks/useSupportUnread";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth, AppRole } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
-const StudentSupportButton = ({ activeTab, userId, userName, onClick }: { activeTab: string; userId: string; userName: string; onClick: () => void }) => {
-  const unread = useSupportUnread("student", userId);
-  return (
-    <button
-      onClick={onClick}
-      aria-label="Сообщения"
-      className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-        activeTab === "support" ? "bg-accent text-white" : "text-muted-foreground hover:bg-accent/50"
-      }`}
-    >
-      <MessageCircle className="w-5 h-5" />
-      {unread > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-          {unread > 9 ? "9+" : unread}
-        </span>
-      )}
-    </button>
-  );
+const roleLabels: Record<AppRole, string> = {
+  admin: "Администратор",
+  creator: "Автор курса",
+  school_admin: "Школа",
+  teacher: "Преподаватель",
+  moderator: "Модератор",
+  student: "Ученик",
+  user: "Пользователь",
 };
-import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { supabase } from "@/integrations/supabase/client";
-
-import MaterialsTab from "@/components/dashboard/MaterialsTab";
-import ScheduleTab from "@/components/dashboard/ScheduleTab";
-import AccountTab from "@/components/dashboard/AccountTab";
-import NotificationsTab from "@/components/dashboard/NotificationsTab";
-import HomeTab from "@/components/dashboard/HomeTab";
-import { useRealtimeStudentNotifications } from "@/hooks/useRealtimeStudentNotifications";
-import { useFCMRegistration } from "@/hooks/useFCMRegistration";
-import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
-import { useAppResume } from "@/hooks/useAppResume";
 
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState("home");
-  const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
-  const previousTab = useRef(activeTab);
-  const { user, loading } = useSimpleAuth();
-  const { t } = useLanguage();
   const navigate = useNavigate();
-  useAppResume();
-
-  // Загрузить lastViewedAt из localStorage (per-user key)
-  const lastViewedKey = user?.id ? `student_notifications_last_viewed_${user.id}` : null;
-  
-  useEffect(() => {
-    if (!lastViewedKey) return;
-    const saved = localStorage.getItem(lastViewedKey);
-    if (saved) {
-      setLastViewedAt(new Date(saved));
-    }
-  }, [lastViewedKey]);
-
-  // Get purchased product IDs for filtering material unlocks
-  const { data: purchasedProductIds = [] } = useQuery({
-    queryKey: ["student-purchased-product-ids", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("simple_purchases")
-        .select("product_id")
-        .eq("simple_user_id", user.id)
-        .in("status", ["confirmed", "completed"]);
-      if (error) throw error;
-      return [...new Set((data || []).map(p => p.product_id))];
-    },
-    enabled: !!user?.id,
-  });
-
-  // Получить отменённые записи для подсчёта бейджа
-  const { data: cancellations = [] } = useQuery({
-    queryKey: ["student-cancellations-count", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("booking_cancellations")
-        .select("id, cancelled_at")
-        .eq("simple_user_id", user.id)
-        .in("cancelled_by", ["creator", "teacher"])
-        .order("cancelled_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user?.id,
-  });
-
-  const { data: confirmedPurchases = [] } = useQuery({
-    queryKey: ["student-confirmed-purchases-count", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("simple_purchases")
-        .select("id, confirmed_at")
-        .eq("simple_user_id", user.id)
-        .in("status", ["confirmed", "completed"])
-        .not("confirmed_at", "is", null)
-        .order("confirmed_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user?.id,
-  });
-
-  // Material unlocks count
-  const { data: materialUnlocks = [] } = useQuery({
-    queryKey: ["student-material-unlocks-count", purchasedProductIds],
-    queryFn: async () => {
-      if (purchasedProductIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("material_unlocks")
-        .select("id, unlocked_at")
-        .in("product_id", purchasedProductIds)
-        .order("unlocked_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: purchasedProductIds.length > 0,
-  });
-
-  // Rejected reschedule requests count
-  const { data: rejectedReschedules = [] } = useQuery({
-    queryKey: ["student-rejected-reschedules-count", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("reschedule_requests")
-        .select("id, responded_at")
-        .eq("simple_user_id", user.id)
-        .eq("status", "rejected")
-        .order("responded_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user?.id,
-  });
-
-  // Incoming reschedule requests from creator/teacher
-  const { data: incomingReschedules = [] } = useQuery({
-    queryKey: ["student-incoming-reschedules-count", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("reschedule_requests")
-        .select("id, created_at")
-        .eq("simple_user_id", user.id)
-        .eq("status", "pending")
-        .neq("requested_by", "student")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user?.id,
-  });
-
-  // Подсчёт новых уведомлений
-  const newNotificationsCount = useMemo(() => {
-    const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const newCancellations = cancellations.filter(c => new Date(c.cancelled_at) > compareDate).length;
-    const newPurchases = confirmedPurchases.filter(p => p.confirmed_at && new Date(p.confirmed_at) > compareDate).length;
-    const newUnlocks = materialUnlocks.filter(u => new Date(u.unlocked_at) > compareDate).length;
-    const newRejections = rejectedReschedules.filter(r => r.responded_at && new Date(r.responded_at) > compareDate).length;
-    const newIncoming = incomingReschedules.filter(r => r.created_at && new Date(r.created_at) > compareDate).length;
-    return newCancellations + newPurchases + newUnlocks + newRejections + newIncoming;
-  }, [cancellations, confirmedPurchases, materialUnlocks, rejectedReschedules, incomingReschedules, lastViewedAt]);
-
-  // Realtime уведомления (звуки и push) с badge count
-  useRealtimeStudentNotifications(user?.id, !!user, newNotificationsCount, purchasedProductIds);
-
-  // Register FCM token for push notifications
-  useFCMRegistration({
-    userId: user?.id,
-    userRole: "student",
-    enabled: !!user?.id
-  });
-
-  // Set initial app badge based on notification count
-  useEffect(() => {
-    if (activeTab !== "notifications") {
-      setAppBadge(newNotificationsCount);
-    }
-  }, [newNotificationsCount, activeTab]);
-
-  // Обновление lastViewedAt при входе/выходе с вкладки уведомлений
-  const handleTabChange = (value: string) => {
-    // Save lastViewedAt when entering OR leaving notifications tab
-    if (lastViewedKey && (value === "notifications" || (previousTab.current === "notifications" && value !== "notifications"))) {
-      const now = new Date();
-      localStorage.setItem(lastViewedKey, now.toISOString());
-      setLastViewedAt(now);
-      clearAppBadge();
-    }
-    previousTab.current = value;
-    setActiveTab(value);
-  };
+  const { user, loading, roles, activeRole, switchRole, signOut } = useAuth();
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate("/");
-    }
+    if (!loading && !user) navigate("/auth");
   }, [user, loading, navigate]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
+  if (loading || !user) {
+    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">{t("myDashboard")}</h1>
-          <StudentSupportButton activeTab={activeTab} userId={user.id} userName={user.name} onClick={() => handleTabChange("support")} />
+    <div className="min-h-screen bg-background">
+      <header className="border-b">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-bold">Доступ</h1>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground hidden sm:inline">{user.email}</span>
+            <Button variant="outline" onClick={() => signOut()}>Выйти</Button>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsContent value="home" className="mt-0 animate-fade-in">
-            <HomeTab />
-          </TabsContent>
-          <TabsContent value="materials" className="mt-0 animate-fade-in">
-            <MaterialsTab />
-          </TabsContent>
-          <TabsContent value="schedule" className="mt-0 animate-fade-in">
-            <ScheduleTab />
-          </TabsContent>
-          <TabsContent value="notifications" className="mt-0 animate-fade-in">
-            <NotificationsTab lastViewedAt={lastViewedAt} purchasedProductIds={purchasedProductIds} />
-          </TabsContent>
-          <TabsContent value="account" className="mt-0 animate-fade-in">
-            <AccountTab />
-          </TabsContent>
-          <TabsContent value="support" className="mt-0 animate-fade-in">
-            <SupportChat userType="student" userRef={user.id} displayName={user.name} />
-          </TabsContent>
-        </Tabs>
-      </main>
+      <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Ваш аккаунт</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Email</p>
+              <p className="font-medium">{user.email}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">Роли</p>
+              {roles.length === 0 ? (
+                <p className="text-muted-foreground">Роли ещё не назначены.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {roles.map((r) => (
+                    <Button key={r} size="sm" variant={r === activeRole ? "default" : "outline"}
+                      onClick={() => switchRole(r)}>
+                      {roleLabels[r] ?? r}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
-        <div className="max-w-2xl mx-auto">
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-1">
-              <TabsTrigger 
-                value="home" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
-              >
-                <HomeIcon className="w-5 h-5" />
-                <span className="text-xs">{t("home")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="materials" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
-              >
-                <FileText className="w-5 h-5" />
-                <span className="text-xs">{t("materials")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="schedule" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
-              >
-                <Calendar className="w-5 h-5" />
-                <span className="text-xs">{t("schedule")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="notifications" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none relative"
-              >
-                <Bell className="w-5 h-5" />
-                <span className="text-xs">{t("notifications")}</span>
-                {newNotificationsCount > 0 && (
-                  <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="account" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
-              >
-                <User className="w-5 h-5" />
-                <span className="text-xs">{t("account")}</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </nav>
+        <Card>
+          <CardHeader>
+            <CardTitle>Идёт миграция на новую систему аутентификации</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              Мы переходим на безопасный вход по email с поддержкой Google и Apple. Функциональные разделы
+              (Материалы, Расписание, Уведомления, Управление продуктами) будут восстановлены на следующих этапах.
+            </p>
+            <p>
+              Активная роль: <b className="text-foreground">{activeRole ? (roleLabels[activeRole] ?? activeRole) : "—"}</b>
+            </p>
+          </CardContent>
+        </Card>
+      </main>
     </div>
   );
 };
