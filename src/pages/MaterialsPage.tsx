@@ -9,6 +9,7 @@ import {
   FileIcon, Download, ExternalLink, Loader2, Home,
 } from "lucide-react";
 import { toast } from "sonner";
+import AnnouncementsSection from "@/components/AnnouncementsSection";
 
 type AccessStatus = "loading" | "granted" | "denied";
 
@@ -162,6 +163,11 @@ const MaterialsPage = () => {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-4">
+        {productId && folderId === null && (
+          <div className="mb-4">
+            <AnnouncementsSection productId={productId} canEdit={false} />
+          </div>
+        )}
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : items.length === 0 ? (
