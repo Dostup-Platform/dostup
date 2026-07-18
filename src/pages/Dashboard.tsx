@@ -13,7 +13,7 @@ import {
   useRejectPurchase,
 } from "@/hooks/usePurchases";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
 const roleLabels: Record<AppRole, string> = {
@@ -63,11 +63,15 @@ const StudentView = ({ userId }: { userId: string }) => {
                   {p.status === "rejected" && <XCircle className="w-3 h-3 mr-1" />}
                   {statusLabel(p.status)}
                 </Badge>
-                {p.product?.id && (
+                {p.product?.id && p.status === "completed" ? (
+                  <Button asChild size="sm">
+                    <Link to={`/materials/${p.product.id}`}><BookOpen className="w-4 h-4 mr-1" />Открыть</Link>
+                  </Button>
+                ) : p.product?.id ? (
                   <Button asChild size="sm" variant="ghost">
                     <Link to={`/product/${p.product.id}`}><ExternalLink className="w-4 h-4" /></Link>
                   </Button>
-                )}
+                ) : null}
               </div>
             ))}
           </div>
