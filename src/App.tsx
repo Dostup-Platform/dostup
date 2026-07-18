@@ -16,6 +16,7 @@ import MaterialsPage from "./pages/MaterialsPage";
 import CreatorMaterialsPage from "./pages/CreatorMaterialsPage";
 import SchedulePage from "./pages/SchedulePage";
 import CreatorSchedulePage from "./pages/CreatorSchedulePage";
+import TeacherSchedulePage from "./pages/TeacherSchedulePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/creator/products/:productId/materials" element={<CreatorMaterialsPage />} />
                 <Route path="/schedule/:productId" element={<SchedulePage />} />
                 <Route path="/creator/products/:productId/schedule" element={<CreatorSchedulePage />} />
+                <Route path="/teacher/products/:productId/schedule" element={<TeacherSchedulePage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
