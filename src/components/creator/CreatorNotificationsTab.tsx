@@ -603,21 +603,37 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
                         <span className="text-sm font-semibold text-foreground">
                           {formatPrice(Number(purchase.amount))}
                         </span>
-                        <Button
-                          size="sm"
-                          onClick={() => confirmPurchase.mutate(purchase.id)}
-                          disabled={confirmPurchase.isPending}
-                          className="h-7 text-xs px-2"
-                        >
-                          {confirmPurchase.isPending ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <>
-                              <Check className="w-3.5 h-3.5 mr-1" />
-                              {t("confirmPayment")}
-                            </>
-                          )}
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              if (window.confirm(language === "ru" ? "Отклонить запрос на оплату?" : "Төлем сұранысын қабылдамайсыз ба?")) {
+                                rejectPurchase.mutate(purchase.id);
+                              }
+                            }}
+                            disabled={confirmPurchase.isPending || rejectPurchase.isPending}
+                            className="h-7 text-xs px-2 text-destructive border-destructive/40 hover:bg-destructive hover:text-destructive-foreground"
+                          >
+                            <X className="w-3.5 h-3.5 mr-1" />
+                            {language === "ru" ? "Отклонить" : "Қабылдамау"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => confirmPurchase.mutate(purchase.id)}
+                            disabled={confirmPurchase.isPending || rejectPurchase.isPending}
+                            className="h-7 text-xs px-2"
+                          >
+                            {confirmPurchase.isPending ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <>
+                                <Check className="w-3.5 h-3.5 mr-1" />
+                                {t("confirmPayment")}
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
