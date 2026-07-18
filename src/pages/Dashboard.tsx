@@ -13,7 +13,7 @@ import {
   useRejectPurchase,
 } from "@/hooks/usePurchases";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
 const roleLabels: Record<AppRole, string> = {
@@ -153,6 +153,9 @@ const CreatorView = ({ userId }: { userId: string }) => {
                   </div>
                   {p.is_paused && <Badge variant="secondary">На паузе</Badge>}
                   {!p.is_active && <Badge variant="destructive">Скрыт</Badge>}
+                  <Button asChild size="sm" variant="outline">
+                    <Link to={`/creator/products/${p.id}/materials`}><FolderOpen className="w-4 h-4 mr-1" />Материалы</Link>
+                  </Button>
                   <Button asChild size="sm" variant="ghost">
                     <Link to={`/product/${p.id}`}><ExternalLink className="w-4 h-4" /></Link>
                   </Button>
