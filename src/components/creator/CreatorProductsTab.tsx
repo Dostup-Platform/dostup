@@ -719,7 +719,14 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [pausingProduct, setPausingProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    if (previewProduct) {
+      setPreviewLoading(true);
+    }
+  }, [previewProduct?.id]);
   const [pauseMessage, setPauseMessage] = useState<string>("");
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
