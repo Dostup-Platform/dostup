@@ -13,7 +13,7 @@ import {
   useRejectPurchase,
 } from "@/hooks/usePurchases";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen, FolderOpen } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen, FolderOpen, Calendar } from "lucide-react";
 import { toast } from "sonner";
 
 const roleLabels: Record<AppRole, string> = {
@@ -64,9 +64,16 @@ const StudentView = ({ userId }: { userId: string }) => {
                   {statusLabel(p.status)}
                 </Badge>
                 {p.product?.id && p.status === "completed" ? (
-                  <Button asChild size="sm">
-                    <Link to={`/materials/${p.product.id}`}><BookOpen className="w-4 h-4 mr-1" />Открыть</Link>
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button asChild size="sm">
+                      <Link to={`/materials/${p.product.id}`}><BookOpen className="w-4 h-4 mr-1" />Открыть</Link>
+                    </Button>
+                    {p.product?.has_schedule && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={`/schedule/${p.product.id}`}><Calendar className="w-4 h-4" /></Link>
+                      </Button>
+                    )}
+                  </div>
                 ) : p.product?.id ? (
                   <Button asChild size="sm" variant="ghost">
                     <Link to={`/product/${p.product.id}`}><ExternalLink className="w-4 h-4" /></Link>
@@ -90,7 +97,7 @@ const CreatorView = ({ userId }: { userId: string }) => {
     queryKey: ["my-products", userId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("products").select("id,title,is_active,is_paused,price,image_url")
+        .from("products").select("id,title,is_active,is_paused,price,image_url,has_schedule")
         .eq("owner_id", userId).order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -156,6 +163,11 @@ const CreatorView = ({ userId }: { userId: string }) => {
                   <Button asChild size="sm" variant="outline">
                     <Link to={`/creator/products/${p.id}/materials`}><FolderOpen className="w-4 h-4 mr-1" />Материалы</Link>
                   </Button>
+                  {p.has_schedule && (
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={`/creator/products/${p.id}/schedule`}><Calendar className="w-4 h-4 mr-1" />Расписание</Link>
+                    </Button>
+                  )}
                   <Button asChild size="sm" variant="ghost">
                     <Link to={`/product/${p.id}`}><ExternalLink className="w-4 h-4" /></Link>
                   </Button>

@@ -13,6 +13,8 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import Dashboard from "./pages/Dashboard";
 import MaterialsPage from "./pages/MaterialsPage";
 import CreatorMaterialsPage from "./pages/CreatorMaterialsPage";
+import SchedulePage from "./pages/SchedulePage";
+import CreatorSchedulePage from "./pages/CreatorSchedulePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +36,8 @@ const App = () => (
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/materials/:productId" element={<MaterialsPage />} />
                 <Route path="/creator/products/:productId/materials" element={<CreatorMaterialsPage />} />
+                <Route path="/schedule/:productId" element={<SchedulePage />} />
+                <Route path="/creator/products/:productId/schedule" element={<CreatorSchedulePage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

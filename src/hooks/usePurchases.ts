@@ -12,7 +12,7 @@ export interface Purchase {
 }
 
 export interface PurchaseWithProduct extends Purchase {
-  product?: { id: string; title: string; image_url: string | null; price: number } | null;
+  product?: { id: string; title: string; image_url: string | null; price: number; has_schedule?: boolean } | null;
   buyer?: { user_id: string; name: string | null; email: string | null } | null;
 }
 
@@ -23,7 +23,7 @@ export const useMyPurchases = (userId: string | undefined) =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchases")
-        .select("*, product:products(id,title,image_url,price)")
+        .select("*, product:products(id,title,image_url,price,has_schedule)")
         .eq("user_id", userId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
