@@ -1105,15 +1105,26 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
             </span>
           </DialogTitle>
         </DialogHeader>
-        <div className="flex-1 min-h-0 flex justify-center items-stretch bg-muted/30 rounded-lg p-2 sm:p-3 overflow-auto">
+        <div className="flex-1 min-h-0 flex justify-center items-stretch bg-muted/30 rounded-lg p-2 sm:p-3 overflow-auto relative">
           {previewProduct && (
-            <iframe
-              key={previewProduct.id}
-              src={`/product/${previewProduct.id}`}
-              title="preview"
-              className="bg-background border border-border rounded-lg shadow-lg max-w-full h-full"
-              style={{ width: "min(390px, 100%)", minHeight: 600 }}
-            />
+            <>
+              {previewLoading && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm rounded-lg">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">
+                    {language === "ru" ? "Загрузка страницы…" : "Бет жүктелуде…"}
+                  </span>
+                </div>
+              )}
+              <iframe
+                key={previewProduct.id}
+                src={`/product/${previewProduct.id}`}
+                title="preview"
+                className="bg-background border border-border rounded-lg shadow-lg max-w-full h-full relative z-0"
+                style={{ width: "min(390px, 100%)", minHeight: 600 }}
+                onLoad={() => setPreviewLoading(false)}
+              />
+            </>
           )}
         </div>
       </DialogContent>
