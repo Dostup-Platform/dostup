@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import AnnouncementsSection from "@/components/AnnouncementsSection";
 
 const CreatorMaterialsPage = () => {
   const { productId } = useParams<{ productId: string }>();
@@ -174,6 +175,10 @@ const CreatorMaterialsPage = () => {
           <Button size="sm" variant="outline" onClick={() => openAdd("text")}><FileText className="w-4 h-4 mr-1" />Заметка</Button>
           <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => onFilePicked(e.target.files)} />
         </div>
+
+        {productId && parentId === null && user && (
+          <AnnouncementsSection productId={productId} canEdit ownerId={user.id} />
+        )}
 
         <Card>
           <CardHeader><CardTitle className="text-base">{parentId ? breadcrumbs[breadcrumbs.length - 1]?.title : "Дом"}</CardTitle></CardHeader>
