@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen, FolderOpen, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import CreatorProductsTab from "@/components/CreatorProductsTab";
+import CreatorTeachersManager from "@/components/CreatorTeachersManager";
 
 const roleLabels: Record<AppRole, string> = {
   admin: "Администратор",
@@ -155,6 +156,8 @@ const CreatorView = ({ userId }: { userId: string }) => {
 
       <CreatorProductsTab userId={userId} creatorName={creatorName} />
 
+      <CreatorTeachersManager userId={userId} />
+
       {myProducts.length > 0 && (
         <Card>
           <CardHeader><CardTitle>Материалы и расписание</CardTitle></CardHeader>
@@ -200,6 +203,51 @@ const CreatorView = ({ userId }: { userId: string }) => {
   );
 };
 
+const TeacherView = ({ userId }: { userId: string }) => {
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: ["teacher-products", userId],
+    queryFn: async () => {
+      const { data: rows, error } = await supabase.from("product_teachers")
+        .select("product_id").eq("teacher_user_id", userId);
+      if (error) throw error;
+      const ids = (rows ?? []).map((r) => r.product_id);
+      if (ids.length === 0) return [];
+      const { data: prods } = await supabase.from("products")
+        .select("id,title,image_url").in("id", ids);
+      return prods ?? [];
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>Мои курсы</CardTitle></CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : products.length === 0 ? (
+          <p className="text-muted-foreground">Автор ещё не назначил вас преподавателем.</p>
+        ) : (
+          <div className="space-y-3">
+            {products.map((p) => (
+              <div key={p.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                {p.image_url ? (
+                  <img src={p.image_url} alt="" className="w-16 h-16 rounded object-cover" />
+                ) : (
+                  <div className="w-16 h-16 rounded bg-muted" />
+                )}
+                <div className="flex-1 min-w-0 truncate font-medium">{p.title}</div>
+                <Button asChild size="sm">
+                  <Link to={`/teacher/products/${p.id}/schedule`}><Calendar className="w-4 h-4 mr-1" />Расписание</Link>
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { data: publicProducts } = useProducts();
@@ -215,6 +263,7 @@ const Dashboard = () => {
 
   const isCreator = activeRole === "creator" || roles.includes("creator");
   const showCreator = activeRole === "creator";
+  const showTeacher = activeRole === "teacher";
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _ = publicProducts;
@@ -242,6 +291,8 @@ const Dashboard = () => {
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {showCreator ? (
           <CreatorView userId={user.id} />
+        ) : showTeacher ? (
+          <TeacherView userId={user.id} />
         ) : (
           <>
             <StudentView userId={user.id} />
