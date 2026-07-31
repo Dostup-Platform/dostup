@@ -13,7 +13,7 @@ import {
   useRejectPurchase,
 } from "@/hooks/usePurchases";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen, FolderOpen, Calendar, Bell, Users as UsersIcon } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen, FolderOpen, Calendar, Bell, Users as UsersIcon, Settings, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CreatorProductsTab from "@/components/CreatorProductsTab";
@@ -324,6 +324,8 @@ const Dashboard = () => {
               </div>
             )}
             <span className="text-sm text-muted-foreground hidden md:inline">{user.email}</span>
+            <Button variant="ghost" size="icon" asChild title="Поддержка"><Link to="/support"><MessageCircle className="w-4 h-4" /></Link></Button>
+            <Button variant="ghost" size="icon" asChild title="Настройки"><Link to="/settings"><Settings className="w-4 h-4" /></Link></Button>
             <Button variant="outline" size="sm" onClick={() => signOut()}>Выйти</Button>
           </div>
         </div>
