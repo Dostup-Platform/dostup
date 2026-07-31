@@ -1,60 +1,29 @@
-# Handoff-документ для Cursor / Claude Code
+# Перенос проекта на собственный Supabase
 
-Создам один файл `HANDOFF.md` в корне репозитория. Его достаточно скинуть Claude первым сообщением — он получит полную картину проекта.
+Сейчас бэкенд работает на Lovable Cloud — он не привязан к твоему аккаунту supabase.com, поэтому в списке проектов там пусто. Отдельного логина к нему не существует. Чтобы всё было под твоим контролем, нужно создать свой проект Supabase и перевести приложение на него.
 
-## Что войдёт в HANDOFF.md
+## Что нужно от тебя (вне кода)
 
-### 1. Стек и запуск
-- React 18 + Vite 5 + TypeScript 5 + Tailwind v3 + shadcn/ui + React Query + React Router
-- Бэкенд: Supabase (Postgres+RLS, Auth, Storage, Edge Functions на Deno)
-- Хранилище файлов материалов: AWS S3 (через edge-функции с presigned URL), обложки продуктов: Supabase Storage bucket `product-media`
-- Push: FCM (secrets: `FCM_*`)
-- Команды: `bun install`, `bun run dev`, `bun run build`
+1. Создать новый проект на supabase.com (регион ближе к Казахстану, например Frankfurt). Записать пароль базы.
+2. Выгрузить данные из текущего бэкенда: в Lovable открыть Cloud → Advanced settings → Export data.
+3. Прислать мне из нового проекта: Project URL, Project ID (ref) и публичный anon/publishable ключ. Секретные ключи (service role, пароль БД) присылать в чат не надо — их сохраним отдельно как секреты.
 
-### 2. Правила работы с кодом (для Claude)
-- Никогда не редактировать `src/integrations/supabase/client.ts` и `types.ts` — автоген
-- Импорт клиента: `import { supabase } from "@/integrations/supabase/client"`
-- Схема БД меняется только миграциями в `supabase/migrations/`
-- Для каждой новой таблицы в `public`: `CREATE TABLE` → `GRANT` → `ENABLE RLS` → `CREATE POLICY`
-- Роли хранятся ТОЛЬКО в `user_roles` + функция `has_role(uuid, app_role)`. Не класть роли на `profiles`
-- Время в UI — 24ч (HH:mm), таймзона `Asia/Almaty`
-- Оплата — только Kaspi (никакого Stripe). Одобренный статус покупки — `completed`
-- Изоляция: creator видит только свои данные, teacher — только продукты, к которым привязан
-- Тексты: creators — «Автор», teachers — «Преподаватель», students — «Ученик»
-- Формы: сложные формы делать standalone-функциями/inline JSX (не вложенными компонентами) чтобы не терять фокус
+## Что сделаю я в коде
 
-### 3. Структура БД (23 таблицы)
-Список с краткой ролью каждой:
-- `profiles`, `user_roles`, `products`, `announcements`, `materials`, `material_bookmarks`, `material_unlocks`, `material_access_tokens`
-- `purchases`, `schedules`, `time_slots`, `bookings`, `booking_reminders`, `booking_cancellations`, `booking_reschedules`, `reschedule_requests`
-- `product_teachers`, `school_teachers`, `teacher_invites`
-- `support_threads`, `support_messages`
-- `push_tokens`, `notification_preferences`, `app_settings`
+1. **Схема базы.** В репозитории уже лежат 67 файлов миграций (`supabase/migrations/`) — они содержат все 23 таблицы, типы, функции и правила доступа. Подготовлю единый порядок применения и инструкцию, как накатить их на новый проект командой Supabase CLI (`supabase link` + `supabase db push`).
+2. **Edge-функции.** 26 функций в `supabase/functions/` переносятся как есть через `supabase functions deploy`. Составлю список функций и секретов, которые надо заново задать в новом проекте: AWS S3 (4 шт.), FCM (3 шт.), плюс служебные Supabase.
+3. **Подключение фронта.** Обновлю `.env` на новые `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` и проверю, что клиент подхватывает их.
+4. **Хардкод project-ref.** В нескольких функциях базы (`notify_*`) адрес проекта прописан прямо в тексте. Подготовлю миграцию, которая заменит его на адрес нового проекта.
+5. **Авторизация.** Опишу, что включить в новом проекте: email+пароль, Google, Apple, шаблоны писем и redirect URL.
+6. **Инструкция.** Обновлю `HANDOFF.md` разделом «Как переехать на свой Supabase» с пошаговыми командами.
 
-Ключевые SECURITY DEFINER функции: `has_role`, `owns_product`, `is_product_teacher`, `handle_new_user`, `prevent_purchase_fraud`, `create_booking_reminders`, `notify_*` (триггеры на edge-функции).
+## Важно знать
 
-### 4. Edge Functions (список)
-Перечислю имена из `supabase/functions/*` с назначением: `approve-purchase`, `get-material-url`, `upload-product-media`, `product-media-redirect`, `notify-*`, `send-push-notification`, `send-reminders` и т.д.
+- Файлы материалов лежат в AWS S3 — они не переезжают вместе с базой, останутся на месте, достаточно перенести ключи AWS.
+- Обложки продуктов лежат в хранилище Lovable Cloud (bucket `product-media`) — их нужно будет перезалить в новый проект.
+- Пользователи из таблицы `auth.users` через обычный экспорт не переносятся: их придётся импортировать отдельно или попросить войти заново через восстановление пароля.
+- Пока приложение остаётся в Lovable, оно будет продолжать работать со старым бэкендом. Полное переключение имеет смысл делать уже в Cursor.
 
-### 5. Секреты (не значения, только имена)
-`AWS_*`, `FCM_*`, `SUPABASE_*`, `LOVABLE_API_KEY`, `CREATOR_PASSWORD_HASH`, `MODERATOR_PASSWORD` — с пометкой где какой используется.
+## Порядок работы
 
-### 6. Что уже работает
-Auth (email+password, Google, Apple), продукты (CRUD, пауза, обложки), покупки (Kaspi flow, чекаут, подтверждение автором), материалы (базовое CRUD + S3), расписание (создание слотов, запись, отмена), объявления, роль преподавателя (read-only просмотр расписаний своих продуктов).
-
-### 7. Что НЕ доделано (TODO для Claude)
-- Переносы занятий: таблицы `reschedule_requests`, `booking_reschedules` есть, edge-функции уведомлений есть — нужен UI (кнопка «Перенести» у ученика, диалог подтверждения у автора/преподавателя)
-- Расширенные материалы: папки с drag&drop, iOS-switch публичности закладок, корзина (soft-delete + автоочистка 30 дней), раздел «Хранилище» с квотой 10 ГБ, контекстные меню (правая кнопка)
-- Push-уведомления: `push_tokens` + FCM secrets готовы, `send-reminders` работает через cron — нужна регистрация токена в PWA и UI настроек `notification_preferences`
-- Поддержка: `support_threads`/`support_messages` — нужен чат-UI для ученика и автора
-- Вкладки автора «Уведомления» (заявки на покупку/перенос) и «Пользователи» (список учеников с approve/reject) — сейчас частично в Dashboard
-
-### 8. Первый промпт для Claude
-Готовый абзац, который пользователь копирует в Cursor первым сообщением — со ссылкой на HANDOFF.md и списком приоритетов.
-
-### 9. Экспорт данных
-Инструкция: Lovable → Cloud → Advanced settings → Export data. GitHub sync через «+» → GitHub.
-
----
-
-Только один новый файл, кода не трогаю. После апрува плана — создам `HANDOFF.md`.
+Сначала создаёшь проект и присылаешь URL + ID + публичный ключ. После этого я готовлю миграционный пакет, обновляю `.env`, правлю адрес в функциях базы и дописываю инструкцию в `HANDOFF.md`.
