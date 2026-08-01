@@ -8,7 +8,7 @@
 -- ============================================================
 
 -- 1) Прописать адрес нового проекта и его anon-ключ.
---    ЗАМЕНИ okbuktaggaspnqpzmbyn и sb_publishable_XtBCL2yRCZC1PSYU901Slw_JmoR1pVd на свои значения.
+--    Значения уже подставлены для проекта okbuktaggaspnqpzmbyn.
 INSERT INTO public.app_settings (key, value)
 VALUES ('functions_base_url', 'https://okbuktaggaspnqpzmbyn.supabase.co/functions/v1')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
