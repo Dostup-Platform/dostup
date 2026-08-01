@@ -8,13 +8,13 @@
 -- ============================================================
 
 -- 1) Прописать адрес нового проекта и его anon-ключ.
---    ЗАМЕНИ <NEW_PROJECT_REF> и <NEW_ANON_KEY> на свои значения.
+--    Значения уже подставлены для проекта okbuktaggaspnqpzmbyn.
 INSERT INTO public.app_settings (key, value)
-VALUES ('functions_base_url', 'https://<NEW_PROJECT_REF>.supabase.co/functions/v1')
+VALUES ('functions_base_url', 'https://okbuktaggaspnqpzmbyn.supabase.co/functions/v1')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 INSERT INTO public.app_settings (key, value)
-VALUES ('supabase_anon_key', '<NEW_ANON_KEY>')
+VALUES ('supabase_anon_key', 'sb_publishable_XtBCL2yRCZC1PSYU901Slw_JmoR1pVd')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 -- 2) Общий помощник: дергает edge-функцию по имени.
