@@ -87,7 +87,7 @@ serve(async (req) => {
 
     if (requestedBy === "student") {
       // Student's request was responded to → notify the student
-      targetUserId = record.simple_user_id;
+      targetUserId = record.user_id;
       targetRole = "student";
       targetLink = "/dashboard";
 
@@ -110,13 +110,13 @@ serve(async (req) => {
 
       // Get student name
       let studentName = "Ученик";
-      if (record.simple_user_id) {
+      if (record.user_id) {
         const { data: studentData } = await supabase
-          .from("simple_users")
-          .select("name")
-          .eq("id", record.simple_user_id)
-          .single();
-        if (studentData) studentName = studentData.name;
+          .from("profiles")
+          .select("name, display_name")
+          .eq("user_id", record.user_id)
+          .maybeSingle();
+        if (studentData) studentName = studentData.display_name || studentData.name || studentName;
       }
 
       title = isApproved ? "Перенос подтверждён учеником ✅" : "Перенос отклонён учеником ❌";

@@ -203,7 +203,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const studentUserId = record.simple_user_id;
+    const studentUserId = record.user_id;
     if (!studentUserId) {
       console.log("No student user ID in reschedule record");
       return new Response(

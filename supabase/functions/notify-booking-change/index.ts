@@ -231,15 +231,14 @@ serve(async (req) => {
       }
 
       const { data: booking, error: bookingError } = await supabase
-        .from("simple_bookings")
+        .from("bookings")
         .select(`
           *,
           time_slot:time_slots(date, start_time),
           schedule:schedules(
             id, title, teacher_id,
             product:products(id, title, creator_id)
-          ),
-          user:simple_users(id, name, phone)
+          )
         `)
         .eq("id", bookingId)
         .single();
@@ -252,7 +251,12 @@ serve(async (req) => {
         });
       }
 
-      const studentName = booking.user?.name || "Ученик";
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("name, display_name")
+        .eq("user_id", booking.user_id)
+        .maybeSingle();
+      const studentName = profile?.display_name || profile?.name || "Ученик";
       const productTitle = booking.schedule?.product?.title || "";
       const date = booking.time_slot?.date || "";
       const time = booking.time_slot?.start_time || "";
@@ -374,14 +378,14 @@ serve(async (req) => {
       totalSent += sent;
 
       // 3. Notify student if cancelled by creator/teacher
-      if (cancellation.cancelled_by !== "student" && cancellation.simple_user_id) {
+      if (cancellation.cancelled_by !== "student" && cancellation.user_id) {
         const cancellerLabel = cancellation.cancelled_by === "teacher" ? "Учитель" : "Автор";
         const studentTitle = `${cancellerLabel} отменил занятие`;
         const studentBody = `Занятие "${cancellation.product_title}" на ${cancellation.slot_date} в ${cancellation.slot_time} отменено`;
         
         const sentStudent = await sendFCMToUser(
           supabase,
-          cancellation.simple_user_id,
+          cancellation.user_id,
           "student",
           studentTitle,
           studentBody,
