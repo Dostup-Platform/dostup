@@ -38,7 +38,25 @@ Deno.serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const { productId, fileName, fileType } = await req.json();
+    // Two modes:
+    //  - JSON body: return a presigned PUT URL (browser uploads directly to S3)
+    //  - multipart/form-data: proxy mode — upload the file to S3 server-side.
+    //    Needed because direct browser PUT fails when the bucket has no CORS rules.
+    let productId: string, fileName: string, fileType: string | undefined;
+    let proxyFile: File | null = null;
+    if ((req.headers.get('content-type') ?? '').includes('multipart/form-data')) {
+      const form = await req.formData();
+      proxyFile = form.get('file') as File | null;
+      productId = String(form.get('productId') ?? '');
+      fileName = proxyFile?.name ?? '';
+      fileType = proxyFile?.type || undefined;
+      if (!proxyFile || !productId) {
+        return new Response(JSON.stringify({ error: 'Missing required fields: file, productId' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    } else {
+      ({ productId, fileName, fileType } = await req.json());
+    }
     if (!productId || !fileName) {
       return new Response(JSON.stringify({ error: 'Missing required fields: productId, fileName' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -122,6 +140,25 @@ Deno.serve(async (req) => {
 
     const uploadUrl = buildPresignedUrl(signedRequest);
     const storagePath = `s3://${bucket}/${s3Key}`;
+
+    if (proxyFile) {
+      console.log('Proxy-uploading to S3:', s3Key, 'region:', region);
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: new Uint8Array(await proxyFile.arrayBuffer()),
+        headers: { 'Content-Type': contentType },
+      });
+      if (!putRes.ok) {
+        console.error('S3 proxy upload failed:', putRes.status, await putRes.text());
+        return new Response(JSON.stringify({ error: 'Upload failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      return new Response(
+        JSON.stringify({ storagePath, size: proxyFile.size }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('Generated presigned upload URL for:', s3Key, 'region:', region);
 
     return new Response(

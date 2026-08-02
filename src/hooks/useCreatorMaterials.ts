@@ -290,11 +290,35 @@ export async function presignUpload(productId: string, file: File): Promise<{ st
   if (payload.error || !payload.uploadUrl || !payload.storagePath) {
     throw new Error(payload.error ?? "Не удалось получить URL загрузки");
   }
-  const putRes = await fetch(payload.uploadUrl, {
-    method: "PUT",
-    body: file,
-    headers: { "Content-Type": payload.contentType ?? file.type ?? "application/octet-stream" },
+  try {
+    const putRes = await fetch(payload.uploadUrl, {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": payload.contentType ?? file.type ?? "application/octet-stream" },
+    });
+    if (!putRes.ok) throw new Error(`Ошибка загрузки: ${putRes.status}`);
+    return { storagePath: payload.storagePath, size: file.size };
+  } catch {
+    // Прямая загрузка в S3 не прошла (обычно из-за отсутствия CORS-правил на бакете) —
+    // загружаем через edge-функцию, которая кладёт файл в S3 на стороне сервера.
+    return proxyUpload(productId, file);
+  }
+}
+
+async function proxyUpload(productId: string, file: File): Promise<{ storagePath: string; size: number }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("productId", productId);
+  const { data: sess } = await supabase.auth.getSession();
+  const token = sess.session?.access_token;
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/s3-presign-upload`, {
+    method: "POST",
+    body: fd,
+    headers: { Authorization: `Bearer ${token}` },
   });
-  if (!putRes.ok) throw new Error(`Ошибка загрузки: ${putRes.status}`);
-  return { storagePath: payload.storagePath, size: file.size };
+  const body = await res.json();
+  if (!res.ok || body?.error || !body?.storagePath) {
+    throw new Error(body?.error ?? `Ошибка загрузки: ${res.status}`);
+  }
+  return { storagePath: body.storagePath as string, size: file.size };
 }
