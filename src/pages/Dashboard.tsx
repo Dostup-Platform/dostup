@@ -13,10 +13,13 @@ import {
   useRejectPurchase,
 } from "@/hooks/usePurchases";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen, FolderOpen, Calendar } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen, FolderOpen, Calendar, Bell, Users as UsersIcon, Settings, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CreatorProductsTab from "@/components/CreatorProductsTab";
 import CreatorTeachersManager from "@/components/CreatorTeachersManager";
+import CreatorUsersTab from "@/components/CreatorUsersTab";
+import { RescheduleRequestsSection } from "@/components/RescheduleRequestsSection";
 
 const roleLabels: Record<AppRole, string> = {
   admin: "Администратор",
@@ -119,86 +122,121 @@ const CreatorView = ({ userId }: { userId: string }) => {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader><CardTitle>Заявки на покупку ({pending.length})</CardTitle></CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-          ) : pending.length === 0 ? (
-            <p className="text-muted-foreground">Новых заявок нет.</p>
-          ) : (
-            <div className="space-y-3">
-              {pending.map((p) => (
-                <div key={p.id} className="flex flex-wrap items-center gap-3 p-3 border rounded-lg">
-                  <div className="flex-1 min-w-[200px]">
-                    <div className="font-medium">{p.product?.title ?? "—"}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {p.buyer?.name ?? p.buyer?.email ?? p.user_id.slice(0, 8)} · {formatKZT(Number(p.amount))}
+      <Tabs defaultValue="notifications">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="notifications">
+            <Bell className="w-4 h-4 mr-1" />Уведомления{pending.length > 0 ? ` (${pending.length})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="users">
+            <UsersIcon className="w-4 h-4 mr-1" />Пользователи
+          </TabsTrigger>
+          <TabsTrigger value="products">Продукты</TabsTrigger>
+          <TabsTrigger value="teachers">Преподаватели</TabsTrigger>
+          <TabsTrigger value="materials">Материалы</TabsTrigger>
+          <TabsTrigger value="history">История</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="notifications" className="space-y-6">
+          <Card>
+            <CardHeader><CardTitle>Заявки на покупку ({pending.length})</CardTitle></CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+              ) : pending.length === 0 ? (
+                <p className="text-muted-foreground">Новых заявок нет.</p>
+              ) : (
+                <div className="space-y-3">
+                  {pending.map((p) => (
+                    <div key={p.id} className="flex flex-wrap items-center gap-3 p-3 border rounded-lg">
+                      <div className="flex-1 min-w-[200px]">
+                        <div className="font-medium">{p.product?.title ?? "—"}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {p.buyer?.name ?? p.buyer?.email ?? p.user_id.slice(0, 8)} · {formatKZT(Number(p.amount))}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={async () => {
+                          try { await approve.mutateAsync(p.id); toast.success("Подтверждено"); }
+                          catch (e) { toast.error((e as Error).message); }
+                        }}>Подтвердить</Button>
+                        <Button size="sm" variant="outline" onClick={async () => {
+                          if (!confirm("Отклонить заявку?")) return;
+                          try { await reject.mutateAsync(p.id); toast.success("Отклонено"); }
+                          catch (e) { toast.error((e as Error).message); }
+                        }}>Отклонить</Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={async () => {
-                      try { await approve.mutateAsync(p.id); toast.success("Подтверждено"); }
-                      catch (e) { toast.error((e as Error).message); }
-                    }}>Подтвердить</Button>
-                    <Button size="sm" variant="outline" onClick={async () => {
-                      if (!confirm("Отклонить заявку?")) return;
-                      try { await reject.mutateAsync(p.id); toast.success("Отклонено"); }
-                      catch (e) { toast.error((e as Error).message); }
-                    }}>Отклонить</Button>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <RescheduleRequestsSection mode="creator" userId={userId} />
+        </TabsContent>
+
+        <TabsContent value="users">
+          <CreatorUsersTab userId={userId} />
+        </TabsContent>
+
+        <TabsContent value="products">
+          <CreatorProductsTab userId={userId} creatorName={creatorName} />
+        </TabsContent>
+
+        <TabsContent value="teachers">
+          <CreatorTeachersManager userId={userId} />
+        </TabsContent>
+
+        <TabsContent value="materials">
+          {myProducts.length > 0 ? (
+            <Card>
+              <CardHeader><CardTitle>Материалы и расписание</CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {myProducts.map((p) => (
+                    <div key={p.id} className="flex items-center gap-2 p-2 border rounded-lg">
+                      <div className="flex-1 min-w-0 truncate font-medium">{p.title}</div>
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={`/creator/products/${p.id}/materials`}><FolderOpen className="w-4 h-4 mr-1" />Материалы</Link>
+                      </Button>
+                      {p.has_schedule && (
+                        <Button asChild size="sm" variant="outline">
+                          <Link to={`/creator/products/${p.id}/schedule`}><Calendar className="w-4 h-4 mr-1" />Расписание</Link>
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <p className="text-muted-foreground text-center py-8">Продуктов пока нет.</p>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      <CreatorProductsTab userId={userId} creatorName={creatorName} />
-
-      <CreatorTeachersManager userId={userId} />
-
-      {myProducts.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Материалы и расписание</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {myProducts.map((p) => (
-                <div key={p.id} className="flex items-center gap-2 p-2 border rounded-lg">
-                  <div className="flex-1 min-w-0 truncate font-medium">{p.title}</div>
-                  <Button asChild size="sm" variant="outline">
-                    <Link to={`/creator/products/${p.id}/materials`}><FolderOpen className="w-4 h-4 mr-1" />Материалы</Link>
-                  </Button>
-                  {p.has_schedule && (
-                    <Button asChild size="sm" variant="outline">
-                      <Link to={`/creator/products/${p.id}/schedule`}><Calendar className="w-4 h-4 mr-1" />Расписание</Link>
-                    </Button>
-                  )}
+        <TabsContent value="history">
+          {history.length > 0 ? (
+            <Card>
+              <CardHeader><CardTitle>История заявок</CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {history.map((p) => (
+                    <div key={p.id} className="flex items-center gap-3 p-2 border rounded-lg text-sm">
+                      <div className="flex-1 min-w-0 truncate">
+                        <span className="font-medium">{p.product?.title}</span>
+                        <span className="text-muted-foreground"> · {p.buyer?.name ?? p.buyer?.email ?? p.user_id.slice(0,8)}</span>
+                      </div>
+                      <Badge variant={p.status === "completed" ? "default" : "destructive"}>{statusLabel(p.status)}</Badge>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {history.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>История заявок</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {history.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 p-2 border rounded-lg text-sm">
-                  <div className="flex-1 min-w-0 truncate">
-                    <span className="font-medium">{p.product?.title}</span>
-                    <span className="text-muted-foreground"> · {p.buyer?.name ?? p.buyer?.email ?? p.user_id.slice(0,8)}</span>
-                  </div>
-                  <Badge variant={p.status === "completed" ? "default" : "destructive"}>{statusLabel(p.status)}</Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          ) : (
+            <p className="text-muted-foreground text-center py-8">История пуста.</p>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
@@ -219,32 +257,35 @@ const TeacherView = ({ userId }: { userId: string }) => {
   });
 
   return (
-    <Card>
-      <CardHeader><CardTitle>Мои курсы</CardTitle></CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-        ) : products.length === 0 ? (
-          <p className="text-muted-foreground">Автор ещё не назначил вас преподавателем.</p>
-        ) : (
-          <div className="space-y-3">
-            {products.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                {p.image_url ? (
-                  <img src={p.image_url} alt="" className="w-16 h-16 rounded object-cover" />
-                ) : (
-                  <div className="w-16 h-16 rounded bg-muted" />
-                )}
-                <div className="flex-1 min-w-0 truncate font-medium">{p.title}</div>
-                <Button asChild size="sm">
-                  <Link to={`/teacher/products/${p.id}/schedule`}><Calendar className="w-4 h-4 mr-1" />Расписание</Link>
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      <RescheduleRequestsSection mode="teacher" userId={userId} />
+      <Card>
+        <CardHeader><CardTitle>Мои курсы</CardTitle></CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+          ) : products.length === 0 ? (
+            <p className="text-muted-foreground">Автор ещё не назначил вас преподавателем.</p>
+          ) : (
+            <div className="space-y-3">
+              {products.map((p) => (
+                <div key={p.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                  {p.image_url ? (
+                    <img src={p.image_url} alt="" className="w-16 h-16 rounded object-cover" />
+                  ) : (
+                    <div className="w-16 h-16 rounded bg-muted" />
+                  )}
+                  <div className="flex-1 min-w-0 truncate font-medium">{p.title}</div>
+                  <Button asChild size="sm">
+                    <Link to={`/teacher/products/${p.id}/schedule`}><Calendar className="w-4 h-4 mr-1" />Расписание</Link>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
@@ -283,6 +324,8 @@ const Dashboard = () => {
               </div>
             )}
             <span className="text-sm text-muted-foreground hidden md:inline">{user.email}</span>
+            <Button variant="ghost" size="icon" asChild title="Поддержка"><Link to="/support"><MessageCircle className="w-4 h-4" /></Link></Button>
+            <Button variant="ghost" size="icon" asChild title="Настройки"><Link to="/settings"><Settings className="w-4 h-4" /></Link></Button>
             <Button variant="outline" size="sm" onClick={() => signOut()}>Выйти</Button>
           </div>
         </div>

@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ArrowLeft, Calendar, Video, X } from "lucide-react";
+import { Loader2, ArrowLeft, Calendar, Video, X, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,15 @@ import {
   useSlotBookings,
   useCreateBooking,
   useCancelBooking,
+  type Booking,
+  type Schedule,
+  type TimeSlot,
 } from "@/hooks/useSchedule";
+import { useMyPendingRescheduleRequests } from "@/hooks/useReschedule";
+import {
+  RescheduleLessonDialog,
+  PendingRescheduleBadge,
+} from "@/components/RescheduleLessonDialog";
 
 const fmtDate = (d: string) => {
   const [y, m, day] = d.split("-");
@@ -27,6 +35,11 @@ const SchedulePage = () => {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const [rescheduleTarget, setRescheduleTarget] = useState<{
+    booking: Booking;
+    slot: TimeSlot;
+    schedule: Schedule;
+  } | null>(null);
 
   const { data: product } = useQuery({
     queryKey: ["product-lite", productId],
@@ -42,6 +55,8 @@ const SchedulePage = () => {
   const { data: slots = [] } = useScheduleSlots(scheduleIds);
   const { data: myBookings = [] } = useMyBookings(user?.id, scheduleIds);
   const { data: allBookings = [] } = useSlotBookings(scheduleIds);
+  const bookingIds = useMemo(() => myBookings.map((b) => b.id), [myBookings]);
+  const { data: pendingReschedules = [] } = useMyPendingRescheduleRequests(user?.id, bookingIds);
 
   const createBooking = useCreateBooking();
   const cancelBooking = useCancelBooking();
@@ -53,8 +68,10 @@ const SchedulePage = () => {
 
   const bookedByMe = new Set(myBookings.map((b) => b.time_slot_id));
   const bookingBySlot = new Map(myBookings.map((b) => [b.time_slot_id, b]));
+  const pendingByBooking = new Set(pendingReschedules.map((r) => r.booking_id));
   const countsBySlot = new Map<string, number>();
   allBookings.forEach((b) => countsBySlot.set(b.time_slot_id, (countsBySlot.get(b.time_slot_id) ?? 0) + 1));
+  const scheduleById = new Map(schedules.map((s) => [s.id, s]));
 
   return (
     <div className="min-h-screen bg-background">
@@ -97,6 +114,8 @@ const SchedulePage = () => {
                     const count = countsBySlot.get(slot.id) ?? 0;
                     const isBooked = bookedByMe.has(slot.id);
                     const full = cap !== null && count >= cap && !isBooked;
+                    const currentBooking = bookingBySlot.get(slot.id);
+                    const hasPendingReschedule = currentBooking ? pendingByBooking.has(currentBooking.id) : false;
                     return (
                       <div key={slot.id} className="flex items-center gap-3 p-3 border rounded-lg">
                         <div className="flex-1 min-w-0">
@@ -111,13 +130,32 @@ const SchedulePage = () => {
                           )}
                         </div>
                         {isBooked ? (
-                          <Button size="sm" variant="outline" onClick={async () => {
-                            const b = bookingBySlot.get(slot.id);
-                            if (!b) return;
-                            if (!confirm("Отменить запись?")) return;
-                            try { await cancelBooking.mutateAsync(b.id); toast.success("Запись отменена"); }
-                            catch (e) { toast.error((e as Error).message); }
-                          }}><X className="w-4 h-4 mr-1" />Отменить</Button>
+                          <div className="flex flex-col items-end gap-1">
+                            {hasPendingReschedule && <PendingRescheduleBadge />}
+                            <div className="flex gap-1">
+                              {!hasPendingReschedule && (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => {
+                                    const b = currentBooking;
+                                    const scheduleItem = scheduleById.get(slot.schedule_id);
+                                    if (!b || !scheduleItem) return;
+                                    setRescheduleTarget({ booking: b, slot, schedule: scheduleItem });
+                                  }}
+                                >
+                                  <CalendarClock className="w-4 h-4 mr-1" />
+                                  Перенести
+                                </Button>
+                              )}
+                              <Button size="sm" variant="outline" onClick={async () => {
+                                if (!currentBooking) return;
+                                if (!confirm("Отменить запись?")) return;
+                                try { await cancelBooking.mutateAsync(currentBooking.id); toast.success("Запись отменена"); }
+                                catch (e) { toast.error((e as Error).message); }
+                              }}><X className="w-4 h-4 mr-1" />Отменить</Button>
+                            </div>
+                          </div>
                         ) : (
                           <Button size="sm" disabled={full || !slot.is_available} onClick={async () => {
                             try { await createBooking.mutateAsync({ userId: user.id, slot }); toast.success("Записались"); }
@@ -133,6 +171,24 @@ const SchedulePage = () => {
           );
         })}
       </main>
+
+      {rescheduleTarget && productId && product?.title && user && (
+        <RescheduleLessonDialog
+          open={!!rescheduleTarget}
+          onOpenChange={(open) => {
+            if (!open) setRescheduleTarget(null);
+          }}
+          booking={rescheduleTarget.booking}
+          currentSlot={rescheduleTarget.slot}
+          schedule={rescheduleTarget.schedule}
+          productId={productId}
+          productTitle={product.title}
+          userId={user.id}
+          slots={slots}
+          schedules={schedules}
+          bookingsCountBySlot={countsBySlot}
+        />
+      )}
     </div>
   );
 };

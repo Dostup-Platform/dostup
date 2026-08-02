@@ -18,6 +18,7 @@ export interface Material {
   teacher_allow_download: boolean;
   available_at: string | null;
   deleted_at: string | null;
+  original_parent_id: string | null;
   file_size: number | null;
   created_at: string;
 }

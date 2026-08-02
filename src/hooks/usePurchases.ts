@@ -102,3 +102,14 @@ export const useRejectPurchase = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["creator-purchases"] }),
   });
 };
+
+export const useRevokeAccess = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (purchaseId: string) => {
+      const { error } = await supabase.from("purchases").update({ status: "rejected" }).eq("id", purchaseId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["creator-purchases"] }),
+  });
+};
