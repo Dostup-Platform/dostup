@@ -1,16 +1,4 @@
-project_id = "pgbgenvyjxxgdztymakp"
-
-[functions.create-signup-token]
-verify_jwt = false
-
-[functions.verify-signup-token]
-verify_jwt = false
-
-[functions.verify-creator-password]
-verify_jwt = false
-
-[functions.validate-creator-session]
-verify_jwt = false
+project_id = "okbuktaggaspnqpzmbyn"
 
 [functions.approve-purchase]
 verify_jwt = false

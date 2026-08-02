@@ -172,6 +172,10 @@ Edge Functions (Supabase secrets):
 
 ## 9. Экспорт кода и данных
 
+> Переезд на собственный проект Supabase описан отдельно — см. **[MIGRATE.md](./MIGRATE.md)**
+> (создание проекта, `supabase db push`, секреты, деплой функций, переключение `.env`,
+> и в самом конце — применение новых миграций).
+
 **Код:**
 - Через GitHub: в Lovable «+» → GitHub → Connect project → Create Repository, дальше `git clone` в Cursor
 - Или на десктопе: Code Editor → внизу сайдбара «Download codebase» (нужен платный workspace)
