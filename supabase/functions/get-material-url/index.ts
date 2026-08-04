@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { getSignedUrl } from "https://deno.land/x/aws_s3_presign@2.2.1/mod.ts"
+import { S3RequestPresigner } from "https://esm.sh/@aws-sdk/s3-request-presigner@3.620.0?target=deno"
+import { HttpRequest } from "https://esm.sh/@smithy/protocol-http@4.1.7?target=deno"
+import { Sha256 } from "https://esm.sh/@aws-crypto/sha256-browser@5.2.0?target=deno"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -49,25 +51,52 @@ Deno.serve(async (req) => {
     const fileUrl: string = material.file_url
     const wantDownload = !!download
 
-    // S3-stored files
+    // S3-stored files. Подписываем через AWS SDK: прежняя библиотека (aws_s3_presign)
+    // кодировала пробелы в query как '+', из-за чего S3 отвечал SignatureDoesNotMatch
+    // на ссылки скачивания с response-content-disposition.
     if (fileUrl.startsWith('s3://')) {
       const withoutPrefix = fileUrl.substring(5)
       const slash = withoutPrefix.indexOf('/')
       const bucket = withoutPrefix.substring(0, slash)
       const key = withoutPrefix.substring(slash + 1)
-      const signOptions: Record<string, unknown> = {
-        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID')!,
-        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY')!,
-        bucket,
-        key: '/' + key,
-        region: Deno.env.get('AWS_S3_REGION')!,
-        expiresIn: 3600,
-      }
+      const region = Deno.env.get('AWS_S3_REGION')!
+      const hostname = `${bucket}.s3.${region}.amazonaws.com`
+      const encodedKey = key.split('/').map((s) => encodeURIComponent(s)).join('/')
+
+      const query: Record<string, string> = {}
       if (wantDownload) {
-        signOptions.queryParams = { 'response-content-disposition': `attachment; filename="${material.title}"` }
+        // ASCII-fallback + RFC 5987 для не-латинских названий материалов
+        const asciiName = material.title.replaceAll(/["\\]/g, '_').replaceAll(/[^\x20-\x7e]/g, '_')
+        query['response-content-disposition'] =
+          `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(material.title)}`
       }
-      const url = getSignedUrl(signOptions as Parameters<typeof getSignedUrl>[0])
-      return json({ url })
+
+      const presigner = new S3RequestPresigner({
+        region,
+        credentials: {
+          accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID')!,
+          secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY')!,
+        },
+        sha256: Sha256,
+      })
+      const signedRequest = await presigner.presign(
+        new HttpRequest({
+          protocol: 'https:',
+          method: 'GET',
+          hostname,
+          path: `/${encodedKey}`,
+          headers: { host: hostname },
+          query,
+        }),
+        { expiresIn: 3600 },
+      )
+
+      const url = new URL(`https://${hostname}${signedRequest.path}`)
+      for (const [k, v] of Object.entries(signedRequest.query ?? {})) {
+        if (Array.isArray(v)) v.forEach((x) => url.searchParams.append(k, String(x)))
+        else if (v !== undefined && v !== null) url.searchParams.append(k, String(v))
+      }
+      return json({ url: url.toString() })
     }
 
     // Supabase storage-backed files (path within 'materials' bucket)

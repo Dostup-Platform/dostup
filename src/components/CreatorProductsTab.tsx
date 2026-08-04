@@ -103,7 +103,9 @@ const CreatorProductsTab = ({ userId, creatorName }: { userId: string; creatorNa
         image_url: form.image_url,
       };
       if (editing) {
-        const { error } = await supabase.from("products").update(payload).eq("id", editing.id);
+        // is_active: true — черновик, созданный при загрузке обложки (см. uploadImage),
+        // публикуется при сохранении; иного способа скрыть продукт в UI нет (есть «пауза»).
+        const { error } = await supabase.from("products").update({ ...payload, is_active: true }).eq("id", editing.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("products").insert({
