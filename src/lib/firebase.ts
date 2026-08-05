@@ -1,17 +1,22 @@
 import { initializeApp, type FirebaseOptions } from "firebase/app";
 import { getMessaging, getToken, isSupported, type Messaging } from "firebase/messaging";
 
+const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined;
+
 const firebaseConfig: FirebaseOptions = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || authDomain?.replace(/\.firebaseapp\.com$/, ""),
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
 
 export const isPushConfigured = Boolean(
-  firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.messagingSenderId && firebaseConfig.appId && vapidKey,
+  firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.messagingSenderId && firebaseConfig.appId,
 );
 
 let messagingInstance: Messaging | null = null;
@@ -39,6 +44,9 @@ export async function requestPushToken(): Promise<string | null> {
     scope: "/firebase-cloud-messaging-push-scope",
   });
 
-  const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
+  const token = await getToken(messaging, {
+    ...(vapidKey ? { vapidKey } : {}),
+    serviceWorkerRegistration: registration,
+  });
   return token || null;
 }
