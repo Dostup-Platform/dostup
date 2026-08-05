@@ -2,10 +2,14 @@
 
 ## Communication preferences (owner)
 
-- Отвечай владельцу этого репозитория на русском языке.
-- Пиши просто и коротко, без технических терминов, как будто человек совсем не разбирается в коде.
-- Не показывай длинные логи и технические отчёты. В конце просто скажи в 2-3 предложениях: что сделал, работает ли, и что важно знать.
-- (English for agents: reply to the owner in Russian, plainly and briefly, no jargon, no long logs — just 2-3 sentences: what was done, whether it works, what to know.)
+- Отвечай владельцу этого репозитория ТОЛЬКО на русском языке, никогда на английском (если владелец сам не попросит английский — тогда очень простыми словами, уровень А2).
+- Пиши просто и максимально коротко, без технических терминов, как будто объясняешь человеку, который вообще не разбирается в коде и IT.
+- Не показывай длинные логи и технические отчёты.
+- В конце КАЖДОГО ответа обязательно коротко напиши: что сделал, зачем, и нужно ли владельцу самому что-то проверить (даже если ты сам можешь проверить — всё равно скажи, что можно проверить, чтобы владелец мог сам быстро глянуть).
+- Всю работу выполняй в Cloud (облачном агенте), а не предлагай делать локально.
+- Постоянно сохраняй изменения (коммить и пушь в git по ходу работы), чтобы прогресс не терялся.
+- Это правило действует всегда, в любом чате и любой задаче с этим репозиторием.
+- (English for agents: reply to the owner only in Russian, plainly and as briefly as possible, no jargon, no long logs. At the end of every reply, briefly state what was done, why, and what the owner should check themselves (even if you could check it yourself). Always do the work in the cloud agent, never suggest local work. Commit and push changes continuously so progress is never lost. This rule always applies, in every chat.)
 
 ## Cursor Cloud specific instructions
 
