@@ -198,10 +198,11 @@ serve(async (req) => {
       const purchaseId = record.id;
 
       const { data: purchase, error } = await supabase
-        .from("purchases")
+        .from("simple_purchases")
         .select(`
           *,
-          product:products(id, title)
+          product:products(id, title),
+          user:simple_users(id, name)
         `)
         .eq("id", purchaseId)
         .single();
@@ -214,12 +215,7 @@ serve(async (req) => {
         });
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("name, display_name")
-        .eq("user_id", purchase.user_id)
-        .maybeSingle();
-      const studentName = profile?.display_name || profile?.name || "Ученик";
+      const studentName = purchase.user?.name || "Ученик";
       const productTitle = purchase.product?.title || "";
       const amount = purchase.amount || 0;
 
@@ -252,10 +248,10 @@ serve(async (req) => {
     if (type === "UPDATE" && record && old_record) {
       if (old_record.status === "pending" && record.status === "completed") {
         const purchaseId = record.id;
-        const studentUserId = record.user_id;
+        const studentUserId = record.simple_user_id;
 
         const { data: purchase } = await supabase
-          .from("purchases")
+          .from("simple_purchases")
           .select(`
             *,
             product:products(id, title)

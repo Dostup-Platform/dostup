@@ -1,23 +1,14 @@
--- ============================================================
--- Запускать ОДИН РАЗ в НОВОМ проекте Supabase,
--- ПОСЛЕ `supabase db push` (после применения всех миграций).
---
--- Зачем: функции notify_* содержат адрес старого проекта
--- прямо в тексте. Здесь мы делаем адрес настраиваемым:
--- он берётся из таблицы app_settings, ключ 'functions_base_url'.
--- ============================================================
+-- Запускать ОДИН РАЗ в SQL Editor проекта pgbgenvyjxxgdztymakp
+-- ПОСЛЕ применения всех миграций (supabase db push).
 
--- 1) Прописать адрес нового проекта и его anon-ключ.
---    Значения уже подставлены для проекта okbuktaggaspnqpzmbyn.
 INSERT INTO public.app_settings (key, value)
-VALUES ('functions_base_url', 'https://okbuktaggaspnqpzmbyn.supabase.co/functions/v1')
+VALUES ('functions_base_url', 'https://pgbgenvyjxxgdztymakp.supabase.co/functions/v1')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 INSERT INTO public.app_settings (key, value)
-VALUES ('supabase_anon_key', 'sb_publishable_XtBCL2yRCZC1PSYU901Slw_JmoR1pVd')
+VALUES ('supabase_anon_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnYmdlbnZ5anh4Z2R6dHltYWtwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxODI5NjMsImV4cCI6MjA4Mzc1ODk2M30.3ppZd4hlFCe34wH2OLb9dzC0sI1VUooSXzwO0-aPs8I')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
--- 2) Общий помощник: дергает edge-функцию по имени.
 CREATE OR REPLACE FUNCTION public.call_edge_function(_name text, _payload jsonb)
 RETURNS void
 LANGUAGE plpgsql
@@ -32,7 +23,7 @@ BEGIN
   SELECT value INTO anon_key FROM app_settings WHERE key = 'supabase_anon_key';
 
   IF base_url IS NULL OR anon_key IS NULL THEN
-    RAISE WARNING 'call_edge_function: functions_base_url или supabase_anon_key не заданы в app_settings';
+    RAISE WARNING 'call_edge_function: functions_base_url или supabase_anon_key не заданы';
     RETURN;
   END IF;
 
@@ -49,7 +40,6 @@ BEGIN
 END;
 $$;
 
--- 3) Переписываем notify_* на помощника (без хардкода адреса).
 CREATE OR REPLACE FUNCTION public.notify_purchase_change()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
 BEGIN

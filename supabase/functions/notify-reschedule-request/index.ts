@@ -102,13 +102,13 @@ serve(async (req) => {
     if (requestedBy === "student") {
       // Student requests reschedule → notify teacher/creator
       let studentName = "Ученик";
-      if (record.user_id) {
+      if (record.simple_user_id) {
         const { data: studentData } = await supabase
-          .from("profiles")
-          .select("name, display_name")
-          .eq("user_id", record.user_id)
-          .maybeSingle();
-        if (studentData) studentName = studentData.display_name || studentData.name || studentName;
+          .from("simple_users")
+          .select("name")
+          .eq("id", record.simple_user_id)
+          .single();
+        if (studentData) studentName = studentData.name;
       }
 
       title = "Запрос на перенос";
@@ -187,7 +187,7 @@ serve(async (req) => {
 
     } else {
       // Creator/Teacher requests reschedule → notify student
-      const studentUserId = record.user_id;
+      const studentUserId = record.simple_user_id;
       if (!studentUserId) {
         return new Response(JSON.stringify({ success: true, message: "No student to notify" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });

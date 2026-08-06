@@ -1,117 +1,79 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-
-export type AppRole = "student" | "creator" | "school_admin" | "teacher" | "moderator" | "admin" | "user";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  roles: AppRole[];
-  activeRole: AppRole | null;
-  signUpWithEmail: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
-  signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signInWithGoogle: () => Promise<{ error: Error | null }>;
-  signInWithApple: () => Promise<{ error: Error | null }>;
-  resetPassword: (email: string) => Promise<{ error: Error | null }>;
-  switchRole: (role: AppRole) => Promise<void>;
+  signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 };
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [roles, setRoles] = useState<AppRole[]>([]);
-  const [activeRole, setActiveRole] = useState<AppRole | null>(null);
-
-  const loadRoles = useCallback(async (uid: string) => {
-    const { data: roleRows } = await supabase.from("user_roles").select("role").eq("user_id", uid);
-    const rs = (roleRows ?? []).map((r) => r.role as AppRole);
-    setRoles(rs);
-    const { data: prof } = await supabase.from("profiles").select("active_role").eq("user_id", uid).maybeSingle();
-    const active = (prof?.active_role as AppRole | null) ?? rs[0] ?? null;
-    setActiveRole(active);
-  }, []);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
-      setSession(sess);
-      setUser(sess?.user ?? null);
-      if (sess?.user) {
-        setTimeout(() => { void loadRoles(sess.user.id); }, 0);
-      } else {
-        setRoles([]);
-        setActiveRole(null);
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    );
 
-    supabase.auth.getSession().then(({ data: { session: sess } }) => {
-      setSession(sess);
-      setUser(sess?.user ?? null);
-      if (sess?.user) void loadRoles(sess.user.id);
+    // THEN check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [loadRoles]);
+  }, []);
 
-  const signUpWithEmail = async (email: string, password: string, name: string) => {
+  const signUp = async (email: string, password: string, name: string) => {
+    const redirectUrl = `${window.location.origin}/dashboard`;
+    
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
-        data: { name },
+        emailRedirectTo: redirectUrl,
+        data: {
+          name,
+        },
       },
     });
-    return { error: (error as Error | null) ?? null };
+    
+    return { error: error as Error | null };
   };
 
-  const signInWithEmail = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: (error as Error | null) ?? null };
-  };
-
-  const signInWithGoogle = async () => {
-    // Прямой OAuth через Supabase: прокси Lovable (/~oauth/initiate) недоступен после переезда.
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin },
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
-    return { error: (error as Error | null) ?? null };
-  };
-
-  const signInWithApple = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "apple",
-      options: { redirectTo: window.location.origin },
-    });
-    return { error: (error as Error | null) ?? null };
-  };
-
-  const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    return { error: (error as Error | null) ?? null };
-  };
-
-  const switchRole = async (role: AppRole) => {
-    if (!user) return;
-    if (!roles.includes(role)) return;
-    setActiveRole(role);
-    await supabase.from("profiles").update({ active_role: role as never }).eq("user_id", user.id);
+    
+    return { error: error as Error | null };
   };
 
   const signOut = async () => {
@@ -119,13 +81,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user, session, loading, roles, activeRole,
-        signUpWithEmail, signInWithEmail, signInWithGoogle, signInWithApple,
-        resetPassword, switchRole, signOut,
-      }}
-    >
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

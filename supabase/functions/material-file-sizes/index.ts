@@ -8,16 +8,20 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+interface Body {
+  token: string;
+  creatorName: string;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
   try {
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const jwt = authHeader.replace(/^Bearer\s+/i, "");
-    if (!jwt) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401,
+    const { token, creatorName } = (await req.json()) as Body;
+    if (!token || !creatorName) {
+      return new Response(JSON.stringify({ error: "missing_auth" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -27,20 +31,25 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser(jwt);
-    if (userErr || !userData?.user) {
+    const { data: session } = await supabase
+      .from("creator_sessions")
+      .select("creator_name")
+      .eq("token", token)
+      .eq("creator_name", creatorName)
+      .gt("expires_at", new Date().toISOString())
+      .maybeSingle();
+    if (!session) {
       return new Response(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const ownerId = userData.user.id;
 
-    // Find this creator's products
+    // Find creator's products
     const { data: products } = await supabase
       .from("products")
       .select("id")
-      .eq("owner_id", ownerId);
+      .eq("creator_id", creatorName);
     const productIds = (products ?? []).map((p) => p.id);
     if (productIds.length === 0) {
       return new Response(JSON.stringify({ updated: 0, total: 0 }), {
@@ -56,7 +65,6 @@ Deno.serve(async (req) => {
       .eq("type", "file")
       .is("file_size", null)
       .not("file_url", "is", null)
-      .is("deleted_at", null)
       .limit(500);
 
     const accessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID")!;

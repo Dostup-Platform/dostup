@@ -9,7 +9,7 @@ const corsHeaders = {
 interface Reminder {
   id: string;
   booking_id: string | null;
-  user_id: string | null;
+  simple_user_id: string | null;
   reminder_type: string;
   scheduled_at: string;
   product_title: string | null;
@@ -183,7 +183,7 @@ async function sendReminderPush(
     return true;
   } else if (reminder.target_role === "teacher") {
     const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
-      body: { userId: reminder.user_id, title, body, data, targetRole: "teacher" }
+      body: { userId: reminder.simple_user_id, title, body, data, targetRole: "teacher" }
     });
     if (pushError) {
       console.error(`Error sending teacher reminder:`, pushError);
@@ -193,7 +193,7 @@ async function sendReminderPush(
   } else {
     // Student — existing behavior
     const { error: pushError } = await supabase.functions.invoke("send-push-notification", {
-      body: { userId: reminder.user_id, title, body, data }
+      body: { userId: reminder.simple_user_id, title, body, data }
     });
     if (pushError) {
       console.error(`Error sending student reminder ${reminder.id}:`, pushError);

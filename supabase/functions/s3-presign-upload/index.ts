@@ -31,62 +31,66 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const jwt = authHeader.replace(/^Bearer\s+/i, '');
-    if (!jwt) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const { productId, role, fileName, fileType, creatorToken, creatorName, teacherId } = await req.json();
+
+    if (!productId || !role || !fileName) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: productId, role, fileName' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Two modes:
-    //  - JSON body: return a presigned PUT URL (browser uploads directly to S3)
-    //  - multipart/form-data: proxy mode — upload the file to S3 server-side.
-    //    Needed because direct browser PUT fails when the bucket has no CORS rules.
-    let productId: string, fileName: string, fileType: string | undefined;
-    let proxyFile: File | null = null;
-    if ((req.headers.get('content-type') ?? '').includes('multipart/form-data')) {
-      const form = await req.formData();
-      proxyFile = form.get('file') as File | null;
-      productId = String(form.get('productId') ?? '');
-      fileName = proxyFile?.name ?? '';
-      fileType = proxyFile?.type || undefined;
-      if (!proxyFile || !productId) {
-        return new Response(JSON.stringify({ error: 'Missing required fields: file, productId' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Validate authorization
+    if (role === 'creator') {
+      if (!creatorToken || !creatorName) {
+        return new Response(
+          JSON.stringify({ error: 'Missing creatorToken or creatorName' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const { data: session } = await supabase
+        .from('creator_sessions')
+        .select('id')
+        .eq('token', creatorToken)
+        .eq('creator_name', creatorName)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
+
+      if (!session) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid creator session' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else if (role === 'teacher') {
+      if (!teacherId) {
+        return new Response(
+          JSON.stringify({ error: 'Missing teacherId' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const { data: teacher } = await supabase
+        .from('simple_users')
+        .select('id')
+        .eq('id', teacherId)
+        .eq('role', 'teacher')
+        .maybeSingle();
+
+      if (!teacher) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid teacher' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     } else {
-      ({ productId, fileName, fileType } = await req.json());
-    }
-    if (!productId || !fileName) {
-      return new Response(JSON.stringify({ error: 'Missing required fields: productId, fileName' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
-
-    const { data: userData, error: userErr } = await supabase.auth.getUser(jwt);
-    if (userErr || !userData?.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    const uid = userData.user.id;
-
-    // Access: product owner OR assigned teacher
-    const { data: product } = await supabase
-      .from('products').select('owner_id').eq('id', productId).maybeSingle();
-    let isTeacher = false;
-    if (!product || product.owner_id !== uid) {
-      const { data: pt } = await supabase
-        .from('product_teachers').select('teacher_user_id')
-        .eq('product_id', productId).eq('teacher_user_id', uid).maybeSingle();
-      isTeacher = !!pt;
-      if (!isTeacher) {
-        return new Response(JSON.stringify({ error: 'Forbidden' }),
-          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
+      return new Response(
+        JSON.stringify({ error: 'Invalid role' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // AWS config
@@ -106,9 +110,12 @@ Deno.serve(async (req) => {
     // Generate S3 key
     const fileExt = fileName.split('.').pop();
     const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    const s3Key = isTeacher
-      ? `teacher-${uid}/${productId}/${uniqueId}.${fileExt}`
-      : `${productId}/${uniqueId}.${fileExt}`;
+    let s3Key: string;
+    if (role === 'teacher') {
+      s3Key = `teacher-${teacherId}/${productId}/${uniqueId}.${fileExt}`;
+    } else {
+      s3Key = `${productId}/${uniqueId}.${fileExt}`;
+    }
 
     const contentType = fileType || 'application/octet-stream';
 
@@ -140,25 +147,6 @@ Deno.serve(async (req) => {
 
     const uploadUrl = buildPresignedUrl(signedRequest);
     const storagePath = `s3://${bucket}/${s3Key}`;
-
-    if (proxyFile) {
-      console.log('Proxy-uploading to S3:', s3Key, 'region:', region);
-      const putRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: new Uint8Array(await proxyFile.arrayBuffer()),
-        headers: { 'Content-Type': contentType },
-      });
-      if (!putRes.ok) {
-        console.error('S3 proxy upload failed:', putRes.status, await putRes.text());
-        return new Response(JSON.stringify({ error: 'Upload failed' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-      return new Response(
-        JSON.stringify({ storagePath, size: proxyFile.size }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     console.log('Generated presigned upload URL for:', s3Key, 'region:', region);
 
     return new Response(

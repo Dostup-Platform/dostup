@@ -1,352 +1,309 @@
-import { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { useAuth, AppRole } from "@/contexts/AuthContext";
-import { useProducts } from "@/hooks/useProducts";
-import { supabase } from "@/integrations/supabase/client";
-import {
-  useMyPurchases,
-  useCreatorPurchases,
-  useApprovePurchase,
-  useRejectPurchase,
-} from "@/hooks/usePurchases";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle, Clock, ExternalLink, BookOpen, FolderOpen, Calendar, Bell, Users as UsersIcon, Settings, MessageCircle } from "lucide-react";
-import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import CreatorProductsTab from "@/components/CreatorProductsTab";
-import CreatorTeachersManager from "@/components/CreatorTeachersManager";
-import CreatorUsersTab from "@/components/CreatorUsersTab";
-import { RescheduleRequestsSection } from "@/components/RescheduleRequestsSection";
+import { FileText, Calendar, User, Bell, Loader2, Home as HomeIcon, MessageCircle } from "lucide-react";
+import SupportChat from "@/components/SupportChat";
+import { useSupportUnread } from "@/hooks/useSupportUnread";
 
-const roleLabels: Record<AppRole, string> = {
-  admin: "Администратор",
-  creator: "Автор",
-  school_admin: "Школа",
-  teacher: "Преподаватель",
-  moderator: "Модератор",
-  student: "Ученик",
-  user: "Пользователь",
-};
-
-const statusLabel = (s: string) =>
-  s === "completed" ? "Оплачено" : s === "pending" ? "Ожидание" : s === "rejected" ? "Отклонено" : s;
-
-const formatKZT = (n: number) =>
-  new Intl.NumberFormat("ru-RU", { style: "currency", currency: "KZT", minimumFractionDigits: 0 }).format(n);
-
-const StudentView = ({ userId }: { userId: string }) => {
-  const { data: purchases = [], isLoading } = useMyPurchases(userId);
+const StudentSupportButton = ({ activeTab, userId, userName, onClick }: { activeTab: string; userId: string; userName: string; onClick: () => void }) => {
+  const unread = useSupportUnread("student", userId);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Мои продукты</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-        ) : purchases.length === 0 ? (
-          <p className="text-muted-foreground">У вас пока нет покупок. <Link to="/" className="text-primary underline">Посмотреть каталог</Link></p>
-        ) : (
-          <div className="space-y-3">
-            {purchases.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                {p.product?.image_url ? (
-                  <img src={p.product.image_url} alt="" className="w-16 h-16 rounded object-cover" />
-                ) : (
-                  <div className="w-16 h-16 rounded bg-muted" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{p.product?.title ?? "Продукт удалён"}</div>
-                  <div className="text-sm text-muted-foreground">{formatKZT(Number(p.amount))}</div>
-                </div>
-                <Badge variant={p.status === "completed" ? "default" : p.status === "rejected" ? "destructive" : "secondary"}>
-                  {p.status === "pending" && <Clock className="w-3 h-3 mr-1" />}
-                  {p.status === "completed" && <CheckCircle2 className="w-3 h-3 mr-1" />}
-                  {p.status === "rejected" && <XCircle className="w-3 h-3 mr-1" />}
-                  {statusLabel(p.status)}
-                </Badge>
-                {p.product?.id && p.status === "completed" ? (
-                  <div className="flex gap-1">
-                    <Button asChild size="sm">
-                      <Link to={`/materials/${p.product.id}`}><BookOpen className="w-4 h-4 mr-1" />Открыть</Link>
-                    </Button>
-                    {p.product?.has_schedule && (
-                      <Button asChild size="sm" variant="outline">
-                        <Link to={`/schedule/${p.product.id}`}><Calendar className="w-4 h-4" /></Link>
-                      </Button>
-                    )}
-                  </div>
-                ) : p.product?.id ? (
-                  <Button asChild size="sm" variant="ghost">
-                    <Link to={`/product/${p.product.id}`}><ExternalLink className="w-4 h-4" /></Link>
-                  </Button>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <button
+      onClick={onClick}
+      aria-label="Сообщения"
+      className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+        activeTab === "support" ? "bg-accent text-white" : "text-muted-foreground hover:bg-accent/50"
+      }`}
+    >
+      <MessageCircle className="w-5 h-5" />
+      {unread > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+          {unread > 9 ? "9+" : unread}
+        </span>
+      )}
+    </button>
   );
 };
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { supabase } from "@/integrations/supabase/client";
 
-const CreatorView = ({ userId }: { userId: string }) => {
-  const { data: purchases = [], isLoading } = useCreatorPurchases(userId);
-  const approve = useApprovePurchase();
-  const reject = useRejectPurchase();
-  const { data: profile } = useQuery({
-    queryKey: ["profile-name", userId],
-    queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("name,display_name,email").eq("user_id", userId).maybeSingle();
-      return data;
-    },
-  });
-  const creatorName = profile?.name || profile?.display_name || (profile?.email ?? "").split("@")[0] || "creator";
-
-  const { data: myProducts = [] } = useQuery({
-    queryKey: ["my-products-links", userId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products").select("id,title,has_schedule")
-        .eq("owner_id", userId).order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const pending = purchases.filter((p) => p.status === "pending");
-  const history = purchases.filter((p) => p.status !== "pending").slice(0, 20);
-
-  return (
-    <div className="space-y-6">
-      <Tabs defaultValue="notifications">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="notifications">
-            <Bell className="w-4 h-4 mr-1" />Уведомления{pending.length > 0 ? ` (${pending.length})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="users">
-            <UsersIcon className="w-4 h-4 mr-1" />Пользователи
-          </TabsTrigger>
-          <TabsTrigger value="products">Продукты</TabsTrigger>
-          <TabsTrigger value="teachers">Преподаватели</TabsTrigger>
-          <TabsTrigger value="materials">Материалы</TabsTrigger>
-          <TabsTrigger value="history">История</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="notifications" className="space-y-6">
-          <Card>
-            <CardHeader><CardTitle>Заявки на покупку ({pending.length})</CardTitle></CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-              ) : pending.length === 0 ? (
-                <p className="text-muted-foreground">Новых заявок нет.</p>
-              ) : (
-                <div className="space-y-3">
-                  {pending.map((p) => (
-                    <div key={p.id} className="flex flex-wrap items-center gap-3 p-3 border rounded-lg">
-                      <div className="flex-1 min-w-[200px]">
-                        <div className="font-medium">{p.product?.title ?? "—"}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {p.buyer?.name ?? p.buyer?.email ?? p.user_id.slice(0, 8)} · {formatKZT(Number(p.amount))}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={async () => {
-                          try { await approve.mutateAsync(p.id); toast.success("Подтверждено"); }
-                          catch (e) { toast.error((e as Error).message); }
-                        }}>Подтвердить</Button>
-                        <Button size="sm" variant="outline" onClick={async () => {
-                          if (!confirm("Отклонить заявку?")) return;
-                          try { await reject.mutateAsync(p.id); toast.success("Отклонено"); }
-                          catch (e) { toast.error((e as Error).message); }
-                        }}>Отклонить</Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <RescheduleRequestsSection mode="creator" userId={userId} />
-        </TabsContent>
-
-        <TabsContent value="users">
-          <CreatorUsersTab userId={userId} />
-        </TabsContent>
-
-        <TabsContent value="products">
-          <CreatorProductsTab userId={userId} creatorName={creatorName} />
-        </TabsContent>
-
-        <TabsContent value="teachers">
-          <CreatorTeachersManager userId={userId} />
-        </TabsContent>
-
-        <TabsContent value="materials">
-          {myProducts.length > 0 ? (
-            <Card>
-              <CardHeader><CardTitle>Материалы и расписание</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {myProducts.map((p) => (
-                    <div key={p.id} className="flex items-center gap-2 p-2 border rounded-lg">
-                      <div className="flex-1 min-w-0 truncate font-medium">{p.title}</div>
-                      <Button asChild size="sm" variant="outline">
-                        <Link to={`/creator/products/${p.id}/materials`}><FolderOpen className="w-4 h-4 mr-1" />Материалы</Link>
-                      </Button>
-                      {p.has_schedule && (
-                        <Button asChild size="sm" variant="outline">
-                          <Link to={`/creator/products/${p.id}/schedule`}><Calendar className="w-4 h-4 mr-1" />Расписание</Link>
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <p className="text-muted-foreground text-center py-8">Продуктов пока нет.</p>
-          )}
-        </TabsContent>
-
-        <TabsContent value="history">
-          {history.length > 0 ? (
-            <Card>
-              <CardHeader><CardTitle>История заявок</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {history.map((p) => (
-                    <div key={p.id} className="flex items-center gap-3 p-2 border rounded-lg text-sm">
-                      <div className="flex-1 min-w-0 truncate">
-                        <span className="font-medium">{p.product?.title}</span>
-                        <span className="text-muted-foreground"> · {p.buyer?.name ?? p.buyer?.email ?? p.user_id.slice(0,8)}</span>
-                      </div>
-                      <Badge variant={p.status === "completed" ? "default" : "destructive"}>{statusLabel(p.status)}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <p className="text-muted-foreground text-center py-8">История пуста.</p>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-};
-
-const TeacherView = ({ userId }: { userId: string }) => {
-  const { data: products = [], isLoading } = useQuery({
-    queryKey: ["teacher-products", userId],
-    queryFn: async () => {
-      const { data: rows, error } = await supabase.from("product_teachers")
-        .select("product_id").eq("teacher_user_id", userId);
-      if (error) throw error;
-      const ids = (rows ?? []).map((r) => r.product_id);
-      if (ids.length === 0) return [];
-      const { data: prods } = await supabase.from("products")
-        .select("id,title,image_url").in("id", ids);
-      return prods ?? [];
-    },
-  });
-
-  return (
-    <div className="space-y-6">
-      <RescheduleRequestsSection mode="teacher" userId={userId} />
-      <Card>
-        <CardHeader><CardTitle>Мои курсы</CardTitle></CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-          ) : products.length === 0 ? (
-            <p className="text-muted-foreground">Автор ещё не назначил вас преподавателем.</p>
-          ) : (
-            <div className="space-y-3">
-              {products.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                  {p.image_url ? (
-                    <img src={p.image_url} alt="" className="w-16 h-16 rounded object-cover" />
-                  ) : (
-                    <div className="w-16 h-16 rounded bg-muted" />
-                  )}
-                  <div className="flex-1 min-w-0 truncate font-medium">{p.title}</div>
-                  <Button asChild size="sm">
-                    <Link to={`/teacher/products/${p.id}/schedule`}><Calendar className="w-4 h-4 mr-1" />Расписание</Link>
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
+import MaterialsTab from "@/components/dashboard/MaterialsTab";
+import ScheduleTab from "@/components/dashboard/ScheduleTab";
+import AccountTab from "@/components/dashboard/AccountTab";
+import NotificationsTab from "@/components/dashboard/NotificationsTab";
+import HomeTab from "@/components/dashboard/HomeTab";
+import { useRealtimeStudentNotifications } from "@/hooks/useRealtimeStudentNotifications";
+import { useFCMRegistration } from "@/hooks/useFCMRegistration";
+import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
+import { useAppResume } from "@/hooks/useAppResume";
 
 const Dashboard = () => {
+  const [activeTab, setActiveTab] = useState("home");
+  const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
+  const previousTab = useRef(activeTab);
+  const { user, loading } = useSimpleAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
-  const { data: publicProducts } = useProducts();
-  const { user, loading, roles, activeRole, switchRole, signOut } = useAuth();
+  useAppResume();
+
+  // Загрузить lastViewedAt из localStorage (per-user key)
+  const lastViewedKey = user?.id ? `student_notifications_last_viewed_${user.id}` : null;
+  
+  useEffect(() => {
+    if (!lastViewedKey) return;
+    const saved = localStorage.getItem(lastViewedKey);
+    if (saved) {
+      setLastViewedAt(new Date(saved));
+    }
+  }, [lastViewedKey]);
+
+  // Get purchased product IDs for filtering material unlocks
+  const { data: purchasedProductIds = [] } = useQuery({
+    queryKey: ["student-purchased-product-ids", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("simple_purchases")
+        .select("product_id")
+        .eq("simple_user_id", user.id)
+        .in("status", ["confirmed", "completed"]);
+      if (error) throw error;
+      return [...new Set((data || []).map(p => p.product_id))];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Получить отменённые записи для подсчёта бейджа
+  const { data: cancellations = [] } = useQuery({
+    queryKey: ["student-cancellations-count", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("booking_cancellations")
+        .select("id, cancelled_at")
+        .eq("simple_user_id", user.id)
+        .in("cancelled_by", ["creator", "teacher"])
+        .order("cancelled_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  const { data: confirmedPurchases = [] } = useQuery({
+    queryKey: ["student-confirmed-purchases-count", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("simple_purchases")
+        .select("id, confirmed_at")
+        .eq("simple_user_id", user.id)
+        .in("status", ["confirmed", "completed"])
+        .not("confirmed_at", "is", null)
+        .order("confirmed_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Material unlocks count
+  const { data: materialUnlocks = [] } = useQuery({
+    queryKey: ["student-material-unlocks-count", purchasedProductIds],
+    queryFn: async () => {
+      if (purchasedProductIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("material_unlocks")
+        .select("id, unlocked_at")
+        .in("product_id", purchasedProductIds)
+        .order("unlocked_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: purchasedProductIds.length > 0,
+  });
+
+  // Rejected reschedule requests count
+  const { data: rejectedReschedules = [] } = useQuery({
+    queryKey: ["student-rejected-reschedules-count", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("reschedule_requests")
+        .select("id, responded_at")
+        .eq("simple_user_id", user.id)
+        .eq("status", "rejected")
+        .order("responded_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Incoming reschedule requests from creator/teacher
+  const { data: incomingReschedules = [] } = useQuery({
+    queryKey: ["student-incoming-reschedules-count", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("reschedule_requests")
+        .select("id, created_at")
+        .eq("simple_user_id", user.id)
+        .eq("status", "pending")
+        .neq("requested_by", "student")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Подсчёт новых уведомлений
+  const newNotificationsCount = useMemo(() => {
+    const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const newCancellations = cancellations.filter(c => new Date(c.cancelled_at) > compareDate).length;
+    const newPurchases = confirmedPurchases.filter(p => p.confirmed_at && new Date(p.confirmed_at) > compareDate).length;
+    const newUnlocks = materialUnlocks.filter(u => new Date(u.unlocked_at) > compareDate).length;
+    const newRejections = rejectedReschedules.filter(r => r.responded_at && new Date(r.responded_at) > compareDate).length;
+    const newIncoming = incomingReschedules.filter(r => r.created_at && new Date(r.created_at) > compareDate).length;
+    return newCancellations + newPurchases + newUnlocks + newRejections + newIncoming;
+  }, [cancellations, confirmedPurchases, materialUnlocks, rejectedReschedules, incomingReschedules, lastViewedAt]);
+
+  // Realtime уведомления (звуки и push) с badge count
+  useRealtimeStudentNotifications(user?.id, !!user, newNotificationsCount, purchasedProductIds);
+
+  // Register FCM token for push notifications
+  useFCMRegistration({
+    userId: user?.id,
+    userRole: "student",
+    enabled: !!user?.id
+  });
+
+  // Set initial app badge based on notification count
+  useEffect(() => {
+    if (activeTab !== "notifications") {
+      setAppBadge(newNotificationsCount);
+    }
+  }, [newNotificationsCount, activeTab]);
+
+  // Обновление lastViewedAt при входе/выходе с вкладки уведомлений
+  const handleTabChange = (value: string) => {
+    // Save lastViewedAt when entering OR leaving notifications tab
+    if (lastViewedKey && (value === "notifications" || (previousTab.current === "notifications" && value !== "notifications"))) {
+      const now = new Date();
+      localStorage.setItem(lastViewedKey, now.toISOString());
+      setLastViewedAt(now);
+      clearAppBadge();
+    }
+    previousTab.current = value;
+    setActiveTab(value);
+  };
 
   useEffect(() => {
-    if (!loading && !user) navigate("/auth");
+    if (!loading && !user) {
+      navigate("/");
+    }
   }, [user, loading, navigate]);
 
-  if (loading || !user) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
-  const isCreator = activeRole === "creator" || roles.includes("creator");
-  const showCreator = activeRole === "creator";
-  const showTeacher = activeRole === "teacher";
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _ = publicProducts;
+  if (!user) {
+    return null;
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-          <Link to="/" className="text-xl font-bold">Доступ</Link>
-          <div className="flex items-center gap-2">
-            {roles.length > 1 && (
-              <div className="flex gap-1">
-                {roles.map((r) => (
-                  <Button key={r} size="sm" variant={r === activeRole ? "default" : "outline"}
-                    onClick={() => switchRole(r)}>{roleLabels[r] ?? r}</Button>
-                ))}
-              </div>
-            )}
-            <span className="text-sm text-muted-foreground hidden md:inline">{user.email}</span>
-            <Button variant="ghost" size="icon" asChild title="Поддержка"><Link to="/support"><MessageCircle className="w-4 h-4" /></Link></Button>
-            <Button variant="ghost" size="icon" asChild title="Настройки"><Link to="/settings"><Settings className="w-4 h-4" /></Link></Button>
-            <Button variant="outline" size="sm" onClick={() => signOut()}>Выйти</Button>
-          </div>
+    <div className="min-h-screen bg-background pb-20">
+      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
+          <h1 className="text-xl font-bold text-foreground">{t("myDashboard")}</h1>
+          <StudentSupportButton activeTab={activeTab} userId={user.id} userName={user.name} onClick={() => handleTabChange("support")} />
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {showCreator ? (
-          <CreatorView userId={user.id} />
-        ) : showTeacher ? (
-          <TeacherView userId={user.id} />
-        ) : (
-          <>
-            <StudentView userId={user.id} />
-            {isCreator && (
-              <p className="text-sm text-muted-foreground text-center">
-                Переключитесь на роль «Автор» в шапке, чтобы управлять продуктами и заявками.
-              </p>
-            )}
-          </>
-        )}
+      <main className="max-w-2xl mx-auto px-4 py-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <TabsContent value="home" className="mt-0 animate-fade-in">
+            <HomeTab />
+          </TabsContent>
+          <TabsContent value="materials" className="mt-0 animate-fade-in">
+            <MaterialsTab />
+          </TabsContent>
+          <TabsContent value="schedule" className="mt-0 animate-fade-in">
+            <ScheduleTab />
+          </TabsContent>
+          <TabsContent value="notifications" className="mt-0 animate-fade-in">
+            <NotificationsTab lastViewedAt={lastViewedAt} purchasedProductIds={purchasedProductIds} />
+          </TabsContent>
+          <TabsContent value="account" className="mt-0 animate-fade-in">
+            <AccountTab />
+          </TabsContent>
+          <TabsContent value="support" className="mt-0 animate-fade-in">
+            <SupportChat userType="student" userRef={user.id} displayName={user.name} />
+          </TabsContent>
+        </Tabs>
       </main>
+
+      <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
+        <div className="max-w-2xl mx-auto">
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
+            <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-1">
+              <TabsTrigger 
+                value="home" 
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+              >
+                <HomeIcon className="w-5 h-5" />
+                <span className="text-xs">{t("home")}</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="materials" 
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+              >
+                <FileText className="w-5 h-5" />
+                <span className="text-xs">{t("materials")}</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="schedule" 
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+              >
+                <Calendar className="w-5 h-5" />
+                <span className="text-xs">{t("schedule")}</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="notifications" 
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none relative"
+              >
+                <Bell className="w-5 h-5" />
+                <span className="text-xs">{t("notifications")}</span>
+                {newNotificationsCount > 0 && (
+                  <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="account" 
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+              >
+                <User className="w-5 h-5" />
+                <span className="text-xs">{t("account")}</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      </nav>
     </div>
   );
 };
