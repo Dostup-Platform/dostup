@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
-export interface Purchase {
+interface Purchase {
   id: string;
   user_id: string;
   product_id: string | null;
@@ -11,105 +12,129 @@ export interface Purchase {
   created_at: string;
 }
 
-export interface PurchaseWithProduct extends Purchase {
-  product?: { id: string; title: string; image_url: string | null; price: number; has_schedule?: boolean } | null;
-  buyer?: { user_id: string; name: string | null; email: string | null } | null;
+interface PurchaseWithProduct extends Purchase {
+  products: {
+    id: string;
+    title: string;
+    headline: string | null;
+    image_url: string | null;
+  } | null;
 }
 
-export const useMyPurchases = (userId: string | undefined) =>
-  useQuery({
-    queryKey: ["my-purchases", userId],
-    enabled: !!userId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchases")
-        .select("*, product:products(id,title,image_url,price,has_schedule)")
-        .eq("user_id", userId!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as PurchaseWithProduct[];
-    },
-  });
+export const useUserPurchases = () => {
+  const { user } = useAuth();
 
-export const useCreatorPurchases = (ownerId: string | undefined) =>
-  useQuery({
-    queryKey: ["creator-purchases", ownerId],
-    enabled: !!ownerId,
+  return useQuery({
+    queryKey: ["purchases", user?.id],
     queryFn: async () => {
-      const { data: prods } = await supabase.from("products").select("id").eq("owner_id", ownerId!);
-      const ids = (prods ?? []).map((p) => p.id);
-      if (ids.length === 0) return [] as PurchaseWithProduct[];
+      if (!user) return [];
+      
       const { data, error } = await supabase
         .from("purchases")
-        .select("*, product:products(id,title,image_url,price)")
-        .in("product_id", ids)
+        .select(`
+          *,
+          products (
+            id,
+            title,
+            headline,
+            image_url
+          )
+        `)
+        .eq("user_id", user.id)
+        .eq("status", "completed")
         .order("created_at", { ascending: false });
+      
       if (error) throw error;
-      const rows = (data ?? []) as unknown as PurchaseWithProduct[];
-      const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-      if (userIds.length) {
-        const { data: profs } = await supabase
-          .from("profiles").select("user_id,name,email").in("user_id", userIds);
-        const map = new Map((profs ?? []).map((p) => [p.user_id, p]));
-        for (const r of rows) r.buyer = (map.get(r.user_id) as any) ?? null;
-      }
-      return rows;
+      return data as PurchaseWithProduct[];
     },
+    enabled: !!user,
   });
+};
+
+export const useCreatorPurchases = () => {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["creator-purchases", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      // First get creator's products
+      const { data: products, error: productsError } = await supabase
+        .from("products")
+        .select("id")
+        .eq("creator_id", user.id);
+      
+      if (productsError) throw productsError;
+      
+      const productIds = products.map(p => p.id);
+      
+      if (productIds.length === 0) return [];
+      
+      const { data, error } = await supabase
+        .from("purchases")
+        .select(`
+          *,
+          products (
+            id,
+            title
+          ),
+          profiles!purchases_user_id_fkey (
+            name,
+            email,
+            phone
+          )
+        `)
+        .in("product_id", productIds)
+        .eq("status", "completed")
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+};
 
 export const useCreatePurchase = () => {
-  const qc = useQueryClient();
+  const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: async ({ productId, userId, amount, paymentIntentId }: { productId: string; userId: string; amount: number; paymentIntentId?: string | null }) => {
-      const { data: existing } = await supabase
-        .from("purchases").select("id,status")
-        .eq("user_id", userId).eq("product_id", productId)
-        .in("status", ["pending", "completed"]).maybeSingle();
-      if (existing) return existing;
+    mutationFn: async (purchase: Omit<Purchase, "id" | "created_at">) => {
       const { data, error } = await supabase
         .from("purchases")
-        .insert({ user_id: userId, product_id: productId, amount, status: "pending", payment_intent_id: paymentIntentId ?? null })
-        .select().single();
+        .insert(purchase)
+        .select()
+        .single();
+      
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["my-purchases"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchases"] });
+    },
   });
 };
 
-export const useApprovePurchase = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (purchaseId: string) => {
-      const { data, error } = await supabase.functions.invoke("approve-purchase", {
-        body: { purchaseId },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      return data;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["creator-purchases"] }),
-  });
-};
+export const useHasPurchased = (productId: string | undefined) => {
+  const { user } = useAuth();
 
-export const useRejectPurchase = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (purchaseId: string) => {
-      const { error } = await supabase.from("purchases").update({ status: "rejected" }).eq("id", purchaseId);
+  return useQuery({
+    queryKey: ["has-purchased", productId, user?.id],
+    queryFn: async () => {
+      if (!user || !productId) return false;
+      
+      const { data, error } = await supabase
+        .from("purchases")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("product_id", productId)
+        .eq("status", "completed")
+        .maybeSingle();
+      
       if (error) throw error;
+      return !!data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["creator-purchases"] }),
-  });
-};
-
-export const useRevokeAccess = () => {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (purchaseId: string) => {
-      const { error } = await supabase.from("purchases").update({ status: "rejected" }).eq("id", purchaseId);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["creator-purchases"] }),
+    enabled: !!user && !!productId,
   });
 };

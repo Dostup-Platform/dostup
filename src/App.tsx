@@ -4,21 +4,18 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SimpleAuthProvider } from "@/contexts/SimpleAuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import ProductPage from "./pages/ProductPage";
-import CheckoutPage from "./pages/CheckoutPage";
-import AuthPage from "./pages/AuthPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
+import ProductPurchasePage from "./pages/ProductPurchasePage";
 import Dashboard from "./pages/Dashboard";
-import MaterialsPage from "./pages/MaterialsPage";
-import CreatorMaterialsPage from "./pages/CreatorMaterialsPage";
-import SchedulePage from "./pages/SchedulePage";
-import CreatorSchedulePage from "./pages/CreatorSchedulePage";
-import TeacherSchedulePage from "./pages/TeacherSchedulePage";
-import SettingsPage from "./pages/SettingsPage";
-import SupportPage from "./pages/SupportPage";
+import CreatorDashboard from "./pages/CreatorDashboard";
+import TeacherDashboard from "./pages/TeacherDashboard";
+import SchoolDashboard from "./pages/SchoolDashboard";
+import ModeratorDashboard from "./pages/ModeratorDashboard";
+import InstallPage from "./pages/InstallPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +24,7 @@ const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
+      <SimpleAuthProvider>
         <AuthProvider>
           <TooltipProvider>
             <Toaster />
@@ -35,22 +33,19 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/product/:productId" element={<ProductPage />} />
-            <Route path="/checkout/:productId" element={<CheckoutPage />} />
-                <Route path="/auth" element={<AuthPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/checkout/:productId" element={<ProductPurchasePage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/materials/:productId" element={<MaterialsPage />} />
-                <Route path="/creator/products/:productId/materials" element={<CreatorMaterialsPage />} />
-                <Route path="/schedule/:productId" element={<SchedulePage />} />
-                <Route path="/creator/products/:productId/schedule" element={<CreatorSchedulePage />} />
-                <Route path="/teacher/products/:productId/schedule" element={<TeacherSchedulePage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/support" element={<SupportPage />} />
+                <Route path="/creator" element={<CreatorDashboard />} />
+                <Route path="/teacher" element={<TeacherDashboard />} />
+                <Route path="/school" element={<SchoolDashboard />} />
+                <Route path="/moderator" element={<ModeratorDashboard />} />
+                <Route path="/install" element={<InstallPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
           </TooltipProvider>
         </AuthProvider>
+      </SimpleAuthProvider>
       </LanguageProvider>
     </QueryClientProvider>
   </ErrorBoundary>

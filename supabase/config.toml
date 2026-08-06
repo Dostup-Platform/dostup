@@ -1,4 +1,4 @@
-project_id = "okbuktaggaspnqpzmbyn"
+project_id = "pgbgenvyjxxgdztymakp"
 
 [functions.create-signup-token]
 verify_jwt = false

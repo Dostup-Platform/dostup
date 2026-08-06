@@ -6,18 +6,64 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/**
+ * Validate caller identity:
+ * - For creators: check creator_sessions table
+ * - For students/teachers: check simple_users table by userId
+ */
+async function validateIdentity(
+  supabase: any,
+  userRole: string,
+  creatorToken?: string,
+  creatorName?: string,
+  userId?: string
+): Promise<boolean> {
+  if (userRole === 'creator') {
+    if (!creatorToken || !creatorName) {
+      console.log('Creator role requires creatorToken and creatorName');
+      return false;
+    }
+    const { data: session } = await supabase
+      .from('creator_sessions')
+      .select('id')
+      .eq('token', creatorToken)
+      .eq('creator_name', creatorName)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    
+    if (!session) {
+      console.log('Invalid creator session for:', creatorName);
+      return false;
+    }
+    return true;
+  }
+
+  // For students/teachers: verify user exists in simple_users by id
+  if (userId) {
+    const { data: user } = await supabase
+      .from('simple_users')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+    if (user) return true;
+  }
+
+  console.log('User not found in simple_users:', userId);
+  return false;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? ''
-    const jwt = authHeader.replace(/^Bearer\s+/i, '')
-    if (!jwt) {
+    const { action, userId, userRole, fcmToken, deviceInfo, creatorToken, creatorName } = await req.json()
+
+    if (!action || !userId) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Missing action or userId' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -25,25 +71,25 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser(jwt)
-    if (userErr || !userData?.user) {
+    // --- Validate caller identity ---
+    const isValid = await validateIdentity(
+      supabase,
+      userRole || 'student',
+      creatorToken,
+      creatorName,
+      userId
+    );
+
+    if (!isValid) {
+      console.warn(`Unauthorized manage-push-token call for ${userId} (role: ${userRole})`);
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Unauthorized - identity validation failed' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-    const uid = userData.user.id
 
-    const { action, userRole, fcmToken, deviceInfo } = await req.json()
-
-    if (!action) {
-      return new Response(
-        JSON.stringify({ error: 'Missing action' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const role = userRole || 'student'
+    // Check if userId is a valid UUID (creators use string names)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
 
     switch (action) {
       case 'register': {
@@ -54,19 +100,36 @@ serve(async (req) => {
           )
         }
 
-        // Device reuse: remove this exact token if it was registered elsewhere before
-        await supabase.from('push_tokens').delete().eq('fcm_token', fcmToken)
-        // Replace this user+role's previous token for the same device role
-        await supabase.from('push_tokens').delete().eq('user_id', uid).eq('user_role', role)
+        // Delete any existing token with this fcm_token (device reuse)
+        await supabase
+          .from('push_tokens')
+          .delete()
+          .eq('fcm_token', fcmToken)
+
+        // Delete old tokens for this user
+        if (isUuid) {
+          await supabase
+            .from('push_tokens')
+            .delete()
+            .eq('user_id', userId)
+            .eq('user_role', userRole || 'student')
+        } else {
+          // For creators (non-UUID), delete by role only
+          await supabase
+            .from('push_tokens')
+            .delete()
+            .eq('user_role', 'creator')
+            .eq('device_info', deviceInfo || '')
+        }
 
         const { error } = await supabase
           .from('push_tokens')
           .insert({
-            user_id: uid,
-            user_role: role,
+            user_id: isUuid ? userId : null,
+            user_role: userRole || 'student',
             fcm_token: fcmToken,
             device_info: deviceInfo || null,
-            updated_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           })
 
         if (error) {
@@ -77,7 +140,7 @@ serve(async (req) => {
           )
         }
 
-        console.log(`Token registered for ${uid} (${role})`)
+        console.log(`Token registered for ${userId} (${userRole})`)
         return new Response(
           JSON.stringify({ success: true }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -85,9 +148,15 @@ serve(async (req) => {
       }
 
       case 'unregister': {
-        let deleteQuery = supabase.from('push_tokens').delete().eq('user_id', uid)
-        if (fcmToken) deleteQuery = deleteQuery.eq('fcm_token', fcmToken)
-        else deleteQuery = deleteQuery.eq('user_role', role)
+        let deleteQuery = supabase.from('push_tokens').delete()
+        
+        if (fcmToken) {
+          deleteQuery = deleteQuery.eq('fcm_token', fcmToken)
+        } else if (isUuid) {
+          deleteQuery = deleteQuery.eq('user_id', userId)
+        } else {
+          deleteQuery = deleteQuery.eq('user_role', 'creator')
+        }
 
         const { error } = await deleteQuery
 
@@ -99,7 +168,7 @@ serve(async (req) => {
           )
         }
 
-        console.log(`Token(s) unregistered for ${uid}`)
+        console.log(`Token(s) unregistered for ${userId}`)
         return new Response(
           JSON.stringify({ success: true }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
