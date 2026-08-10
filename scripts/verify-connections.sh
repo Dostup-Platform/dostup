@@ -41,11 +41,11 @@ check "Триггер на simple_bookings" "grep -q 'ON public.simple_bookings'
 
 echo ""
 echo "=== Сборка фронтенда ==="
-if bun run build &>/dev/null; then
-  echo "  OK  bun run build"
+if npm run build &>/dev/null; then
+  echo "  OK  npm run build"
   PASS=$((PASS + 1))
 else
-  echo "  FAIL bun run build"
+  echo "  FAIL npm run build"
   FAIL=$((FAIL + 1))
 fi
 
