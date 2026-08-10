@@ -1,8 +1,8 @@
 #!/bin/bash
-# Деплой подключений в Supabase проект pgbgenvyjxxgdztymakp
+# Деплой подключений в Supabase проект mebomnqdtuqmjjefvgkx
 set -euo pipefail
 
-PROJECT_REF="pgbgenvyjxxgdztymakp"
+PROJECT_REF="mebomnqdtuqmjjefvgkx"
 
 echo "=== 1. Проверка Supabase CLI ==="
 if ! command -v supabase &>/dev/null; then

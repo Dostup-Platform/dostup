@@ -1,6 +1,6 @@
 # Подключение сервисов (старая версия, simple auth)
 
-Проект: **pgbgenvyjxxgdztymakp**  
+Проект: **mebomnqdtuqmjjefvgkx**  
 Вход: ученики по имени (`simple_users`), авторы по логину (`creator_accounts`).
 
 ## Что нужно
@@ -22,7 +22,7 @@ chmod +x scripts/deploy-connections.sh
 
 ```bash
 supabase login
-supabase link --project-ref pgbgenvyjxxgdztymakp
+supabase link --project-ref mebomnqdtuqmjjefvgkx
 supabase db push
 supabase functions deploy
 ```
@@ -56,7 +56,7 @@ SELECT cron.schedule(
   'send-reminders',
   '* * * * *',
   $$ SELECT net.http_post(
-       url := 'https://pgbgenvyjxxgdztymakp.supabase.co/functions/v1/send-reminders',
+       url := 'https://mebomnqdtuqmjjefvgkx.supabase.co/functions/v1/send-reminders',
        headers := jsonb_build_object(
          'Content-Type','application/json',
          'Authorization','Bearer <ANON_KEY>'
