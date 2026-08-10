@@ -18,7 +18,7 @@ echo "=== 3. Применение миграций ==="
 supabase db push
 
 echo "=== 4. Деплой edge-функций ==="
-supabase functions deploy
+supabase functions deploy --use-api
 
 echo "=== 5. Секреты (задайте вручную если ещё не заданы) ==="
 echo "  AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET, AWS_S3_REGION"
