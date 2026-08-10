@@ -3,11 +3,11 @@
 
 -- 1) Настраиваемый URL для edge-функций (вместо хардкода в notify_*)
 INSERT INTO public.app_settings (key, value)
-VALUES ('functions_base_url', 'https://pgbgenvyjxxgdztymakp.supabase.co/functions/v1')
+VALUES ('functions_base_url', 'https://mebomnqdtuqmjjefvgkx.supabase.co/functions/v1')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 INSERT INTO public.app_settings (key, value)
-VALUES ('supabase_anon_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnYmdlbnZ5anh4Z2R6dHltYWtwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgxODI5NjMsImV4cCI6MjA4Mzc1ODk2M30.3ppZd4hlFCe34wH2OLb9dzC0sI1VUooSXzwO0-aPs8I')
+VALUES ('supabase_anon_key', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1lYm9tbnFkdHVxbWpqZWZ2Z2t4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzNzY5MjIsImV4cCI6MjEwMTk1MjkyMn0.njVi_fa7ruu1ovJ9XFUzLlWNS71hti3Di0sLkLIUwLY')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 CREATE OR REPLACE FUNCTION public.call_edge_function(_name text, _payload jsonb)
