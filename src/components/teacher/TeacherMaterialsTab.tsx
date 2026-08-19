@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sessionCreds, studentCreds, invokeApi } from "@/lib/sessionApi";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { FileText, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,14 +17,11 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
   const { data: teacherUser } = useQuery({
     queryKey: ["teacher-user-id", teacherName],
     queryFn: async () => {
-      if (!teacherName) return null;
-      const { data } = await supabase
-        .from("simple_users")
-        .select("id")
-        .eq("name", teacherName)
-        .eq("role", "teacher")
-        .maybeSingle();
-      return data;
+      const data = await invokeApi<{ userId: string | null }>("manage-schedules", {
+        action: "me",
+        ...studentCreds(),
+      });
+      return data.userId ? { id: data.userId } : null;
     },
     enabled: !!teacherName,
   });
@@ -33,12 +30,11 @@ const TeacherMaterialsTab = ({ productIds, teacherName }: TeacherMaterialsTabPro
     queryKey: ["teacher-products-info", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, title")
-        .in("id", productIds);
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ products: { id: string; title: string }[] }>("manage-products", {
+        action: "list",
+        ...sessionCreds(),
+      });
+      return (data.products ?? []).filter((p) => productIds.includes(p.id));
     },
     enabled: productIds.length > 0,
   });

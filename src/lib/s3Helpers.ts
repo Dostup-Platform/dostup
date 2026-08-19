@@ -16,8 +16,16 @@ export async function getS3DownloadUrl(
   userId?: string,
   download?: string | false
 ): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('s3-download', {
-    body: { path, role, userId, download: download || false },
+  const { data, error } = await supabase.functions.invoke('tokenized-download', {
+    body: {
+      path,
+      role,
+      userId,
+      download: download || false,
+      sessionToken: localStorage.getItem("simple_session_token") || "",
+      creatorToken: localStorage.getItem("creator_token") || "",
+      creatorName: localStorage.getItem("creator_name") || "",
+    },
   });
 
   if (error) throw error;
@@ -72,6 +80,7 @@ export async function uploadFileToS3(
     creatorToken?: string;
     creatorName?: string;
     teacherId?: string;
+    sessionToken?: string;
     onProgress?: UploadProgressCallback;
   }
 ): Promise<string> {
@@ -93,6 +102,7 @@ export async function uploadFileToS3(
       creatorToken: options.creatorToken,
       creatorName: options.creatorName,
       teacherId: options.teacherId,
+      sessionToken: options.sessionToken || localStorage.getItem("simple_session_token") || "",
     }),
   });
 

@@ -4,15 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useProduct } from "@/hooks/useProducts";
+import { useCheckoutProduct } from "@/hooks/useProducts";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Download } from "lucide-react";
+import { invokeApi, studentCreds } from "@/lib/sessionApi";
+import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Download, Copy } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import heroBackground from "@/assets/hero-background.jpg";
+import ReceiptUploadCard, { ReceiptSubmission } from "@/components/checkout/ReceiptUploadCard";
 // Push notifications are now sent from the server via database triggers
 
 const formatPrice = (price: number) => {
@@ -23,13 +24,24 @@ const formatPrice = (price: number) => {
   }).format(price);
 };
 
+const formatKaspiPhone = (phone: string) => {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("7")) {
+    return `+7 ${digits.slice(1, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 9)} ${digits.slice(9)}`;
+  }
+  if (digits.length === 10) {
+    return `+7 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 8)} ${digits.slice(8)}`;
+  }
+  return phone;
+};
+
 const ProductPurchasePage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { t } = useLanguage();
-  const { user, register } = useSimpleAuth();
-  const { data: product, isLoading } = useProduct(productId);
+  const { user, sessionToken } = useSimpleAuth();
+  const { data: product, isLoading } = useCheckoutProduct(productId);
   
   // Получить параметры учителя из URL
   const teacherParam = searchParams.get("teacher");
@@ -43,6 +55,7 @@ const ProductPurchasePage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<"form" | "pending" | "completed">("form");
   const [purchaseId, setPurchaseId] = useState<string | null>(null);
+  const [receiptSubmission, setReceiptSubmission] = useState<ReceiptSubmission | null>(null);
   // Push notifications are now sent from the server via database triggers
 
   // Найти teacher_id по имени из URL
@@ -55,55 +68,14 @@ const ProductPurchasePage = () => {
       
       setTeacherLoading(true);
       
-      // teacherParam - это имя учителя (закодированное в URL)
       const teacherName = decodeURIComponent(teacherParam);
-      console.log("Looking for teacher:", teacherName);
-      
-      // Сначала проверяем, что такой учитель есть в product_teachers
-      const { data: teacherRecord } = await supabase
-        .from("product_teachers")
-        .select("id, teacher_name")
-        .eq("product_id", productId)
-        .eq("teacher_name", teacherName)
-        .maybeSingle();
-      
-      if (!teacherRecord) {
-        console.log("Teacher not found in product_teachers");
-        setTeacherLoading(false);
-        return;
-      }
-      
-      // Найти учителя в simple_users по имени
-      const { data: teacherUser } = await supabase
-        .from("simple_users")
-        .select("id")
-        .eq("name", teacherName)
-        .eq("role", "teacher")
-        .maybeSingle();
-      
-      if (teacherUser) {
-        console.log("Found teacher in simple_users:", teacherUser.id);
-        setTeacherId(teacherUser.id);
-        setTeacherLoading(false);
-      } else {
-        // Создать учителя в simple_users если его ещё нет
-        console.log("Creating new teacher in simple_users");
-        const { data: newTeacher, error } = await supabase
-          .from("simple_users")
-          .insert({
-            name: teacherName,
-            phone: `teacher_${Date.now()}`,
-            role: "teacher",
-          })
-          .select("id")
-          .single();
-        
-        if (!error && newTeacher) {
-          console.log("Created teacher:", newTeacher.id);
-          setTeacherId(newTeacher.id);
-        }
-        setTeacherLoading(false);
-      }
+      const data = await invokeApi<{ teacherId: string | null }>("checkout", {
+        action: "lookup_teacher",
+        productId,
+        teacherName,
+      });
+      setTeacherId(data.teacherId);
+      setTeacherLoading(false);
     };
     
     findTeacherId();
@@ -113,15 +85,19 @@ const ProductPurchasePage = () => {
   useEffect(() => {
     const checkExistingPurchase = async () => {
       if (user && productId) {
-        const { data } = await supabase
-          .from("simple_purchases")
-          .select("*")
-          .eq("simple_user_id", user.id)
-          .eq("product_id", productId)
-          .single();
+        const token = sessionToken || localStorage.getItem("simple_session_token") || "";
+        const result = await invokeApi<{
+          purchase: { id: string; status: string; latest_submission?: ReceiptSubmission | null } | null
+        }>("checkout", {
+          action: "get_my_purchase",
+          sessionToken: token,
+          productId,
+        });
+        const data = result.purchase;
 
         if (data) {
           setPurchaseId(data.id);
+          setReceiptSubmission(data.latest_submission ?? null);
           if (data.status === "completed") {
             setPurchaseStatus("completed");
             navigate("/dashboard");
@@ -135,38 +111,50 @@ const ProductPurchasePage = () => {
     checkExistingPurchase();
   }, [user, productId, navigate]);
 
-  // Realtime подписка для отслеживания подтверждения покупки
+  // Poll pending purchase until the creator confirms (realtime is closed after RLS lockdown)
   useEffect(() => {
     if (purchaseStatus !== "pending" || !purchaseId) return;
-
-    const channel = supabase
-      .channel(`purchase-${purchaseId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "simple_purchases",
-          filter: `id=eq.${purchaseId}`
-        },
-        (payload: any) => {
-          if (payload.new?.status === "completed") {
-            setPurchaseStatus("completed");
-            toast.success(t("accessGranted"));
-            navigate("/dashboard");
-          }
+    const token = sessionToken || localStorage.getItem("simple_session_token") || "";
+    const tick = async () => {
+      try {
+        const result = await invokeApi<{
+          purchase: { id: string; status: string; latest_submission?: ReceiptSubmission | null } | null
+        }>("checkout", {
+          action: "get_my_purchase",
+          sessionToken: token,
+          productId,
+        });
+        if (result.purchase?.latest_submission) {
+          setReceiptSubmission(result.purchase.latest_submission);
         }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
+        if (result.purchase?.status === "completed") {
+          setPurchaseStatus("completed");
+          toast.success(t("accessGranted"));
+          navigate("/dashboard");
+        }
+      } catch {
+        /* retry */
+      }
     };
-  }, [purchaseStatus, purchaseId, navigate, t]);
+    tick();
+    const id = window.setInterval(tick, 4000);
+    return () => window.clearInterval(id);
+  }, [purchaseStatus, purchaseId, navigate, t, sessionToken, productId]);
 
   const handleKaspiPayment = () => {
     if (!product?.kaspi_link) return;
     window.open(product.kaspi_link, "_blank");
+  };
+
+  const handleCopyKaspiPhone = async () => {
+    const phone = product?.kaspi_phone;
+    if (!phone) return;
+    try {
+      await navigator.clipboard.writeText(phone);
+      toast.success(t("kaspiPhoneCopied"));
+    } catch {
+      toast.error(phone);
+    }
   };
 
   const handleSubmitPurchase = async (e: React.FormEvent) => {
@@ -182,86 +170,34 @@ const ProductPurchasePage = () => {
     
     console.log("Creating purchase with teacherId:", teacherId, "canChoose:", canChoose);
 
-    // Зарегистрировать пользователя с полным именем
-    const fullName = `${firstName.trim()} ${lastName.trim()}`;
-    const { user: newUser, error } = await register(fullName);
-
-    if (error || !newUser) {
-      toast.error(error?.message || "Ошибка регистрации");
+    if (!user) {
+      toast.error(t("loginRequiredCheckout"));
+      navigate("/");
       setIsProcessing(false);
       return;
     }
 
-    // Установить роль студента
-    await supabase
-      .from("simple_users")
-      .update({ role: "student" })
-      .eq("id", newUser.id);
-
-    // Проверить, есть ли уже pending покупка для этого пользователя и продукта
-    const { data: existingPurchase } = await supabase
-      .from("simple_purchases")
-      .select("id, status")
-      .eq("simple_user_id", newUser.id)
-      .eq("product_id", productId)
-      .maybeSingle();
-
-    if (existingPurchase) {
-      // Если покупка уже существует, просто показать страницу ожидания
-      setPurchaseId(existingPurchase.id);
-      if (existingPurchase.status === "completed") {
+    const token = sessionToken || localStorage.getItem("creator_token") || "";
+    try {
+      const result = await invokeApi<{ purchase: { id: string; status: string } }>("checkout", {
+        action: "create_purchase",
+        sessionToken: token,
+        productId,
+        assignedTeacherId: teacherId,
+        canChooseTeacher: canChoose,
+      });
+      const purchase = result.purchase;
+      if (purchase.status === "completed") {
         setPurchaseStatus("completed");
         navigate("/dashboard");
-      } else {
-        setPurchaseStatus("pending");
+        setIsProcessing(false);
+        return;
       }
-      setIsProcessing(false);
-      return;
-    }
-
-    // Создать покупку в статусе pending только если её ещё нет
-    const insertData: {
-      simple_user_id: string;
-      product_id: string | undefined;
-      amount: number;
-      status: string;
-      assigned_teacher_id?: string;
-      can_choose_teacher?: boolean;
-    } = {
-      simple_user_id: newUser.id,
-      product_id: productId,
-      amount: product?.price || 0,
-      status: "pending"
-    };
-    
-    // Добавить информацию об учителе если есть
-    if (teacherId) {
-      insertData.assigned_teacher_id = teacherId;
-      console.log("Adding assigned_teacher_id to purchase:", teacherId);
-    }
-    if (canChoose) {
-      insertData.can_choose_teacher = true;
-      console.log("Setting can_choose_teacher = true");
-    }
-    
-    console.log("Final insertData:", insertData);
-    
-    const { data: purchase, error: purchaseError } = await supabase
-      .from("simple_purchases")
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (purchaseError) {
+      setPurchaseId(purchase.id);
+      setPurchaseStatus("pending");
+    } catch {
       toast.error("Ошибка создания заказа");
-      setIsProcessing(false);
-      return;
     }
-
-    // Push notification to creator is now sent automatically from the server via database trigger
-
-    setPurchaseId(purchase.id);
-    setPurchaseStatus("pending");
     setIsProcessing(false);
   };
 
@@ -279,18 +215,21 @@ const ProductPurchasePage = () => {
     price: 49000,
     image_url: heroBackground,
     kaspi_link: null,
+    kaspi_phone: null,
   };
+  const hasKaspiLink = Boolean(displayProduct.kaspi_link);
+  const hasKaspiPhone = Boolean(displayProduct.kaspi_phone);
+  const hasPaymentMethod = hasKaspiLink || hasKaspiPhone;
 
   const handleBackToPayment = async () => {
     // Удалить pending покупку чтобы можно было вернуться к оплате
     if (purchaseId) {
-      await supabase
-        .from("simple_purchases")
-        .delete()
-        .eq("id", purchaseId);
+      const token = sessionToken || localStorage.getItem("simple_session_token") || "";
+      await invokeApi("checkout", { action: "cancel_pending", sessionToken: token, purchaseId });
     }
     setPurchaseId(null);
     setPurchaseStatus("form");
+    setReceiptSubmission(null);
   };
 
   // Показать страницу ожидания
@@ -316,17 +255,39 @@ const ProductPurchasePage = () => {
                 <Clock className="w-8 h-8 text-primary animate-pulse" />
               </div>
               <h2 className="text-xl font-bold text-foreground mb-2">
-                {t("waitingForConfirmation")}
+                {receiptSubmission?.verification_status === "manual_review"
+                  ? t("receiptManualReviewTitle")
+                  : receiptSubmission?.verification_status === "payment_qr_or_invoice"
+                    ? t("receiptPayFirstTitle")
+                    : receiptSubmission?.verification_status === "unreadable"
+                      ? t("receiptUnreadableTitle")
+                      : t("uploadPaymentReceipt")}
               </h2>
               <p className="text-muted-foreground mb-6">
-                {t("waitingDescription")}
+                {receiptSubmission?.verification_status === "manual_review"
+                  ? t("receiptManualReviewBody")
+                  : receiptSubmission?.verification_status === "payment_qr_or_invoice"
+                    ? t("receiptPayFirstBody")
+                    : receiptSubmission?.verification_status === "unreadable"
+                      ? t("receiptUnreadableBody")
+                      : t("uploadReceiptHint")}
               </p>
-              
-              <div className="bg-muted/50 rounded-lg p-4 text-left">
-                <p className="text-sm text-muted-foreground">
-                  {t("sendReceiptInfo")}
-                </p>
-              </div>
+
+              {purchaseId && (
+                <ReceiptUploadCard
+                  purchaseId={purchaseId}
+                  sessionToken={sessionToken || studentCreds().sessionToken}
+                  expectedAmount={Number(displayProduct.price)}
+                  submission={receiptSubmission}
+                  onSubmitted={(result) => {
+                    setReceiptSubmission(result.submission);
+                    if (result.purchase_status === "completed" || result.verification_status === "confirmed") {
+                      setPurchaseStatus("completed");
+                      navigate("/dashboard");
+                    }
+                  }}
+                />
+              )}
 
               <Link 
                 to="/install" 
@@ -411,6 +372,15 @@ const ProductPurchasePage = () => {
                 </div>
               </div>
 
+              {!user && (
+                <div className="rounded-lg border bg-muted/40 p-4 text-center space-y-3">
+                  <p className="text-sm text-muted-foreground">{t("loginRequiredCheckout")}</p>
+                  <Button type="button" variant="cta" className="w-full bg-[#FF6B00]" onClick={() => navigate("/")}>
+                    {t("continue")}
+                  </Button>
+                </div>
+              )}
+
               {/* Предупреждение о чеке */}
               <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
                 <p className="text-sm text-amber-800 font-medium">
@@ -419,26 +389,45 @@ const ProductPurchasePage = () => {
               </div>
 
               {/* Kaspi Payment */}
-              {displayProduct.kaspi_link ? (
+              {hasPaymentMethod ? (
                 <div className="space-y-4">
-                  <Button 
-                    type="button"
-                    onClick={handleKaspiPayment}
-                    className="w-full h-14 bg-[#F14635] hover:bg-[#d63d2e] text-white font-semibold text-lg"
-                    disabled={!firstName.trim() || !lastName.trim()}
-                  >
-                    <span className="flex items-center gap-2">
-                      {t("payWithKaspi")}
-                      <ExternalLink className="w-5 h-5" />
-                    </span>
-                  </Button>
+                  {hasKaspiLink ? (
+                    <Button 
+                      type="button"
+                      onClick={handleKaspiPayment}
+                      className="w-full h-14 bg-[#F14635] hover:bg-[#d63d2e] text-white font-semibold text-lg"
+                      disabled={!user || !firstName.trim() || !lastName.trim()}
+                    >
+                      <span className="flex items-center gap-2">
+                        {t("payWithKaspi")}
+                        <ExternalLink className="w-5 h-5" />
+                      </span>
+                    </Button>
+                  ) : (
+                    <div className="rounded-lg border border-[#F14635]/30 bg-[#F14635]/5 p-4 space-y-3">
+                      <p className="text-sm text-foreground">{t("kaspiPhoneInstruction")}</p>
+                      <p className="text-xl font-bold text-center tracking-wide">
+                        {formatKaspiPhone(String(displayProduct.kaspi_phone))}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={handleCopyKaspiPhone}
+                        disabled={!user || !firstName.trim() || !lastName.trim()}
+                      >
+                        <Copy className="w-4 h-4 mr-2" />
+                        {t("copyKaspiPhone")}
+                      </Button>
+                    </div>
+                  )}
 
                   <Button 
                     type="submit" 
                     variant="outline" 
                     size="lg" 
                     className="w-full"
-                    disabled={isProcessing || !firstName.trim() || !lastName.trim()}
+                    disabled={isProcessing || !user || !firstName.trim() || !lastName.trim()}
                   >
                     {isProcessing ? (
                       <span className="flex items-center gap-2">

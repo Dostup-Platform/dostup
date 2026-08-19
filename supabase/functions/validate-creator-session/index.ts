@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { listProfiles, loadAccountForProfile, publicProfiles, type ProfileRow } from '../_shared/profiles.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,8 +15,7 @@ serve(async (req) => {
   try {
     const { token, creatorName } = await req.json()
 
-    if (!token || !creatorName) {
-      console.log('Missing token or creatorName')
+    if (!token) {
       return new Response(
         JSON.stringify({ valid: false }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -27,34 +27,53 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Check if session exists and is not expired
-    const { data: session, error } = await supabase
+    let query = supabase
       .from('creator_sessions')
       .select('*')
       .eq('token', token)
-      .eq('creator_name', creatorName)
       .gt('expires_at', new Date().toISOString())
-      .maybeSingle()
 
-    if (error) {
-      console.error('Error querying session:', error)
+    if (typeof creatorName === 'string' && creatorName.trim()) {
+      query = query.eq('creator_name', creatorName.trim())
+    }
+
+    const { data: session, error } = await query.maybeSingle()
+
+    if (error || !session) {
       return new Response(
         JSON.stringify({ valid: false }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (!session) {
-      console.log('No valid session found for:', creatorName)
-      return new Response(
-        JSON.stringify({ valid: false }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    let profile: ProfileRow | null = null
+    if (session.profile_id) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, auth_user_id, type, display_name, last_used_at, created_at')
+        .eq('id', session.profile_id)
+        .maybeSingle()
+      profile = (data as ProfileRow | null) ?? null
     }
 
-    console.log('Valid session found for:', creatorName)
+    const account = profile ? await loadAccountForProfile(supabase, profile.id) : null
+    const profiles = profile?.auth_user_id
+      ? publicProfiles(await listProfiles(supabase, profile.auth_user_id))
+      : profile
+        ? publicProfiles([profile])
+        : []
+
     return new Response(
-      JSON.stringify({ valid: true }),
+      JSON.stringify({
+        valid: true,
+        profileId: profile?.id ?? null,
+        profileType: profile?.type ?? null,
+        displayName: profile?.display_name ?? session.creator_name,
+        creatorName: session.creator_name,
+        accountType: account?.account_type ?? null,
+        createdAt: profile?.created_at ?? session.created_at,
+        profiles,
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

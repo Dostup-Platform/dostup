@@ -4,6 +4,7 @@ import { Bell, Calendar, Clock, CheckCircle, Unlock, XCircle, ArrowRightLeft } f
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { studentCreds, invokeApi } from "@/lib/sessionApi";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { format, formatDistanceToNow } from "date-fns";
@@ -76,15 +77,14 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
     queryKey: ["student-cancellations", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("booking_cancellations")
-        .select("*")
-        .eq("simple_user_id", user.id)
-        .in("cancelled_by", ["creator", "teacher"])
-        .order("cancelled_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return (data || []) as BookingCancellation[];
+      const data = await invokeApi<{ cancellations: BookingCancellation[] }>("manage-bookings", {
+        action: "list_cancellations",
+        ...studentCreds(),
+      });
+      return (data.cancellations ?? [])
+        .filter((c) => c.cancelled_by === "creator" || c.cancelled_by === "teacher")
+        .sort((a, b) => new Date(b.cancelled_at).getTime() - new Date(a.cancelled_at).getTime())
+        .slice(0, 50);
     },
     enabled: !!user?.id,
   });
@@ -94,21 +94,27 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
     queryKey: ["student-confirmed-purchases", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("simple_purchases")
-        .select("id, product_id, confirmed_at, product:products(title)")
-        .eq("simple_user_id", user.id)
-        .in("status", ["confirmed", "completed"])
-        .not("confirmed_at", "is", null)
-        .order("confirmed_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return (data || []).map((p: any) => ({
-        id: p.id,
-        product_id: p.product_id,
-        confirmed_at: p.confirmed_at,
-        product_title: p.product?.title || "",
-      })) as ConfirmedPurchase[];
+      const data = await invokeApi<{ purchases: {
+        id: string;
+        product_id: string;
+        created_at?: string;
+        confirmed_at?: string | null;
+        product?: { title?: string } | null;
+      }[] }>("checkout", {
+        action: "list_my_purchases",
+        ...studentCreds(),
+        status: "completed",
+      });
+      return (data.purchases ?? [])
+        .map((p) => ({
+          id: p.id,
+          product_id: p.product_id,
+          confirmed_at: p.confirmed_at || p.created_at || "",
+          product_title: p.product?.title || "",
+        }))
+        .filter((p) => !!p.confirmed_at)
+        .sort((a, b) => new Date(b.confirmed_at).getTime() - new Date(a.confirmed_at).getTime())
+        .slice(0, 50) as ConfirmedPurchase[];
     },
     enabled: !!user?.id,
   });
@@ -118,14 +124,14 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
     queryKey: ["student-material-unlocks", purchasedProductIds],
     queryFn: async () => {
       if (purchasedProductIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("material_unlocks")
-        .select("*")
-        .in("product_id", purchasedProductIds)
-        .order("unlocked_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return (data || []) as MaterialUnlock[];
+      const data = await invokeApi<{ unlocks: MaterialUnlock[] }>("manage-materials", {
+        action: "list_unlocks",
+        ...studentCreds(),
+      });
+      return (data.unlocks ?? [])
+        .filter((u) => !u.product_id || purchasedProductIds.includes(u.product_id))
+        .sort((a, b) => new Date(b.unlocked_at).getTime() - new Date(a.unlocked_at).getTime())
+        .slice(0, 50);
     },
     enabled: purchasedProductIds.length > 0,
   });
@@ -135,15 +141,14 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
     queryKey: ["student-rejected-reschedules", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("reschedule_requests")
-        .select("id, product_title, old_date, old_time, new_date, new_time, response_comment, responded_at")
-        .eq("simple_user_id", user.id)
-        .eq("status", "rejected")
-        .order("responded_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return (data || []) as RejectedReschedule[];
+      const data = await invokeApi<{ requests: RejectedReschedule[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...studentCreds(),
+        status: "rejected",
+      });
+      return (data.requests ?? [])
+        .sort((a, b) => new Date(b.responded_at).getTime() - new Date(a.responded_at).getTime())
+        .slice(0, 50);
     },
     enabled: !!user?.id,
   });
@@ -153,16 +158,15 @@ const NotificationsTab = ({ lastViewedAt, purchasedProductIds = [] }: Notificati
     queryKey: ["student-incoming-reschedules", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("reschedule_requests")
-        .select("id, product_title, old_date, old_time, new_date, new_time, comment, reasons, requested_by, created_at")
-        .eq("simple_user_id", user.id)
-        .eq("status", "pending")
-        .neq("requested_by", "student")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return (data || []) as IncomingReschedule[];
+      const data = await invokeApi<{ requests: IncomingReschedule[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...studentCreds(),
+        status: "pending",
+      });
+      return (data.requests ?? [])
+        .filter((r) => r.requested_by !== "student")
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 50);
     },
     enabled: !!user?.id,
   });

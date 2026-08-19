@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sessionCreds, studentCreds, invokeApi } from "@/lib/sessionApi";
 
 type MaterialType = "file" | "video" | "text" | "folder" | "link";
 
@@ -18,22 +18,22 @@ interface TeacherMaterial {
   allow_download?: boolean;
 }
 
-// Get materials uploaded by a specific teacher for their products
 export const useTeacherOwnMaterials = (teacherId: string | undefined, productIds: string[]) => {
   return useQuery({
     queryKey: ["teacher-own-materials", teacherId, productIds],
     queryFn: async () => {
       if (!teacherId || !productIds.length) return [];
-      
-      const { data, error } = await supabase
-        .from("materials")
-        .select("*")
-        .eq("teacher_id", teacherId)
-        .in("product_id", productIds)
-        .order("order_index", { ascending: true });
-      
-      if (error) throw error;
-      return data as TeacherMaterial[];
+      const all: TeacherMaterial[] = [];
+      for (const productId of productIds) {
+        const data = await invokeApi<{ materials: TeacherMaterial[] }>("manage-materials", {
+          action: "list",
+          ...sessionCreds(),
+          productId,
+          teacherId,
+        });
+        all.push(...(data.materials ?? []));
+      }
+      return all;
     },
     enabled: !!teacherId && productIds.length > 0,
   });
@@ -57,27 +57,14 @@ export const useCreateTeacherMaterial = () => {
 
   return useMutation({
     mutationFn: async (material: CreateTeacherMaterialInput) => {
-      const { data, error } = await supabase
-        .from("materials")
-        .insert({
-          product_id: material.product_id,
-          teacher_id: material.teacher_id,
-          title: material.title,
-          type: material.type,
-          content: material.content || null,
-          file_url: material.file_url || null,
-          order_index: material.order_index || 0,
-          parent_id: material.parent_id || null,
-          allow_view: material.allow_view !== false,
-          allow_download: material.allow_download !== false,
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      const data = await invokeApi<{ material: TeacherMaterial }>("manage-materials", {
+        action: "create",
+        ...sessionCreds(),
+        material,
+      });
+      return data.material;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-own-materials"] });
       queryClient.invalidateQueries({ queryKey: ["student-teacher-materials"] });
     },
@@ -89,16 +76,13 @@ export const useUpdateTeacherMaterial = () => {
 
   return useMutation({
     mutationFn: async ({ id, teacherId, ...updates }: Partial<TeacherMaterial> & { id: string; teacherId: string }) => {
-      const { data, error } = await supabase
-        .from("materials")
-        .update(updates)
-        .eq("id", id)
-        .eq("teacher_id", teacherId)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return { ...data, teacherId };
+      const data = await invokeApi<{ material: TeacherMaterial }>("manage-materials", {
+        action: "update",
+        ...sessionCreds(),
+        id,
+        updates,
+      });
+      return { ...data.material, teacherId };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-own-materials"] });
@@ -111,22 +95,12 @@ export const useDeleteTeacherMaterial = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, teacherId, file_url }: { id: string; teacherId: string; file_url?: string | null }) => {
-      // Delete file from storage if exists
-      if (file_url) {
-        const path = file_url.split("/materials/")[1] || file_url;
-        if (path && !path.startsWith('http')) {
-          await supabase.storage.from("materials").remove([path]);
-        }
-      }
-      
-      const { error } = await supabase
-        .from("materials")
-        .delete()
-        .eq("id", id)
-        .eq("teacher_id", teacherId);
-      
-      if (error) throw error;
+    mutationFn: async ({ id, teacherId }: { id: string; teacherId: string; file_url?: string | null }) => {
+      await invokeApi("manage-materials", {
+        action: "hard_delete",
+        ...sessionCreds(),
+        id,
+      });
       return { id, teacherId };
     },
     onSuccess: () => {
@@ -136,18 +110,16 @@ export const useDeleteTeacherMaterial = () => {
   });
 };
 
-// Upload material file for teacher
 export const uploadTeacherMaterialFile = async (
-  file: File, 
-  productId: string, 
+  file: File,
+  productId: string,
   teacherId: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
 ): Promise<string> => {
-  // Upload to S3 via presigned URL
   const { uploadFileToS3 } = await import("@/lib/s3Helpers");
-  
-  return uploadFileToS3(file, productId, 'teacher', {
+  return uploadFileToS3(file, productId, "teacher", {
     teacherId,
+    sessionToken: localStorage.getItem("simple_session_token") || "",
     onProgress,
   });
 };

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { studentCreds, invokeApi } from "@/lib/sessionApi";
 
 export interface NotificationPreferences {
   reminder_24h: boolean;
@@ -20,22 +20,23 @@ export const useNotificationPreferences = (userId: string | undefined) => {
     queryKey: ["notification-preferences", userId],
     queryFn: async () => {
       if (!userId) return DEFAULT_PREFERENCES;
-
-      const { data, error } = await supabase
-        .from("notification_preferences")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!data) return DEFAULT_PREFERENCES;
-
+      const data = await invokeApi<{
+        prefs: {
+          reminder_24h: boolean;
+          reminder_morning: boolean;
+          morning_time: string | null;
+          reminder_2h: boolean;
+        } | null;
+      }>("manage-account", {
+        action: "get_prefs",
+        ...studentCreds(),
+      });
+      if (!data.prefs) return DEFAULT_PREFERENCES;
       return {
-        reminder_24h: data.reminder_24h,
-        reminder_morning: data.reminder_morning,
-        morning_time: data.morning_time?.slice(0, 5) || "08:00",
-        reminder_2h: data.reminder_2h,
+        reminder_24h: data.prefs.reminder_24h,
+        reminder_morning: data.prefs.reminder_morning,
+        morning_time: data.prefs.morning_time?.slice(0, 5) || "08:00",
+        reminder_2h: data.prefs.reminder_2h,
       } as NotificationPreferences;
     },
     enabled: !!userId,

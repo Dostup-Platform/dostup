@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Bell, BellOff, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { studentCreds, invokeApi } from "@/lib/sessionApi";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 
@@ -68,14 +68,13 @@ const NotificationPreferences = ({ userId }: NotificationPreferencesProps) => {
   const { data: existingPrefs, isLoading } = useQuery({
     queryKey: ["notification-preferences", userId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("notification_preferences")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
+      const data = await invokeApi<{ prefs: {
+        reminder_24h: boolean;
+        reminder_morning: boolean;
+        morning_time: string | null;
+        reminder_2h: boolean;
+      } | null }>("manage-account", { action: "get_prefs", ...studentCreds() });
+      return data.prefs;
     },
     enabled: !!userId,
   });
@@ -97,38 +96,11 @@ const NotificationPreferences = ({ userId }: NotificationPreferencesProps) => {
   // Save preferences mutation
   const saveMutation = useMutation({
     mutationFn: async (prefs: Preferences) => {
-      // Check if record exists
-      const { data: existing } = await supabase
-        .from("notification_preferences")
-        .select("id")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (existing) {
-        const { error } = await supabase
-          .from("notification_preferences")
-          .update({
-            user_id: userId,
-            reminder_24h: prefs.reminder_24h,
-            reminder_morning: prefs.reminder_morning,
-            morning_time: prefs.morning_time,
-            reminder_2h: prefs.reminder_2h,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("notification_preferences")
-          .insert({
-            user_id: userId,
-            reminder_24h: prefs.reminder_24h,
-            reminder_morning: prefs.reminder_morning,
-            morning_time: prefs.morning_time,
-            reminder_2h: prefs.reminder_2h,
-          });
-        if (error) throw error;
-      }
+      await invokeApi("manage-account", {
+        action: "save_prefs",
+        ...studentCreds(),
+        prefs,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notification-preferences", userId] });

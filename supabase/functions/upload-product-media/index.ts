@@ -73,9 +73,15 @@ Deno.serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    const { data: account } = await supabase
+      .from('creator_accounts')
+      .select('id')
+      .ilike('login', creatorName)
+      .maybeSingle()
+
     const { data: product, error: productError } = await supabase
       .from('products')
-      .select('id, creator_id')
+      .select('id, creator_account_id')
       .eq('id', productId)
       .single()
 
@@ -84,7 +90,7 @@ Deno.serve(async (req) => {
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    if (product.creator_id !== creatorName) {
+    if (!account || product.creator_account_id !== account.id) {
       return new Response(JSON.stringify({ error: 'Unauthorized - not the product creator' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }

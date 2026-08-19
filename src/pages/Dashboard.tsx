@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Calendar, User, Bell, Loader2, Home as HomeIcon, MessageCircle } from "lucide-react";
+import { FileText, Calendar, User, Bell, Loader2, Home as HomeIcon, MessageCircle, BookOpen } from "lucide-react";
 import SupportChat from "@/components/SupportChat";
 import { useSupportUnread } from "@/hooks/useSupportUnread";
 
@@ -27,13 +27,14 @@ const StudentSupportButton = ({ activeTab, userId, userName, onClick }: { active
 };
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { supabase } from "@/integrations/supabase/client";
+import { studentCreds, invokeApi } from "@/lib/sessionApi";
 
 import MaterialsTab from "@/components/dashboard/MaterialsTab";
 import ScheduleTab from "@/components/dashboard/ScheduleTab";
 import AccountTab from "@/components/dashboard/AccountTab";
 import NotificationsTab from "@/components/dashboard/NotificationsTab";
 import HomeTab from "@/components/dashboard/HomeTab";
+import CoursesTab from "@/components/dashboard/CoursesTab";
 import { useRealtimeStudentNotifications } from "@/hooks/useRealtimeStudentNotifications";
 import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
@@ -43,13 +44,14 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("home");
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
   const previousTab = useRef(activeTab);
-  const { user, loading } = useSimpleAuth();
+  const { user, loading, profileType } = useSimpleAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   useAppResume();
 
   // Загрузить lastViewedAt из localStorage (per-user key)
   const lastViewedKey = user?.id ? `student_notifications_last_viewed_${user.id}` : null;
+  const catalogDefaulted = useRef(false);
   
   useEffect(() => {
     if (!lastViewedKey) return;
@@ -60,35 +62,39 @@ const Dashboard = () => {
   }, [lastViewedKey]);
 
   // Get purchased product IDs for filtering material unlocks
-  const { data: purchasedProductIds = [] } = useQuery({
+  const { data: purchasedProductIds = [], isFetched: purchasesFetched } = useQuery({
     queryKey: ["student-purchased-product-ids", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("simple_purchases")
-        .select("product_id")
-        .eq("simple_user_id", user.id)
-        .in("status", ["confirmed", "completed"]);
-      if (error) throw error;
-      return [...new Set((data || []).map(p => p.product_id))];
+      const data = await invokeApi<{ purchases: { product_id: string }[] }>("checkout", {
+        action: "list_my_purchases",
+        ...studentCreds(),
+        status: "completed",
+      });
+      return [...new Set((data.purchases ?? []).map(p => p.product_id))];
     },
     enabled: !!user?.id,
   });
+
+  useEffect(() => {
+    if (!purchasesFetched || catalogDefaulted.current) return;
+    catalogDefaulted.current = true;
+    if (purchasedProductIds.length === 0) setActiveTab("courses");
+  }, [purchasesFetched, purchasedProductIds.length]);
 
   // Получить отменённые записи для подсчёта бейджа
   const { data: cancellations = [] } = useQuery({
     queryKey: ["student-cancellations-count", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("booking_cancellations")
-        .select("id, cancelled_at")
-        .eq("simple_user_id", user.id)
-        .in("cancelled_by", ["creator", "teacher"])
-        .order("cancelled_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ cancellations: { id: string; cancelled_at: string; cancelled_by: string }[] }>("manage-bookings", {
+        action: "list_cancellations",
+        ...studentCreds(),
+      });
+      return (data.cancellations ?? [])
+        .filter((c) => c.cancelled_by === "creator" || c.cancelled_by === "teacher")
+        .sort((a, b) => new Date(b.cancelled_at).getTime() - new Date(a.cancelled_at).getTime())
+        .slice(0, 50);
     },
     enabled: !!user?.id,
   });
@@ -97,16 +103,16 @@ const Dashboard = () => {
     queryKey: ["student-confirmed-purchases-count", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("simple_purchases")
-        .select("id, confirmed_at")
-        .eq("simple_user_id", user.id)
-        .in("status", ["confirmed", "completed"])
-        .not("confirmed_at", "is", null)
-        .order("confirmed_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ purchases: { id: string; created_at?: string; confirmed_at?: string | null }[] }>("checkout", {
+        action: "list_my_purchases",
+        ...studentCreds(),
+        status: "completed",
+      });
+      return (data.purchases ?? [])
+        .map((p) => ({ id: p.id, confirmed_at: p.confirmed_at || p.created_at || null }))
+        .filter((p): p is { id: string; confirmed_at: string } => !!p.confirmed_at)
+        .sort((a, b) => new Date(b.confirmed_at).getTime() - new Date(a.confirmed_at).getTime())
+        .slice(0, 50);
     },
     enabled: !!user?.id,
   });
@@ -116,14 +122,14 @@ const Dashboard = () => {
     queryKey: ["student-material-unlocks-count", purchasedProductIds],
     queryFn: async () => {
       if (purchasedProductIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("material_unlocks")
-        .select("id, unlocked_at")
-        .in("product_id", purchasedProductIds)
-        .order("unlocked_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ unlocks: { id: string; unlocked_at: string; product_id?: string | null }[] }>("manage-materials", {
+        action: "list_unlocks",
+        ...studentCreds(),
+      });
+      return (data.unlocks ?? [])
+        .filter((u) => !u.product_id || purchasedProductIds.includes(u.product_id))
+        .sort((a, b) => new Date(b.unlocked_at).getTime() - new Date(a.unlocked_at).getTime())
+        .slice(0, 50);
     },
     enabled: purchasedProductIds.length > 0,
   });
@@ -133,15 +139,14 @@ const Dashboard = () => {
     queryKey: ["student-rejected-reschedules-count", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("reschedule_requests")
-        .select("id, responded_at")
-        .eq("simple_user_id", user.id)
-        .eq("status", "rejected")
-        .order("responded_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ requests: { id: string; responded_at: string | null }[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...studentCreds(),
+        status: "rejected",
+      });
+      return (data.requests ?? [])
+        .sort((a, b) => new Date(b.responded_at || 0).getTime() - new Date(a.responded_at || 0).getTime())
+        .slice(0, 50);
     },
     enabled: !!user?.id,
   });
@@ -151,16 +156,15 @@ const Dashboard = () => {
     queryKey: ["student-incoming-reschedules-count", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from("reschedule_requests")
-        .select("id, created_at")
-        .eq("simple_user_id", user.id)
-        .eq("status", "pending")
-        .neq("requested_by", "student")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ requests: { id: string; created_at: string; requested_by?: string }[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...studentCreds(),
+        status: "pending",
+      });
+      return (data.requests ?? [])
+        .filter((r) => r.requested_by !== "student")
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 50);
     },
     enabled: !!user?.id,
   });
@@ -207,10 +211,19 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (loading) return;
+    if (profileType === "creator") {
+      navigate("/creator");
+      return;
+    }
+    if (profileType === "school") {
+      navigate("/school");
+      return;
+    }
+    if (!user) {
       navigate("/");
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, profileType, navigate]);
 
   if (loading) {
     return (
@@ -228,7 +241,9 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background pb-20">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">{t("myDashboard")}</h1>
+          <h1 className="text-xl font-bold text-foreground">
+            {activeTab === "courses" ? "Dostup" : t("myDashboard")}
+          </h1>
           <StudentSupportButton activeTab={activeTab} userId={user.id} userName={user.name} onClick={() => handleTabChange("support")} />
         </div>
       </header>
@@ -236,7 +251,10 @@ const Dashboard = () => {
       <main className="max-w-2xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsContent value="home" className="mt-0 animate-fade-in">
-            <HomeTab />
+            <HomeTab onBrowseCourses={() => handleTabChange("courses")} />
+          </TabsContent>
+          <TabsContent value="courses" className="mt-0 animate-fade-in">
+            <CoursesTab />
           </TabsContent>
           <TabsContent value="materials" className="mt-0 animate-fade-in">
             <MaterialsTab />
@@ -259,34 +277,41 @@ const Dashboard = () => {
       <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
         <div className="max-w-2xl mx-auto">
           <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-1">
+            <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-6 gap-0">
               <TabsTrigger 
                 value="home" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
               >
                 <HomeIcon className="w-5 h-5" />
-                <span className="text-xs">{t("home")}</span>
+                <span className="text-[10px] leading-tight">{t("home")}</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="courses" 
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
+              >
+                <BookOpen className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("courses")}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="materials" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
               >
                 <FileText className="w-5 h-5" />
-                <span className="text-xs">{t("materials")}</span>
+                <span className="text-[10px] leading-tight">{t("materials")}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="schedule" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
               >
                 <Calendar className="w-5 h-5" />
-                <span className="text-xs">{t("schedule")}</span>
+                <span className="text-[10px] leading-tight">{t("schedule")}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="notifications" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none relative"
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1 relative"
               >
                 <Bell className="w-5 h-5" />
-                <span className="text-xs">{t("notifications")}</span>
+                <span className="text-[10px] leading-tight">{t("notifications")}</span>
                 {newNotificationsCount > 0 && (
                   <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
                     {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
@@ -295,10 +320,10 @@ const Dashboard = () => {
               </TabsTrigger>
               <TabsTrigger 
                 value="account" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
               >
                 <User className="w-5 h-5" />
-                <span className="text-xs">{t("account")}</span>
+                <span className="text-[10px] leading-tight">{t("account")}</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>

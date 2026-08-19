@@ -5,7 +5,7 @@
 | | Старая (основная) | Новая (GitHub main) |
 |---|---|---|
 | Путь | `dostup-a2e5d88d-main` | `chingizkhairulla/dostup` |
-| Supabase | `pgbgenvyjxxgdztymakp` | `okbuktaggaspnqpzmbyn` |
+| Supabase | `mebomnqdtuqmjjefvgkx` (текущий, см. `.env` / `supabase/config.toml`) | `okbuktaggaspnqpzmbyn` |
 | Файлов в src | 158 | 115 |
 | Вход | `simple_users` + `creator_accounts` | Supabase Auth (`auth.users`) |
 
@@ -13,7 +13,7 @@
 
 | Сервис | Старая | Новая | Действие |
 |---|---|---|---|
-| Supabase DB/Auth | Свой проект Lovable | Свой проект после миграции | Оставить старый проект |
+| Supabase DB/Auth | `mebomnqdtuqmjjefvgkx` | Свой проект после миграции | Оставить текущий проект |
 | AWS S3 (материалы) | Есть (функции + lib) | Есть | Секреты в Supabase |
 | Firebase Push | Есть (hardcoded config) | Есть (через .env) | Оставить старый код, добавить .env.example |
 | Supabase Storage (обложки) | Есть | Есть | Бакет `product-media` |

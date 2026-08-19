@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
+import CreatorPendingPayments from "./CreatorPendingPayments";
 import { uploadProductMedia, getVideoDuration, MAX_VIDEO_DURATION_SECONDS } from "@/lib/productMediaUpload";
 import { ImageIcon, Video as VideoIcon, X as XIcon, HelpCircle, Play } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -905,6 +906,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
   return (
     <div className="space-y-6">
+      <CreatorPendingPayments creatorName={creatorName} />
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">{t("products")}</h2>
         <Dialog open={isCreating} onOpenChange={(open) => { setIsCreating(open); if (!open) resetForm(); }}>

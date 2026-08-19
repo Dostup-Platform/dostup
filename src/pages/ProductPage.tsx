@@ -1,12 +1,10 @@
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useProduct } from "@/hooks/useProducts";
+import { useProduct, useProductProgram, type ProductProgramItem } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
-
-import { Loader2, Play } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import heroBackground from "@/assets/hero-background.jpg";
+import { ArrowLeft, FileText, Folder, Loader2, Play } from "lucide-react";
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat("ru-RU", {
@@ -16,18 +14,50 @@ const formatPrice = (price: number) => {
   }).format(price);
 };
 
+const ProgramTree = ({ items, parentId }: { items: ProductProgramItem[]; parentId: string | null }) => {
+  const children = items
+    .filter((item) => (item.parent_id ?? null) === parentId)
+    .sort((a, b) => a.order_index - b.order_index);
+  if (children.length === 0) return null;
+
+  return (
+    <ul className="space-y-1.5">
+      {children.map((item) => {
+        const isFolder = item.type === "folder";
+        return (
+          <li key={item.id}>
+            <div className="flex items-start gap-2 text-sm text-foreground">
+              {isFolder ? (
+                <Folder className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+              ) : (
+                <FileText className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+              )}
+              <span>{item.title}</span>
+            </div>
+            {isFolder && (
+              <div className="ml-6 mt-1">
+                <ProgramTree items={items} parentId={item.id} />
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
+
 const ProductPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { t, language } = useLanguage();
   const { data: product, isLoading } = useProduct(productId);
+  const { data: program = [] } = useProductProgram(product?.id);
   const [isPlaying, setIsPlaying] = useState(false);
-  
-  // Передаём параметры учителя на страницу checkout
+
   const handleBuy = () => {
     const teacherParam = searchParams.get("teacher");
-    const checkoutUrl = `/checkout/${productId || "demo"}${teacherParam ? `?teacher=${encodeURIComponent(teacherParam)}` : ""}`;
+    const checkoutUrl = `/checkout/${productId || ""}${teacherParam ? `?teacher=${encodeURIComponent(teacherParam)}` : ""}`;
     navigate(checkoutUrl);
   };
 
@@ -39,38 +69,49 @@ const ProductPage = () => {
     );
   }
 
-  // Use demo product if no real product found
-  const displayProduct = product || {
-    title: "Мастер-курс: Цифровые навыки",
-    headline: "Научитесь всему необходимому для успеха в интернете",
-    description: "Этот комплексный курс охватывает все необходимые навыки для создания вашего цифрового присутствия. От основ до продвинутых техник — вы научитесь у экспертов с многолетним опытом.",
-    price: 49000,
-    image_url: heroBackground,
-    video_url: null as string | null,
-  };
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-background px-4 py-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground touch-manipulation mb-8"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span>{t("back")}</span>
+        </button>
+        <p className="text-center text-muted-foreground">{t("productNotFound")}</p>
+      </div>
+    );
+  }
 
-  const videoUrl = (displayProduct as any).video_url as string | null | undefined;
-  const imageUrl = displayProduct.image_url || heroBackground;
-  const faqRaw = (displayProduct as any).faq;
-  const faq: Array<{ question: string; answer: string }> = Array.isArray(faqRaw)
-    ? faqRaw.filter((it: any) => it && (it.question || it.answer))
+  const videoUrl = product.video_url;
+  const imageUrl = product.image_url;
+  const faq = Array.isArray(product.faq)
+    ? product.faq.filter((it) => it && (it.question || it.answer))
     : [];
-  const isPaused = Boolean((product as any)?.is_paused);
+  const isPaused = Boolean(product.is_paused);
   const pausedMessage: string =
-    ((product as any)?.paused_message && String((product as any).paused_message).trim()) ||
+    (product.paused_message && String(product.paused_message).trim()) ||
     (language === "kk"
       ? "Автор осы сілтемені уақытша өшірді."
       : "Автор отключил ссылку.");
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Media */}
-      <div className="relative w-full aspect-[4/3] md:aspect-[16/9] max-h-[50vh] bg-black">
-        {videoUrl && displayProduct.image_url && !isPlaying ? (
+      <div className="relative w-full aspect-[4/3] md:aspect-[16/9] max-h-[50vh] bg-muted">
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute top-4 left-4 z-20 flex items-center gap-1 rounded-full bg-background/80 backdrop-blur px-3 py-2 text-sm text-foreground shadow-sm touch-manipulation"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          {t("back")}
+        </button>
+
+        {videoUrl && imageUrl && !isPlaying ? (
           <>
             <img
               src={imageUrl}
-              alt={displayProduct.title}
+              alt={product.title}
               className="w-full h-full object-cover"
             />
             <button
@@ -87,47 +128,63 @@ const ProductPage = () => {
         ) : videoUrl ? (
           <video
             src={videoUrl}
-            poster={displayProduct.image_url || undefined}
+            poster={imageUrl || undefined}
             controls
             autoPlay={isPlaying}
             playsInline
             preload="metadata"
             className="w-full h-full object-contain bg-black"
           />
-        ) : (
+        ) : imageUrl ? (
           <img
             src={imageUrl}
-            alt={displayProduct.title}
+            alt={product.title}
             className="w-full h-full object-cover"
           />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-muted" />
         )}
       </div>
 
-      {/* Content */}
       <div className="relative -mt-16 px-4 pb-32 max-w-lg mx-auto">
         <div className="bg-card rounded-2xl p-6 shadow-lg animate-fade-in">
-          {/* Title */}
           <h1 className="text-2xl md:text-3xl font-bold text-foreground text-balance leading-tight">
-            {displayProduct.title}
+            {product.title}
           </h1>
 
-          {/* Headline */}
-          <p className="mt-3 text-lg text-primary font-medium">
-            {displayProduct.headline}
-          </p>
+          {product.headline && (
+            <p className="mt-3 text-lg text-primary font-medium">
+              {product.headline}
+            </p>
+          )}
 
-          {/* Description */}
-          <p className="mt-4 text-muted-foreground leading-relaxed">
-            {displayProduct.description}
-          </p>
+          {product.description && (
+            <p className="mt-4 text-muted-foreground leading-relaxed whitespace-pre-wrap">
+              {product.description}
+            </p>
+          )}
 
-          {/* Price */}
+          {program.length > 0 && (
+            <div className="mt-6">
+              <h2 className="text-base font-semibold text-foreground mb-3">
+                {t("courseProgram")}
+              </h2>
+              <ProgramTree items={program} parentId={null} />
+            </div>
+          )}
+
           <div className="mt-6 flex items-baseline gap-2">
             <span className="text-3xl font-bold text-foreground">
-              {formatPrice(Number(displayProduct.price))}
+              {formatPrice(Number(product.price))}
             </span>
             <span className="text-muted-foreground">{t("oneTime")}</span>
           </div>
+
+          {product.author_name && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              {t("author")}: {product.author_name}
+            </p>
+          )}
         </div>
 
         {faq.length > 0 && (
@@ -151,7 +208,6 @@ const ProductPage = () => {
         )}
       </div>
 
-      {/* Fixed CTA Button */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
         <div className="max-w-lg mx-auto">
           {isPaused ? (
@@ -165,7 +221,7 @@ const ProductPage = () => {
               className="w-full"
               onClick={handleBuy}
             >
-              {t("getAccess")}
+              {t("buy")}
             </Button>
           )}
         </div>

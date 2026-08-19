@@ -9,12 +9,11 @@ import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import RescheduleSlotDialog from "@/components/RescheduleSlotDialog";
 import EditSlotTimeDialog from "@/components/EditSlotTimeDialog";
-import { useCreatorCancelBooking, useEditSlotTime, useCreatorRescheduleRequest } from "@/hooks/useSimplePurchases";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import ProductSwitcher from "./ProductSwitcher";
 import NoProductsEmptyState from "./NoProductsEmptyState";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { supabase } from "@/integrations/supabase/client";
+import { creatorCreds, invokeApi } from "@/lib/sessionApi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, parse, parseISO } from "date-fns";
@@ -148,13 +147,13 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     queryKey: ["creator-own-schedules", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
-      const { data, error } = await supabase
-        .from("schedules")
-        .select("*, product:products(title)")
-        .in("product_id", productIds)
-        .is("teacher_id", null);
-      if (error) throw error;
-      return data as Schedule[];
+      const data = await invokeApi<{ schedules: Schedule[] }>("manage-schedules", {
+        action: "list_schedules",
+        ...creatorCreds(),
+        productIds,
+        creatorOnly: true,
+      });
+      return data.schedules ?? [];
     },
     enabled: productIds.length > 0,
   });
@@ -172,16 +171,14 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     queryKey: ["creator-week-slots", scheduleIds, format(currentWeekStart, "yyyy-MM-dd")],
     queryFn: async () => {
       if (!scheduleIds.length) return [];
-      const { data, error } = await supabase
-        .from("time_slots")
-        .select("*")
-        .in("schedule_id", scheduleIds)
-        .gte("date", format(currentWeekStart, "yyyy-MM-dd"))
-        .lte("date", format(weekEnd, "yyyy-MM-dd"))
-        .order("date")
-        .order("start_time");
-      if (error) throw error;
-      return data as TimeSlot[];
+      const data = await invokeApi<{ slots: TimeSlot[] }>("manage-schedules", {
+        action: "list_slots",
+        ...creatorCreds(),
+        scheduleIds,
+        fromDate: format(currentWeekStart, "yyyy-MM-dd"),
+        toDate: format(weekEnd, "yyyy-MM-dd"),
+      });
+      return data.slots ?? [];
     },
     enabled: scheduleIds.length > 0,
   });
@@ -192,24 +189,12 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     queryKey: ["creator-week-bookings", slotIds],
     queryFn: async () => {
       if (!slotIds.length) return [];
-      const { data, error } = await supabase
-        .from("simple_bookings")
-        .select("id, time_slot_id, simple_user_id")
-        .in("time_slot_id", slotIds);
-      if (error) throw error;
-      
-      const userIds = [...new Set(data.map(b => b.simple_user_id))];
-      if (userIds.length === 0) return data.map(b => ({ ...b, user: null }));
-      
-      const { data: users } = await supabase
-        .from("simple_users")
-        .select("id, name")
-        .in("id", userIds);
-      
-      return data.map(b => ({
-        ...b,
-        user: users?.find(u => u.id === b.simple_user_id),
-      })) as Booking[];
+      const data = await invokeApi<{ bookings: Booking[] }>("manage-schedules", {
+        action: "list_bookings_for_slots",
+        ...creatorCreds(),
+        slotIds,
+      });
+      return data.bookings ?? [];
     },
     enabled: slotIds.length > 0,
   });
@@ -219,25 +204,22 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     queryKey: ["creator-outgoing-reschedules", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
-      const { data, error } = await supabase
-        .from("reschedule_requests")
-        .select("id, booking_id, new_date, new_time, status")
-        .in("product_id", productIds)
-        .eq("status", "pending")
-        .eq("requested_by", "creator");
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ requests: { id: string; booking_id: string; new_date: string; new_time: string; status: string }[] }>("manage-schedules", {
+        action: "list_outgoing_reschedules",
+        ...creatorCreds(),
+      });
+      return data.requests ?? [];
     },
     enabled: productIds.length > 0,
   });
 
   const cancelOutgoingReschedule = useMutation({
     mutationFn: async (requestId: string) => {
-      const { error } = await supabase
-        .from("reschedule_requests")
-        .delete()
-        .eq("id", requestId);
-      if (error) throw error;
+      await invokeApi("manage-bookings", {
+        action: "cancel_reschedule_request",
+        ...creatorCreds(),
+        requestId,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-outgoing-reschedules"] });
@@ -248,19 +230,15 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   // Create schedule mutation
   const createSchedule = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase
-        .from("schedules")
-        .insert({
-          product_id: scheduleForm.productId,
-          title: scheduleForm.title,
-          event_type: scheduleType,
-          max_participants: scheduleType === "group" ? Number(scheduleForm.maxParticipants) : null,
-          teacher_id: null, // Creator's own schedule
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      const data = await invokeApi<{ schedule: Schedule }>("manage-schedules", {
+        action: "create_schedule",
+        ...creatorCreds(),
+        productId: scheduleForm.productId,
+        title: scheduleForm.title,
+        eventType: scheduleType,
+        maxParticipants: scheduleType === "group" ? Number(scheduleForm.maxParticipants) : null,
+      });
+      return data.schedule;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-own-schedules"] });
@@ -277,8 +255,11 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   // Delete schedule mutation
   const deleteSchedule = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("schedules").delete().eq("id", id);
-      if (error) throw error;
+      await invokeApi("manage-schedules", {
+        action: "delete_schedule",
+        ...creatorCreds(),
+        id,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-own-schedules"] });
@@ -291,11 +272,12 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   // Update schedule title mutation
   const updateScheduleTitle = useMutation({
     mutationFn: async ({ id, title }: { id: string; title: string }) => {
-      const { error } = await supabase
-        .from("schedules")
-        .update({ title })
-        .eq("id", id);
-      if (error) throw error;
+      await invokeApi("manage-schedules", {
+        action: "update_schedule",
+        ...creatorCreds(),
+        id,
+        updates: { title },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-own-schedules"] });
@@ -348,8 +330,12 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
 
       if (slots.length === 0) throw new Error("No slots to create");
 
-      const { error } = await supabase.from("time_slots").insert(slots);
-      if (error) throw error;
+      await invokeApi("manage-schedules", {
+        action: "create_slots",
+        ...creatorCreds(),
+        slots,
+        scheduleId: selectedScheduleForSlots.id,
+      });
       return slots.length;
     },
     onSuccess: (count) => {
@@ -365,9 +351,84 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   });
 
   // Cancel booking mutation using shared hook
-  const creatorCancelBooking = useCreatorCancelBooking();
-  const rescheduleRequestMutation = useCreatorRescheduleRequest();
-  const editSlotTimeMutation = useEditSlotTime();
+  const creatorCancelBooking = useMutation({
+    mutationFn: async ({ bookingId, cancelledBy, reasons, comment }: {
+      bookingId: string;
+      cancelledBy: "creator" | "teacher";
+      reasons?: string[];
+      comment?: string;
+    }) => {
+      await invokeApi("manage-bookings", {
+        action: "cancel",
+        ...creatorCreds(),
+        bookingId,
+        cancelledBy,
+        reasons,
+        comment,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-week-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+    },
+  });
+  const rescheduleRequestMutation = useMutation({
+    mutationFn: async ({
+      slotId,
+      scheduleId,
+      newDate,
+      newStartTime,
+      newEndTime,
+      reasons,
+      comment,
+    }: {
+      slotId: string;
+      scheduleId: string;
+      newDate: string;
+      newStartTime: string;
+      newEndTime: string;
+      reasons: string[];
+      comment: string;
+      requestedBy: "creator" | "teacher";
+    }) => {
+      await invokeApi("manage-bookings", {
+        action: "create_reschedule_request",
+        ...creatorCreds(),
+        slotId,
+        scheduleId,
+        newDate,
+        newStartTime,
+        newEndTime,
+        reasons,
+        comment,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-outgoing-reschedules"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+    },
+  });
+  const editSlotTimeMutation = useMutation({
+    mutationFn: async ({
+      slotId,
+      newStartTime,
+      newEndTime,
+    }: {
+      slotId: string;
+      newStartTime: string;
+      newEndTime: string;
+    }) => {
+      await invokeApi("manage-schedules", {
+        action: "update_slot",
+        ...creatorCreds(),
+        slotId,
+        updates: { start_time: newStartTime, end_time: newEndTime },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+    },
+  });
 
   const handleCancelBookingWithReason = async (reasons: string[], comment: string) => {
     if (!cancelingBooking) return;
@@ -388,11 +449,11 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   // Delete time slot mutation
   const deleteTimeSlot = useMutation({
     mutationFn: async (slotId: string) => {
-      const { error } = await supabase
-        .from("time_slots")
-        .delete()
-        .eq("id", slotId);
-      if (error) throw error;
+      await invokeApi("manage-schedules", {
+        action: "delete_slot",
+        ...creatorCreds(),
+        slotId,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
@@ -405,71 +466,13 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   // Delete time slot with bookings (force delete)
   const deleteSlotWithBookings = useMutation({
     mutationFn: async ({ slotId, reasons, comment }: { slotId: string; reasons: string[]; comment: string }) => {
-      // Get slot info
-      const { data: slotData } = await supabase
-        .from("time_slots")
-        .select("date, start_time, schedule_id")
-        .eq("id", slotId)
-        .single();
-
-      // Get bookings for this slot
-      const { data: slotBookingsData } = await supabase
-        .from("simple_bookings")
-        .select("id, simple_user_id")
-        .eq("time_slot_id", slotId);
-
-      if (slotBookingsData?.length && slotData) {
-        // Get schedule + product info
-        const { data: scheduleData } = await supabase
-          .from("schedules")
-          .select("id, title, product_id, product:products(title)")
-          .eq("id", slotData.schedule_id)
-          .single();
-
-        // Get user info
-        const userIds = slotBookingsData.map(b => b.simple_user_id);
-        const { data: usersData } = await supabase
-          .from("simple_users")
-          .select("id, name, phone")
-          .in("id", userIds);
-
-        // Create cancellation records
-        const cancellationRecords = slotBookingsData.map(b => {
-          const user = usersData?.find(u => u.id === b.simple_user_id);
-          return {
-            booking_id: b.id,
-            product_id: scheduleData?.product_id || "",
-            product_title: (scheduleData?.product as any)?.title || "",
-            schedule_id: scheduleData?.id || null,
-            schedule_title: scheduleData?.title || null,
-            simple_user_id: b.simple_user_id,
-            user_name: user?.name || "—",
-            user_phone: user?.phone || null,
-            slot_date: slotData.date,
-            slot_time: slotData.start_time,
-            cancelled_by: "creator",
-            cancellation_reasons: reasons,
-            cancellation_comment: comment || null,
-          };
-        });
-
-        const { error: cancError } = await supabase
-          .from("booking_cancellations")
-          .insert(cancellationRecords);
-        if (cancError) throw cancError;
-      }
-
-      const { error: bookingsError } = await supabase
-        .from("simple_bookings")
-        .delete()
-        .eq("time_slot_id", slotId);
-      if (bookingsError) throw bookingsError;
-      
-      const { error: slotError } = await supabase
-        .from("time_slots")
-        .delete()
-        .eq("id", slotId);
-      if (slotError) throw slotError;
+      await invokeApi("manage-schedules", {
+        action: "delete_slot_with_bookings",
+        ...creatorCreds(),
+        slotId,
+        reasons,
+        comment,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
@@ -485,11 +488,12 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     mutationFn: async ({ slot, schedule }: { slot: TimeSlot; schedule: Schedule }) => {
       const currentMax = slot.max_participants ?? schedule.max_participants ?? 1;
       const newMax = currentMax + 1;
-      const { error } = await supabase
-        .from("time_slots")
-        .update({ max_participants: newMax })
-        .eq("id", slot.id);
-      if (error) throw error;
+      await invokeApi("manage-schedules", {
+        action: "update_slot",
+        ...creatorCreds(),
+        slotId: slot.id,
+        updates: { max_participants: newMax },
+      });
       return newMax;
     },
     onSuccess: (newMax) => {
@@ -503,20 +507,12 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   // Delete multiple time slots mutation
   const deleteMultipleSlots = useMutation({
     mutationFn: async ({ scheduleId, dates }: { scheduleId: string; dates: string[] | "all" }) => {
-      if (dates === "all") {
-        const { error } = await supabase
-          .from("time_slots")
-          .delete()
-          .eq("schedule_id", scheduleId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("time_slots")
-          .delete()
-          .eq("schedule_id", scheduleId)
-          .in("date", dates);
-        if (error) throw error;
-      }
+      await invokeApi("manage-schedules", {
+        action: "delete_slots",
+        ...creatorCreds(),
+        scheduleId,
+        dates,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
@@ -530,47 +526,34 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
 
   // Fetch available dates for delete dialog
   const fetchAvailableDates = async (scheduleId: string) => {
-    const { data } = await supabase
-      .from("time_slots")
-      .select("date")
-      .eq("schedule_id", scheduleId)
-      .order("date");
-    if (data) {
-      const uniqueDates = [...new Set(data.map(s => s.date))];
-      setAvailableDatesForDelete(uniqueDates);
-    }
+    const data = await invokeApi<{ dates: string[] }>("manage-schedules", {
+      action: "list_slot_dates",
+      ...creatorCreds(),
+      scheduleId,
+    });
+    setAvailableDatesForDelete(data.dates ?? []);
   };
 
   // Fetch available dates for link dialog
   const fetchAvailableDatesForLink = async (scheduleId: string) => {
-    const { data } = await supabase
-      .from("time_slots")
-      .select("date")
-      .eq("schedule_id", scheduleId)
-      .order("date");
-    if (data) {
-      const uniqueDates = [...new Set(data.map(s => s.date))];
-      setAvailableDatesForLink(uniqueDates);
-    }
+    const data = await invokeApi<{ dates: string[] }>("manage-schedules", {
+      action: "list_slot_dates",
+      ...creatorCreds(),
+      scheduleId,
+    });
+    setAvailableDatesForLink(data.dates ?? []);
   };
 
   // Add lesson link mutation
   const addLessonLink = useMutation({
     mutationFn: async ({ scheduleId, dates, link }: { scheduleId: string; dates: string[] | "all"; link: string }) => {
-      if (dates === "all") {
-        const { error } = await supabase
-          .from("time_slots")
-          .update({ lesson_link: link })
-          .eq("schedule_id", scheduleId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("time_slots")
-          .update({ lesson_link: link })
-          .eq("schedule_id", scheduleId)
-          .in("date", dates);
-        if (error) throw error;
-      }
+      await invokeApi("manage-schedules", {
+        action: "set_lesson_link",
+        ...creatorCreds(),
+        scheduleId,
+        dates,
+        link,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
@@ -586,11 +569,12 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   // Update single slot lesson link
   const updateSlotLink = useMutation({
     mutationFn: async ({ slotId, link }: { slotId: string; link: string | null }) => {
-      const { error } = await supabase
-        .from("time_slots")
-        .update({ lesson_link: link })
-        .eq("id", slotId);
-      if (error) throw error;
+      await invokeApi("manage-schedules", {
+        action: "update_slot",
+        ...creatorCreds(),
+        slotId,
+        updates: { lesson_link: link },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { creatorCreds, sessionCreds, invokeApi } from "@/lib/sessionApi";
 
 export interface Announcement {
   id: string;
@@ -16,13 +16,12 @@ export const useAnnouncements = (productId: string | undefined) => {
     queryKey: ["announcements", productId],
     queryFn: async () => {
       if (!productId) return [] as Announcement[];
-      const { data, error } = await supabase
-        .from("announcements")
-        .select("*")
-        .eq("product_id", productId)
-        .order("order_index", { ascending: true });
-      if (error) throw error;
-      return (data || []) as Announcement[];
+      const data = await invokeApi<{ announcements: Announcement[] }>("manage-materials", {
+        action: "list_announcements",
+        ...sessionCreds(),
+        productId,
+      });
+      return data.announcements ?? [];
     },
     enabled: !!productId,
   });
@@ -33,31 +32,19 @@ export const useAnnouncementsForProducts = (productIds: string[]) => {
     queryKey: ["announcements-multi", [...productIds].sort().join(",")],
     queryFn: async () => {
       if (productIds.length === 0) return [] as Announcement[];
-      const { data, error } = await supabase
-        .from("announcements")
-        .select("*")
-        .in("product_id", productIds)
-        .order("order_index", { ascending: true });
-      if (error) throw error;
-      return (data || []) as Announcement[];
+      const data = await invokeApi<{ announcements: Announcement[] }>("manage-materials", {
+        action: "list_announcements",
+        ...sessionCreds(),
+        productIds,
+      });
+      return data.announcements ?? [];
     },
     enabled: productIds.length > 0,
   });
 };
 
-const getCreds = () => ({
-  creatorName: localStorage.getItem("creator_name") || "",
-  creatorToken: localStorage.getItem("creator_token") || "",
-});
-
-const invokeManage = async (body: Record<string, unknown>) => {
-  const { data, error } = await supabase.functions.invoke("manage-announcements", {
-    body: { ...getCreds(), ...body },
-  });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data;
-};
+const invokeManage = async (body: Record<string, unknown>) =>
+  invokeApi("manage-announcements", { ...creatorCreds(), ...body });
 
 export const useCreateAnnouncement = () => {
   const qc = useQueryClient();
@@ -129,6 +116,7 @@ export const uploadAnnouncementMedia = async (
   productId: string,
   kind: "image" | "video" | "file",
 ): Promise<string> => {
+  const { supabase } = await import("@/integrations/supabase/client");
   const creatorName = localStorage.getItem("creator_name") || "";
   const creatorToken = localStorage.getItem("creator_token") || "";
   const form = new FormData();

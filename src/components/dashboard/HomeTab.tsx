@@ -2,12 +2,17 @@ import { useMemo } from "react";
 import { useSimplePurchases } from "@/hooks/useSimplePurchases";
 import { useAnnouncementsForProducts } from "@/hooks/useAnnouncements";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Home as HomeIcon, Loader2 } from "lucide-react";
 import AnnouncementView from "./AnnouncementView";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-const HomeTab = () => {
-  const { language } = useLanguage();
+interface HomeTabProps {
+  onBrowseCourses?: () => void;
+}
+
+const HomeTab = ({ onBrowseCourses }: HomeTabProps) => {
+  const { language, t } = useLanguage();
   const { data: purchases = [], isLoading: purchasesLoading } = useSimplePurchases();
   const productIds = useMemo(() => [...new Set(purchases.map((p) => p.product_id))], [purchases]);
   const { data: announcements = [], isLoading: annLoading } = useAnnouncementsForProducts(productIds);
@@ -30,6 +35,11 @@ const HomeTab = () => {
         <p className="text-muted-foreground">
           {language === "ru" ? "Пока нет доступных курсов" : "Қол жетімді курстар жоқ"}
         </p>
+        {onBrowseCourses && (
+          <Button className="mt-4" onClick={onBrowseCourses}>
+            {t("browseCourses")}
+          </Button>
+        )}
       </div>
     );
   }

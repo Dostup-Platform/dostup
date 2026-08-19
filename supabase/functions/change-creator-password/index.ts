@@ -94,6 +94,12 @@ serve(async (req) => {
       })
     }
 
+    if (!account.password_hash || typeof account.password_hash !== 'string') {
+      return new Response(JSON.stringify({ error: 'wrong_password' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     const ok = await verifyPassword(currentPassword, account.password_hash)
     if (!ok) {
       return new Response(JSON.stringify({ error: 'wrong_password' }), {

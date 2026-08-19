@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
+import ProfileSwitcher from "@/components/auth/ProfileSwitcher";
+import { clearAppSession } from "@/lib/creatorAuth";
 import {
   School, Users, GraduationCap, Layers, Calendar, BookOpen,
   ClipboardList, ListChecks, BarChart3, Lock, Bell, LogOut,
@@ -16,7 +18,8 @@ const SchoolDashboard = () => {
   useEffect(() => {
     const name = localStorage.getItem("creator_name");
     const type = localStorage.getItem("creator_account_type");
-    if (!name || type !== "online_school") {
+    const profileType = localStorage.getItem("profile_type");
+    if (!name || (type !== "online_school" && profileType !== "school")) {
       navigate("/");
       return;
     }
@@ -24,11 +27,7 @@ const SchoolDashboard = () => {
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.setItem("creator_last_name", creatorName);
-    localStorage.removeItem("creator_name");
-    localStorage.removeItem("creator_token");
-    localStorage.removeItem("creator_account_type");
-    localStorage.removeItem("creator_created_at");
+    clearAppSession();
     navigate("/");
   };
 
@@ -79,6 +78,8 @@ const SchoolDashboard = () => {
             </div>
           </CardContent>
         </Card>
+
+        <ProfileSwitcher activeType="school" />
 
         <Button variant="outline" className="w-full" onClick={handleLogout}>
           <LogOut className="w-4 h-4 mr-2" />

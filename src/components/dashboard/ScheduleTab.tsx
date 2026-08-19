@@ -6,7 +6,7 @@ import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
+import { studentCreds, invokeApi } from "@/lib/sessionApi";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import StudentRescheduleDialog from "@/components/StudentRescheduleDialog";
@@ -37,12 +37,11 @@ const ScheduleTab = () => {
 
   const cancelRescheduleRequest = useMutation({
     mutationFn: async (requestId: string) => {
-      const { error } = await supabase
-        .from("reschedule_requests")
-        .delete()
-        .eq("id", requestId)
-        .eq("status", "pending");
-      if (error) throw error;
+      await invokeApi("manage-bookings", {
+        action: "cancel_reschedule_request",
+        ...studentCreds(),
+        requestId,
+      });
     },
     onSuccess: () => {
       toast.success(language === "ru" ? "Запрос отменён" : "Сұраныс болдырмалды");
@@ -53,12 +52,12 @@ const ScheduleTab = () => {
   const { data: pendingReschedules = [] } = useQuery({
     queryKey: ["student-pending-reschedules", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("reschedule_requests")
-        .select("id, booking_id, new_date, new_time, status, old_date, old_time, product_title, reasons, comment, requested_by, schedule_id, product_id")
-        .eq("simple_user_id", user?.id)
-        .eq("status", "pending");
-      return (data || []) as any[];
+      const data = await invokeApi<{ requests: any[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...studentCreds(),
+        status: "pending",
+      });
+      return data.requests ?? [];
     },
     enabled: !!user?.id,
   });
@@ -83,43 +82,11 @@ const ScheduleTab = () => {
   // Approve reschedule request from creator/teacher
   const approveIncomingReschedule = useMutation({
     mutationFn: async (request: any) => {
-      // 1. Update reschedule_requests status
-      const { error: updateError } = await supabase
-        .from("reschedule_requests")
-        .update({ status: "approved", responded_at: new Date().toISOString() } as any)
-        .eq("id", request.id);
-      if (updateError) throw updateError;
-
-      // 2. Find and update time_slot
-      const { data: booking } = await supabase
-        .from("simple_bookings")
-        .select("time_slot_id")
-        .eq("id", request.booking_id)
-        .single();
-
-      if (booking?.time_slot_id) {
-        const { data: currentSlot } = await supabase
-          .from("time_slots")
-          .select("start_time, end_time")
-          .eq("id", booking.time_slot_id)
-          .single();
-
-        let newEndTime = request.new_time;
-        if (currentSlot) {
-          const [sh, sm] = currentSlot.start_time.split(":").map(Number);
-          const [eh, em] = currentSlot.end_time.split(":").map(Number);
-          const durationMin = (eh * 60 + em) - (sh * 60 + sm);
-          const [nh, nm] = request.new_time.split(":").map(Number);
-          const endTotal = nh * 60 + nm + durationMin;
-          newEndTime = `${String(Math.floor(endTotal / 60) % 24).padStart(2, "0")}:${String(endTotal % 60).padStart(2, "0")}:00`;
-        }
-
-        await supabase.from("time_slots").update({
-          date: request.new_date,
-          start_time: request.new_time,
-          end_time: newEndTime,
-        }).eq("id", booking.time_slot_id);
-      }
+      await invokeApi("manage-bookings", {
+        action: "approve_reschedule",
+        ...studentCreds(),
+        requestId: request.id,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
@@ -135,15 +102,12 @@ const ScheduleTab = () => {
   // Reject reschedule request from creator/teacher
   const rejectIncomingReschedule = useMutation({
     mutationFn: async ({ requestId, comment }: { requestId: string; comment: string }) => {
-      const { error } = await supabase
-        .from("reschedule_requests")
-        .update({
-          status: "rejected",
-          response_comment: comment,
-          responded_at: new Date().toISOString(),
-        } as any)
-        .eq("id", requestId);
-      if (error) throw error;
+      await invokeApi("manage-bookings", {
+        action: "reject_reschedule",
+        ...studentCreds(),
+        requestId,
+        comment,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student-pending-reschedules"] });
@@ -168,29 +132,20 @@ const ScheduleTab = () => {
       reasons: string[];
       comment: string;
     }) => {
-      // Delete previous pending requests for the same booking
-      await supabase
-        .from("reschedule_requests")
-        .delete()
-        .eq("booking_id", data.bookingId)
-        .eq("simple_user_id", user?.id)
-        .eq("status", "pending");
-
-      const { error } = await supabase.from("reschedule_requests").insert({
-        booking_id: data.bookingId,
-        simple_user_id: user?.id,
-        schedule_id: data.scheduleId,
-        product_id: data.productId,
-        product_title: data.productTitle,
-        old_date: data.oldDate,
-        old_time: data.oldTime,
-        new_date: data.newDate,
-        new_time: data.newTime,
+      await invokeApi("manage-bookings", {
+        action: "create_reschedule_request",
+        ...studentCreds(),
+        bookingId: data.bookingId,
+        scheduleId: data.scheduleId,
+        productId: data.productId,
+        productTitle: data.productTitle,
+        oldDate: data.oldDate,
+        oldTime: data.oldTime,
+        newDate: data.newDate,
+        newTime: data.newTime,
         reasons: data.reasons,
-        comment: data.comment || null,
-        status: "pending",
-      } as any);
-      if (error) throw error;
+        comment: data.comment,
+      });
     },
     onSuccess: () => {
       toast.success(language === "ru" ? "Запрос на перенос отправлен" : "Ауыстыру сұранысы жіберілді");
@@ -232,22 +187,26 @@ const ScheduleTab = () => {
       }
       
       // Загружаем всех учителей для продуктов
-      const productIds = purchases.map(p => p.product_id);
-      const { data: teacherRecords } = await supabase
-        .from("product_teachers")
-        .select("id, teacher_name, product_id")
-        .in("product_id", productIds);
+      const productIds = [...new Set(purchases.map(p => p.product_id))];
+      const teacherRecords: { teacher_name: string }[] = [];
+      for (const productId of productIds) {
+        const data = await invokeApi<{ teachers: { teacher_name: string }[] }>("catalog", {
+          action: "list_teachers",
+          productId,
+        });
+        teacherRecords.push(...(data.teachers ?? []));
+      }
       
-      if (teacherRecords && teacherRecords.length > 0) {
-        // Ищем simple_users с ролью teacher по имени
-        const teacherNames = teacherRecords.map(t => t.teacher_name);
-        const { data: teacherUsers } = await supabase
-          .from("simple_users")
-          .select("id, name")
-          .in("name", teacherNames)
-          .eq("role", "teacher");
-        
-        if (teacherUsers) {
+      if (teacherRecords.length > 0) {
+        const teacherNames = new Set(teacherRecords.map(t => t.teacher_name));
+        const teacherIds = [...new Set((schedules || []).map(s => s.teacher_id).filter(Boolean))] as string[];
+        if (teacherIds.length) {
+          const usersData = await invokeApi<{ users: { id: string; name: string }[] }>("manage-products", {
+            action: "list_users_by_ids",
+            ...studentCreds(),
+            ids: teacherIds,
+          });
+          const teacherUsers = (usersData.users ?? []).filter((u) => teacherNames.has(u.name));
           console.log("ScheduleTab: Found teachers:", teacherUsers);
           setTeachers(teacherUsers.map(u => ({ id: u.id, name: u.name })));
         }
@@ -255,7 +214,7 @@ const ScheduleTab = () => {
     };
     
     loadTeachers();
-  }, [purchases]);
+  }, [purchases, schedules]);
 
   // Фильтруем schedules по выбранному учителю
   const filteredSchedules = useMemo(() => {

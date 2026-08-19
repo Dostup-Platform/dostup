@@ -1,0 +1,301 @@
+import { json, optionsResponse } from '../_shared/http.ts'
+import {
+  CHECKOUT_COLUMNS,
+  creatorOwnsProduct,
+  creatorProductIds,
+  resolveCaller,
+  resolveUser,
+  serviceClient,
+  unauthorized,
+  forbidden,
+} from '../_shared/session.ts'
+import { latestSubmissionsForPurchases, recordVerificationEvent } from '../_shared/purchase.ts'
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return optionsResponse()
+
+  try {
+    const body = await req.json().catch(() => ({}))
+    const action = String(body.action || '')
+    const supabase = serviceClient()
+    const caller = await resolveCaller(supabase, body)
+    if (!caller) return unauthorized()
+
+    const requireCreator = () => {
+      if (caller.kind !== 'creator') return forbidden()
+      return null
+    }
+
+    if (action === 'list') {
+      if (caller.kind === 'creator') {
+        const { data, error } = await supabase
+          .from('products')
+          .select(CHECKOUT_COLUMNS)
+          .eq('creator_account_id', caller.accountId)
+          .order('created_at', { ascending: false })
+        if (error) return json({ error: error.message }, 500)
+        return json({ products: data ?? [] })
+      }
+      if (caller.role === 'teacher') {
+        const { data: rows } = await supabase
+          .from('product_teachers')
+          .select('*, product:products(*)')
+          .ilike('teacher_name', caller.name)
+        return json({ products: (rows ?? []).map((r: { product: unknown }) => r.product).filter(Boolean) })
+      }
+      return forbidden()
+    }
+
+    if (action === 'get') {
+      const id = String(body.id || body.productId || '')
+      if (!id) return json({ error: 'Missing id' }, 400)
+      const { data } = await supabase.from('products').select(CHECKOUT_COLUMNS).eq('id', id).maybeSingle()
+      if (!data) return json({ error: 'Not found' }, 404)
+      if (caller.kind === 'creator' && data.creator_account_id !== caller.accountId) return forbidden()
+      return json({ product: data })
+    }
+
+    if (action === 'create') {
+      const denied = requireCreator()
+      if (denied) return denied
+      const product = body.product && typeof body.product === 'object' ? body.product as Record<string, unknown> : null
+      if (!product?.title) return json({ error: 'Missing title' }, 400)
+      const { data, error } = await supabase
+        .from('products')
+        .insert({
+          title: product.title,
+          headline: product.headline || null,
+          description: product.description || null,
+          price: product.price || 0,
+          kaspi_link: product.kaspi_link || null,
+          telegram_link: product.telegram_link || null,
+          has_schedule: product.has_schedule || false,
+          is_active: product.is_active ?? true,
+          image_url: product.image_url || null,
+          video_url: product.video_url || null,
+          slug: product.slug || null,
+          faq: product.faq ?? [],
+          creator_id: caller.login,
+          creator_account_id: caller.accountId,
+          kaspi_phone: product.kaspi_phone ?? null,
+          access_duration_days: product.access_duration_days ?? null,
+        })
+        .select()
+        .single()
+      if (error) return json({ error: error.message }, 500)
+      return json({ product: data })
+    }
+
+    if (action === 'update') {
+      const denied = requireCreator()
+      if (denied) return denied
+      const id = String(body.id || '')
+      const updates = body.updates && typeof body.updates === 'object' ? body.updates as Record<string, unknown> : null
+      if (!id || !updates) return json({ error: 'Bad input' }, 400)
+      if (!(await creatorOwnsProduct(supabase, caller.accountId, id))) return forbidden()
+      delete updates.id
+      delete updates.creator_account_id
+      delete updates.creator_id
+      const { data, error } = await supabase.from('products').update(updates).eq('id', id).select().single()
+      if (error) return json({ error: error.message }, 500)
+      return json({ product: data })
+    }
+
+    if (action === 'delete') {
+      const denied = requireCreator()
+      if (denied) return denied
+      const id = String(body.id || body.productId || '')
+      if (!id) return json({ error: 'Missing id' }, 400)
+      if (!(await creatorOwnsProduct(supabase, caller.accountId, id))) return forbidden()
+      const { error } = await supabase.from('products').delete().eq('id', id)
+      if (error) return json({ error: error.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'list_teachers') {
+      const productId = String(body.productId || '')
+      if (!productId) return json({ error: 'Missing productId' }, 400)
+      if (caller.kind === 'creator' && !(await creatorOwnsProduct(supabase, caller.accountId, productId))) {
+        return forbidden()
+      }
+      const { data, error } = await supabase
+        .from('product_teachers')
+        .select('*')
+        .eq('product_id', productId)
+        .order('created_at')
+      if (error) return json({ error: error.message }, 500)
+      return json({ teachers: data ?? [] })
+    }
+
+    if (action === 'list_creator_teachers') {
+      const denied = requireCreator()
+      if (denied) return denied
+      const ids = await creatorProductIds(supabase, caller.accountId)
+      if (!ids.length) return json({ teachers: [] })
+      const { data, error } = await supabase
+        .from('product_teachers')
+        .select('*, product:products(title)')
+        .in('product_id', ids)
+        .order('created_at')
+      if (error) return json({ error: error.message }, 500)
+      return json({ teachers: data ?? [] })
+    }
+
+    if (action === 'add_teacher') {
+      const denied = requireCreator()
+      if (denied) return denied
+      const productId = String(body.productId || '')
+      const teacherName = String(body.teacherName || '').trim()
+      if (!productId || !teacherName) return json({ error: 'Bad input' }, 400)
+      if (!(await creatorOwnsProduct(supabase, caller.accountId, productId))) return forbidden()
+      const { data, error } = await supabase
+        .from('product_teachers')
+        .insert({ product_id: productId, teacher_name: teacherName })
+        .select()
+        .single()
+      if (error) {
+        if (error.code === '23505') return json({ error: 'Этот учитель уже добавлен к продукту' }, 400)
+        return json({ error: error.message }, 500)
+      }
+      return json({ teacher: data })
+    }
+
+    if (action === 'remove_teacher') {
+      const denied = requireCreator()
+      if (denied) return denied
+      const teacherId = String(body.teacherId || '')
+      if (!teacherId) return json({ error: 'Missing teacherId' }, 400)
+      const { data: row } = await supabase.from('product_teachers').select('product_id').eq('id', teacherId).maybeSingle()
+      if (!row) return json({ error: 'Not found' }, 404)
+      if (!(await creatorOwnsProduct(supabase, caller.accountId, row.product_id))) return forbidden()
+      const { error } = await supabase.from('product_teachers').delete().eq('id', teacherId)
+      if (error) return json({ error: error.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'list_purchases') {
+      const denied = requireCreator()
+      if (denied) return denied
+      const ids = await creatorProductIds(supabase, caller.accountId)
+      if (!ids.length) return json({ purchases: [] })
+      const { data, error } = await supabase
+        .from('simple_purchases')
+        .select('*')
+        .in('product_id', ids)
+        .order('created_at', { ascending: false })
+      if (error) return json({ error: error.message }, 500)
+      const simpleIds = [...new Set((data ?? []).map((p: { simple_user_id?: string | null }) => p.simple_user_id).filter(Boolean))] as string[]
+      const profileIds = [...new Set((data ?? []).map((p: { buyer_profile_id?: string | null }) => p.buyer_profile_id).filter(Boolean))] as string[]
+      const { data: users } = simpleIds.length
+        ? await supabase.from('simple_users').select('id, name, phone').in('id', simpleIds)
+        : { data: [] as { id: string; name: string; phone: string | null }[] }
+      let profiles: { id: string; display_name: string | null }[] = []
+      if (profileIds.length) {
+        const profileRes = await supabase.from('profiles').select('id, display_name').in('id', profileIds)
+        if (!profileRes.error) profiles = profileRes.data ?? []
+      }
+      const userMap = new Map((users ?? []).map((u) => [u.id, u]))
+      const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]))
+      const submissions = await latestSubmissionsForPurchases(
+        supabase,
+        (data ?? []).map((p: { id: string }) => p.id),
+      )
+      return json({
+        purchases: (data ?? []).map((p: {
+          id: string
+          simple_user_id?: string | null
+          buyer_profile_id?: string | null
+        }) => {
+          const simple = p.simple_user_id ? userMap.get(p.simple_user_id) : null
+          const profile = p.buyer_profile_id ? profileMap.get(p.buyer_profile_id) : null
+          return {
+            ...p,
+            user: simple || (profile
+              ? { id: profile.id, name: profile.display_name || 'Buyer', phone: '' }
+              : null),
+            latest_submission: submissions.get(p.id) || null,
+          }
+        }),
+      })
+    }
+
+    if (action === 'update_purchase') {
+      const denied = requireCreator()
+      if (denied) return denied
+      const purchaseId = String(body.purchaseId || '')
+      const updates = body.updates && typeof body.updates === 'object' ? body.updates as Record<string, unknown> : null
+      if (!purchaseId || !updates) return json({ error: 'Bad input' }, 400)
+      const { data: purchase } = await supabase
+        .from('simple_purchases')
+        .select('id, product_id')
+        .eq('id', purchaseId)
+        .maybeSingle()
+      if (!purchase) return json({ error: 'Not found' }, 404)
+      if (!(await creatorOwnsProduct(supabase, caller.accountId, purchase.product_id))) return forbidden()
+      const allowed: Record<string, unknown> = {}
+      if (typeof updates.status === 'string' && updates.status !== 'rejected') allowed.status = updates.status
+      if ('assigned_teacher_id' in updates) allowed.assigned_teacher_id = updates.assigned_teacher_id
+      if (typeof updates.can_choose_teacher === 'boolean') allowed.can_choose_teacher = updates.can_choose_teacher
+
+      if (updates.status === 'rejected') {
+        const actor = caller.kind === 'creator' ? `creator:${caller.login}` : 'creator'
+        const { data: submission } = await supabase
+          .from('payment_submissions')
+          .select('id')
+          .eq('purchase_id', purchaseId)
+          .in('verification_status', ['manual_review', 'pending'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (submission) {
+          await supabase
+            .from('payment_submissions')
+            .update({
+              verification_status: 'rejected',
+              rejection_reason: 'creator_rejected',
+              decided_at: new Date().toISOString(),
+              decided_by: actor,
+            })
+            .eq('id', submission.id)
+          await recordVerificationEvent(supabase, {
+            submissionId: submission.id,
+            purchaseId,
+            actor,
+            decision: 'rejected',
+            checks: { source: 'creator_manual_review' },
+            notes: 'creator_rejected',
+          })
+        } else {
+          const { error } = await supabase
+            .from('simple_purchases')
+            .delete()
+            .eq('id', purchaseId)
+            .eq('status', 'pending')
+          if (error) return json({ error: error.message }, 500)
+        }
+        return json({ ok: true })
+      }
+
+      if (!Object.keys(allowed).length) return json({ ok: true })
+      const { error } = await supabase.from('simple_purchases').update(allowed).eq('id', purchaseId)
+      if (error) return json({ error: error.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'list_users_by_ids') {
+      const ids = Array.isArray(body.ids) ? body.ids.filter((x: unknown) => typeof x === 'string') : []
+      if (!ids.length) return json({ users: [] })
+      if (caller.kind === 'user' && caller.role !== 'teacher') {
+        const self = await resolveUser(supabase, String(body.sessionToken || ''))
+        if (!self) return unauthorized()
+      }
+      const { data } = await supabase.from('simple_users').select('id, name, phone').in('id', ids)
+      return json({ users: data ?? [] })
+    }
+
+    return json({ error: 'Unknown action' }, 400)
+  } catch (e) {
+    console.error('manage-products error', e)
+    return json({ error: 'Internal error' }, 500)
+  }
+})

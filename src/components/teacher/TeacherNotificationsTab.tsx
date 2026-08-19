@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { studentCreds, invokeApi } from "@/lib/sessionApi";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Bell, Calendar, Clock, User, X, Loader2, Timer, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,34 +44,18 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
   const queryClient = useQueryClient();
   const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
 
-  // Get teacher's user ID
-  const { data: teacherData } = useQuery({
-    queryKey: ["teacher-id", teacherName],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("simple_users")
-        .select("id, phone")
-        .eq("name", teacherName)
-        .single();
-      return data;
-    },
-    enabled: !!teacherName,
-  });
-
-  // Get teacher's schedules
   const { data: teacherSchedules = [] } = useQuery({
-    queryKey: ["teacher-notification-schedules", teacherData?.id, productIds],
+    queryKey: ["teacher-notification-schedules", teacherName, productIds],
     queryFn: async () => {
-      if (!teacherData?.id || !productIds.length) return [];
-      const { data, error } = await supabase
-        .from("schedules")
-        .select("id")
-        .in("product_id", productIds)
-        .eq("teacher_id", teacherData.id);
-      if (error) throw error;
-      return data || [];
+      if (!productIds.length) return [];
+      const data = await invokeApi<{ schedules: { id: string; title: string; product?: { title: string } | null }[] }>("manage-schedules", {
+        action: "list_schedules",
+        ...studentCreds(),
+        productIds,
+      });
+      return data.schedules ?? [];
     },
-    enabled: !!teacherData?.id && productIds.length > 0,
+    enabled: productIds.length > 0,
   });
 
   const scheduleIds = teacherSchedules.map(s => s.id);
@@ -80,20 +65,44 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
     queryKey: ["teacher-notification-bookings", scheduleIds],
     queryFn: async () => {
       if (!scheduleIds.length) return [];
-      const { data, error } = await supabase
-        .from("simple_bookings")
-        .select(`
-          id, created_at,
-          time_slot:time_slots(date, start_time, end_time),
-          schedule:schedules(title, product:products(title)),
-          user:simple_users(name, phone)
-        `)
-        .in("schedule_id", scheduleIds)
-        .eq("status", "confirmed")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
+      const slotsData = await invokeApi<{ slots: { id: string; date: string; start_time: string; end_time: string; schedule_id: string; created_at?: string }[] }>("manage-schedules", {
+        action: "list_slots",
+        ...studentCreds(),
+        scheduleIds,
+      });
+      const slots = slotsData.slots ?? [];
+      const slotIds = slots.map((s) => s.id);
+      if (!slotIds.length) return [];
+      const bookingsData = await invokeApi<{ bookings: {
+        id: string;
+        time_slot_id: string;
+        simple_user_id: string;
+        schedule_id: string;
+        status: string;
+        created_at?: string;
+        user: { id: string; name: string; phone: string } | null;
+      }[] }>("manage-schedules", {
+        action: "list_bookings_for_slots",
+        ...studentCreds(),
+        slotIds,
+      });
+      const slotMap = new Map(slots.map((s) => [s.id, s]));
+      const scheduleMap = new Map(teacherSchedules.map((s) => [s.id, s]));
+      return (bookingsData.bookings ?? [])
+        .filter((b) => b.status === "confirmed")
+        .map((b) => {
+          const slot = slotMap.get(b.time_slot_id);
+          const schedule = scheduleMap.get(b.schedule_id);
+          return {
+            id: b.id,
+            created_at: b.created_at || slot?.created_at || "",
+            time_slot: slot ? { date: slot.date, start_time: slot.start_time, end_time: slot.end_time } : null,
+            schedule: schedule ? { title: schedule.title, product: schedule.product ?? null } : null,
+            user: b.user,
+          };
+        })
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 50);
     },
     enabled: scheduleIds.length > 0,
   });
@@ -103,15 +112,12 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
     queryKey: ["teacher-notification-cancellations", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
-      const { data, error } = await supabase
-        .from("booking_cancellations")
-        .select("*")
-        .in("product_id", productIds)
-        .eq("cancelled_by", "student")
-        .order("cancelled_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ cancellations: { id: string; cancelled_by: string; cancelled_at: string }[] }>("manage-bookings", {
+        action: "list_cancellations",
+        ...studentCreds(),
+        productIds,
+      });
+      return (data.cancellations ?? []).filter((c) => c.cancelled_by === "student").slice(0, 50);
     },
     enabled: productIds.length > 0,
   });
@@ -121,23 +127,14 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
     queryKey: ["teacher-reschedule-requests", scheduleIds],
     queryFn: async () => {
       if (!scheduleIds.length) return [];
-      const { data } = await supabase
-        .from("reschedule_requests")
-        .select("*")
-        .in("schedule_id", scheduleIds)
-        .eq("status", "pending")
-        .eq("requested_by", "student")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (!data?.length) return [];
-
-      const userIds = [...new Set((data as any[]).map((r: any) => r.simple_user_id).filter(Boolean))];
-      const { data: users } = await supabase.from("simple_users").select("id, name").in("id", userIds);
-
-      return (data as any[]).map((r: any) => ({
-        ...r,
-        user_name: users?.find((u: any) => u.id === r.simple_user_id)?.name || "Ученик",
-      })) as RescheduleRequest[];
+      const data = await invokeApi<{ requests: RescheduleRequest[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...studentCreds(),
+        scheduleIds,
+        status: "pending",
+        requestedBy: "student",
+      });
+      return (data.requests ?? []).slice(0, 50);
     },
     enabled: scheduleIds.length > 0,
   });
@@ -147,23 +144,16 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
     queryKey: ["teacher-reschedule-responses", scheduleIds],
     queryFn: async () => {
       if (!scheduleIds.length) return [];
-      const { data } = await supabase
-        .from("reschedule_requests")
-        .select("*")
-        .in("schedule_id", scheduleIds)
-        .in("status", ["approved", "rejected"])
-        .eq("requested_by", "teacher")
-        .order("responded_at", { ascending: false })
-        .limit(50);
-      if (!data?.length) return [];
-
-      const userIds = [...new Set((data as any[]).map((r: any) => r.simple_user_id).filter(Boolean))];
-      const { data: users } = await supabase.from("simple_users").select("id, name").in("id", userIds);
-
-      return (data as any[]).map((r: any) => ({
-        ...r,
-        user_name: users?.find((u: any) => u.id === r.simple_user_id)?.name || "Ученик",
-      })) as RescheduleRequest[];
+      const data = await invokeApi<{ requests: RescheduleRequest[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...studentCreds(),
+        scheduleIds,
+        requestedBy: "teacher",
+      });
+      return (data.requests ?? [])
+        .filter((r) => r.status === "approved" || r.status === "rejected")
+        .sort((a, b) => new Date(b.responded_at || b.created_at || "").getTime() - new Date(a.responded_at || a.created_at || "").getTime())
+        .slice(0, 50);
     },
     enabled: scheduleIds.length > 0,
   });
@@ -171,54 +161,10 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
   // Approve reschedule
   const approveReschedule = useMutation({
     mutationFn: async (request: RescheduleRequest) => {
-      const { error: updateError } = await supabase
-        .from("reschedule_requests")
-        .update({ status: "approved", responded_at: new Date().toISOString() } as any)
-        .eq("id", request.id);
-      if (updateError) throw updateError;
-
-      const { data: booking } = await supabase
-        .from("simple_bookings")
-        .select("time_slot_id")
-        .eq("id", request.booking_id)
-        .single();
-
-      if (booking?.time_slot_id) {
-        const { data: currentSlot } = await supabase
-          .from("time_slots")
-          .select("start_time, end_time")
-          .eq("id", booking.time_slot_id)
-          .single();
-
-        let newEndTime = request.new_time;
-        if (currentSlot) {
-          const [sh, sm] = currentSlot.start_time.split(":").map(Number);
-          const [eh, em] = currentSlot.end_time.split(":").map(Number);
-          const durationMin = (eh * 60 + em) - (sh * 60 + sm);
-          const [nh, nm] = request.new_time.split(":").map(Number);
-          const endTotal = nh * 60 + nm + durationMin;
-          newEndTime = `${String(Math.floor(endTotal / 60) % 24).padStart(2, "0")}:${String(endTotal % 60).padStart(2, "0")}:00`;
-        }
-
-        await supabase.from("time_slots").update({
-          date: request.new_date,
-          start_time: request.new_time,
-          end_time: newEndTime,
-        }).eq("id", booking.time_slot_id);
-      }
-
-      await supabase.from("booking_reschedules").insert({
-        booking_id: request.booking_id,
-        simple_user_id: request.simple_user_id,
-        schedule_id: request.schedule_id,
-        product_id: request.product_id,
-        product_title: request.product_title,
-        old_date: request.old_date,
-        old_time: request.old_time,
-        new_date: request.new_date,
-        new_time: request.new_time,
-        rescheduled_by: "teacher",
-        reasons: ["Запрос ученика подтверждён"],
+      await invokeApi("manage-bookings", {
+        action: "approve_reschedule",
+        ...studentCreds(),
+        requestId: request.id,
       });
     },
     onSuccess: () => {
@@ -233,11 +179,12 @@ const TeacherNotificationsTab = ({ teacherName, productIds, lastViewedAt }: Teac
   // Reject reschedule
   const rejectReschedule = useMutation({
     mutationFn: async ({ requestId, comment }: { requestId: string; comment: string }) => {
-      const { error } = await supabase
-        .from("reschedule_requests")
-        .update({ status: "rejected", response_comment: comment, responded_at: new Date().toISOString() } as any)
-        .eq("id", requestId);
-      if (error) throw error;
+      await invokeApi("manage-bookings", {
+        action: "reject_reschedule",
+        ...studentCreds(),
+        requestId,
+        comment,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-reschedule-requests"] });

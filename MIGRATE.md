@@ -1,7 +1,7 @@
 # Подключение сервисов (старая версия, simple auth)
 
-Проект: **mebomnqdtuqmjjefvgkx**  
-Вход: ученики по имени (`simple_users`), авторы по логину (`creator_accounts`).
+Проект: **mebomnqdtuqmjjefvgkx** (см. `.env` и `supabase/config.toml`).  
+Вход: ученики по имени (`simple_users` + `simple_user_sessions`), авторы по логину (`creator_accounts` + `creator_sessions`). Браузер держит только anon-ключ; записи идут через edge-функции.
 
 ## Что нужно
 

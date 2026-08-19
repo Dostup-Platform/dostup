@@ -247,7 +247,7 @@ const MaterialsTab = () => {
   const handleOfficeView = useCallback(async (material: { file_url: string; title: string }) => {
     const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     try {
-      const token = await requestMaterialToken(material.file_url, 'student', user?.id);
+      const token = await requestMaterialToken(material.file_url, 'student');
       const proxyUrl = buildProxyUrl(token);
       const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
       window.open(viewerUrl, '_blank');

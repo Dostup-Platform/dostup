@@ -1,0 +1,329 @@
+import { json, optionsResponse } from '../_shared/http.ts'
+import {
+  assertCanManageProduct,
+  creatorProductIds,
+  productIdForSchedule,
+  resolveCaller,
+  serviceClient,
+  unauthorized,
+  forbidden,
+} from '../_shared/session.ts'
+
+async function ownsSchedule(supabase: ReturnType<typeof serviceClient>, caller: Awaited<ReturnType<typeof resolveCaller>>, scheduleId: string) {
+  if (!caller) return false
+  const productId = await productIdForSchedule(supabase, scheduleId)
+  if (!productId) return false
+  return assertCanManageProduct(supabase, caller, productId)
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return optionsResponse()
+
+  try {
+    const body = await req.json().catch(() => ({}))
+    const action = String(body.action || '')
+    const supabase = serviceClient()
+    const caller = await resolveCaller(supabase, body)
+    if (!caller) return unauthorized()
+
+    const productIdsForCaller = async (): Promise<string[]> => {
+      if (caller.kind === 'creator') return creatorProductIds(supabase, caller.accountId)
+      if (caller.role === 'teacher') {
+        const { data } = await supabase
+          .from('product_teachers')
+          .select('product_id')
+          .ilike('teacher_name', caller.name)
+        return (data ?? []).map((r: { product_id: string }) => r.product_id)
+      }
+      return []
+    }
+
+    if (action === 'me') {
+      if (caller.kind !== 'user') return json({ userId: null })
+      return json({ userId: caller.userId, name: caller.name, role: caller.role })
+    }
+
+    if (action === 'list_products') {
+      const ids = await productIdsForCaller()
+      if (!ids.length) return json({ products: [] })
+      const { data } = await supabase.from('products').select('id, title').in('id', ids)
+      return json({ products: data ?? [] })
+    }
+
+    if (action === 'list_schedules') {
+      const ids = Array.isArray(body.productIds) ? body.productIds.filter((x: unknown) => typeof x === 'string') : []
+      const allowed = await productIdsForCaller()
+      const filtered = ids.length ? ids.filter((id: string) => allowed.includes(id)) : allowed
+      if (!filtered.length) return json({ schedules: [] })
+      let q = supabase.from('schedules').select('*, product:products(title)').in('product_id', filtered)
+      if (caller.kind === 'user' && caller.role === 'teacher') {
+        q = q.eq('teacher_id', caller.userId)
+      } else if (body.creatorOnly) {
+        q = q.is('teacher_id', null)
+      }
+      const { data, error } = await q
+      if (error) return json({ error: error.message }, 500)
+      return json({ schedules: data ?? [] })
+    }
+
+    if (action === 'list_slots') {
+      const scheduleIds = Array.isArray(body.scheduleIds) ? body.scheduleIds.filter((x: unknown) => typeof x === 'string') : []
+      if (!scheduleIds.length) return json({ slots: [] })
+      for (const sid of scheduleIds) {
+        if (!(await ownsSchedule(supabase, caller, sid))) return forbidden()
+      }
+      let q = supabase.from('time_slots').select('*').in('schedule_id', scheduleIds)
+      if (body.fromDate) q = q.gte('date', body.fromDate)
+      if (body.toDate) q = q.lte('date', body.toDate)
+      const { data, error } = await q.order('date').order('start_time')
+      if (error) return json({ error: error.message }, 500)
+      return json({ slots: data ?? [] })
+    }
+
+    if (action === 'list_slot_dates') {
+      const scheduleId = String(body.scheduleId || '')
+      if (!scheduleId) return json({ dates: [] })
+      if (!(await ownsSchedule(supabase, caller, scheduleId))) return forbidden()
+      const { data } = await supabase.from('time_slots').select('date').eq('schedule_id', scheduleId).order('date')
+      const dates = [...new Set((data ?? []).map((s: { date: string }) => s.date))]
+      return json({ dates })
+    }
+
+    if (action === 'list_bookings_for_slots') {
+      const slotIds = Array.isArray(body.slotIds) ? body.slotIds.filter((x: unknown) => typeof x === 'string') : []
+      if (!slotIds.length) return json({ bookings: [] })
+      const { data, error } = await supabase
+        .from('simple_bookings')
+        .select('id, time_slot_id, simple_user_id, schedule_id, status')
+        .in('time_slot_id', slotIds)
+      if (error) return json({ error: error.message }, 500)
+      const userIds = [...new Set((data ?? []).map((b: { simple_user_id: string }) => b.simple_user_id))]
+      const { data: users } = userIds.length
+        ? await supabase.from('simple_users').select('id, name, phone').in('id', userIds)
+        : { data: [] as { id: string; name: string; phone: string | null }[] }
+      const userMap = new Map((users ?? []).map((u) => [u.id, u]))
+      return json({
+        bookings: (data ?? []).map((b: { simple_user_id: string }) => ({
+          ...b,
+          user: userMap.get(b.simple_user_id) || null,
+        })),
+      })
+    }
+
+    if (action === 'list_outgoing_reschedules') {
+      const ids = await productIdsForCaller()
+      if (!ids.length) return json({ requests: [] })
+      let q = supabase
+        .from('reschedule_requests')
+        .select('id, booking_id, new_date, new_time, status')
+        .in('product_id', ids)
+        .eq('status', 'pending')
+      if (caller.kind === 'user') q = q.eq('requested_by', 'teacher')
+      else q = q.eq('requested_by', 'creator')
+      const { data, error } = await q
+      if (error) return json({ error: error.message }, 500)
+      return json({ requests: data ?? [] })
+    }
+
+    if (action === 'create_schedule') {
+      const productId = String(body.productId || '')
+      const title = String(body.title || '').trim()
+      if (!productId || !title) return json({ error: 'Bad input' }, 400)
+      if (!(await assertCanManageProduct(supabase, caller, productId))) return forbidden()
+      const row: Record<string, unknown> = {
+        product_id: productId,
+        title,
+        event_type: body.eventType === 'group' ? 'group' : 'individual',
+        max_participants: body.maxParticipants != null ? Number(body.maxParticipants) : null,
+      }
+      if (caller.kind === 'user') row.teacher_id = caller.userId
+      const { data, error } = await supabase.from('schedules').insert(row).select().single()
+      if (error) return json({ error: error.message }, 500)
+      return json({ schedule: data })
+    }
+
+    if (action === 'update_schedule') {
+      const id = String(body.id || '')
+      const updates = body.updates && typeof body.updates === 'object' ? body.updates as Record<string, unknown> : {}
+      if (!id) return json({ error: 'Missing id' }, 400)
+      if (!(await ownsSchedule(supabase, caller, id))) return forbidden()
+      delete updates.id
+      delete updates.product_id
+      delete updates.teacher_id
+      const { data, error } = await supabase.from('schedules').update(updates).eq('id', id).select().single()
+      if (error) return json({ error: error.message }, 500)
+      return json({ schedule: data })
+    }
+
+    if (action === 'delete_schedule') {
+      const id = String(body.id || '')
+      if (!id) return json({ error: 'Missing id' }, 400)
+      if (!(await ownsSchedule(supabase, caller, id))) return forbidden()
+      const { error } = await supabase.from('schedules').delete().eq('id', id)
+      if (error) return json({ error: error.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'create_slots') {
+      const slots = Array.isArray(body.slots) ? body.slots : []
+      if (!slots.length) return json({ error: 'No slots' }, 400)
+      const scheduleId = String(slots[0].schedule_id || body.scheduleId || '')
+      if (!(await ownsSchedule(supabase, caller, scheduleId))) return forbidden()
+      const { data, error } = await supabase.from('time_slots').insert(slots).select()
+      if (error) return json({ error: error.message }, 500)
+      return json({ slots: data ?? [], count: slots.length })
+    }
+
+    if (action === 'delete_slot') {
+      const slotId = String(body.slotId || '')
+      if (!slotId) return json({ error: 'Missing slotId' }, 400)
+      const { data: slot } = await supabase.from('time_slots').select('schedule_id').eq('id', slotId).maybeSingle()
+      if (!slot) return json({ error: 'Not found' }, 404)
+      if (!(await ownsSchedule(supabase, caller, slot.schedule_id))) return forbidden()
+      const { error } = await supabase.from('time_slots').delete().eq('id', slotId)
+      if (error) return json({ error: error.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'delete_slots') {
+      const scheduleId = String(body.scheduleId || '')
+      if (!scheduleId) return json({ error: 'Missing scheduleId' }, 400)
+      if (!(await ownsSchedule(supabase, caller, scheduleId))) return forbidden()
+      let q = supabase.from('time_slots').delete().eq('schedule_id', scheduleId)
+      if (body.dates !== 'all' && Array.isArray(body.dates)) q = q.in('date', body.dates)
+      const { error } = await q
+      if (error) return json({ error: error.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'delete_slot_with_bookings') {
+      const slotId = String(body.slotId || '')
+      const reasons = Array.isArray(body.reasons) ? body.reasons : []
+      const comment = typeof body.comment === 'string' ? body.comment : null
+      if (!slotId) return json({ error: 'Missing slotId' }, 400)
+      const { data: slotData } = await supabase
+        .from('time_slots')
+        .select('date, start_time, schedule_id')
+        .eq('id', slotId)
+        .maybeSingle()
+      if (!slotData) return json({ error: 'Not found' }, 404)
+      if (!(await ownsSchedule(supabase, caller, slotData.schedule_id))) return forbidden()
+
+      const { data: slotBookings } = await supabase
+        .from('simple_bookings')
+        .select('id, simple_user_id')
+        .eq('time_slot_id', slotId)
+
+      if (slotBookings?.length) {
+        const { data: scheduleData } = await supabase
+          .from('schedules')
+          .select('id, title, product_id, product:products(title)')
+          .eq('id', slotData.schedule_id)
+          .single()
+        const userIds = slotBookings.map((b: { simple_user_id: string }) => b.simple_user_id)
+        const { data: usersData } = await supabase.from('simple_users').select('id, name, phone').in('id', userIds)
+        const cancelledBy = caller.kind === 'creator' ? 'creator' : 'teacher'
+        const cancellationRecords = slotBookings.map((b: { id: string; simple_user_id: string }) => {
+          const u = usersData?.find((x: { id: string }) => x.id === b.simple_user_id)
+          return {
+            booking_id: b.id,
+            product_id: scheduleData?.product_id || '',
+            product_title: (scheduleData?.product as { title?: string } | null)?.title || '',
+            schedule_id: scheduleData?.id || null,
+            schedule_title: scheduleData?.title || null,
+            simple_user_id: b.simple_user_id,
+            user_name: u?.name || '—',
+            user_phone: u?.phone || null,
+            slot_date: slotData.date,
+            slot_time: slotData.start_time,
+            cancelled_by: cancelledBy,
+            cancellation_reasons: reasons,
+            cancellation_comment: comment,
+          }
+        })
+        const { error: cancError } = await supabase.from('booking_cancellations').insert(cancellationRecords)
+        if (cancError) return json({ error: cancError.message }, 500)
+      }
+
+      const { error: bookingsError } = await supabase.from('simple_bookings').delete().eq('time_slot_id', slotId)
+      if (bookingsError) return json({ error: bookingsError.message }, 500)
+      const { error: slotError } = await supabase.from('time_slots').delete().eq('id', slotId)
+      if (slotError) return json({ error: slotError.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'update_slot') {
+      const slotId = String(body.slotId || '')
+      const updates = body.updates && typeof body.updates === 'object' ? body.updates as Record<string, unknown> : {}
+      if (!slotId) return json({ error: 'Missing slotId' }, 400)
+      const { data: slot } = await supabase.from('time_slots').select('schedule_id').eq('id', slotId).maybeSingle()
+      if (!slot) return json({ error: 'Not found' }, 404)
+      if (!(await ownsSchedule(supabase, caller, slot.schedule_id))) return forbidden()
+      const { error } = await supabase.from('time_slots').update(updates).eq('id', slotId)
+      if (error) return json({ error: error.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'set_lesson_link') {
+      const scheduleId = String(body.scheduleId || '')
+      const link = typeof body.link === 'string' ? body.link : null
+      if (!scheduleId) return json({ error: 'Missing scheduleId' }, 400)
+      if (!(await ownsSchedule(supabase, caller, scheduleId))) return forbidden()
+      let q = supabase.from('time_slots').update({ lesson_link: link }).eq('schedule_id', scheduleId)
+      if (body.dates !== 'all' && Array.isArray(body.dates)) q = q.in('date', body.dates)
+      const { error } = await q
+      if (error) return json({ error: error.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'student_list_schedules') {
+      if (caller.kind !== 'user') return forbidden()
+      const productIds = Array.isArray(body.productIds) ? body.productIds.filter((x: unknown) => typeof x === 'string') : []
+      if (!productIds.length) return json({ schedules: [] })
+      const { data: purchases } = await supabase
+        .from('simple_purchases')
+        .select('product_id, assigned_teacher_id, can_choose_teacher')
+        .eq('buyer_profile_id', caller.userId)
+        .eq('status', 'completed')
+        .in('product_id', productIds)
+      const allowed = new Set((purchases ?? []).map((p: { product_id: string }) => p.product_id))
+      const filtered = productIds.filter((id: string) => allowed.has(id))
+      if (!filtered.length) return json({ schedules: [] })
+      const { data, error } = await supabase.from('schedules').select('*').in('product_id', filtered)
+      if (error) return json({ error: error.message }, 500)
+      return json({ schedules: data ?? [], purchases: purchases ?? [] })
+    }
+
+    if (action === 'student_list_slots') {
+      if (caller.kind !== 'user') return forbidden()
+      const scheduleIds = Array.isArray(body.scheduleIds) ? body.scheduleIds.filter((x: unknown) => typeof x === 'string') : []
+      if (!scheduleIds.length) return json({ slots: [] })
+      const { data: schedules } = await supabase.from('schedules').select('id, product_id').in('id', scheduleIds)
+      const productIds = [...new Set((schedules ?? []).map((s: { product_id: string }) => s.product_id))]
+      const { data: purchases } = await supabase
+        .from('simple_purchases')
+        .select('product_id')
+        .eq('buyer_profile_id', caller.userId)
+        .eq('status', 'completed')
+        .in('product_id', productIds)
+      const allowedProducts = new Set((purchases ?? []).map((p: { product_id: string }) => p.product_id))
+      const allowedSchedules = (schedules ?? [])
+        .filter((s: { product_id: string }) => allowedProducts.has(s.product_id))
+        .map((s: { id: string }) => s.id)
+      if (!allowedSchedules.length) return json({ slots: [] })
+      const { data, error } = await supabase
+        .from('time_slots')
+        .select('*')
+        .in('schedule_id', allowedSchedules)
+        .order('date')
+        .order('start_time')
+      if (error) return json({ error: error.message }, 500)
+      return json({ slots: data ?? [] })
+    }
+
+    return json({ error: 'Unknown action' }, 400)
+  } catch (e) {
+    console.error('manage-schedules error', e)
+    return json({ error: 'Internal error' }, 500)
+  }
+})

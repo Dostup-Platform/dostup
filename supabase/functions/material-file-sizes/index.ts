@@ -45,11 +45,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Find creator's products
+    const { data: account } = await supabase
+      .from("creator_accounts")
+      .select("id")
+      .ilike("login", creatorName)
+      .maybeSingle();
+
     const { data: products } = await supabase
       .from("products")
       .select("id")
-      .eq("creator_id", creatorName);
+      .eq("creator_account_id", account?.id ?? "00000000-0000-0000-0000-000000000000");
     const productIds = (products ?? []).map((p) => p.id);
     if (productIds.length === 0) {
       return new Response(JSON.stringify({ updated: 0, total: 0 }), {

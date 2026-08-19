@@ -1,27 +1,33 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  clearAppSession,
+  parseProfileType,
+  profileHomePath,
+  storeCreatorSession,
+  type AppProfile,
+  type ProfileType,
+} from "@/lib/creatorAuth";
 
 interface SimpleUser {
   id: string;
   phone: string;
   name: string;
-  role: "student" | "creator";
+  role: "student" | "creator" | "teacher";
   created_at: string;
 }
 
 interface SimpleAuthContextType {
   user: SimpleUser | null;
   loading: boolean;
-  register: (name: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
-  loginOrRegister: (name: string) => Promise<{ user: SimpleUser | null; error: Error | null; isNewUser: boolean }>;
-  login: (phone: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
-  loginById: (userId: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
-  loginByName: (name: string) => Promise<{ user: SimpleUser | null; error: Error | null }>;
-  setRole: (role: "student" | "creator") => Promise<{ error: Error | null }>;
+  sessionToken: string | null;
+  profileType: ProfileType | null;
+  profiles: AppProfile[];
+  switchProfile: (opts: {
+    profileId?: string;
+    createType?: ProfileType;
+  }) => Promise<{ path: string } | { error: string }>;
   logout: () => void;
-  lastUserId: string | null;
-  lastUserName: string | null;
-  clearLastUser: () => void;
 }
 
 const SimpleAuthContext = createContext<SimpleAuthContextType | undefined>(undefined);
@@ -38,263 +44,168 @@ interface SimpleAuthProviderProps {
   children: ReactNode;
 }
 
-const USER_STORAGE_KEY = "simple_user_id";
-const LAST_USER_ID_KEY = "simple_last_user_id";
-const LAST_USER_NAME_KEY = "simple_last_user_name";
+function buyerFromStorage(): SimpleUser | null {
+  const profileType = parseProfileType(localStorage.getItem("profile_type"));
+  const profileId = localStorage.getItem("profile_id");
+  if (profileType !== "buyer" || !profileId) return null;
+  return {
+    id: profileId,
+    phone: "",
+    name: localStorage.getItem("profile_display_name") || localStorage.getItem("creator_name") || "",
+    role: "student",
+    created_at: localStorage.getItem("creator_created_at") || new Date().toISOString(),
+  };
+}
+
+function readStoredProfiles(): AppProfile[] {
+  try {
+    const raw = localStorage.getItem("identity_profiles");
+    if (!raw) return [];
+    return JSON.parse(raw) as AppProfile[];
+  } catch {
+    return [];
+  }
+}
 
 export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
   const [user, setUser] = useState<SimpleUser | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [profileType, setProfileType] = useState<ProfileType | null>(() =>
+    parseProfileType(typeof window === "undefined" ? null : localStorage.getItem("profile_type")),
+  );
+  const [profiles, setProfiles] = useState<AppProfile[]>(() =>
+    typeof window === "undefined" ? [] : readStoredProfiles(),
+  );
   const [loading, setLoading] = useState(true);
-  const [lastUserId, setLastUserId] = useState<string | null>(null);
-  const [lastUserName, setLastUserName] = useState<string | null>(null);
 
-  // Загрузить пользователя из localStorage при старте
+  const applyBuyer = useCallback((token: string, next: SimpleUser, nextProfiles: AppProfile[]) => {
+    setUser(next);
+    setSessionToken(token);
+    setProfileType("buyer");
+    setProfiles(nextProfiles);
+  }, []);
+
   useEffect(() => {
     const loadUser = async () => {
-      const storedUserId = localStorage.getItem(USER_STORAGE_KEY);
-      
-      // Загружаем данные последнего пользователя для кнопки "Войти как"
-      const storedLastUserId = localStorage.getItem(LAST_USER_ID_KEY);
-      const storedLastUserName = localStorage.getItem(LAST_USER_NAME_KEY);
-      if (storedLastUserId && storedLastUserName) {
-        setLastUserId(storedLastUserId);
-        setLastUserName(storedLastUserName);
-      }
-      
-      if (storedUserId) {
-        try {
-          const { data, error } = await supabase
-            .from("simple_users")
-            .select("*")
-            .eq("id", storedUserId)
-            .single();
+      const token = localStorage.getItem("creator_token");
+      const storedType = parseProfileType(localStorage.getItem("profile_type"));
+      const creatorName = localStorage.getItem("creator_name") || "";
 
-          if (data && !error) {
-            setUser(data as SimpleUser);
-          } else if (error && error.code === 'PGRST116') {
-            // Row not found — user was deleted, clear session
-            localStorage.removeItem(USER_STORAGE_KEY);
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.functions.invoke("validate-creator-session", {
+          body: { token, creatorName },
+        });
+
+        if (error) {
+          if (storedType === "buyer") {
+            const cached = buyerFromStorage();
+            if (cached) applyBuyer(token, cached, readStoredProfiles());
           }
-          // On other errors (network, timeout), keep localStorage intact
-        } catch {
-          console.warn("Failed to load user, keeping session for retry");
+          setProfileType(storedType);
+          setLoading(false);
+          return;
         }
+
+        if (!data?.valid) {
+          clearAppSession();
+          setLoading(false);
+          return;
+        }
+
+        const nextType = parseProfileType(data.profileType) || storedType;
+        const nextProfiles = (data.profiles as AppProfile[] | undefined) ?? readStoredProfiles();
+        setProfiles(nextProfiles);
+        setProfileType(nextType);
+        if (data.profileId) localStorage.setItem("profile_id", data.profileId);
+        if (data.displayName) localStorage.setItem("profile_display_name", data.displayName);
+        if (data.profileType) localStorage.setItem("profile_type", data.profileType);
+        if (nextProfiles.length) localStorage.setItem("identity_profiles", JSON.stringify(nextProfiles));
+
+        if (nextType === "buyer") {
+          applyBuyer(token, {
+            id: data.profileId || localStorage.getItem("profile_id") || "",
+            phone: "",
+            name: data.displayName || localStorage.getItem("profile_display_name") || "",
+            role: "student",
+            created_at: data.createdAt || localStorage.getItem("creator_created_at") || new Date().toISOString(),
+          }, nextProfiles);
+        }
+      } catch {
+        if (storedType === "buyer") {
+          const cached = buyerFromStorage();
+          if (cached) applyBuyer(token, cached, readStoredProfiles());
+        }
+        setProfileType(storedType);
       }
       setLoading(false);
     };
 
-    loadUser();
-  }, []);
+    void loadUser();
+  }, [applyBuyer]);
 
-  const register = async (name: string) => {
-    // Сначала проверяем, существует ли уже пользователь с таким именем
-    const { data: existingUsers } = await supabase
-      .from("simple_users")
-      .select("*")
-      .eq("name", name)
-      .limit(1);
-
-    if (existingUsers && existingUsers.length > 0) {
-      const existingUser = existingUsers[0];
-      setUser(existingUser as SimpleUser);
-      localStorage.setItem(USER_STORAGE_KEY, existingUser.id);
-      return { user: existingUser as SimpleUser, error: null };
-    }
-
-    // Генерируем уникальный идентификатор вместо телефона
-    const uniqueId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    
-    // Создать нового пользователя
-    const { data, error } = await supabase
-      .from("simple_users")
-      .insert({ name, phone: uniqueId })
-      .select()
-      .single();
-
-    if (error) {
-      // Обработка ошибки уникальности (race condition)
-      if (error.code === '23505') {
-        const { data: raceUser } = await supabase
-          .from("simple_users")
-          .select("*")
-          .eq("name", name)
-          .limit(1)
-          .single();
-        
-        if (raceUser) {
-          setUser(raceUser as SimpleUser);
-          localStorage.setItem(USER_STORAGE_KEY, raceUser.id);
-          return { user: raceUser as SimpleUser, error: null };
-        }
+  const switchProfile = async (opts: { profileId?: string; createType?: ProfileType }) => {
+    const token = localStorage.getItem("creator_token") || sessionToken || "";
+    if (!token) return { error: "Unauthorized" };
+    try {
+      const { data, error } = await supabase.functions.invoke("switch-profile", {
+        body: { token, profileId: opts.profileId, createType: opts.createType },
+      });
+      if (error || !data?.success || !data.token || !data.profileType) {
+        return { error: String(data?.error || error?.message || "Failed") };
       }
-      return { user: null, error: new Error(error.message) };
-    }
-
-    setUser(data as SimpleUser);
-    localStorage.setItem(USER_STORAGE_KEY, data.id);
-    return { user: data as SimpleUser, error: null };
-  };
-
-  // Найти пользователя по имени или создать нового
-  const loginOrRegister = async (name: string) => {
-    // Сначала пробуем найти существующих пользователей по имени (может быть несколько)
-    const { data: existingUsers, error: searchError } = await supabase
-      .from("simple_users")
-      .select("*")
-      .eq("name", name)
-      .order("created_at", { ascending: true })
-      .limit(1);
-
-    if (searchError) {
-      return { user: null, error: new Error(searchError.message), isNewUser: false };
-    }
-
-    // Если пользователь найден - входим в первый (самый старый) аккаунт
-    if (existingUsers && existingUsers.length > 0) {
-      const existingUser = existingUsers[0];
-      setUser(existingUser as SimpleUser);
-      localStorage.setItem(USER_STORAGE_KEY, existingUser.id);
-      return { user: existingUser as SimpleUser, error: null, isNewUser: false };
-    }
-
-    // Если не найден - создаём нового
-    const uniqueId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    
-    const { data, error } = await supabase
-      .from("simple_users")
-      .insert({ name, phone: uniqueId })
-      .select()
-      .single();
-
-    if (error) {
-      // Обработка ошибки уникальности (race condition - пользователь создан параллельно)
-      if (error.code === '23505') {
-        const { data: raceUser } = await supabase
-          .from("simple_users")
-          .select("*")
-          .eq("name", name)
-          .limit(1)
-          .single();
-        
-        if (raceUser) {
-          setUser(raceUser as SimpleUser);
-          localStorage.setItem(USER_STORAGE_KEY, raceUser.id);
-          return { user: raceUser as SimpleUser, error: null, isNewUser: false };
-        }
+      storeCreatorSession({
+        token: data.token,
+        creatorName: data.creatorName,
+        accountType: data.accountType,
+        profileType: data.profileType,
+        profileId: data.profileId,
+        displayName: data.displayName,
+        profiles: data.profiles,
+      });
+      const nextType = parseProfileType(data.profileType) || "buyer";
+      setProfileType(nextType);
+      setProfiles((data.profiles as AppProfile[]) ?? []);
+      if (nextType === "buyer") {
+        applyBuyer(data.token, {
+          id: data.profileId,
+          phone: "",
+          name: data.displayName || data.creatorName,
+          role: "student",
+          created_at: localStorage.getItem("creator_created_at") || new Date().toISOString(),
+        }, (data.profiles as AppProfile[]) ?? []);
+      } else {
+        setUser(null);
+        setSessionToken(data.token);
       }
-      return { user: null, error: new Error(error.message), isNewUser: false };
+      return { path: profileHomePath(data.profileType, data.accountType) };
+    } catch {
+      return { error: "network_failure" };
     }
-
-    setUser(data as SimpleUser);
-    localStorage.setItem(USER_STORAGE_KEY, data.id);
-    return { user: data as SimpleUser, error: null, isNewUser: true };
-  };
-
-  const loginByName = async (name: string) => {
-    const { data: users, error } = await supabase
-      .from("simple_users")
-      .select("*")
-      .eq("name", name)
-      .order("created_at", { ascending: true })
-      .limit(1);
-
-    if (error || !users || users.length === 0) {
-      return { user: null, error: new Error("Пользователь не найден") };
-    }
-    
-    const data = users[0];
-
-    setUser(data as SimpleUser);
-    localStorage.setItem(USER_STORAGE_KEY, data.id);
-    return { user: data as SimpleUser, error: null };
-  };
-
-  const login = async (phone: string) => {
-    const { data, error } = await supabase
-      .from("simple_users")
-      .select("*")
-      .eq("phone", phone)
-      .single();
-
-    if (error || !data) {
-      return { user: null, error: new Error("Пользователь не найден") };
-    }
-
-    setUser(data as SimpleUser);
-    localStorage.setItem(USER_STORAGE_KEY, data.id);
-    return { user: data as SimpleUser, error: null };
-  };
-
-  const loginById = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("simple_users")
-      .select("*")
-      .eq("id", userId)
-      .single();
-
-    if (error || !data) {
-      return { user: null, error: new Error("Пользователь не найден") };
-    }
-
-    setUser(data as SimpleUser);
-    localStorage.setItem(USER_STORAGE_KEY, data.id);
-    // Очищаем "последний пользователь" после успешного входа
-    setLastUserId(null);
-    setLastUserName(null);
-    return { user: data as SimpleUser, error: null };
-  };
-
-  const setRole = async (role: "student" | "creator") => {
-    if (!user) {
-      return { error: new Error("Пользователь не авторизован") };
-    }
-
-    const { error } = await supabase
-      .from("simple_users")
-      .update({ role })
-      .eq("id", user.id);
-
-    if (error) {
-      return { error: new Error(error.message) };
-    }
-
-    setUser({ ...user, role });
-    return { error: null };
   };
 
   const logout = () => {
-    // Сохраняем ID и имя для возможности повторного входа
-    if (user) {
-      localStorage.setItem(LAST_USER_ID_KEY, user.id);
-      localStorage.setItem(LAST_USER_NAME_KEY, user.name);
-      setLastUserId(user.id);
-      setLastUserName(user.name);
-    }
+    clearAppSession();
     setUser(null);
-    localStorage.removeItem(USER_STORAGE_KEY);
-  };
-
-  const clearLastUser = () => {
-    localStorage.removeItem(LAST_USER_ID_KEY);
-    localStorage.removeItem(LAST_USER_NAME_KEY);
-    setLastUserId(null);
-    setLastUserName(null);
+    setSessionToken(null);
+    setProfileType(null);
+    setProfiles([]);
+    void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
   };
 
   return (
-    <SimpleAuthContext.Provider value={{ 
-      user, 
-      loading, 
-      register,
-      loginOrRegister,
-      login, 
-      loginById,
-      loginByName,
-      setRole, 
+    <SimpleAuthContext.Provider value={{
+      user,
+      loading,
+      sessionToken,
+      profileType,
+      profiles,
+      switchProfile,
       logout,
-      lastUserId,
-      lastUserName,
-      clearLastUser
     }}>
       {children}
     </SimpleAuthContext.Provider>

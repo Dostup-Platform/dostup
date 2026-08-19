@@ -2,36 +2,19 @@ import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, Calendar, Clock, X, Check, ShoppingCart, Loader2, XCircle, Timer } from "lucide-react";
+import { Bell, Calendar, Clock, X, Check, Loader2, XCircle, Timer } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCreatorProducts } from "@/hooks/useProducts";
-import { useCreatorSimpleBookings, useCreatorCancelBooking } from "@/hooks/useSimplePurchases";
+import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
 import { format, differenceInMinutes, differenceInHours } from "date-fns";
 import { ru, kk } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { creatorCreds, invokeApi } from "@/lib/sessionApi";
+import CreatorPendingPayments, { useCreatorPendingPurchases } from "@/components/creator/CreatorPendingPayments";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import RejectRescheduleDialog from "@/components/RejectRescheduleDialog";
-
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
-    minimumFractionDigits: 0,
-  }).format(price);
-};
-
-interface PendingPurchase {
-  id: string;
-  amount: number;
-  status: string;
-  created_at: string;
-  product_id: string;
-  simple_user_id: string;
-  user?: { id: string; name: string; phone: string };
-  product?: { id: string; title: string };
-}
 
 interface BookingCancellation {
   id: string;
@@ -79,7 +62,26 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
   const { data: products } = useCreatorProducts(creatorName);
   const productIds = useMemo(() => products?.map(p => p.id) || [], [products]);
   const { data: bookings, isLoading: bookingsLoading } = useCreatorSimpleBookings(productIds);
-  const cancelBooking = useCreatorCancelBooking();
+  const cancelBooking = useMutation({
+    mutationFn: async ({ bookingId, cancelledBy, reasons, comment }: {
+      bookingId: string;
+      cancelledBy: "creator" | "teacher";
+      reasons?: string[];
+      comment?: string;
+    }) => {
+      await invokeApi("manage-bookings", {
+        action: "cancel",
+        ...creatorCreds(),
+        bookingId,
+        cancelledBy,
+        reasons,
+        comment,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-simple-bookings"] });
+    },
+  });
   
   // State for cancellation dialog
   const [cancelingBooking, setCancelingBooking] = useState<{
@@ -100,12 +102,13 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     queryKey: ["creator-author-schedule-ids", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
-      const { data } = await supabase
-        .from("schedules")
-        .select("id")
-        .in("product_id", productIds)
-        .is("teacher_id", null);
-      return data?.map(s => s.id) || [];
+      const data = await invokeApi<{ schedules: { id: string; title: string }[] }>("manage-schedules", {
+        action: "list_schedules",
+        ...creatorCreds(),
+        productIds,
+        creatorOnly: true,
+      });
+      return (data.schedules ?? []).map((s) => s.id);
     },
     enabled: productIds.length > 0,
   });
@@ -116,34 +119,26 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     queryFn: async () => {
       if (!productIds.length || !authorScheduleIds.length) return [];
 
-      // Получить отмены где schedule_id принадлежит расписаниям автора
-      // или schedule_id отсутствует (старые записи) - для них фильтруем по названию
-      const { data: allCancellations } = await supabase
-        .from("booking_cancellations")
-        .select("*")
-        .in("product_id", productIds)
-        .eq("cancelled_by", "student")
-        .order("cancelled_at", { ascending: false })
-        .limit(100);
+      const data = await invokeApi<{ cancellations: BookingCancellation[] }>("manage-bookings", {
+        action: "list_cancellations",
+        ...creatorCreds(),
+        productIds,
+      });
+      const allCancellations = (data.cancellations ?? []).filter((c) => c.cancelled_by === "student");
+      if (!allCancellations.length) return [];
 
-      if (!allCancellations?.length) return [];
+      const schedulesData = await invokeApi<{ schedules: { id: string; title: string }[] }>("manage-schedules", {
+        action: "list_schedules",
+        ...creatorCreds(),
+        productIds,
+        creatorOnly: true,
+      });
+      const authorScheduleTitles = new Set((schedulesData.schedules ?? []).map((s) => s.title));
 
-      // Получаем названия расписаний автора для fallback фильтрации старых записей
-      const { data: authorSchedules } = await supabase
-        .from("schedules")
-        .select("id, title")
-        .in("id", authorScheduleIds);
-
-      const authorScheduleTitles = new Set(authorSchedules?.map(s => s.title) || []);
-
-      // Фильтруем: 
-      // 1. Если есть schedule_id - проверяем что он в списке расписаний автора
-      // 2. Если нет schedule_id (старые записи) - проверяем по названию
-      const filtered = (allCancellations as BookingCancellation[]).filter(c => {
+      const filtered = allCancellations.filter(c => {
         if (c.schedule_id) {
           return authorScheduleIds.includes(c.schedule_id);
         }
-        // Fallback для старых записей без schedule_id
         return c.schedule_title && authorScheduleTitles.has(c.schedule_title);
       });
 
@@ -158,34 +153,22 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     queryFn: async () => {
       if (!productIds.length) return [];
 
-      const { data } = await supabase
-        .from("reschedule_requests")
-        .select("*")
-        .in("product_id", productIds)
-        .eq("status", "pending")
-        .eq("requested_by", "student")
-        .order("created_at", { ascending: false })
-        .limit(50);
+      const data = await invokeApi<{ requests: RescheduleRequest[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...creatorCreds(),
+        productIds,
+        status: "pending",
+        requestedBy: "student",
+      });
+      const requests = data.requests ?? [];
+      if (!requests.length) return [];
 
-      if (!data?.length) return [];
-
-      // Filter to author's schedules only
-      const filtered = (data as any[]).filter((r: any) => {
+      const filtered = requests.filter((r) => {
         if (r.schedule_id) return authorScheduleIds.includes(r.schedule_id);
-        return true; // If no schedule_id, show to creator
+        return true;
       });
 
-      // Fetch user names
-      const userIds = [...new Set(filtered.map((r: any) => r.simple_user_id).filter(Boolean))];
-      const { data: users } = await supabase
-        .from("simple_users")
-        .select("id, name")
-        .in("id", userIds);
-
-      return filtered.map((r: any) => ({
-        ...r,
-        user_name: users?.find((u: any) => u.id === r.simple_user_id)?.name || "Ученик",
-      })) as RescheduleRequest[];
+      return filtered.slice(0, 50);
     },
     enabled: productIds.length > 0,
   });
@@ -193,67 +176,11 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
   // Мутации для подтверждения/отклонения запросов на перенос
   const approveReschedule = useMutation({
     mutationFn: async (request: RescheduleRequest) => {
-      // 1. Update reschedule_requests status
-      const { error: updateError } = await supabase
-        .from("reschedule_requests")
-        .update({ status: "approved", responded_at: new Date().toISOString() } as any)
-        .eq("id", request.id);
-      if (updateError) throw updateError;
-
-      // 2. Update time_slot date/time
-      // Find the time_slot for the booking
-      const { data: booking } = await supabase
-        .from("simple_bookings")
-        .select("time_slot_id")
-        .eq("id", request.booking_id)
-        .single();
-
-      if (booking?.time_slot_id) {
-        // Get current slot to calculate duration
-        const { data: currentSlot } = await supabase
-          .from("time_slots")
-          .select("start_time, end_time")
-          .eq("id", booking.time_slot_id)
-          .single();
-
-        let newEndTime = request.new_time;
-        if (currentSlot) {
-          const [sh, sm] = currentSlot.start_time.split(":").map(Number);
-          const [eh, em] = currentSlot.end_time.split(":").map(Number);
-          const durationMin = (eh * 60 + em) - (sh * 60 + sm);
-          const [nh, nm] = request.new_time.split(":").map(Number);
-          const endTotal = nh * 60 + nm + durationMin;
-          newEndTime = `${String(Math.floor(endTotal / 60) % 24).padStart(2, "0")}:${String(endTotal % 60).padStart(2, "0")}:00`;
-        }
-
-        const { error: slotError } = await supabase
-          .from("time_slots")
-          .update({
-            date: request.new_date,
-            start_time: request.new_time,
-            end_time: newEndTime,
-          })
-          .eq("id", booking.time_slot_id);
-        if (slotError) throw slotError;
-      }
-
-      // 3. Create booking_reschedules record for student notification
-      const { error: rescheduleError } = await supabase
-        .from("booking_reschedules")
-        .insert({
-          booking_id: request.booking_id,
-          simple_user_id: request.simple_user_id,
-          schedule_id: request.schedule_id,
-          product_id: request.product_id,
-          product_title: request.product_title,
-          old_date: request.old_date,
-          old_time: request.old_time,
-          new_date: request.new_date,
-          new_time: request.new_time,
-          rescheduled_by: "creator",
-          reasons: ["Запрос ученика подтверждён"],
-        });
-      if (rescheduleError) throw rescheduleError;
+      await invokeApi("manage-bookings", {
+        action: "approve_reschedule",
+        ...creatorCreds(),
+        requestId: request.id,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
@@ -266,15 +193,12 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
 
   const rejectReschedule = useMutation({
     mutationFn: async ({ requestId, comment }: { requestId: string; comment: string }) => {
-      const { error } = await supabase
-        .from("reschedule_requests")
-        .update({
-          status: "rejected",
-          response_comment: comment,
-          responded_at: new Date().toISOString(),
-        } as any)
-        .eq("id", requestId);
-      if (error) throw error;
+      await invokeApi("manage-bookings", {
+        action: "reject_reschedule",
+        ...creatorCreds(),
+        requestId,
+        comment,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-reschedule-requests"] });
@@ -346,43 +270,7 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
     };
   }, [productIds, authorScheduleIds, queryClient]);
 
-  // Получить ожидающие покупки
-  const { data: pendingPurchases = [], isLoading: purchasesLoading } = useQuery<PendingPurchase[]>({
-    queryKey: ["creator-pending-purchases", productIds],
-    queryFn: async () => {
-      if (!productIds.length) return [];
-
-      const { data: purchases } = await supabase
-        .from("simple_purchases")
-        .select(`
-          id,
-          amount,
-          status,
-          created_at,
-          product_id,
-          simple_user_id
-        `)
-        .in("product_id", productIds)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-
-      if (!purchases?.length) return [];
-
-      // Fetch user details
-      const userIds = [...new Set(purchases.map(p => p.simple_user_id))];
-      const { data: users } = await supabase
-        .from("simple_users")
-        .select("id, name, phone")
-        .in("id", userIds);
-
-      return purchases.map(purchase => ({
-        ...purchase,
-        user: users?.find(u => u.id === purchase.simple_user_id),
-        product: products?.find(p => p.id === purchase.product_id)
-      }));
-    },
-    enabled: productIds.length > 0,
-  });
+  const { data: pendingPurchases = [], isLoading: purchasesLoading } = useCreatorPendingPurchases(creatorName);
 
   // Realtime подписка для обновления pending purchases
   useEffect(() => {
@@ -430,52 +318,6 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
       supabase.removeChannel(channel);
     };
   }, [productIds, queryClient]);
-
-  // Мутация для подтверждения покупки
-  const confirmPurchase = useMutation({
-    mutationFn: async (purchaseId: string) => {
-      const creatorToken = localStorage.getItem("creator_token");
-      const { data, error } = await supabase.functions.invoke('approve-purchase', {
-        body: { 
-          purchaseId, 
-          creatorToken, 
-          creatorName 
-        }
-      });
-
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Failed to approve');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases-count"] });
-      queryClient.invalidateQueries({ queryKey: ["creator-purchases"] });
-      toast.success(t("paymentConfirmed") || "Оплата подтверждена!");
-    },
-    onError: () => {
-      toast.error("Ошибка при подтверждении");
-    },
-  });
-
-  // Мутация для отклонения покупки
-  const rejectPurchase = useMutation({
-    mutationFn: async (purchaseId: string) => {
-      const { error } = await supabase
-        .from("simple_purchases")
-        .update({ status: "rejected" } as any)
-        .eq("id", purchaseId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases"] });
-      queryClient.invalidateQueries({ queryKey: ["creator-pending-purchases-count"] });
-      queryClient.invalidateQueries({ queryKey: ["creator-purchases"] });
-      toast.success(language === "ru" ? "Запрос отклонён" : "Сұраныс қабылданбады");
-    },
-    onError: () => {
-      toast.error(language === "ru" ? "Ошибка при отклонении" : "Қабылдамау қатесі");
-    },
-  });
 
   const handleCancelBookingWithReason = async (reasons: string[], comment: string) => {
     if (!cancelingBooking) return;
@@ -551,98 +393,7 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt }: CreatorNotificat
   return (
     <div className="space-y-4">
 
-      {/* Pending Purchases Section */}
-      {pendingPurchases.length > 0 && (
-        <Card className="border-warning/30">
-          <CardHeader className="pb-2 px-3 pt-3">
-            <CardTitle className="text-base flex items-center gap-2 text-warning">
-              <ShoppingCart className="w-4 h-4" />
-              {t("pendingPayments")} ({pendingPurchases.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-border">
-              {pendingPurchases.map((purchase) => {
-                const isNewPurchase = isNew(purchase.created_at);
-
-                return (
-                  <div 
-                    key={purchase.id} 
-                    className={`p-3 transition-colors ${isNewPurchase ? "bg-warning/5" : ""}`}
-                  >
-                    {/* Mobile-optimized layout */}
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div className="p-1.5 rounded-full flex-shrink-0 bg-warning/10 text-warning">
-                          <ShoppingCart className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-medium text-foreground truncate">
-                              {purchase.user?.name || t("student")}
-                            </span>
-                            {isNewPurchase && (
-                              <Badge variant="default" className="text-[10px] px-1.5 py-0 bg-warning text-warning-foreground">
-                                {t("new")}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                        {getTimeAgo(purchase.created_at)}
-                      </span>
-                    </div>
-                    
-                    <div className="pl-8">
-                      <p className="text-xs text-muted-foreground line-clamp-1">
-                        {language === "ru" ? "хочет купить" : "сатып алғысы келеді"}: {purchase.product?.title}
-                      </p>
-                      
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-sm font-semibold text-foreground">
-                          {formatPrice(Number(purchase.amount))}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              if (window.confirm(language === "ru" ? "Отклонить запрос на оплату?" : "Төлем сұранысын қабылдамайсыз ба?")) {
-                                rejectPurchase.mutate(purchase.id);
-                              }
-                            }}
-                            disabled={confirmPurchase.isPending || rejectPurchase.isPending}
-                            className="h-7 text-xs px-2 text-destructive border-destructive/40 hover:bg-destructive hover:text-destructive-foreground"
-                          >
-                            <X className="w-3.5 h-3.5 mr-1" />
-                            {language === "ru" ? "Отклонить" : "Қабылдамау"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => confirmPurchase.mutate(purchase.id)}
-                            disabled={confirmPurchase.isPending || rejectPurchase.isPending}
-                            className="h-7 text-xs px-2"
-                          >
-                            {confirmPurchase.isPending ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <>
-                                <Check className="w-3.5 h-3.5 mr-1" />
-                                {t("confirmPayment")}
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <CreatorPendingPayments creatorName={creatorName} />
 
       {/* Reschedule Requests Section */}
       {rescheduleRequests.length > 0 && (

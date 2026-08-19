@@ -7,6 +7,7 @@ import { User, Package, LogOut, Loader2, Download, Globe } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate, Link } from "react-router-dom";
+import ProfileSwitcher from "@/components/auth/ProfileSwitcher";
 import { useState } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
 import { usePWADetection } from "@/hooks/usePWADetection";
@@ -81,6 +82,8 @@ const AccountTab = () => {
           </div>
         </CardContent>
       </Card>
+
+      <ProfileSwitcher activeType="buyer" />
 
       {/* Purchased Products */}
       <Card>

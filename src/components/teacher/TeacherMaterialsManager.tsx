@@ -333,7 +333,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     if (!material.file_url) return;
     const loadingToast = toast.loading(language === "ru" ? "Подготовка файла..." : "Файл дайындалуда...");
     try {
-      const token = await requestMaterialToken(material.file_url, 'teacher', teacherId);
+      const token = await requestMaterialToken(material.file_url, 'teacher');
       const proxyUrl = buildProxyUrl(token);
       const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(proxyUrl)}`;
       window.open(viewerUrl, '_blank');
@@ -344,7 +344,7 @@ const TeacherMaterialsManager = ({ teacherId, productId, productTitle }: Teacher
     } finally {
       toast.dismiss(loadingToast);
     }
-  }, [language, teacherId]);
+  }, [language]);
 
   const getAccessLabel = (material: Material) => {
     const canDownload = material.allow_download !== false;

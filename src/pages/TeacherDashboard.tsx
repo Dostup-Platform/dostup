@@ -26,14 +26,13 @@ const TeacherSupportButton = ({ activeTab, teacherName, teacherId, onClick }: { 
 };
 import { useLanguage } from "@/contexts/LanguageContext";
 
-import { useTeacherProducts } from "@/hooks/useProductTeachers";
 import { useIsMobile } from "@/hooks/use-mobile";
 import TeacherScheduleTab from "@/components/teacher/TeacherScheduleTab";
 import TeacherMaterialsTab from "@/components/teacher/TeacherMaterialsTab";
 import TeacherNotificationsTab from "@/components/teacher/TeacherNotificationsTab";
 import TeacherAccountTab from "@/components/teacher/TeacherAccountTab";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { sessionCreds, studentCreds, invokeApi } from "@/lib/sessionApi";
 import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { useRealtimeTeacherNotifications } from "@/hooks/useRealtimeTeacherNotifications";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
@@ -78,23 +77,28 @@ const TeacherDashboard = () => {
   }, [lastViewedKey]);
 
   // Get products where this teacher has access
-  const { data: teacherProducts = [], isLoading: productsLoading } = useTeacherProducts(teacherName || undefined);
-  const productIds = useMemo(() => teacherProducts.map(tp => tp.product_id), [teacherProducts]);
+  const { data: teacherProducts = [], isLoading: productsLoading } = useQuery({
+    queryKey: ["teacher-products", teacherName],
+    queryFn: async () => {
+      const data = await invokeApi<{ products: { id: string }[] }>("manage-products", {
+        action: "list",
+        ...sessionCreds(),
+      });
+      return data.products ?? [];
+    },
+    enabled: !!teacherName,
+  });
+  const productIds = useMemo(() => teacherProducts.map(p => p.id), [teacherProducts]);
 
-  // Get teacher user record for phone
+  // Get teacher user record
   const { data: teacherUser } = useQuery({
     queryKey: ["teacher-user", teacherName],
     queryFn: async () => {
-      if (!teacherName) return null;
-      
-      const { data } = await supabase
-        .from("simple_users")
-        .select("id, phone")
-        .eq("name", teacherName)
-        .eq("role", "teacher")
-        .maybeSingle();
-      
-      return data;
+      const data = await invokeApi<{ userId: string | null; name?: string; role?: string }>("manage-schedules", {
+        action: "me",
+        ...studentCreds(),
+      });
+      return data.userId ? { id: data.userId } : null;
     },
     enabled: !!teacherName,
   });
@@ -103,25 +107,13 @@ const TeacherDashboard = () => {
   const { data: teacherSchedules = [] } = useQuery({
     queryKey: ["teacher-schedules", teacherName],
     queryFn: async () => {
-      if (!teacherName || !productIds.length) return [];
-      
-      // Get simple_user by name
-      const { data: user } = await supabase
-        .from("simple_users")
-        .select("id")
-        .eq("name", teacherName)
-        .single();
-      
-      if (!user) return [];
-      
-      const { data, error } = await supabase
-        .from("schedules")
-        .select("id, product_id, title")
-        .in("product_id", productIds)
-        .eq("teacher_id", user.id);
-      
-      if (error) throw error;
-      return data || [];
+      if (!productIds.length) return [];
+      const data = await invokeApi<{ schedules: { id: string; product_id: string; title: string; product?: { title: string } | null }[] }>("manage-schedules", {
+        action: "list_schedules",
+        ...studentCreds(),
+        productIds,
+      });
+      return data.schedules ?? [];
     },
     enabled: !!teacherName && productIds.length > 0,
   });
@@ -140,15 +132,42 @@ const TeacherDashboard = () => {
     queryKey: ["teacher-notification-bookings", scheduleIds],
     queryFn: async () => {
       if (!scheduleIds.length) return [];
-      
-      const { data, error } = await supabase
-        .from("simple_bookings")
-        .select("id, created_at")
-        .in("schedule_id", scheduleIds)
-        .eq("status", "confirmed");
-      
-      if (error) throw error;
-      return data || [];
+      const slotsData = await invokeApi<{ slots: { id: string; date: string; start_time: string; end_time: string; schedule_id: string; created_at?: string }[] }>("manage-schedules", {
+        action: "list_slots",
+        ...studentCreds(),
+        scheduleIds,
+      });
+      const slots = slotsData.slots ?? [];
+      const slotIds = slots.map((s) => s.id);
+      if (!slotIds.length) return [];
+      const bookingsData = await invokeApi<{ bookings: {
+        id: string;
+        time_slot_id: string;
+        simple_user_id: string;
+        schedule_id: string;
+        status: string;
+        created_at?: string;
+        user: { id: string; name: string; phone: string } | null;
+      }[] }>("manage-schedules", {
+        action: "list_bookings_for_slots",
+        ...studentCreds(),
+        slotIds,
+      });
+      const slotMap = new Map(slots.map((s) => [s.id, s]));
+      const scheduleMap = new Map(teacherSchedules.map((s) => [s.id, s]));
+      return (bookingsData.bookings ?? [])
+        .filter((b) => b.status === "confirmed")
+        .map((b) => {
+          const slot = slotMap.get(b.time_slot_id);
+          const schedule = scheduleMap.get(b.schedule_id);
+          return {
+            id: b.id,
+            created_at: b.created_at || slot?.created_at || "",
+            time_slot: slot ? { date: slot.date, start_time: slot.start_time, end_time: slot.end_time } : null,
+            schedule: schedule ? { title: schedule.title, product: schedule.product ?? null } : null,
+            user: b.user,
+          };
+        });
     },
     enabled: scheduleIds.length > 0,
   });
@@ -158,15 +177,12 @@ const TeacherDashboard = () => {
     queryKey: ["teacher-notification-cancellations", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
-      
-      const { data, error } = await supabase
-        .from("booking_cancellations")
-        .select("id, cancelled_at")
-        .in("product_id", productIds)
-        .eq("cancelled_by", "student");
-      
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ cancellations: { id: string; cancelled_by: string; cancelled_at: string }[] }>("manage-bookings", {
+        action: "list_cancellations",
+        ...studentCreds(),
+        productIds,
+      });
+      return (data.cancellations ?? []).filter((c) => c.cancelled_by === "student");
     },
     enabled: productIds.length > 0,
   });
@@ -176,16 +192,14 @@ const TeacherDashboard = () => {
     queryKey: ["teacher-reschedule-requests-count", scheduleIds],
     queryFn: async () => {
       if (!scheduleIds.length) return [];
-      
-      const { data, error } = await supabase
-        .from("reschedule_requests")
-        .select("id, created_at")
-        .in("schedule_id", scheduleIds)
-        .eq("status", "pending")
-        .eq("requested_by", "student");
-      
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ requests: { id: string; created_at: string }[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...studentCreds(),
+        scheduleIds,
+        status: "pending",
+        requestedBy: "student",
+      });
+      return data.requests ?? [];
     },
     enabled: scheduleIds.length > 0,
   });
@@ -195,16 +209,13 @@ const TeacherDashboard = () => {
     queryKey: ["teacher-reschedule-responses-count", scheduleIds],
     queryFn: async () => {
       if (!scheduleIds.length) return [];
-      
-      const { data, error } = await supabase
-        .from("reschedule_requests")
-        .select("id, responded_at")
-        .in("schedule_id", scheduleIds)
-        .in("status", ["approved", "rejected"])
-        .eq("requested_by", "teacher");
-      
-      if (error) throw error;
-      return data || [];
+      const data = await invokeApi<{ requests: { id: string; responded_at: string | null; status: string }[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...studentCreds(),
+        scheduleIds,
+        requestedBy: "teacher",
+      });
+      return (data.requests ?? []).filter((r) => r.status === "approved" || r.status === "rejected");
     },
     enabled: scheduleIds.length > 0,
   });

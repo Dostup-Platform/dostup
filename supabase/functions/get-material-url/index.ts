@@ -33,7 +33,7 @@ serve(async (req) => {
     // Get the material and its product
     const { data: material, error: materialError } = await supabase
       .from('materials')
-      .select('*, products(id, creator_id)')
+      .select('*, products(id, creator_id, creator_account_id)')
       .eq('id', materialId)
       .single()
 
@@ -48,13 +48,13 @@ serve(async (req) => {
     }
 
     // Check if user has purchased this product
-    const { data: purchase, error: purchaseError } = await supabase
+    const { data: purchase } = await supabase
       .from('simple_purchases')
       .select('id')
-      .eq('simple_user_id', userId)
+      .eq('buyer_profile_id', userId)
       .eq('product_id', material.product_id)
       .eq('status', 'completed')
-      .single()
+      .maybeSingle()
 
     // Also check if the user is the creator
     const { data: user, error: userError } = await supabase
@@ -63,7 +63,12 @@ serve(async (req) => {
       .eq('id', userId)
       .single()
 
-    const isCreator = user?.name === material.products?.creator_id
+    const { data: account } = await supabase
+      .from('creator_accounts')
+      .select('id')
+      .ilike('login', user?.name || '')
+      .maybeSingle()
+    const isCreator = !!account && account.id === material.products?.creator_account_id
 
     if (!purchase && !isCreator) {
       return new Response(

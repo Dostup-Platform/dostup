@@ -1,49 +1,23 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { json, optionsResponse } from '../_shared/http.ts'
+import { resolveCreator, serviceClient } from '../_shared/session.ts'
+import { completePurchase, recordVerificationEvent } from '../_shared/purchase.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-}
-
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return optionsResponse()
 
   try {
     const { purchaseId, creatorToken, creatorName } = await req.json()
 
     if (!purchaseId || !creatorToken || !creatorName) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return json({ error: 'Missing required fields' }, 400)
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
-
-    // Validate creator session
-    const { data: session } = await supabase
-      .from('creator_sessions')
-      .select('*')
-      .eq('token', creatorToken)
-      .eq('creator_name', creatorName)
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle()
-
-    if (!session) {
-      console.log('Invalid session for purchase approval:', creatorName)
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired session' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    const supabase = serviceClient()
+    const creator = await resolveCreator(supabase, creatorToken, creatorName)
+    if (!creator) {
+      return json({ error: 'Invalid or expired session' }, 401)
     }
 
-    // Verify the purchase belongs to a product owned by this creator
     const { data: purchase, error: purchaseError } = await supabase
       .from('simple_purchases')
       .select('id, product_id, status')
@@ -51,63 +25,55 @@ serve(async (req) => {
       .single()
 
     if (purchaseError || !purchase) {
-      console.error('Purchase not found:', purchaseId)
-      return new Response(
-        JSON.stringify({ error: 'Purchase not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return json({ error: 'Purchase not found' }, 404)
     }
 
-    // Verify the product belongs to this creator
     const { data: product } = await supabase
       .from('products')
-      .select('creator_id')
+      .select('creator_account_id')
       .eq('id', purchase.product_id)
       .single()
 
-    if (!product || product.creator_id !== creatorName) {
-      console.log('Creator mismatch:', creatorName, 'vs', product?.creator_id)
-      return new Response(
-        JSON.stringify({ error: 'Not authorized to approve this purchase' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!product || product.creator_account_id !== creator.accountId) {
+      return json({ error: 'Not authorized to approve this purchase' }, 403)
     }
 
-    if (purchase.status === 'completed') {
-      return new Response(
-        JSON.stringify({ success: true, message: 'Already approved' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    const completed = await completePurchase(supabase, purchaseId)
+    if (!completed.ok) return json({ error: completed.error }, 409)
 
-    // Approve the purchase using service role (bypasses the trigger)
-    const { error: updateError } = await supabase
-      .from('simple_purchases')
-      .update({ 
-        status: 'completed',
-        confirmed_at: new Date().toISOString()
+    const { data: submission } = await supabase
+      .from('payment_submissions')
+      .select('id, verification_status')
+      .eq('purchase_id', purchaseId)
+      .in('verification_status', ['manual_review', 'pending'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (submission) {
+      await supabase
+        .from('payment_submissions')
+        .update({
+          verification_status: 'confirmed',
+          decided_at: new Date().toISOString(),
+          decided_by: `creator:${creator.login}`,
+          rejection_reason: null,
+        })
+        .eq('id', submission.id)
+
+      await recordVerificationEvent(supabase, {
+        submissionId: submission.id,
+        purchaseId,
+        actor: `creator:${creator.login}`,
+        decision: 'confirmed',
+        checks: { source: 'creator_manual_review' },
+        notes: 'creator_approved',
       })
-      .eq('id', purchaseId)
-
-    if (updateError) {
-      console.error('Error approving purchase:', updateError)
-      return new Response(
-        JSON.stringify({ error: 'Failed to approve purchase' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
     }
 
-    console.log('Purchase approved:', purchaseId, 'by creator:', creatorName)
-    return new Response(
-      JSON.stringify({ success: true }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-
+    return json({ success: true, already: completed.already })
   } catch (error) {
     console.error('Error in approve-purchase:', error)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    return json({ error: 'Internal server error' }, 500)
   }
 })

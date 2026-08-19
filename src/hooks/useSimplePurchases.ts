@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { creatorCreds, sessionCreds, studentCreds, invokeApi } from "@/lib/sessionApi";
 
 interface SimplePurchase {
   id: string;
@@ -18,6 +19,63 @@ interface SimplePurchase {
     telegram_link: string | null;
     group_link_label: string | null;
   } | null;
+}
+
+interface SimpleMaterial {
+  id: string;
+  title: string;
+  type: string;
+  content: string | null;
+  file_url: string | null;
+  order_index: number;
+  product_id: string;
+  allow_view?: boolean;
+  allow_download?: boolean;
+  teacher_id: string | null;
+  available_at: string | null;
+  parent_id: string | null;
+  product?: { id: string; title: string; telegram_link: string | null } | null;
+  teacher_name: string | null;
+  is_teacher_material: boolean;
+}
+
+interface SimpleSchedule {
+  id: string;
+  product_id: string;
+  title: string;
+  event_type: string;
+  max_participants: number | null;
+  teacher_id: string | null;
+  created_at: string;
+  teacher_name: string | null;
+}
+
+interface SimpleTimeSlot {
+  id: string;
+  schedule_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  lesson_link?: string | null;
+  [key: string]: unknown;
+}
+
+interface SlotBooking {
+  id: string;
+  time_slot_id: string;
+  simple_user_id: string;
+  schedule_id?: string;
+  status: string;
+  created_at?: string;
+  user?: { id: string; name: string; phone: string | null } | null;
+}
+
+function localToday(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 // Получить подтверждённые покупки пользователя
@@ -37,9 +95,9 @@ export const useSimplePurchases = () => {
           event: "UPDATE",
           schema: "public",
           table: "simple_purchases",
-          filter: `simple_user_id=eq.${user.id}`
+          filter: `buyer_profile_id=eq.${user.id}`
         },
-        (payload: any) => {
+        (payload: { new?: { status?: string } }) => {
           // При обновлении статуса покупки, обновить все связанные данные
           if (payload.new?.status === "completed") {
             queryClient.invalidateQueries({ queryKey: ["simple-purchases"] });
@@ -58,37 +116,14 @@ export const useSimplePurchases = () => {
   return useQuery({
     queryKey: ["simple-purchases", user?.id],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user) return [] as SimplePurchase[];
 
-      const { data, error } = await supabase
-        .from("simple_purchases")
-        .select(`
-          id,
-          product_id,
-          status,
-          amount,
-          created_at,
-          can_choose_teacher,
-          assigned_teacher_id
-        `)
-        .eq("simple_user_id", user.id)
-        .eq("status", "completed");
-
-      if (error) throw error;
-
-      // Получить информацию о продуктах
-      if (!data?.length) return [];
-
-      const productIds = data.map(p => p.product_id);
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, title, headline, telegram_link, group_link_label")
-        .in("id", productIds);
-
-      return data.map(purchase => ({
-        ...purchase,
-        product: products?.find(p => p.id === purchase.product_id) || null
-      })) as SimplePurchase[];
+      const data = await invokeApi<{ purchases: SimplePurchase[] }>("checkout", {
+        action: "list_my_purchases",
+        ...studentCreds(),
+        status: "completed",
+      });
+      return data.purchases ?? [];
     },
     enabled: !!user,
   });
@@ -101,166 +136,55 @@ export const useSimpleMaterials = () => {
   return useQuery({
     queryKey: ["simple-materials", purchases?.map(p => `${p.product_id}-${p.assigned_teacher_id}-${p.can_choose_teacher}`)],
     queryFn: async () => {
-      if (!purchases?.length) return [];
+      if (!purchases?.length) return [] as SimpleMaterial[];
 
-      const productIds = purchases.map(p => p.product_id);
+      const data = await invokeApi<{
+        materials: Array<Omit<SimpleMaterial, "product" | "teacher_name" | "is_teacher_material">>;
+        purchases: Array<{ product_id: string }>;
+      }>("manage-materials", {
+        action: "list_student",
+        ...studentCreds(),
+      });
 
-      // Получить материалы автора (teacher_id IS NULL)
-      const { data: creatorMaterials, error: creatorError } = await supabase
-        .from("materials")
-        .select(`
-          id,
-          title,
-          type,
-          content,
-          file_url,
-          order_index,
-          product_id,
-          allow_view,
-          allow_download,
-          teacher_id,
-          available_at,
-          parent_id
-        `)
-        .in("product_id", productIds)
-        .is("teacher_id", null)
-        .order("order_index");
-
-      if (creatorError) throw creatorError;
-
-      // Собрать информацию о доступе к учителям по продуктам
-      // can_choose_teacher = true означает доступ ко ВСЕМ учителям продукта
-      // assigned_teacher_id означает доступ только к конкретному учителю
-      const canChooseTeacherProducts = purchases
-        .filter(p => p.can_choose_teacher)
-        .map(p => p.product_id);
-      
-      const specificTeacherAssignments = purchases
-        .filter(p => !p.can_choose_teacher && p.assigned_teacher_id)
-        .map(p => ({ product_id: p.product_id, teacher_id: p.assigned_teacher_id! }));
-
-      let teacherMaterials: typeof creatorMaterials = [];
-
-      // Получить ВСЕ материалы учителей для продуктов с can_choose_teacher
-      if (canChooseTeacherProducts.length > 0) {
-        const { data: allTeacherMaterials, error } = await supabase
-          .from("materials")
-          .select(`
-            id,
-            title,
-            type,
-            content,
-            file_url,
-            order_index,
-            product_id,
-            allow_view,
-            allow_download,
-            teacher_id,
-            available_at,
-            parent_id
-          `)
-          .in("product_id", canChooseTeacherProducts)
-          .not("teacher_id", "is", null)
-          .order("order_index");
-
-        if (error) throw error;
-        teacherMaterials = allTeacherMaterials || [];
-      }
-
-      // Получить материалы конкретных назначенных учителей
-      for (const assignment of specificTeacherAssignments) {
-        // Пропустить если продукт уже в can_choose_teacher (мы уже получили все материалы)
-        if (canChooseTeacherProducts.includes(assignment.product_id)) continue;
-
-        const { data: specificMaterials, error } = await supabase
-          .from("materials")
-          .select(`
-            id,
-            title,
-            type,
-            content,
-            file_url,
-            order_index,
-            product_id,
-            allow_view,
-            allow_download,
-            teacher_id,
-            available_at,
-            parent_id
-          `)
-          .eq("product_id", assignment.product_id)
-          .eq("teacher_id", assignment.teacher_id)
-          .order("order_index");
-
-        if (error) throw error;
-        if (specificMaterials) {
-          teacherMaterials = [...teacherMaterials, ...specificMaterials];
-        }
-      }
-
-      const allMaterials = [...(creatorMaterials || []), ...teacherMaterials];
-
-      // Добавить информацию о продукте
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, title, telegram_link")
-        .in("id", productIds);
-
-      // Получить имена учителей для материалов учителей
-      const teacherIdsInMaterials = [...new Set(teacherMaterials.map(m => m.teacher_id).filter(Boolean))];
-      let teachersMap: Record<string, string> = {};
-      if (teacherIdsInMaterials.length > 0) {
-        const { data: teachers } = await supabase
-          .from("simple_users")
-          .select("id, name")
-          .in("id", teacherIdsInMaterials);
-        teachersMap = (teachers || []).reduce((acc, t) => ({ ...acc, [t.id]: t.name }), {});
-      }
-
-      return allMaterials.map(material => ({
-        ...material,
-        product: products?.find(p => p.id === material.product_id),
-        teacher_name: material.teacher_id ? teachersMap[material.teacher_id] : null,
-        is_teacher_material: !!material.teacher_id,
-      })) || [];
+      const materials = data.materials ?? [];
+      return materials.map((material) => {
+        const product = purchases.find((p) => p.product_id === material.product_id)?.product;
+        return {
+          ...material,
+          product: product
+            ? { id: product.id, title: product.title, telegram_link: product.telegram_link }
+            : null,
+          teacher_name: null as string | null,
+          is_teacher_material: !!material.teacher_id,
+        };
+      });
     },
     enabled: !!purchases?.length,
   });
 };
 
-// Получить расписания для подтверждённых покупок  
+// Получить расписания для подтверждённых покупок
 export const useSimpleSchedules = () => {
   const { data: purchases } = useSimplePurchases();
 
   return useQuery({
     queryKey: ["simple-schedules", purchases?.map(p => p.product_id)],
     queryFn: async () => {
-      if (!purchases?.length) return [];
+      if (!purchases?.length) return [] as SimpleSchedule[];
 
-      const productIds = purchases.map(p => p.product_id);
+      const productIds = purchases.map((p) => p.product_id);
+      const data = await invokeApi<{
+        schedules: Array<Omit<SimpleSchedule, "teacher_name">>;
+        purchases: unknown[];
+      }>("manage-schedules", {
+        action: "student_list_schedules",
+        ...studentCreds(),
+        productIds,
+      });
 
-      const { data, error } = await supabase
-        .from("schedules")
-        .select("id, product_id, title, event_type, max_participants, teacher_id, created_at")
-        .in("product_id", productIds);
-
-      if (error) throw error;
-      if (!data?.length) return [];
-
-      // Подгрузить имена учителей
-      const teacherIds = [...new Set(data.filter(s => s.teacher_id).map(s => s.teacher_id!))];
-      let teachersMap: Record<string, string> = {};
-      if (teacherIds.length > 0) {
-        const { data: teachers } = await supabase
-          .from("simple_users")
-          .select("id, name")
-          .in("id", teacherIds);
-        teachersMap = (teachers || []).reduce((acc, t) => ({ ...acc, [t.id]: t.name }), {});
-      }
-
-      return data.map(schedule => ({
+      return (data.schedules ?? []).map((schedule) => ({
         ...schedule,
-        teacher_name: schedule.teacher_id ? (teachersMap[schedule.teacher_id] || null) : null,
+        teacher_name: null as string | null,
       }));
     },
     enabled: !!purchases?.length,
@@ -300,25 +224,15 @@ export const useSimpleTimeSlots = (scheduleId: string | undefined) => {
   return useQuery({
     queryKey: ["simple-time-slots", scheduleId],
     queryFn: async () => {
-      if (!scheduleId) return [];
-      
-      // Использовать локальную дату пользователя
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const today = `${year}-${month}-${day}`;
-      
-      const { data, error } = await supabase
-        .from("time_slots")
-        .select("*")
-        .eq("schedule_id", scheduleId)
-        .gte("date", today)
-        .order("date", { ascending: true })
-        .order("start_time", { ascending: true });
-      
-      if (error) throw error;
-      return data || [];
+      if (!scheduleId) return [] as SimpleTimeSlot[];
+
+      const today = localToday();
+      const data = await invokeApi<{ slots: SimpleTimeSlot[] }>("manage-schedules", {
+        action: "student_list_slots",
+        ...studentCreds(),
+        scheduleIds: [scheduleId],
+      });
+      return (data.slots ?? []).filter((slot) => slot.date >= today);
     },
     enabled: !!scheduleId,
   });
@@ -356,16 +270,22 @@ export const useAllBookingsForSchedule = (scheduleId: string | undefined) => {
   return useQuery({
     queryKey: ["all-bookings-schedule", scheduleId],
     queryFn: async () => {
-      if (!scheduleId) return [];
-      
-      const { data, error } = await supabase
-        .from("simple_bookings")
-        .select("id, time_slot_id, simple_user_id, status")
-        .eq("schedule_id", scheduleId)
-        .eq("status", "confirmed");
-      
-      if (error) throw error;
-      return data || [];
+      if (!scheduleId) return [] as SlotBooking[];
+
+      const slotsData = await invokeApi<{ slots: { id: string }[] }>("manage-schedules", {
+        action: "student_list_slots",
+        ...studentCreds(),
+        scheduleIds: [scheduleId],
+      });
+      const slotIds = (slotsData.slots ?? []).map((s) => s.id);
+      if (!slotIds.length) return [];
+
+      const data = await invokeApi<{ bookings: SlotBooking[] }>("manage-schedules", {
+        action: "list_bookings_for_slots",
+        ...studentCreds(),
+        slotIds,
+      });
+      return (data.bookings ?? []).filter((b) => b.status === "confirmed");
     },
     enabled: !!scheduleId,
   });
@@ -379,64 +299,57 @@ export const useSimpleBookings = () => {
     queryKey: ["simple-bookings", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      
-      // Получить бронирования
-      const { data: bookingsData, error } = await supabase
-        .from("simple_bookings" as any)
-        .select("id, time_slot_id, schedule_id, status, created_at")
-        .eq("simple_user_id", user.id)
-        .eq("status", "confirmed");
-      
-      if (error) throw error;
-      if (!bookingsData?.length) return [];
 
-      const bookings = bookingsData as unknown as Array<{
-        id: string;
-        time_slot_id: string;
-        schedule_id: string;
-        status: string;
-        created_at: string;
-      }>;
+      const purchasesData = await invokeApi<{ purchases: SimplePurchase[] }>("checkout", {
+        action: "list_my_purchases",
+        ...studentCreds(),
+        status: "completed",
+      });
+      const purchases = purchasesData.purchases ?? [];
+      if (!purchases.length) return [];
 
-      // Получить time_slots
-      const slotIds = bookings.map(b => b.time_slot_id);
-      const { data: slots } = await supabase
-        .from("time_slots")
-        .select("id, date, start_time, end_time, lesson_link")
-        .in("id", slotIds);
+      const productIds = purchases.map((p) => p.product_id);
+      const schedulesData = await invokeApi<{ schedules: SimpleSchedule[] }>("manage-schedules", {
+        action: "student_list_schedules",
+        ...studentCreds(),
+        productIds,
+      });
+      const schedules = schedulesData.schedules ?? [];
+      if (!schedules.length) return [];
 
-      // Получить schedules
-      const scheduleIds = bookings.map(b => b.schedule_id);
-      const { data: schedules } = await supabase
-        .from("schedules")
-        .select("id, title, event_type, product_id, teacher_id")
-        .in("id", scheduleIds);
+      const scheduleIds = schedules.map((s) => s.id);
+      const slotsData = await invokeApi<{ slots: SimpleTimeSlot[] }>("manage-schedules", {
+        action: "student_list_slots",
+        ...studentCreds(),
+        scheduleIds,
+      });
+      const slots = slotsData.slots ?? [];
+      if (!slots.length) return [];
 
-      // Подгрузить имена учителей для расписаний
-      const teacherIds = [...new Set((schedules || []).filter(s => s.teacher_id).map(s => s.teacher_id!))];
-      let teachersMap: Record<string, string> = {};
-      if (teacherIds.length > 0) {
-        const { data: teachers } = await supabase
-          .from("simple_users")
-          .select("id, name")
-          .in("id", teacherIds);
-        teachersMap = (teachers || []).reduce((acc, t) => ({ ...acc, [t.id]: t.name }), {});
-      }
+      const bookingsData = await invokeApi<{ bookings: SlotBooking[] }>("manage-schedules", {
+        action: "list_bookings_for_slots",
+        ...studentCreds(),
+        slotIds: slots.map((s) => s.id),
+      });
+      const bookings = (bookingsData.bookings ?? []).filter(
+        (b) => b.simple_user_id === user.id && b.status === "confirmed",
+      );
+      if (!bookings.length) return [];
 
-      // Получить products
-      const productIds = schedules?.map(s => s.product_id) || [];
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, title")
-        .in("id", productIds);
-
-      return bookings.map(booking => {
-        const schedule = schedules?.find(s => s.id === booking.schedule_id);
+      return bookings.map((booking) => {
+        const schedule = schedules.find((s) => s.id === booking.schedule_id);
+        const product = purchases.find((p) => p.product_id === schedule?.product_id)?.product;
         return {
-          ...booking,
-          time_slot: slots?.find(s => s.id === booking.time_slot_id),
-          schedule: schedule ? { ...schedule, teacher_name: schedule.teacher_id ? (teachersMap[schedule.teacher_id] || null) : null } : undefined,
-          product: products?.find(p => p.id === schedule?.product_id),
+          id: booking.id,
+          time_slot_id: booking.time_slot_id,
+          schedule_id: booking.schedule_id,
+          status: booking.status,
+          created_at: booking.created_at,
+          time_slot: slots.find((s) => s.id === booking.time_slot_id),
+          schedule: schedule
+            ? { ...schedule, teacher_name: schedule.teacher_name ?? null }
+            : undefined,
+          product: product ? { id: product.id, title: product.title } : undefined,
         };
       });
     },
@@ -452,20 +365,14 @@ export const useCreateSimpleBooking = () => {
   return useMutation({
     mutationFn: async ({ timeSlotId, scheduleId }: { timeSlotId: string; scheduleId: string }) => {
       if (!user) throw new Error("Not authenticated");
-      
-      const { data, error } = await supabase
-        .from("simple_bookings" as any)
-        .insert({
-          simple_user_id: user.id,
-          time_slot_id: timeSlotId,
-          schedule_id: scheduleId,
-          status: "confirmed",
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+
+      const data = await invokeApi<{ booking: unknown }>("manage-bookings", {
+        action: "create",
+        ...studentCreds(),
+        timeSlotId,
+        scheduleId,
+      });
+      return data.booking;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
@@ -477,46 +384,17 @@ export const useCreateSimpleBooking = () => {
 // Отменить бронирование (для студента) с сохранением в cancellations
 export const useCancelSimpleBooking = () => {
   const queryClient = useQueryClient();
-  const { user } = useSimpleAuth();
 
   return useMutation({
     mutationFn: async ({ bookingId, reasons, comment }: { bookingId: string; reasons?: string[]; comment?: string }) => {
-      // Сначала получаем данные бронирования для сохранения в cancellations
-      const { data: booking } = await supabase
-        .from("simple_bookings")
-        .select(`
-          id,
-          time_slot:time_slots(date, start_time),
-          schedule:schedules(id, title, product_id, product:products(id, title))
-        `)
-        .eq("id", bookingId)
-        .single();
-
-      if (booking && user) {
-        // Сохраняем информацию об отмене
-        await supabase.from("booking_cancellations").insert({
-          booking_id: bookingId,
-          user_name: user.name,
-          simple_user_id: user.id,
-          product_title: (booking as any).schedule?.product?.title || "",
-          product_id: (booking as any).schedule?.product_id,
-          schedule_id: (booking as any).schedule?.id,
-          schedule_title: (booking as any).schedule?.title || "",
-          slot_date: (booking as any).time_slot?.date,
-          slot_time: (booking as any).time_slot?.start_time,
-          cancelled_by: "student",
-          cancellation_reasons: reasons || [],
-          cancellation_comment: comment || null,
-        });
-      }
-
-      // Удаляем бронирование
-      const { error } = await supabase
-        .from("simple_bookings" as any)
-        .delete()
-        .eq("id", bookingId);
-      
-      if (error) throw error;
+      await invokeApi("manage-bookings", {
+        action: "cancel",
+        ...studentCreds(),
+        bookingId,
+        cancelledBy: "student",
+        reasons,
+        comment,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["simple-bookings"] });
@@ -530,56 +408,20 @@ export const useCreatorCancelBooking = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ bookingId, cancelledBy, reasons, comment }: { 
-      bookingId: string; 
+    mutationFn: async ({ bookingId, cancelledBy, reasons, comment }: {
+      bookingId: string;
       cancelledBy: "creator" | "teacher";
       reasons?: string[];
       comment?: string;
     }) => {
-      // Сначала получаем данные бронирования для сохранения в cancellations
-      const { data: booking } = await supabase
-        .from("simple_bookings")
-        .select(`
-          id,
-          simple_user_id,
-          time_slot:time_slots(date, start_time),
-          schedule:schedules(id, title, product_id, product:products(id, title))
-        `)
-        .eq("id", bookingId)
-        .single();
-
-      if (booking) {
-        // Получить имя и телефон пользователя
-        const { data: user } = await supabase
-          .from("simple_users")
-          .select("name, phone")
-          .eq("id", (booking as any).simple_user_id)
-          .single();
-
-        // Сохраняем информацию об отмене
-        await supabase.from("booking_cancellations").insert({
-          booking_id: bookingId,
-          user_name: user?.name || "Ученик",
-          simple_user_id: (booking as any).simple_user_id,
-          product_title: (booking as any).schedule?.product?.title || "",
-          product_id: (booking as any).schedule?.product_id,
-          schedule_id: (booking as any).schedule?.id,
-          schedule_title: (booking as any).schedule?.title || "",
-          slot_date: (booking as any).time_slot?.date,
-          slot_time: (booking as any).time_slot?.start_time,
-          cancelled_by: cancelledBy,
-          cancellation_reasons: reasons || [],
-          cancellation_comment: comment || null,
-        });
-      }
-
-      // Удаляем бронирование
-      const { error } = await supabase
-        .from("simple_bookings" as any)
-        .delete()
-        .eq("id", bookingId);
-      
-      if (error) throw error;
+      await invokeApi("manage-bookings", {
+        action: "cancel",
+        ...sessionCreds(),
+        bookingId,
+        cancelledBy,
+        reasons,
+        comment,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-simple-bookings"] });
@@ -603,7 +445,6 @@ export const useRescheduleSlot = () => {
       newEndTime,
       reasons,
       comment,
-      rescheduledBy,
     }: {
       slotId: string;
       scheduleId: string;
@@ -614,66 +455,17 @@ export const useRescheduleSlot = () => {
       comment: string;
       rescheduledBy: "creator" | "teacher";
     }) => {
-      // Get current slot data before updating
-      const { data: slot } = await supabase
-        .from("time_slots")
-        .select("date, start_time, end_time, schedule_id")
-        .eq("id", slotId)
-        .single();
-
-      if (!slot) throw new Error("Slot not found");
-
-      const oldDate = slot.date;
-      const oldTime = slot.start_time;
-
-      // Update the time slot
-      const { error: updateError } = await supabase
-        .from("time_slots")
-        .update({
-          date: newDate,
-          start_time: newStartTime,
-          end_time: newEndTime,
-        })
-        .eq("id", slotId);
-
-      if (updateError) throw updateError;
-
-      // Get bookings for this slot
-      const { data: bookings } = await supabase
-        .from("simple_bookings")
-        .select("id, simple_user_id, schedule_id")
-        .eq("time_slot_id", slotId)
-        .eq("status", "confirmed");
-
-      if (!bookings?.length) return;
-
-      // Get schedule info for product_title
-      const { data: schedule } = await supabase
-        .from("schedules")
-        .select("id, product_id, product:products(id, title)")
-        .eq("id", scheduleId)
-        .single();
-
-      const productTitle = (schedule as any)?.product?.title || "";
-      const productId = (schedule as any)?.product_id || "";
-
-      // Insert reschedule record for each student
-      for (const booking of bookings) {
-        await supabase.from("booking_reschedules" as any).insert({
-          booking_id: booking.id,
-          simple_user_id: booking.simple_user_id,
-          schedule_id: scheduleId,
-          product_id: productId,
-          product_title: productTitle,
-          old_date: oldDate,
-          old_time: oldTime,
-          new_date: newDate,
-          new_time: newStartTime,
-          rescheduled_by: rescheduledBy,
-          reasons: reasons,
-          comment: comment || null,
-        });
-      }
+      await invokeApi("manage-bookings", {
+        action: "reschedule_slot",
+        ...sessionCreds(),
+        slotId,
+        scheduleId,
+        newDate,
+        newStartTime,
+        newEndTime,
+        reasons,
+        comment,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
@@ -699,7 +491,6 @@ export const useCreatorRescheduleRequest = () => {
       newEndTime,
       reasons,
       comment,
-      requestedBy,
       teacherId,
     }: {
       slotId: string;
@@ -712,60 +503,18 @@ export const useCreatorRescheduleRequest = () => {
       requestedBy: "creator" | "teacher";
       teacherId?: string | null;
     }) => {
-      // Get current slot data
-      const { data: slot } = await supabase
-        .from("time_slots")
-        .select("date, start_time, end_time, schedule_id")
-        .eq("id", slotId)
-        .single();
-
-      if (!slot) throw new Error("Slot not found");
-
-      // Get bookings for this slot
-      const { data: bookings } = await supabase
-        .from("simple_bookings")
-        .select("id, simple_user_id, schedule_id")
-        .eq("time_slot_id", slotId)
-        .eq("status", "confirmed");
-
-      if (!bookings?.length) throw new Error("No bookings to reschedule");
-
-      // Get schedule info for product_title
-      const { data: schedule } = await supabase
-        .from("schedules")
-        .select("id, product_id, product:products(id, title)")
-        .eq("id", scheduleId)
-        .single();
-
-      const productTitle = (schedule as any)?.product?.title || "";
-      const productId = (schedule as any)?.product_id || "";
-
-      // Insert reschedule request for each booking
-      for (const booking of bookings) {
-        // Delete previous pending requests for the same booking from this role
-        await supabase
-          .from("reschedule_requests")
-          .delete()
-          .eq("booking_id", booking.id)
-          .eq("status", "pending");
-
-        await supabase.from("reschedule_requests").insert({
-          booking_id: booking.id,
-          simple_user_id: booking.simple_user_id,
-          schedule_id: scheduleId,
-          product_id: productId,
-          product_title: productTitle,
-          old_date: slot.date,
-          old_time: slot.start_time,
-          new_date: newDate,
-          new_time: newStartTime,
-          reasons: reasons,
-          comment: comment || null,
-          status: "pending",
-          requested_by: requestedBy,
-          teacher_id: teacherId || null,
-        } as any);
-      }
+      await invokeApi("manage-bookings", {
+        action: "create_reschedule_request",
+        ...sessionCreds(),
+        slotId,
+        scheduleId,
+        newDate,
+        newStartTime,
+        newEndTime,
+        reasons,
+        comment,
+        teacherId,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
@@ -794,11 +543,12 @@ export const useEditSlotTime = () => {
       newStartTime: string;
       newEndTime: string;
     }) => {
-      const { error } = await supabase
-        .from("time_slots")
-        .update({ start_time: newStartTime, end_time: newEndTime })
-        .eq("id", slotId);
-      if (error) throw error;
+      await invokeApi("manage-schedules", {
+        action: "update_slot",
+        ...sessionCreds(),
+        slotId,
+        updates: { start_time: newStartTime, end_time: newEndTime },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
@@ -816,64 +566,53 @@ export const useCreatorSimpleBookings = (productIds: string[]) => {
     queryFn: async () => {
       if (!productIds.length) return [];
 
-      // Получить ТОЛЬКО расписания самого автора (не учителей)
-      const { data: schedules, error: schedulesError } = await supabase
-        .from("schedules")
-        .select("id, title, event_type, product_id")
-        .in("product_id", productIds)
-        .is("teacher_id", null); // Только расписания автора
+      const productsData = await invokeApi<{ products: Array<{ id: string; title: string }> }>(
+        "manage-products",
+        {
+          action: "list",
+          ...creatorCreds(),
+        },
+      );
+      const products = (productsData.products ?? []).filter((p) => productIds.includes(p.id));
 
-      if (schedulesError) throw schedulesError;
-      if (!schedules?.length) return [];
+      const schedulesData = await invokeApi<{
+        schedules: Array<{ id: string; title: string; event_type: string; product_id: string }>;
+      }>("manage-schedules", {
+        action: "list_schedules",
+        ...creatorCreds(),
+        productIds,
+        creatorOnly: true,
+      });
+      const schedules = schedulesData.schedules ?? [];
+      if (!schedules.length) return [];
 
-      const scheduleIds = schedules.map(s => s.id);
+      const slotsData = await invokeApi<{ slots: Array<{ id: string; date: string; start_time: string; end_time: string }> }>(
+        "manage-schedules",
+        {
+          action: "list_slots",
+          ...creatorCreds(),
+          scheduleIds: schedules.map((s) => s.id),
+        },
+      );
+      const slots = slotsData.slots ?? [];
+      if (!slots.length) return [];
 
-      // Получить бронирования
-      const { data: bookingsData, error: bookingsError } = await supabase
-        .from("simple_bookings" as any)
-        .select("id, simple_user_id, time_slot_id, schedule_id, status, created_at")
-        .in("schedule_id", scheduleIds)
-        .eq("status", "confirmed")
-        .order("created_at", { ascending: false });
+      const bookingsData = await invokeApi<{ bookings: SlotBooking[] }>("manage-schedules", {
+        action: "list_bookings_for_slots",
+        ...creatorCreds(),
+        slotIds: slots.map((s) => s.id),
+      });
+      const bookings = (bookingsData.bookings ?? []).filter((b) => b.status === "confirmed");
+      if (!bookings.length) return [];
 
-      if (bookingsError) throw bookingsError;
-      if (!bookingsData?.length) return [];
-
-      const bookings = bookingsData as unknown as Array<{
-        id: string;
-        simple_user_id: string;
-        time_slot_id: string;
-        schedule_id: string;
-        status: string;
-        created_at: string;
-      }>;
-
-      // Получить time_slots
-      const slotIds = bookings.map(b => b.time_slot_id);
-      const { data: slots } = await supabase
-        .from("time_slots")
-        .select("id, date, start_time, end_time")
-        .in("id", slotIds);
-
-      // Получить simple_users
-      const userIds = bookings.map(b => b.simple_user_id);
-      const { data: users } = await supabase
-        .from("simple_users")
-        .select("id, name, phone")
-        .in("id", userIds);
-
-      // Получить products
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, title")
-        .in("id", productIds);
-
-      return bookings.map(booking => ({
+      return bookings.map((booking) => ({
         ...booking,
-        time_slot: slots?.find(s => s.id === booking.time_slot_id),
-        schedule: schedules?.find(s => s.id === booking.schedule_id),
-        user: users?.find(u => u.id === booking.simple_user_id),
-        product: products?.find(p => p.id === schedules?.find(s => s.id === booking.schedule_id)?.product_id),
+        time_slot: slots.find((s) => s.id === booking.time_slot_id),
+        schedule: schedules.find((s) => s.id === booking.schedule_id),
+        user: booking.user,
+        product: products.find(
+          (p) => p.id === schedules.find((s) => s.id === booking.schedule_id)?.product_id,
+        ),
       }));
     },
     enabled: productIds.length > 0,

@@ -16,6 +16,7 @@ import TeacherDashboard from "./pages/TeacherDashboard";
 import SchoolDashboard from "./pages/SchoolDashboard";
 import ModeratorDashboard from "./pages/ModeratorDashboard";
 import InstallPage from "./pages/InstallPage";
+import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route path="/product/:productId" element={<ProductPage />} />
                 <Route path="/checkout/:productId" element={<ProductPurchasePage />} />
                 <Route path="/dashboard" element={<Dashboard />} />

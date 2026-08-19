@@ -71,3 +71,72 @@ verify_jwt = false
 
 [functions.material-file-sizes]
 verify_jwt = false
+
+[functions.register-creator]
+verify_jwt = false
+
+[functions.exchange-auth-session]
+verify_jwt = false
+
+[functions.send-email-code]
+verify_jwt = false
+
+[functions.switch-profile]
+verify_jwt = false
+
+[functions.catalog]
+verify_jwt = false
+
+[functions.checkout]
+verify_jwt = false
+
+[functions.manage-products]
+verify_jwt = false
+
+[functions.manage-schedules]
+verify_jwt = false
+
+[functions.manage-bookings]
+verify_jwt = false
+
+[functions.manage-materials]
+verify_jwt = false
+
+[functions.manage-account]
+verify_jwt = false
+
+[functions.presigned-upload]
+verify_jwt = false
+
+[functions.tokenized-download]
+verify_jwt = false
+
+[functions.s3-download-proxy]
+verify_jwt = false
+
+[functions.s3-redirect]
+verify_jwt = false
+
+[functions.manage-announcements]
+verify_jwt = false
+
+[functions.change-creator-password]
+verify_jwt = false
+
+[functions.moderator-api]
+verify_jwt = false
+
+[functions.support-api]
+verify_jwt = false
+
+[functions.verify-moderator-password]
+verify_jwt = false
+
+[functions.storage-redirect]
+verify_jwt = false
+
+[functions.submit-payment-receipt]
+verify_jwt = false
+
+[functions.payment-receipt]
+verify_jwt = false

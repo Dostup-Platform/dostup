@@ -1,16 +1,29 @@
 import { supabase } from "@/integrations/supabase/client";
 
+const SESSION_STORAGE_KEY = "simple_session_token";
+
 /**
  * Request a one-time access token for a material file.
- * The token is verified server-side against purchases/roles.
+ * Authorization is resolved server-side from the creator or student session.
  */
 export async function requestMaterialToken(
   path: string,
-  role: 'student' | 'teacher' | 'creator',
-  userId?: string
+  role: "student" | "teacher" | "creator",
 ): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('create-material-token', {
-    body: { userId, path, role },
+  const body: Record<string, string> = { path };
+
+  if (role === "creator") {
+    const creatorToken = localStorage.getItem("creator_token") || "";
+    const creatorName = localStorage.getItem("creator_name") || "";
+    body.creatorToken = creatorToken;
+    body.creatorName = creatorName;
+  } else {
+    const sessionToken = localStorage.getItem(SESSION_STORAGE_KEY) || "";
+    body.sessionToken = sessionToken;
+  }
+
+  const { data, error } = await supabase.functions.invoke("create-material-token", {
+    body,
   });
 
   if (error) throw error;

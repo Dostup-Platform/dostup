@@ -30,6 +30,7 @@ import CreatorNotificationsTab from "@/components/creator/CreatorNotificationsTa
 import CreatorAccountTab from "@/components/creator/CreatorAccountTab";
 import CreatorAnnouncementsTab from "@/components/creator/CreatorAnnouncementsTab";
 import CreatorMaterialsTab from "@/components/creator/CreatorMaterialsTab";
+import { useCreatorPendingPurchases } from "@/components/creator/CreatorPendingPayments";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import { useCreatorProducts } from "@/hooks/useProducts";
@@ -40,6 +41,7 @@ import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { creatorCreds, invokeApi } from "@/lib/sessionApi";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 import { useAppResume } from "@/hooks/useAppResume";
 
@@ -89,32 +91,19 @@ const CreatorDashboard = () => {
   const productIds = useMemo(() => products?.map(p => p.id) || [], [products]);
   const { data: bookings } = useCreatorSimpleBookings(productIds);
   
-  // Получаем pending-покупки для подсчёта
-  const { data: pendingPurchases } = useQuery({
-    queryKey: ["creator-pending-purchases-count", productIds],
-    queryFn: async () => {
-      if (!productIds.length) return [];
-      const { data } = await supabase
-        .from("simple_purchases")
-        .select("id, created_at")
-        .in("product_id", productIds)
-        .eq("status", "pending");
-      return data || [];
-    },
-    enabled: productIds.length > 0,
-  });
+  const { data: pendingPurchases = [] } = useCreatorPendingPurchases(creatorName);
 
   // Получаем отменённые записи для подсчёта
   const { data: cancellations } = useQuery({
     queryKey: ["creator-cancellations-count", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
-      const { data } = await supabase
-        .from("booking_cancellations")
-        .select("id, cancelled_at")
-        .in("product_id", productIds)
-        .eq("cancelled_by", "student");
-      return data || [];
+      const data = await invokeApi<{ cancellations: { id: string; cancelled_at: string; cancelled_by: string }[] }>("manage-bookings", {
+        action: "list_cancellations",
+        ...creatorCreds(),
+        productIds,
+      });
+      return (data.cancellations ?? []).filter((c) => c.cancelled_by === "student");
     },
     enabled: productIds.length > 0,
   });
@@ -124,13 +113,14 @@ const CreatorDashboard = () => {
     queryKey: ["creator-reschedule-requests-count", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
-      const { data } = await supabase
-        .from("reschedule_requests")
-        .select("id, created_at")
-        .in("product_id", productIds)
-        .eq("status", "pending")
-        .eq("requested_by", "student");
-      return data || [];
+      const data = await invokeApi<{ requests: { id: string; created_at: string }[] }>("manage-bookings", {
+        action: "list_reschedule_requests",
+        ...creatorCreds(),
+        productIds,
+        status: "pending",
+        requestedBy: "student",
+      });
+      return data.requests ?? [];
     },
     enabled: productIds.length > 0,
   });
@@ -186,7 +176,16 @@ const CreatorDashboard = () => {
     const validateSession = async () => {
       const name = localStorage.getItem("creator_name");
       const token = localStorage.getItem("creator_token");
-      
+      const profileType = localStorage.getItem("profile_type");
+      if (profileType === "buyer") {
+        navigate("/dashboard");
+        return;
+      }
+      if (profileType === "school") {
+        navigate("/school");
+        return;
+      }
+
       if (!name || !token) {
         navigate("/");
         return;

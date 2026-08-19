@@ -6,115 +6,116 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+const GENERIC_ERROR = 'Access denied';
+
+function deny(): Response {
+  return new Response(
+    JSON.stringify({ error: GENERIC_ERROR }),
+    { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  );
+}
+
+function extractProductId(path: string): string | null {
+  let relativePath = path;
+  if (relativePath.startsWith('s3://')) {
+    const withoutPrefix = relativePath.substring(5);
+    const slashIndex = withoutPrefix.indexOf('/');
+    relativePath = withoutPrefix.substring(slashIndex + 1);
+  }
+
+  const pathParts = relativePath.split('/');
+  if (pathParts[0]?.startsWith('teacher-')) {
+    return pathParts[1] || null;
+  }
+  return pathParts[0] || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { userId, path, role } = await req.json();
+    const body = await req.json();
+    const path = typeof body?.path === 'string' ? body.path : '';
+    const creatorToken = typeof body?.creatorToken === 'string' ? body.creatorToken : '';
+    const creatorName = typeof body?.creatorName === 'string' ? body.creatorName.trim() : '';
+    const sessionToken = typeof body?.sessionToken === 'string' ? body.sessionToken : '';
 
-    if (!path) {
-      return new Response(
-        JSON.stringify({ error: 'Missing path parameter' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!userId && role !== 'creator') {
-      return new Response(
-        JSON.stringify({ error: 'Missing userId parameter' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const productId = extractProductId(path);
+    if (!path || !productId) {
+      return deny();
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Extract product_id from file path
-    // Strip s3://bucket/ prefix if present
-    let relativePath = path;
-    if (relativePath.startsWith('s3://')) {
-      const withoutPrefix = relativePath.substring(5); // remove 's3://'
-      const slashIndex = withoutPrefix.indexOf('/');
-      relativePath = withoutPrefix.substring(slashIndex + 1);
-    }
-    
-    // Regular: {product_id}/filename
-    // Teacher: teacher-{teacher_id}/{product_id}/filename
-    const pathParts = relativePath.split('/');
-    let productId: string;
-    
-    if (pathParts[0]?.startsWith('teacher-')) {
-      productId = pathParts[1]; // teacher-{id}/{product_id}/file
-    } else {
-      productId = pathParts[0]; // {product_id}/file
-    }
-
-    if (!productId) {
-      return new Response(
-        JSON.stringify({ error: 'Cannot determine product from file path' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     let authorized = false;
 
-    // Check if user is the creator of the product
-    if (role === 'creator') {
-      // Creator validated via creator session - they have access to all their products
-      authorized = true;
-      console.log('Creator access granted for path:', path);
-    } else if (role === 'teacher') {
-      // Check if user is a teacher for this product
-      const { data: user } = await supabase
-        .from('simple_users')
-        .select('id, name')
-        .eq('id', userId)
-        .eq('role', 'teacher')
+    if (creatorToken && creatorName) {
+      const { data: session } = await supabase
+        .from('creator_sessions')
+        .select('id')
+        .eq('token', creatorToken)
+        .eq('creator_name', creatorName)
+        .gt('expires_at', new Date().toISOString())
         .maybeSingle();
 
-      if (user) {
-        const { data: teacherLink } = await supabase
-          .from('product_teachers')
+      if (session) {
+        const { data: account } = await supabase
+          .from('creator_accounts')
           .select('id')
-          .eq('product_id', productId)
-          .eq('teacher_name', user.name)
+          .ilike('login', creatorName)
+          .maybeSingle();
+        const { data: product } = await supabase
+          .from('products')
+          .select('id')
+          .eq('id', productId)
+          .eq('creator_account_id', account?.id ?? '00000000-0000-0000-0000-000000000000')
           .maybeSingle();
 
-        if (teacherLink) {
+        if (product) {
           authorized = true;
-          console.log('Teacher access granted for:', user.name, 'path:', path);
         }
       }
-    } else {
-      // Student - check for confirmed purchase
-      const { data: purchase } = await supabase
-        .from('simple_purchases')
-        .select('id')
-        .eq('simple_user_id', userId)
-        .eq('product_id', productId)
-        .eq('status', 'completed')
+    } else if (sessionToken) {
+      const { data: session } = await supabase
+        .from('creator_sessions')
+        .select('profile_id')
+        .eq('token', sessionToken)
+        .gt('expires_at', new Date().toISOString())
         .maybeSingle();
 
-      if (purchase) {
-        authorized = true;
-        console.log('Student access granted for userId:', userId, 'path:', path);
+      if (session?.profile_id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, type, display_name')
+          .eq('id', session.profile_id)
+          .maybeSingle();
+
+        if (profile?.type === 'buyer') {
+          const { data: purchase } = await supabase
+            .from('simple_purchases')
+            .select('id')
+            .eq('buyer_profile_id', profile.id)
+            .eq('product_id', productId)
+            .eq('status', 'completed')
+            .maybeSingle();
+
+          if (purchase) {
+            authorized = true;
+          }
+        }
       }
     }
 
     if (!authorized) {
-      console.log('Access denied for userId:', userId, 'role:', role, 'path:', path);
-      return new Response(
-        JSON.stringify({ error: 'Access denied - no valid purchase or role' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return deny();
     }
 
-    // Generate one-time token
     const token = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     const { error: insertError } = await supabase
       .from('material_access_tokens')
@@ -128,22 +129,17 @@ Deno.serve(async (req) => {
     if (insertError) {
       console.error('Error creating token:', insertError);
       return new Response(
-        JSON.stringify({ error: 'Failed to create access token' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Internal server error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    console.log('Token created for path:', path, 'expires:', expiresAt);
-
     return new Response(
       JSON.stringify({ token }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (error) {
     console.error('Error in create-material-token:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return deny();
   }
 });

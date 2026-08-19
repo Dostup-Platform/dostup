@@ -39,6 +39,8 @@ const TeacherAccountTab = ({ teacherName, teacherId }: TeacherAccountTabProps) =
     
     localStorage.removeItem("teacher_data");
     localStorage.removeItem("teacher_notifications_last_viewed");
+    localStorage.removeItem("simple_session_token");
+    localStorage.removeItem("simple_user_id");
     navigate("/");
   };
 

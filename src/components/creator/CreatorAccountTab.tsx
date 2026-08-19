@@ -7,6 +7,8 @@ import { User, LogOut, Download, Globe, Lock, Eye, EyeOff, Loader2 } from "lucid
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate, Link } from "react-router-dom";
+import ProfileSwitcher from "@/components/auth/ProfileSwitcher";
+import { clearAppSession } from "@/lib/creatorAuth";
 import { useState, useEffect } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
 import { usePWADetection } from "@/hooks/usePWADetection";
@@ -101,11 +103,7 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
     await unregisterPushToken(creatorName).catch(console.error);
     
     // Сохраняем имя для подсказки при следующем входе
-    localStorage.setItem("creator_last_name", creatorName);
-    localStorage.removeItem("creator_name");
-    localStorage.removeItem("creator_token");
-    localStorage.removeItem("creator_account_type");
-    localStorage.removeItem("creator_created_at");
+    clearAppSession();
     navigate("/");
   };
 
@@ -137,6 +135,10 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
           </div>
         </CardContent>
       </Card>
+
+      <ProfileSwitcher
+        activeType={accountType === "online_school" ? "school" : "creator"}
+      />
 
       {/* Language Switcher */}
       <Card>

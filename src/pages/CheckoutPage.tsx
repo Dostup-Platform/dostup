@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useProduct } from "@/hooks/useProducts";
+import { useCheckoutProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import { ArrowLeft, Lock, Loader2, ExternalLink } from "lucide-react";
@@ -24,7 +24,7 @@ const CheckoutPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const { t, language } = useLanguage();
-  const { data: product, isLoading } = useProduct(productId);
+  const { data: product, isLoading } = useCheckoutProduct(productId);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);

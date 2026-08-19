@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { creatorCreds, invokeApi } from "@/lib/sessionApi";
 
-interface Product {
+export interface Product {
   id: string;
   creator_id: string;
+  creator_account_id?: string | null;
   title: string;
   headline: string | null;
   description: string | null;
@@ -23,36 +24,69 @@ interface Product {
   access_duration_days: number | null;
   is_paused?: boolean;
   paused_message?: string | null;
+  author_name?: string | null;
 }
+
+export interface ProductProgramItem {
+  id: string;
+  title: string;
+  type: string;
+  parent_id: string | null;
+  order_index: number;
+}
+
+export const useCatalogProducts = () => {
+  return useQuery({
+    queryKey: ["catalog-products"],
+    queryFn: async () => {
+      const data = await invokeApi<{ products: Product[] }>("catalog", {
+        action: "list_products",
+      });
+      return data.products ?? [];
+    },
+  });
+};
 
 export const useProduct = (productId: string | undefined) => {
   return useQuery({
     queryKey: ["product", productId],
     queryFn: async () => {
       if (!productId) return null;
-      
-      // Try to find by slug first, then by id
-      let { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("slug", productId)
-        .eq("is_active", true)
-        .maybeSingle();
-      
-      if (!data) {
-        const result = await supabase
-          .from("products")
-          .select("*")
-          .eq("id", productId)
-          .eq("is_active", true)
-          .maybeSingle();
-        
-        data = result.data;
-        error = result.error;
-      }
-      
-      if (error) throw error;
-      return data as unknown as Product | null;
+      const data = await invokeApi<{ product: Product | null }>("catalog", {
+        action: "get_product",
+        idOrSlug: productId,
+      });
+      return data.product;
+    },
+    enabled: !!productId,
+  });
+};
+
+export const useProductProgram = (productId: string | undefined) => {
+  return useQuery({
+    queryKey: ["product-program", productId],
+    queryFn: async () => {
+      if (!productId) return [];
+      const data = await invokeApi<{ items: ProductProgramItem[] }>("catalog", {
+        action: "list_program",
+        productId,
+      });
+      return data.items ?? [];
+    },
+    enabled: !!productId,
+  });
+};
+
+export const useCheckoutProduct = (productId: string | undefined) => {
+  return useQuery({
+    queryKey: ["checkout-product", productId],
+    queryFn: async () => {
+      if (!productId) return null;
+      const data = await invokeApi<{ product: Product | null }>("checkout", {
+        action: "get_product",
+        idOrSlug: productId,
+      });
+      return data.product;
     },
     enabled: !!productId,
   });
@@ -60,19 +94,13 @@ export const useProduct = (productId: string | undefined) => {
 
 export const useCreatorId = (passedCreatorName?: string | null) => {
   const { user } = useSimpleAuth();
-  const localStorageName = typeof window !== 'undefined' ? localStorage.getItem("creator_name") : null;
+  const localStorageName = typeof window !== "undefined" ? localStorage.getItem("creator_name") : null;
   const creatorName = passedCreatorName ?? localStorageName;
-  
-  // If logged in via SimpleAuth as creator
+
   if (user && user.role === "creator") {
     return user.id;
   }
-  
-  // If logged in via creator_name (localStorage or passed)
-  if (creatorName) {
-    return creatorName; // Use creator name as ID
-  }
-  
+  if (creatorName) return creatorName;
   return null;
 };
 
@@ -83,19 +111,15 @@ export const useCreatorProducts = (passedCreatorName?: string | null) => {
     queryKey: ["creator-products", creatorId],
     queryFn: async () => {
       if (!creatorId) return [];
-      
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("creator_id", creatorId)
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data as unknown as Product[];
+      const data = await invokeApi<{ products: Product[] }>("manage-products", {
+        action: "list",
+        ...creatorCreds(),
+      });
+      return data.products ?? [];
     },
     enabled: !!creatorId,
     staleTime: 0,
-    refetchOnMount: 'always',
+    refetchOnMount: "always",
   });
 };
 
@@ -123,34 +147,16 @@ export const useCreateProduct = () => {
   return useMutation({
     mutationFn: async (product: CreateProductInput) => {
       if (!creatorId) throw new Error("Not authenticated");
-      
-      const { data, error } = await supabase
-        .from("products")
-        .insert({
-          title: product.title,
-          headline: product.headline || null,
-          description: product.description || null,
-          price: product.price,
-          kaspi_link: product.kaspi_link || null,
-          telegram_link: product.telegram_link || null,
-          has_schedule: product.has_schedule || false,
-          is_active: product.is_active ?? true,
-          image_url: product.image_url || null,
-          video_url: product.video_url || null,
-          slug: product.slug || null,
-          faq: (product.faq as any) ?? [],
-          creator_id: creatorId,
-          kaspi_phone: product.kaspi_phone ?? null,
-          access_duration_days: product.access_duration_days ?? null,
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      const data = await invokeApi<{ product: Product }>("manage-products", {
+        action: "create",
+        ...creatorCreds(),
+        product,
+      });
+      return data.product;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-products"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-products"] });
     },
   });
 };
@@ -160,18 +166,17 @@ export const useUpdateProduct = () => {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Product> & { id: string }) => {
-      const { data, error } = await supabase
-        .from("products")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      const data = await invokeApi<{ product: Product }>("manage-products", {
+        action: "update",
+        ...creatorCreds(),
+        id,
+        updates,
+      });
+      return data.product;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-products"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-products"] });
       queryClient.invalidateQueries({ queryKey: ["product"] });
     },
   });
@@ -182,15 +187,15 @@ export const useDeleteProduct = () => {
 
   return useMutation({
     mutationFn: async (productId: string) => {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", productId);
-      
-      if (error) throw error;
+      await invokeApi("manage-products", {
+        action: "delete",
+        ...creatorCreds(),
+        id: productId,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-products"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-products"] });
     },
   });
 };

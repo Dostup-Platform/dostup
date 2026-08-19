@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useCreatorId } from "@/hooks/useProducts";
+import { creatorCreds, sessionCreds, studentCreds, invokeApi } from "@/lib/sessionApi";
 
 type EventType = "group" | "individual";
 
@@ -24,28 +24,17 @@ interface TimeSlot {
   created_at: string;
 }
 
-interface Booking {
-  id: string;
-  simple_user_id: string;
-  time_slot_id: string;
-  schedule_id: string;
-  status: string;
-  created_at: string;
-}
-
 export const useSchedules = (productId: string | undefined) => {
   return useQuery({
     queryKey: ["schedules", productId],
     queryFn: async () => {
       if (!productId) return [];
-      
-      const { data, error } = await supabase
-        .from("schedules")
-        .select("*")
-        .eq("product_id", productId);
-      
-      if (error) throw error;
-      return data as Schedule[];
+      const data = await invokeApi<{ schedules: Schedule[] }>("manage-schedules", {
+        action: "list_schedules",
+        ...sessionCreds(),
+        productIds: [productId],
+      });
+      return data.schedules ?? [];
     },
     enabled: !!productId,
   });
@@ -56,16 +45,12 @@ export const useTimeSlots = (scheduleId: string | undefined) => {
     queryKey: ["time-slots", scheduleId],
     queryFn: async () => {
       if (!scheduleId) return [];
-      
-      const { data, error } = await supabase
-        .from("time_slots")
-        .select("*")
-        .eq("schedule_id", scheduleId)
-        .order("date", { ascending: true })
-        .order("start_time", { ascending: true });
-      
-      if (error) throw error;
-      return data as TimeSlot[];
+      const data = await invokeApi<{ slots: TimeSlot[] }>("manage-schedules", {
+        action: "list_slots",
+        ...sessionCreds(),
+        scheduleIds: [scheduleId],
+      });
+      return data.slots ?? [];
     },
     enabled: !!scheduleId,
   });
@@ -78,28 +63,11 @@ export const useUserBookings = () => {
     queryKey: ["bookings", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      
-      const { data, error } = await supabase
-        .from("simple_bookings")
-        .select(`
-          *,
-          time_slots (
-            id,
-            date,
-            start_time,
-            end_time
-          ),
-          schedules (
-            id,
-            title,
-            event_type
-          )
-        `)
-        .eq("simple_user_id", user.id)
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data;
+      const data = await invokeApi<{ bookings: unknown[] }>("manage-bookings", {
+        action: "list_mine",
+        ...studentCreds(),
+      });
+      return data.bookings ?? [];
     },
     enabled: !!user,
   });
@@ -112,59 +80,32 @@ export const useCreatorBookings = () => {
     queryKey: ["creator-bookings", creatorId],
     queryFn: async () => {
       if (!creatorId) return [];
-      
-      // Get creator's products first
-      const { data: products, error: productsError } = await supabase
-        .from("products")
-        .select("id")
-        .eq("creator_id", creatorId);
-      
-      if (productsError) throw productsError;
-      
-      const productIds = products.map(p => p.id);
-      
-      if (productIds.length === 0) return [];
-      
-      // Get schedules for those products
-      const { data: schedules, error: schedulesError } = await supabase
-        .from("schedules")
-        .select("id")
-        .in("product_id", productIds);
-      
-      if (schedulesError) throw schedulesError;
-      
-      const scheduleIds = schedules.map(s => s.id);
-      
-      if (scheduleIds.length === 0) return [];
-      
-      const { data, error } = await supabase
-        .from("simple_bookings")
-        .select(`
-          *,
-          time_slots (
-            id,
-            date,
-            start_time,
-            end_time
-          ),
-          schedules (
-            id,
-            title,
-            event_type,
-            products (
-              title
-            )
-          ),
-          simple_users (
-            name,
-            phone
-          )
-        `)
-        .in("schedule_id", scheduleIds)
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data;
+      const products = await invokeApi<{ products: { id: string }[] }>("manage-products", {
+        action: "list",
+        ...creatorCreds(),
+      });
+      const productIds = (products.products ?? []).map((p) => p.id);
+      if (!productIds.length) return [];
+      const schedules = await invokeApi<{ schedules: { id: string }[] }>("manage-schedules", {
+        action: "list_schedules",
+        ...creatorCreds(),
+        productIds,
+      });
+      const scheduleIds = (schedules.schedules ?? []).map((s) => s.id);
+      if (!scheduleIds.length) return [];
+      const slots = await invokeApi<{ slots: { id: string }[] }>("manage-schedules", {
+        action: "list_slots",
+        ...creatorCreds(),
+        scheduleIds,
+      });
+      const slotIds = (slots.slots ?? []).map((s) => s.id);
+      if (!slotIds.length) return [];
+      const bookings = await invokeApi<{ bookings: unknown[] }>("manage-schedules", {
+        action: "list_bookings_for_slots",
+        ...creatorCreds(),
+        slotIds,
+      });
+      return bookings.bookings ?? [];
     },
     enabled: !!creatorId,
   });
@@ -177,19 +118,12 @@ export const useCreateBooking = () => {
   return useMutation({
     mutationFn: async ({ timeSlotId, scheduleId }: { timeSlotId: string; scheduleId: string }) => {
       if (!user) throw new Error("Not authenticated");
-      
-      const { data, error } = await supabase
-        .from("simple_bookings")
-        .insert({
-          simple_user_id: user.id,
-          time_slot_id: timeSlotId,
-          schedule_id: scheduleId,
-          status: "confirmed",
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
+      const data = await invokeApi("manage-bookings", {
+        action: "create",
+        ...studentCreds(),
+        timeSlotId,
+        scheduleId,
+      });
       return data;
     },
     onSuccess: () => {
@@ -204,14 +138,15 @@ export const useCreateSchedule = () => {
 
   return useMutation({
     mutationFn: async (schedule: Omit<Schedule, "id" | "created_at">) => {
-      const { data, error } = await supabase
-        .from("schedules")
-        .insert(schedule)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      const data = await invokeApi<{ schedule: Schedule }>("manage-schedules", {
+        action: "create_schedule",
+        ...sessionCreds(),
+        productId: schedule.product_id,
+        title: schedule.title,
+        eventType: schedule.event_type,
+        maxParticipants: schedule.max_participants,
+      });
+      return data.schedule;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["schedules", variables.product_id] });
@@ -224,14 +159,13 @@ export const useCreateTimeSlot = () => {
 
   return useMutation({
     mutationFn: async (timeSlot: Omit<TimeSlot, "id" | "created_at">) => {
-      const { data, error } = await supabase
-        .from("time_slots")
-        .insert(timeSlot)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      const data = await invokeApi<{ slots: TimeSlot[] }>("manage-schedules", {
+        action: "create_slots",
+        ...sessionCreds(),
+        slots: [timeSlot],
+        scheduleId: timeSlot.schedule_id,
+      });
+      return data.slots?.[0];
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["time-slots", variables.schedule_id] });
@@ -244,15 +178,13 @@ export const useUpdateSchedule = () => {
 
   return useMutation({
     mutationFn: async ({ id, productId, ...updates }: Partial<Schedule> & { id: string; productId: string }) => {
-      const { data, error } = await supabase
-        .from("schedules")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return { ...data, productId };
+      const data = await invokeApi<{ schedule: Schedule }>("manage-schedules", {
+        action: "update_schedule",
+        ...sessionCreds(),
+        id,
+        updates,
+      });
+      return { ...data.schedule, productId };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["schedules", data.productId] });
@@ -265,12 +197,11 @@ export const useDeleteSchedule = () => {
 
   return useMutation({
     mutationFn: async ({ id, productId }: { id: string; productId: string }) => {
-      const { error } = await supabase
-        .from("schedules")
-        .delete()
-        .eq("id", id);
-      
-      if (error) throw error;
+      await invokeApi("manage-schedules", {
+        action: "delete_schedule",
+        ...sessionCreds(),
+        id,
+      });
       return { productId };
     },
     onSuccess: (data) => {
@@ -284,12 +215,11 @@ export const useDeleteTimeSlot = () => {
 
   return useMutation({
     mutationFn: async ({ id, scheduleId }: { id: string; scheduleId: string }) => {
-      const { error } = await supabase
-        .from("time_slots")
-        .delete()
-        .eq("id", id);
-      
-      if (error) throw error;
+      await invokeApi("manage-schedules", {
+        action: "delete_slot",
+        ...sessionCreds(),
+        slotId: id,
+      });
       return { scheduleId };
     },
     onSuccess: (data) => {
@@ -303,12 +233,12 @@ export const useCreateMultipleTimeSlots = () => {
 
   return useMutation({
     mutationFn: async ({ slots, scheduleId }: { slots: Omit<TimeSlot, "id" | "created_at">[]; scheduleId: string }) => {
-      const { data, error } = await supabase
-        .from("time_slots")
-        .insert(slots)
-        .select();
-      
-      if (error) throw error;
+      const data = await invokeApi("manage-schedules", {
+        action: "create_slots",
+        ...sessionCreds(),
+        slots,
+        scheduleId,
+      });
       return { data, scheduleId };
     },
     onSuccess: (data) => {
@@ -322,12 +252,13 @@ export const useDeleteMultipleTimeSlots = () => {
 
   return useMutation({
     mutationFn: async ({ slotIds, scheduleId }: { slotIds: string[]; scheduleId: string }) => {
-      const { error } = await supabase
-        .from("time_slots")
-        .delete()
-        .in("id", slotIds);
-      
-      if (error) throw error;
+      for (const id of slotIds) {
+        await invokeApi("manage-schedules", {
+          action: "delete_slot",
+          ...sessionCreds(),
+          slotId: id,
+        });
+      }
       return { scheduleId };
     },
     onSuccess: (data) => {

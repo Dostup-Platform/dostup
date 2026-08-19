@@ -36,9 +36,16 @@ Deno.serve(async (req) => {
       .maybeSingle()
     if (!session) return json({ error: 'Unauthorized' }, 401)
 
+    const { data: account } = await supabase
+      .from('creator_accounts')
+      .select('id, login')
+      .ilike('login', creatorName)
+      .maybeSingle()
+    if (!account) return json({ error: 'Unauthorized' }, 401)
+
     const ensureOwnsProduct = async (pid: string) => {
-      const { data: p } = await supabase.from('products').select('id, creator_id').eq('id', pid).maybeSingle()
-      return !!p && p.creator_id === creatorName
+      const { data: p } = await supabase.from('products').select('id, creator_account_id').eq('id', pid).maybeSingle()
+      return !!p && p.creator_account_id === account.id
     }
 
     if (action === 'create') {
@@ -54,7 +61,7 @@ Deno.serve(async (req) => {
       const nextIndex = (maxRow?.order_index ?? -1) + 1
       const { data, error } = await supabase
         .from('announcements')
-        .insert({ product_id: productId, creator_id: creatorName, content_html: contentHtml, order_index: nextIndex })
+        .insert({ product_id: productId, creator_id: account.login, content_html: contentHtml, order_index: nextIndex })
         .select()
         .single()
       if (error) return json({ error: error.message }, 500)
@@ -63,8 +70,8 @@ Deno.serve(async (req) => {
 
     if (action === 'update') {
       if (!id || typeof contentHtml !== 'string') return json({ error: 'Bad input' }, 400)
-      const { data: existing } = await supabase.from('announcements').select('creator_id').eq('id', id).maybeSingle()
-      if (!existing || existing.creator_id !== creatorName) return json({ error: 'Forbidden' }, 403)
+      const { data: existing } = await supabase.from('announcements').select('product_id').eq('id', id).maybeSingle()
+      if (!existing || !(await ensureOwnsProduct(existing.product_id))) return json({ error: 'Forbidden' }, 403)
       const { data, error } = await supabase
         .from('announcements')
         .update({ content_html: contentHtml })
@@ -77,8 +84,8 @@ Deno.serve(async (req) => {
 
     if (action === 'delete') {
       if (!id) return json({ error: 'Bad input' }, 400)
-      const { data: existing } = await supabase.from('announcements').select('creator_id').eq('id', id).maybeSingle()
-      if (!existing || existing.creator_id !== creatorName) return json({ error: 'Forbidden' }, 403)
+      const { data: existing } = await supabase.from('announcements').select('product_id').eq('id', id).maybeSingle()
+      if (!existing || !(await ensureOwnsProduct(existing.product_id))) return json({ error: 'Forbidden' }, 403)
       const { error } = await supabase.from('announcements').delete().eq('id', id)
       if (error) return json({ error: error.message }, 500)
       return json({ ok: true })

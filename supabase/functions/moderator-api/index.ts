@@ -108,7 +108,7 @@ serve(async (req) => {
       const { data: c } = await supabase.from('creator_accounts').select('login').eq('id', creator_id).maybeSingle()
       if (!c) return json({ error: 'Not found' }, 404)
       // Cascade: products of this creator and their dependents
-      const { data: prods } = await supabase.from('products').select('id').eq('creator_id', c.login)
+      const { data: prods } = await supabase.from('products').select('id').eq('creator_account_id', creator_id)
       const productIds = (prods ?? []).map((p: any) => p.id)
       if (productIds.length) {
         // delete schedules -> time_slots -> bookings cascade if FK set; if not, do manually
@@ -119,13 +119,11 @@ serve(async (req) => {
           const slotIds = (slots ?? []).map((s: any) => s.id)
           if (slotIds.length) {
             await supabase.from('simple_bookings').delete().in('time_slot_id', slotIds)
-            await supabase.from('bookings').delete().in('time_slot_id', slotIds)
             await supabase.from('time_slots').delete().in('id', slotIds)
           }
           await supabase.from('schedules').delete().in('id', scheduleIds)
         }
         await supabase.from('simple_purchases').delete().in('product_id', productIds)
-        await supabase.from('purchases').delete().in('product_id', productIds)
         await supabase.from('materials').delete().in('product_id', productIds)
         await supabase.from('announcements').delete().in('product_id', productIds)
         await supabase.from('product_teachers').delete().in('product_id', productIds)

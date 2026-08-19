@@ -1,31 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { hashPassword } from '../_shared/password.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const PBKDF2_ITERATIONS = 100000
-
-function bufToB64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf)
-  let bin = ''
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
-  return btoa(bin)
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16))
-  const enc = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']
-  )
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
-    keyMaterial, 256
-  )
-  return `pbkdf2$${PBKDF2_ITERATIONS}$${bufToB64(salt.buffer)}$${bufToB64(bits)}`
+function normalizeRecoveryPhone(phone: unknown): string | null {
+  if (typeof phone !== 'string') return null
+  const trimmed = phone.trim()
+  if (trimmed.length < 8 || trimmed.length > 32) return null
+  const digits = trimmed.replace(/\D/g, '')
+  if (digits.length < 10 || digits.length > 15) return null
+  return trimmed
 }
 
 serve(async (req) => {
@@ -34,7 +22,7 @@ serve(async (req) => {
   }
 
   try {
-    const { login, password, accountType } = await req.json()
+    const { login, password, accountType, recoveryPhone } = await req.json()
 
     if (typeof login !== 'string' || login.trim().length < 2 || login.length > 100) {
       return new Response(JSON.stringify({ error: 'Invalid login' }), {
@@ -52,6 +40,13 @@ serve(async (req) => {
       })
     }
 
+    const normalizedPhone = normalizeRecoveryPhone(recoveryPhone)
+    if (!normalizedPhone) {
+      return new Response(JSON.stringify({ error: 'Invalid recovery phone' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -59,7 +54,6 @@ serve(async (req) => {
 
     const trimmedLogin = login.trim()
 
-    // Check uniqueness (case-insensitive)
     const { data: existing } = await supabase
       .from('creator_accounts')
       .select('id')
@@ -72,8 +66,6 @@ serve(async (req) => {
       })
     }
 
-    // Also reject if matches the shared (legacy) password owner names? Not enforceable — skip.
-
     const passwordHash = await hashPassword(password)
 
     const { data: created, error: insertError } = await supabase
@@ -83,12 +75,12 @@ serve(async (req) => {
         display_name: trimmedLogin,
         password_hash: passwordHash,
         account_type: accountType,
+        recovery_phone: normalizedPhone,
       })
       .select()
       .single()
 
     if (insertError || !created) {
-      // Race condition on unique index
       if ((insertError as { code?: string } | null)?.code === '23505') {
         return new Response(JSON.stringify({ error: 'login_taken' }), {
           status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -100,7 +92,6 @@ serve(async (req) => {
       })
     }
 
-    // Create session token
     const sessionToken = crypto.randomUUID()
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     await supabase.from('creator_sessions').insert({
