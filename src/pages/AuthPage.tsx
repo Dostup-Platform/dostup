@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { AuthMark } from "@/components/auth/AuthMark";
 
 import { toast } from "sonner";
 
@@ -63,7 +64,10 @@ const AuthPage = () => {
         </button>
 
         <Card className="animate-fade-in">
-          <CardHeader>
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-2">
+              <AuthMark />
+            </div>
             <CardTitle className="text-xl">{t("signInTitle")}</CardTitle>
             <CardDescription>
               {t("signInDescription")}

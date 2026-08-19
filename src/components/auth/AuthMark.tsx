@@ -1,15 +1,25 @@
-export function AuthMark({ className = "h-12 w-12" }: { className?: string }) {
+import { useState } from "react";
+
+const LOGO_SRC = "/logo.png";
+const FALLBACK_LOGO_SRC = "/favicon.ico";
+
+export function AuthMark({ className = "h-14 w-14" }: { className?: string }) {
+  const [imgSrc, setImgSrc] = useState(LOGO_SRC);
+
   return (
     <div
-      className={`rounded-2xl bg-[#FF6B00] flex items-center justify-center text-white font-bold ${className}`}
-      aria-hidden
+      className={`relative flex items-center justify-center overflow-hidden rounded-2xl shadow-sm bg-background ${className}`}
     >
-      <svg viewBox="0 0 32 32" className="h-7 w-7" fill="none">
-        <path
-          d="M8 7h9.2c4.4 0 7.8 3.1 7.8 9s-3.4 9-7.8 9H8V7zm4.1 3.4v11.2h5c2.6 0 4.3-1.8 4.3-5.6 0-3.8-1.7-5.6-4.3-5.6h-5z"
-          fill="currentColor"
-        />
-      </svg>
+      <img
+        src={imgSrc}
+        alt="Dostup"
+        className="h-full w-full object-cover"
+        onError={() => {
+          if (imgSrc !== FALLBACK_LOGO_SRC) {
+            setImgSrc(FALLBACK_LOGO_SRC);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -21,3 +31,4 @@ export function maskEmail(email: string): string {
   const hidden = Math.max(3, local.length - keep);
   return `${local.slice(0, keep)}${"•".repeat(hidden)}@${domain}`;
 }
+
