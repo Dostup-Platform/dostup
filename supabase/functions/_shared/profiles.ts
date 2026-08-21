@@ -238,7 +238,7 @@ export async function ensureCreatorAccount(
   if (existing) {
     const patch: Record<string, unknown> = {}
     if (!existing.auth_user_id) patch.auth_user_id = args.authUserId
-    if (!existing.email) patch.email = args.email
+    if (!existing.email && args.email) patch.email = args.email
     if (Object.keys(patch).length) {
       await supabase.from('creator_accounts').update(patch).eq('id', existing.id)
     }
@@ -253,14 +253,19 @@ export async function ensureCreatorAccount(
     .eq('account_type', args.accountType)
     .maybeSingle()
   if (byAuthType) {
+    const patch: Record<string, unknown> = { profile_id: args.profile.id }
+    if (args.email) patch.email = args.email
     await supabase
       .from('creator_accounts')
-      .update({ profile_id: args.profile.id, email: args.email })
+      .update(patch)
       .eq('id', (byAuthType as CreatorAccountRow).id)
-    return { ...(byAuthType as CreatorAccountRow), profile_id: args.profile.id, email: args.email }
+    return { ...(byAuthType as CreatorAccountRow), ...patch }
   }
 
-  let login = await uniqueLogin(supabase, loginBaseFromEmail(args.email))
+  const baseLogin = args.email
+    ? loginBaseFromEmail(args.email)
+    : `${args.profile.type}_${args.authUserId.slice(0, 8)}`
+  let login = await uniqueLogin(supabase, baseLogin)
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data, error } = await supabase
       .from('creator_accounts')
@@ -269,7 +274,7 @@ export async function ensureCreatorAccount(
         display_name: args.displayName,
         password_hash: null,
         account_type: args.accountType,
-        email: args.email,
+        email: args.email || null,
         auth_user_id: args.authUserId,
         profile_id: args.profile.id,
       })
@@ -286,7 +291,7 @@ export async function ensureCreatorAccount(
     const raced = await loadAccountForProfile(supabase, args.profile.id)
     if (raced) return raced
 
-    login = await uniqueLogin(supabase, `${loginBaseFromEmail(args.email)}${attempt + 2}`)
+    login = await uniqueLogin(supabase, `${baseLogin}${attempt + 2}`)
   }
   return null
 }

@@ -1,62 +1,100 @@
-import { FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import AuthEntryScreen from "@/components/auth/AuthEntryScreen";
 import EmailCodeScreen from "@/components/auth/EmailCodeScreen";
-import SellerTypeScreen from "@/components/auth/SellerTypeScreen";
-import PasswordLoginScreen from "@/components/auth/PasswordLoginScreen";
+import RoleSelectionScreen from "@/components/auth/RoleSelectionScreen";
 import { useEmailAuth } from "@/hooks/useEmailAuth";
-import { authErrorTranslationKey } from "@/lib/authErrors";
-import { parseProfileType, profileHomePath, type ProfileType } from "@/lib/creatorAuth";
+import { authErrorTranslationKey, authErrorKeyFromUnknown } from "@/lib/authErrors";
+import {
+  markRoleOnboardingComplete,
+  needsRoleOnboarding,
+  parseAuthRedirectPath,
+  parseProfileType,
+  profileHomePath,
+  readAuthEmail,
+  readStoredProfiles,
+  type ProfileType,
+} from "@/lib/creatorAuth";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-type Screen = "entry" | "code" | "seller" | "password";
+type Screen = "entry" | "code" | "role";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user, loading, profileType } = useSimpleAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { loading, profileType, switchProfile, refreshSession } = useSimpleAuth();
   const { t } = useLanguage();
   const [screen, setScreen] = useState<Screen>("entry");
-  const [sellerType, setSellerType] = useState<Extract<ProfileType, "creator" | "school"> | undefined>();
-  const auth = useEmailAuth(sellerType);
+  const [roleEmail, setRoleEmail] = useState("");
+
+  const applyAuthRedirect = useCallback(async (path: string) => {
+    const parsed = parseAuthRedirectPath(path);
+    if (parsed.type === "role") {
+      setRoleEmail(parsed.email);
+      setScreen("role");
+      window.history.replaceState({}, "", "/");
+      return;
+    }
+    await refreshSession();
+    navigate(parsed.path, { replace: true });
+  }, [navigate, refreshSession]);
+
+  const auth = useEmailAuth({ onAuthRedirect: applyAuthRedirect });
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const authError = params.get("auth_error");
-    if (!authError) return;
-    toast.error(t(authErrorTranslationKey(authError)));
-    params.delete("auth_error");
-    const next = params.toString();
-    window.history.replaceState({}, "", next ? `/?${next}` : "/");
-  }, [t]);
+    const authError = searchParams.get("auth_error");
+    const onboarding = searchParams.get("onboarding");
+    const emailParam = searchParams.get("email");
+    let changed = false;
+
+    if (authError) {
+      toast.error(t(authErrorTranslationKey(authError)));
+      searchParams.delete("auth_error");
+      changed = true;
+    }
+    if (onboarding === "role") {
+      setRoleEmail(emailParam?.trim().toLowerCase() || readAuthEmail());
+      setScreen("role");
+      searchParams.delete("onboarding");
+      searchParams.delete("email");
+      changed = true;
+    }
+    if (changed) {
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, t]);
 
   useEffect(() => {
     if (loading) return;
+    if (screen === "role") return;
+
     const moderatorToken = localStorage.getItem("moderator_token");
     if (moderatorToken) {
-      navigate("/moderator");
+      navigate("/moderator", { replace: true });
       return;
     }
+
     const token = localStorage.getItem("creator_token");
+    if (!token) return;
+
     const storedType = parseProfileType(localStorage.getItem("profile_type")) || profileType;
     const accountType = localStorage.getItem("creator_account_type");
-    if (token && storedType) {
-      navigate(profileHomePath(storedType, accountType));
+    const email = readAuthEmail();
+    const profiles = readStoredProfiles();
+
+    if (email && needsRoleOnboarding(email, profiles)) {
+      setRoleEmail(email);
+      setScreen("role");
       return;
     }
-    const teacherData = localStorage.getItem("teacher_data");
-    if (teacherData && user && (user.role as string) === "teacher") {
-      navigate("/teacher");
-    }
-  }, [navigate, loading, user, profileType]);
 
-  useEffect(() => {
-    if (!loading && user && (!user.role || user.role === "student")) {
-      navigate("/dashboard");
+    if (storedType) {
+      navigate(profileHomePath(storedType, accountType), { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [navigate, loading, profileType, screen]);
 
   if (loading) {
     return (
@@ -72,28 +110,61 @@ const Index = () => {
     if (ok) setScreen("code");
   };
 
+  const handleGoogle = async () => {
+    const result = await auth.handleGoogle();
+    if (result.path) {
+      await applyAuthRedirect(result.path);
+      return;
+    }
+    if (result.dismissed) {
+      toast.error(t("oauthPopupDismissed"));
+    } else if (result.error) {
+      toast.error(t(authErrorKeyFromUnknown(result.error)));
+    }
+  };
+
+  const handleRoleSelect = async (type: ProfileType) => {
+    const address = roleEmail || auth.pendingEmail || auth.email || readAuthEmail();
+    if (!address) return;
+
+    if (type === "buyer") {
+      markRoleOnboardingComplete(address);
+      await refreshSession();
+      navigate("/dashboard", { replace: true });
+      return;
+    }
+
+    const result = await switchProfile({ createType: type });
+    if ("error" in result) {
+      if (result.error === "network_failure") {
+        toast.error(t("networkFailure"));
+      } else {
+        toast.error(t("switchProfileError"));
+      }
+      return;
+    }
+
+    markRoleOnboardingComplete(address);
+    navigate(result.path, { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-hero flex flex-col">
       <main className="flex-1 flex items-center justify-center px-4 py-6">
-        {screen === "seller" && (
-          <SellerTypeScreen
-            onBack={() => {
-              setSellerType(undefined);
-              setScreen("entry");
-            }}
-            onSelect={(type) => {
-              setSellerType(type);
-              setScreen("entry");
-            }}
-          />
-        )}
-        {screen === "password" && <PasswordLoginScreen onBack={() => setScreen("entry")} />}
+        {screen === "role" && <RoleSelectionScreen onSelect={handleRoleSelect} />}
         {screen === "code" && auth.pendingEmail && (
           <EmailCodeScreen
             email={auth.pendingEmail}
             verifying={auth.verifying}
             sending={auth.sending}
-            onVerify={(code) => void auth.verifyCode(code)}
+            onVerify={async (code) => {
+              const result = await auth.verifyCode(code);
+              if (!result) return;
+              if (result.status === "role_required") {
+                setRoleEmail(result.email);
+                setScreen("role");
+              }
+            }}
             onResend={() => auth.sendCode(auth.pendingEmail || auth.email)}
             onBack={() => {
               auth.setPendingEmail(null);
@@ -106,9 +177,7 @@ const Index = () => {
             email={auth.email}
             onEmailChange={auth.setEmail}
             onContinue={(e) => void handleContinue(e)}
-            onGoogle={() => void auth.handleGoogle()}
-            onSeller={() => setScreen("seller")}
-            onPassword={() => setScreen("password")}
+            onGoogle={() => void handleGoogle()}
             sending={auth.sending}
             googleLoading={auth.googleLoading}
           />

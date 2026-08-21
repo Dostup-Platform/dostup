@@ -8,6 +8,7 @@ import {
   listProfiles,
   loadAccountForProfile,
   parseProfileType,
+  profileTypeForAccount,
   publicProfiles,
   type ProfileRow,
 } from '../_shared/profiles.ts'
@@ -29,19 +30,51 @@ Deno.serve(async (req) => {
       .gt('expires_at', new Date().toISOString())
       .maybeSingle()
 
-    if (!session?.profile_id) {
+    if (!session) {
+      return json({ success: false, error: 'Invalid session' }, 401)
+    }
+
+    let profileId = session.profile_id
+    if (!profileId) {
+      if (typeof session.creator_name === 'string' && session.creator_name.startsWith('buyer:')) {
+        profileId = session.creator_name.slice(6)
+      } else if (session.creator_name) {
+        const { data: acc } = await supabase
+          .from('creator_accounts')
+          .select('profile_id, auth_user_id, display_name, account_type')
+          .ilike('login', session.creator_name)
+          .maybeSingle()
+        if (acc?.profile_id) {
+          profileId = acc.profile_id
+        } else if (acc?.auth_user_id) {
+          const type = profileTypeForAccount(acc.account_type)
+          const p = await findOrCreateProfile(
+            supabase,
+            acc.auth_user_id,
+            type,
+            acc.display_name || session.creator_name,
+          )
+          if (p) profileId = p.id
+        }
+      }
+      if (profileId) {
+        await supabase.from('creator_sessions').update({ profile_id: profileId }).eq('token', token)
+      }
+    }
+
+    if (!profileId) {
       return json({ success: false, error: 'Invalid session' }, 401)
     }
 
     const { data: current } = await supabase
       .from('profiles')
       .select('id, auth_user_id, type, display_name, last_used_at, created_at')
-      .eq('id', session.profile_id)
+      .eq('id', profileId)
       .maybeSingle()
 
     const currentProfile = current as ProfileRow | null
     if (!currentProfile?.auth_user_id) {
-      return json({ success: false, error: 'Identity required' }, 403)
+      return json({ success: false, error: 'identity_required' }, 403)
     }
 
     const authUserId = currentProfile.auth_user_id
@@ -54,7 +87,7 @@ Deno.serve(async (req) => {
 
     let target: ProfileRow | null = null
 
-    if (createType) {
+    if (createType === 'creator' || createType === 'school' || createType === 'buyer') {
       const { data: userData } = await supabase.auth.admin.getUserById(authUserId)
       const email = userData?.user?.email ?? ''
       const displayName = userData?.user
@@ -64,17 +97,16 @@ Deno.serve(async (req) => {
       if (!target) return json({ error: 'Failed to create profile' }, 500)
       const sellerType = accountTypeFor(createType)
       if (sellerType) {
-        if (!email) return json({ error: 'Email is required' }, 400)
         const account = await ensureCreatorAccount(supabase, {
           authUserId,
-          email: email.trim().toLowerCase(),
+          email: email ? email.trim().toLowerCase() : '',
           displayName: target.display_name || displayName,
           profile: target,
           accountType: sellerType,
         })
         if (!account) return json({ error: 'Failed to create account' }, 500)
         if (account.is_blocked) {
-          return json({ success: false, error: 'Account blocked' })
+          return json({ success: false, error: 'account_blocked' })
         }
       }
     } else if (requestedId) {
@@ -92,6 +124,10 @@ Deno.serve(async (req) => {
     }
 
     const account = await loadAccountForProfile(supabase, target.id)
+    if (account?.is_blocked) {
+      return json({ success: false, error: 'account_blocked' })
+    }
+
     const activated = await activateSessionProfile(supabase, token, target, account)
     if (!activated.ok) return activated.response
 

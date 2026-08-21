@@ -9,8 +9,7 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import { invokeApi, studentCreds } from "@/lib/sessionApi";
-import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Download, Copy } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Copy } from "lucide-react";
 import { toast } from "sonner";
 import heroBackground from "@/assets/hero-background.jpg";
 import ReceiptUploadCard, { ReceiptSubmission } from "@/components/checkout/ReceiptUploadCard";
@@ -259,18 +258,14 @@ const ProductPurchasePage = () => {
                   ? t("receiptManualReviewTitle")
                   : receiptSubmission?.verification_status === "payment_qr_or_invoice"
                     ? t("receiptPayFirstTitle")
-                    : receiptSubmission?.verification_status === "unreadable"
-                      ? t("receiptUnreadableTitle")
-                      : t("uploadPaymentReceipt")}
+                    : t("uploadPaymentReceipt")}
               </h2>
               <p className="text-muted-foreground mb-6">
                 {receiptSubmission?.verification_status === "manual_review"
                   ? t("receiptManualReviewBody")
                   : receiptSubmission?.verification_status === "payment_qr_or_invoice"
                     ? t("receiptPayFirstBody")
-                    : receiptSubmission?.verification_status === "unreadable"
-                      ? t("receiptUnreadableBody")
-                      : t("uploadReceiptHint")}
+                    : t("uploadReceiptHint")}
               </p>
 
               {purchaseId && (
@@ -288,14 +283,6 @@ const ProductPurchasePage = () => {
                   }}
                 />
               )}
-
-              <Link 
-                to="/install" 
-                className="text-sm text-primary hover:underline flex items-center justify-center gap-1 mt-4"
-              >
-                <Download className="w-4 h-4" />
-                {t("installApp")}
-              </Link>
             </CardContent>
           </Card>
         </main>

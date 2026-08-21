@@ -44,7 +44,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("home");
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
   const previousTab = useRef(activeTab);
-  const { user, loading, profileType } = useSimpleAuth();
+  const { user, loading, profileType, refreshSession } = useSimpleAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   useAppResume();
@@ -211,6 +211,13 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    if (loading || user) return;
+    if (localStorage.getItem("creator_token")) {
+      void refreshSession();
+    }
+  }, [loading, user, refreshSession]);
+
+  useEffect(() => {
     if (loading) return;
     if (profileType === "creator") {
       navigate("/creator");
@@ -225,7 +232,7 @@ const Dashboard = () => {
     }
   }, [user, loading, profileType, navigate]);
 
-  if (loading) {
+  if (loading || (!user && localStorage.getItem("creator_token"))) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />

@@ -5,16 +5,26 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { authErrorKeyFromUnknown } from "@/lib/authErrors";
 import {
   exchangeAuthSession,
+  needsRoleOnboarding,
   parseProfileType,
-  profileHomePath,
+  rememberAuthEmail,
+  resolvePostAuthPath,
   sendEmailCode,
   startGoogleOAuth,
   storeCreatorSession,
   verifyEmailCode,
-  type ProfileType,
+  type GoogleOAuthResult,
   type SessionPayload,
 } from "@/lib/creatorAuth";
 import { supabase } from "@/integrations/supabase/client";
+
+export type AuthCompletion =
+  | { status: "navigated" }
+  | { status: "role_required"; email: string };
+
+type UseEmailAuthOptions = {
+  onAuthRedirect?: (path: string) => void | Promise<void>;
+};
 
 function asSession(data: Record<string, unknown> | null): SessionPayload | null {
   if (!data?.success || typeof data.token !== "string" || typeof data.profileType !== "string") {
@@ -29,13 +39,14 @@ function asSession(data: Record<string, unknown> | null): SessionPayload | null 
     profileType,
     profileId: String(data.profileId || ""),
     displayName: typeof data.displayName === "string" ? data.displayName : null,
-    profiles: Array.isArray(data.profiles) ? data.profiles as SessionPayload["profiles"] : [],
+    profiles: Array.isArray(data.profiles) ? (data.profiles as SessionPayload["profiles"]) : [],
   };
 }
 
-export function useEmailAuth(profileType?: ProfileType) {
+export function useEmailAuth(options: UseEmailAuthOptions = {}) {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { onAuthRedirect } = options;
   const [googleLoading, setGoogleLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -43,13 +54,28 @@ export function useEmailAuth(profileType?: ProfileType) {
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const submitting = useRef(false);
 
-  const applySession = (session: SessionPayload) => {
-    storeCreatorSession(session);
-    navigate(profileHomePath(session.profileType, session.accountType), { replace: true });
+  const redirectAfterAuth = async (path: string) => {
+    if (onAuthRedirect) {
+      await onAuthRedirect(path);
+      return;
+    }
+    navigate(path, { replace: true });
   };
 
-  const exchange = async (accessToken: string) => {
-    const { data, error } = await exchangeAuthSession(accessToken, profileType);
+  const completeSession = (session: SessionPayload, address: string): AuthCompletion => {
+    rememberAuthEmail(address);
+    storeCreatorSession(session);
+    if (needsRoleOnboarding(address, session.profiles ?? [])) {
+      return { status: "role_required", email: address };
+    }
+    void redirectAfterAuth(
+      resolvePostAuthPath(address, session.profiles ?? [], session.profileType, session.accountType),
+    );
+    return { status: "navigated" };
+  };
+
+  const exchange = async (accessToken: string, address: string) => {
+    const { data, error } = await exchangeAuthSession(accessToken);
     try {
       await supabase.auth.signOut({ scope: "local" });
     } catch {
@@ -58,10 +84,9 @@ export function useEmailAuth(profileType?: ProfileType) {
     const session = asSession((data ?? null) as Record<string, unknown> | null);
     if (error || !session) {
       toast.error(t(authErrorKeyFromUnknown(error || { message: String((data as { error?: string } | null)?.error) })));
-      return false;
+      return null;
     }
-    applySession(session);
-    return true;
+    return completeSession(session, address);
   };
 
   const sendCode = async (address: string) => {
@@ -71,7 +96,7 @@ export function useEmailAuth(profileType?: ProfileType) {
       return false;
     }
     setSending(true);
-    const { error } = await sendEmailCode(trimmed, profileType);
+    const { error } = await sendEmailCode(trimmed);
     setSending(false);
     if (error) {
       toast.error(t(authErrorKeyFromUnknown(error)));
@@ -81,39 +106,33 @@ export function useEmailAuth(profileType?: ProfileType) {
     return true;
   };
 
-  const verifyCode = async (token: string) => {
-    if (!pendingEmail || submitting.current) return false;
+  const verifyCode = async (token: string): Promise<AuthCompletion | null> => {
+    if (!pendingEmail || submitting.current) return null;
     submitting.current = true;
     setVerifying(true);
     try {
       const { data, error } = await verifyEmailCode(pendingEmail, token);
       if (error || !data.session?.access_token) {
         toast.error(t(authErrorKeyFromUnknown(error || { message: "wrong_email_code", code: "wrong_email_code" })));
-        return false;
+        return null;
       }
-      return await exchange(data.session.access_token);
+      return await exchange(data.session.access_token, pendingEmail);
     } catch {
       toast.error(t("networkFailure"));
-      return false;
+      return null;
     } finally {
       submitting.current = false;
       setVerifying(false);
     }
   };
 
-  const handleGoogle = async () => {
+  const handleGoogle = async (): Promise<GoogleOAuthResult> => {
     setGoogleLoading(true);
-    const result = await startGoogleOAuth(profileType);
-    if (result.path) {
-      navigate(result.path, { replace: true });
-      return;
+    try {
+      return await startGoogleOAuth();
+    } finally {
+      setGoogleLoading(false);
     }
-    if (result.dismissed) {
-      toast.error(t("oauthPopupDismissed"));
-    } else if (result.error) {
-      toast.error(t(authErrorKeyFromUnknown(result.error)));
-    }
-    setGoogleLoading(false);
   };
 
   return {

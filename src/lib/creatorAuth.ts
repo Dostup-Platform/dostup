@@ -4,6 +4,7 @@ import { classifyAuthError, OAUTH_MESSAGE_TYPE } from "@/lib/authErrors";
 export const OAUTH_ACCOUNT_TYPE_KEY = "dostup_oauth_account_type";
 export const OAUTH_PROFILE_TYPE_KEY = "dostup_oauth_profile_type";
 export const OAUTH_RESULT_KEY = "dostup_oauth_result";
+export const AUTH_EMAIL_KEY = "dostup_auth_email";
 
 export type CreatorAccountType = "course_creator" | "online_school";
 export type ProfileType = "buyer" | "creator" | "school";
@@ -75,6 +76,27 @@ export function clearAppSession() {
   localStorage.removeItem("identity_profiles");
   localStorage.removeItem("simple_session_token");
   localStorage.removeItem("simple_user_id");
+  localStorage.removeItem(AUTH_EMAIL_KEY);
+}
+
+export function rememberAuthEmail(email: string) {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return;
+  localStorage.setItem(AUTH_EMAIL_KEY, normalized);
+}
+
+export function readAuthEmail() {
+  return localStorage.getItem(AUTH_EMAIL_KEY)?.trim().toLowerCase() || "";
+}
+
+export function readStoredProfiles(): AppProfile[] {
+  try {
+    const raw = localStorage.getItem("identity_profiles");
+    if (!raw) return [];
+    return JSON.parse(raw) as AppProfile[];
+  } catch {
+    return [];
+  }
 }
 
 export function creatorHomePath(accountType: string) {
@@ -85,6 +107,57 @@ export function profileHomePath(profileType: string, accountType?: string | null
   if (profileType === "buyer") return "/dashboard";
   if (profileType === "school" || accountType === "online_school") return "/school";
   return "/creator";
+}
+
+export function roleOnboardingKey(email: string) {
+  return `dostup_role_onboarded_${email.trim().toLowerCase()}`;
+}
+
+export function hasCompletedRoleOnboarding(email: string) {
+  if (!email.trim()) return false;
+  return localStorage.getItem(roleOnboardingKey(email)) === "1";
+}
+
+export function markRoleOnboardingComplete(email: string) {
+  if (!email.trim()) return;
+  localStorage.setItem(roleOnboardingKey(email), "1");
+}
+
+export function needsRoleOnboarding(email: string, profiles: AppProfile[] = []) {
+  if (hasCompletedRoleOnboarding(email)) return false;
+  if (profiles.some((profile) => profile.type === "creator" || profile.type === "school")) {
+    return false;
+  }
+  return true;
+}
+
+export function roleOnboardingPath(email: string) {
+  return `/?onboarding=role&email=${encodeURIComponent(email.trim().toLowerCase())}`;
+}
+
+export function resolvePostAuthPath(
+  email: string,
+  profiles: AppProfile[] = readStoredProfiles(),
+  profileType?: string | null,
+  accountType?: string | null,
+) {
+  if (email && needsRoleOnboarding(email, profiles)) {
+    return roleOnboardingPath(email);
+  }
+  return profileHomePath(profileType || localStorage.getItem("profile_type") || "buyer", accountType);
+}
+
+export function parseAuthRedirectPath(path: string):
+  | { type: "role"; email: string }
+  | { type: "route"; path: string } {
+  const url = new URL(path, window.location.origin);
+  if (url.pathname === "/" && url.searchParams.get("onboarding") === "role") {
+    return {
+      type: "role",
+      email: url.searchParams.get("email")?.trim().toLowerCase() || readAuthEmail(),
+    };
+  }
+  return { type: "route", path: `${url.pathname}${url.search}${url.hash}` };
 }
 
 export function parseProfileType(value: string | null | undefined): ProfileType | null {
@@ -237,7 +310,12 @@ function waitForOAuthPopup(popup: Window): Promise<GoogleOAuthResult> {
       const profileType = localStorage.getItem("profile_type");
       const accountType = localStorage.getItem("creator_account_type");
       if (token && (profileType || localStorage.getItem("creator_name"))) {
-        finish({ error: null, path: profileHomePath(profileType || "", accountType) });
+        const email = readAuthEmail();
+        const profiles = readStoredProfiles();
+        finish({
+          error: null,
+          path: resolvePostAuthPath(email, profiles, profileType, accountType),
+        });
         return;
       }
       if (!popup.closed) return;
@@ -248,11 +326,26 @@ function waitForOAuthPopup(popup: Window): Promise<GoogleOAuthResult> {
           finish(late);
           return;
         }
+        const token = localStorage.getItem("creator_token");
+        if (token) {
+          const email = readAuthEmail();
+          const profiles = readStoredProfiles();
+          finish({
+            error: null,
+            path: resolvePostAuthPath(
+              email,
+              profiles,
+              localStorage.getItem("profile_type"),
+              localStorage.getItem("creator_account_type"),
+            ),
+          });
+          return;
+        }
         finish({
           error: { message: "oauth_popup_dismissed", code: "oauth_popup_dismissed" },
           dismissed: true,
         });
-      }, 400);
+      }, 2500);
     }, 400);
 
     window.addEventListener("message", onMessage);

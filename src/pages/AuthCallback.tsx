@@ -8,9 +8,10 @@ import { classifyAuthCode, OAUTH_MESSAGE_TYPE, parseCallbackError } from "@/lib/
 import {
   clearOAuthAccountType,
   notifyOAuthOpener,
+  rememberAuthEmail,
   parseProfileType,
-  profileHomePath,
   readOAuthProfileType,
+  resolvePostAuthPath,
   storeCreatorSession,
   writeOAuthResult,
   type SessionPayload,
@@ -114,7 +115,10 @@ const AuthCallback = () => {
           displayName: result.displayName,
           profiles: result.profiles as SessionPayload["profiles"],
         });
-        leave("ok", profileHomePath(nextType, result.accountType));
+        const email = session.user.email?.trim().toLowerCase() || "";
+        if (email) rememberAuthEmail(email);
+        const profiles = (result.profiles as SessionPayload["profiles"]) ?? [];
+        leave("ok", resolvePostAuthPath(email, profiles, nextType, result.accountType));
       } catch {
         await fail("network_failure");
       }

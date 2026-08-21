@@ -3,8 +3,31 @@ import { useState } from "react";
 const LOGO_SRC = "/logo.png";
 const FALLBACK_LOGO_SRC = "/favicon.ico";
 
-export function AuthMark({ className = "h-14 w-14" }: { className?: string }) {
+export function AuthMark({
+  className = "h-14 w-14",
+  variant = "icon",
+}: {
+  className?: string;
+  variant?: "icon" | "brand";
+}) {
   const [imgSrc, setImgSrc] = useState(LOGO_SRC);
+
+  const handleError = () => {
+    if (imgSrc !== FALLBACK_LOGO_SRC) {
+      setImgSrc(FALLBACK_LOGO_SRC);
+    }
+  };
+
+  if (variant === "brand") {
+    return (
+      <img
+        src={imgSrc}
+        alt="Dostup"
+        className={`h-auto w-[7.5rem] sm:w-32 object-contain ${className}`}
+        onError={handleError}
+      />
+    );
+  }
 
   return (
     <div
@@ -14,11 +37,7 @@ export function AuthMark({ className = "h-14 w-14" }: { className?: string }) {
         src={imgSrc}
         alt="Dostup"
         className="h-full w-full object-cover"
-        onError={() => {
-          if (imgSrc !== FALLBACK_LOGO_SRC) {
-            setImgSrc(FALLBACK_LOGO_SRC);
-          }
-        }}
+        onError={handleError}
       />
     </div>
   );

@@ -32,34 +32,10 @@ type Props = {
   }) => void
 }
 
-function formatTenge(value: number) {
-  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(value)
-}
-
 function reasonText(
-  reason: string | null,
   t: (k: string, params?: Record<string, string | number>) => string,
-  expectedAmount: number,
-  detectedAmount?: number | null,
 ): string {
-  if (!reason) return t("receiptRejectedGeneric")
-  if (reason === "amount_mismatch") {
-    return t("receiptRejectAmount", {
-      expected: formatTenge(expectedAmount),
-      detected: detectedAmount != null ? formatTenge(detectedAmount) : "—",
-    })
-  }
-  const map: Record<string, string> = {
-    duplicate_receipt: t("receiptRejectDuplicate"),
-    currency_mismatch: t("receiptRejectCurrency"),
-    not_kaspi_receipt: t("receiptRejectNotKaspi"),
-    kaspi_qr_not_receipt: t("receiptPayFirstBody"),
-    unreadable_receipt: t("receiptUnreadableBody"),
-    receipt_too_old: t("receiptRejectOld"),
-    receipt_in_future: t("receiptRejectFuture"),
-    creator_rejected: t("receiptRejectCreator"),
-  }
-  return map[reason] || t("receiptRejectedGeneric")
+  return t("receiptRejectedGeneric")
 }
 
 const ReceiptUploadCard = ({ purchaseId, sessionToken, expectedAmount, submission, onSubmitted }: Props) => {
@@ -134,7 +110,7 @@ const ReceiptUploadCard = ({ purchaseId, sessionToken, expectedAmount, submissio
       else if (result.verification_status === "payment_qr_or_invoice") toast.message(t("receiptPayFirstTitle"));
       else if (result.verification_status === "unreadable") toast.message(t("receiptUnreadableTitle"));
       else if (result.verification_status === "rejected") {
-        toast.error(reasonText(result.rejection_reason, t, expectedAmount, result.detected_amount ?? result.submission?.detected_amount));
+        toast.error(reasonText(t));
       } else if (result.verification_status === "manual_review") toast.message(t("receiptManualReviewTitle"));
     } catch (err) {
       const message = err instanceof FunctionInvokeError
@@ -189,21 +165,18 @@ const ReceiptUploadCard = ({ purchaseId, sessionToken, expectedAmount, submissio
             {status === "rejected" ? <XCircle className="w-5 h-5" /> : <Info className="w-5 h-5" />}
             {status === "payment_qr_or_invoice"
               ? t("receiptPayFirstTitle")
-              : status === "unreadable"
-                ? t("receiptUnreadableTitle")
-                : t("receiptRejectedTitle")}
+              : t("receiptRejectedTitle")}
           </div>
           <p className="text-sm text-muted-foreground mt-2">
-            {reasonText(submission?.rejection_reason ?? null, t, expectedAmount, submission?.detected_amount)}
+            {status === "payment_qr_or_invoice"
+              ? t("receiptPayFirstBody")
+              : reasonText(t)}
           </p>
-          <p className="text-sm text-muted-foreground mt-1">{t("receiptRejectedRetry")}</p>
         </div>
       )}
 
       {allowsReceiptRetry(status) && (
       <div className="rounded-lg border border-dashed border-input bg-muted/30 p-4">
-        <p className="text-sm font-medium text-foreground mb-1">{t("uploadPaymentReceipt")}</p>
-        <p className="text-xs text-muted-foreground mb-3">{t("uploadReceiptHint")}</p>
         <input
           ref={inputRef}
           type="file"

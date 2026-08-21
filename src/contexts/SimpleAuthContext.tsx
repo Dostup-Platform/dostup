@@ -23,6 +23,7 @@ interface SimpleAuthContextType {
   sessionToken: string | null;
   profileType: ProfileType | null;
   profiles: AppProfile[];
+  refreshSession: () => Promise<void>;
   switchProfile: (opts: {
     profileId?: string;
     createType?: ProfileType;
@@ -85,68 +86,83 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
     setProfiles(nextProfiles);
   }, []);
 
-  useEffect(() => {
-    const loadUser = async () => {
-      const token = localStorage.getItem("creator_token");
-      const storedType = parseProfileType(localStorage.getItem("profile_type"));
-      const creatorName = localStorage.getItem("creator_name") || "";
+  const refreshSession = useCallback(async () => {
+    const token = localStorage.getItem("creator_token");
+    const storedType = parseProfileType(localStorage.getItem("profile_type"));
+    const creatorName = localStorage.getItem("creator_name") || "";
 
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+    if (!token) {
+      setUser(null);
+      setSessionToken(null);
+      setProfileType(null);
+      setProfiles([]);
+      setLoading(false);
+      return;
+    }
 
-      try {
-        const { data, error } = await supabase.functions.invoke("validate-creator-session", {
-          body: { token, creatorName },
-        });
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("validate-creator-session", {
+        body: { token, creatorName },
+      });
 
-        if (error) {
-          if (storedType === "buyer") {
-            const cached = buyerFromStorage();
-            if (cached) applyBuyer(token, cached, readStoredProfiles());
-          }
-          setProfileType(storedType);
-          setLoading(false);
-          return;
-        }
-
-        if (!data?.valid) {
-          clearAppSession();
-          setLoading(false);
-          return;
-        }
-
-        const nextType = parseProfileType(data.profileType) || storedType;
-        const nextProfiles = (data.profiles as AppProfile[] | undefined) ?? readStoredProfiles();
-        setProfiles(nextProfiles);
-        setProfileType(nextType);
-        if (data.profileId) localStorage.setItem("profile_id", data.profileId);
-        if (data.displayName) localStorage.setItem("profile_display_name", data.displayName);
-        if (data.profileType) localStorage.setItem("profile_type", data.profileType);
-        if (nextProfiles.length) localStorage.setItem("identity_profiles", JSON.stringify(nextProfiles));
-
-        if (nextType === "buyer") {
-          applyBuyer(token, {
-            id: data.profileId || localStorage.getItem("profile_id") || "",
-            phone: "",
-            name: data.displayName || localStorage.getItem("profile_display_name") || "",
-            role: "student",
-            created_at: data.createdAt || localStorage.getItem("creator_created_at") || new Date().toISOString(),
-          }, nextProfiles);
-        }
-      } catch {
+      if (error) {
         if (storedType === "buyer") {
           const cached = buyerFromStorage();
           if (cached) applyBuyer(token, cached, readStoredProfiles());
+        } else {
+          setProfileType(storedType);
+          setSessionToken(token);
         }
-        setProfileType(storedType);
+        return;
       }
-      setLoading(false);
-    };
 
-    void loadUser();
+      if (!data?.valid) {
+        clearAppSession();
+        setUser(null);
+        setSessionToken(null);
+        setProfileType(null);
+        setProfiles([]);
+        return;
+      }
+
+      const nextType = parseProfileType(data.profileType) || storedType;
+      const nextProfiles = (data.profiles as AppProfile[] | undefined) ?? readStoredProfiles();
+      setProfiles(nextProfiles);
+      setProfileType(nextType);
+      setSessionToken(token);
+      if (data.profileId) localStorage.setItem("profile_id", data.profileId);
+      if (data.displayName) localStorage.setItem("profile_display_name", data.displayName);
+      if (data.profileType) localStorage.setItem("profile_type", data.profileType);
+      if (nextProfiles.length) localStorage.setItem("identity_profiles", JSON.stringify(nextProfiles));
+
+      if (nextType === "buyer") {
+        applyBuyer(token, {
+          id: data.profileId || localStorage.getItem("profile_id") || "",
+          phone: "",
+          name: data.displayName || localStorage.getItem("profile_display_name") || "",
+          role: "student",
+          created_at: data.createdAt || localStorage.getItem("creator_created_at") || new Date().toISOString(),
+        }, nextProfiles);
+      } else {
+        setUser(null);
+      }
+    } catch {
+      if (storedType === "buyer") {
+        const cached = buyerFromStorage();
+        if (cached) applyBuyer(token, cached, readStoredProfiles());
+      } else {
+        setProfileType(storedType);
+        setSessionToken(token);
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [applyBuyer]);
+
+  useEffect(() => {
+    void refreshSession();
+  }, [refreshSession]);
 
   const switchProfile = async (opts: { profileId?: string; createType?: ProfileType }) => {
     const token = localStorage.getItem("creator_token") || sessionToken || "";
@@ -204,6 +220,7 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       sessionToken,
       profileType,
       profiles,
+      refreshSession,
       switchProfile,
       logout,
     }}>

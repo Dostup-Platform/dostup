@@ -28,7 +28,8 @@ const ProfileSwitcher = ({ activeType, profiles: profilesProp }: ProfileSwitcher
   const navigate = useNavigate();
   const { profiles: ctxProfiles, profileType, switchProfile } = useSimpleAuth();
   const profiles = profilesProp ?? ctxProfiles;
-  const currentType = profileType ?? activeType;
+  const currentType =
+    profileType ?? activeType ?? (localStorage.getItem("profile_type") as ProfileType | null);
   const [busyType, setBusyType] = useState<ProfileType | null>(null);
 
   const runSwitch = async (type: ProfileType) => {
@@ -40,7 +41,15 @@ const ProfileSwitcher = ({ activeType, profiles: profilesProp }: ProfileSwitcher
     );
     setBusyType(null);
     if ("error" in result) {
-      toast.error(result.error === "network_failure" ? t("networkFailure") : t("authCallbackError"));
+      if (result.error === "network_failure") {
+        toast.error(t("networkFailure"));
+      } else if (result.error === "identity_required") {
+        toast.error(t("switchProfileIdentityRequired"));
+      } else if (result.error === "Account blocked" || result.error === "account_blocked") {
+        toast.error(t("accountBlocked"));
+      } else {
+        toast.error(t("switchProfileError"));
+      }
       return;
     }
     navigate(result.path);
