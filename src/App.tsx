@@ -7,8 +7,11 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SimpleAuthProvider } from "@/contexts/SimpleAuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import Index from "./pages/Index";
+import MarketplacePage from "./pages/MarketplacePage";
+import LoginPage from "./pages/LoginPage";
+import StorefrontPage from "./pages/StorefrontPage";
 import ProductPage from "./pages/ProductPage";
+import ProductRedirect from "./pages/ProductRedirect";
 import ProductPurchasePage from "./pages/ProductPurchasePage";
 import Dashboard from "./pages/Dashboard";
 import CreatorDashboard from "./pages/CreatorDashboard";
@@ -32,9 +35,12 @@ const App = () => (
             <Sonner />
             <BrowserRouter>
               <Routes>
-                <Route path="/" element={<Index />} />
+                <Route path="/" element={<MarketplacePage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/s/:handle" element={<StorefrontPage />} />
+                <Route path="/p/:productId" element={<ProductPage />} />
                 <Route path="/auth/callback" element={<AuthCallback />} />
-                <Route path="/product/:productId" element={<ProductPage />} />
+                <Route path="/product/:productId" element={<ProductRedirect />} />
                 <Route path="/checkout/:productId" element={<ProductPurchasePage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/creator" element={<CreatorDashboard />} />

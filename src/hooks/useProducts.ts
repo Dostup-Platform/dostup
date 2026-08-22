@@ -25,6 +25,11 @@ export interface Product {
   is_paused?: boolean;
   paused_message?: string | null;
   author_name?: string | null;
+  seller_handle?: string | null;
+  seller_avatar_url?: string | null;
+  seller_type?: string | null;
+  format?: string | null;
+  subject?: string | null;
 }
 
 export interface ProductProgramItem {

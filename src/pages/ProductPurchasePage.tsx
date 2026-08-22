@@ -11,17 +11,11 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { invokeApi, studentCreds } from "@/lib/sessionApi";
 import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Copy } from "lucide-react";
 import { toast } from "sonner";
-import heroBackground from "@/assets/hero-background.jpg";
+import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
+import { rememberAuthNext } from "@/lib/creatorAuth";
+import { formatPriceTenge } from "@/lib/catalog";
 import ReceiptUploadCard, { ReceiptSubmission } from "@/components/checkout/ReceiptUploadCard";
 // Push notifications are now sent from the server via database triggers
-
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
-    minimumFractionDigits: 0,
-  }).format(price);
-};
 
 const formatKaspiPhone = (phone: string) => {
   const digits = phone.replace(/\D/g, "");
@@ -171,7 +165,9 @@ const ProductPurchasePage = () => {
 
     if (!user) {
       toast.error(t("loginRequiredCheckout"));
-      navigate("/");
+      const next = `/checkout/${product?.id || productId || ""}`;
+      rememberAuthNext(next);
+      navigate(`/login?next=${encodeURIComponent(next)}`);
       setIsProcessing(false);
       return;
     }
@@ -181,7 +177,7 @@ const ProductPurchasePage = () => {
       const result = await invokeApi<{ purchase: { id: string; status: string } }>("checkout", {
         action: "create_purchase",
         sessionToken: token,
-        productId,
+        productId: product?.id || productId,
         assignedTeacherId: teacherId,
         canChooseTeacher: canChoose,
       });
@@ -202,23 +198,32 @@ const ProductPurchasePage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background">
+        <MarketplaceHeader />
+        <div className="flex justify-center py-24">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
       </div>
     );
   }
 
-  const displayProduct = product || {
-    title: "Цифровой продукт",
-    headline: "Получите доступ к премиум-контенту",
-    price: 49000,
-    image_url: heroBackground,
-    kaspi_link: null,
-    kaspi_phone: null,
-  };
-  const hasKaspiLink = Boolean(displayProduct.kaspi_link);
-  const hasKaspiPhone = Boolean(displayProduct.kaspi_phone);
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-background">
+        <MarketplaceHeader />
+        <p className="px-4 py-16 text-center text-muted-foreground">{t("productNotFound")}</p>
+      </div>
+    );
+  }
+
+  const hasKaspiLink = Boolean(product.kaspi_link);
+  const hasKaspiPhone = Boolean(product.kaspi_phone);
   const hasPaymentMethod = hasKaspiLink || hasKaspiPhone;
+  const checkoutPath = `/checkout/${product.id}`;
+  const goToLogin = () => {
+    rememberAuthNext(checkoutPath);
+    navigate(`/login?next=${encodeURIComponent(checkoutPath)}`);
+  };
 
   const handleBackToPayment = async () => {
     // Удалить pending покупку чтобы можно было вернуться к оплате
@@ -272,7 +277,7 @@ const ProductPurchasePage = () => {
                 <ReceiptUploadCard
                   purchaseId={purchaseId}
                   sessionToken={sessionToken || studentCreds().sessionToken}
-                  expectedAmount={Number(displayProduct.price)}
+                  expectedAmount={Number(product.price)}
                   submission={receiptSubmission}
                   onSubmitted={(result) => {
                     setReceiptSubmission(result.submission);
@@ -312,134 +317,133 @@ const ProductPurchasePage = () => {
           <CardContent>
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="font-semibold text-foreground">{displayProduct.title}</h3>
-                <p className="text-sm text-muted-foreground mt-1">{displayProduct.headline}</p>
+                <h3 className="font-semibold text-foreground">{product.title}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{product.headline}</p>
               </div>
               <span className="text-lg font-bold text-foreground">
-                {formatPrice(Number(displayProduct.price))}
+                {formatPriceTenge(Number(product.price))}
               </span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Form */}
-        <Card className="animate-fade-in" style={{ animationDelay: "100ms" }}>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Lock className="w-4 h-4 text-success" />
-              {t("secureCheckout")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmitPurchase} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">{t("firstName")}</Label>
-                  <Input
-                    id="firstName"
-                    type="text"
-                    placeholder={t("firstNamePlaceholder")}
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    required
-                    className="h-12"
-                  />
+        {!user ? (
+          <Card className="animate-fade-in">
+            <CardContent className="pt-6 pb-6 text-center space-y-4">
+              <p className="text-sm text-muted-foreground">{t("loginRequiredCheckout")}</p>
+              <Button type="button" variant="cta" className="w-full bg-[#FF6B00]" onClick={goToLogin}>
+                {t("loginToContinuePurchase")}
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="animate-fade-in" style={{ animationDelay: "100ms" }}>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Lock className="w-4 h-4 text-success" />
+                {t("secureCheckout")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmitPurchase} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">{t("firstName")}</Label>
+                    <Input
+                      id="firstName"
+                      type="text"
+                      placeholder={t("firstNamePlaceholder")}
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      required
+                      className="h-12"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">{t("lastName")}</Label>
+                    <Input
+                      id="lastName"
+                      type="text"
+                      placeholder={t("lastNamePlaceholder")}
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      required
+                      className="h-12"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">{t("lastName")}</Label>
-                  <Input
-                    id="lastName"
-                    type="text"
-                    placeholder={t("lastNamePlaceholder")}
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    required
-                    className="h-12"
-                  />
-                </div>
-              </div>
 
-              {!user && (
-                <div className="rounded-lg border bg-muted/40 p-4 text-center space-y-3">
-                  <p className="text-sm text-muted-foreground">{t("loginRequiredCheckout")}</p>
-                  <Button type="button" variant="cta" className="w-full bg-[#FF6B00]" onClick={() => navigate("/")}>
-                    {t("continue")}
-                  </Button>
-                </div>
-              )}
-
-              {/* Предупреждение о чеке */}
-              <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
-                <p className="text-sm text-amber-800 font-medium">
-                  {t("sendReceiptWarning")}
-                </p>
-              </div>
-
-              {/* Kaspi Payment */}
-              {hasPaymentMethod ? (
-                <div className="space-y-4">
-                  {hasKaspiLink ? (
-                    <Button 
-                      type="button"
-                      onClick={handleKaspiPayment}
-                      className="w-full h-14 bg-[#F14635] hover:bg-[#d63d2e] text-white font-semibold text-lg"
-                      disabled={!user || !firstName.trim() || !lastName.trim()}
-                    >
-                      <span className="flex items-center gap-2">
-                        {t("payWithKaspi")}
-                        <ExternalLink className="w-5 h-5" />
-                      </span>
-                    </Button>
-                  ) : (
-                    <div className="rounded-lg border border-[#F14635]/30 bg-[#F14635]/5 p-4 space-y-3">
-                      <p className="text-sm text-foreground">{t("kaspiPhoneInstruction")}</p>
-                      <p className="text-xl font-bold text-center tracking-wide">
-                        {formatKaspiPhone(String(displayProduct.kaspi_phone))}
-                      </p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full"
-                        onClick={handleCopyKaspiPhone}
-                        disabled={!user || !firstName.trim() || !lastName.trim()}
-                      >
-                        <Copy className="w-4 h-4 mr-2" />
-                        {t("copyKaspiPhone")}
-                      </Button>
-                    </div>
-                  )}
-
-                  <Button 
-                    type="submit" 
-                    variant="outline" 
-                    size="lg" 
-                    className="w-full"
-                    disabled={isProcessing || !user || !firstName.trim() || !lastName.trim()}
-                  >
-                    {isProcessing ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        {t("processing")}
-                      </span>
-                    ) : (
-                      t("paidContinue")
-                    )}
-                  </Button>
-                </div>
-              ) : (
-                <div className="border border-input rounded-lg p-4 bg-muted/50">
-                  <p className="text-sm text-muted-foreground text-center">
-                    {t("noPaymentMethod")}
+                <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
+                  <p className="text-sm text-amber-800 font-medium">
+                    {t("sendReceiptWarning")}
                   </p>
                 </div>
-              )}
 
-              <p className="text-xs text-center text-muted-foreground mt-4">
-                {t("termsAgreement")}
-              </p>
-            </form>
-          </CardContent>
-        </Card>
+                {hasPaymentMethod ? (
+                  <div className="space-y-4">
+                    {hasKaspiLink ? (
+                      <Button
+                        type="button"
+                        onClick={handleKaspiPayment}
+                        className="w-full h-14 bg-[#F14635] hover:bg-[#d63d2e] text-white font-semibold text-lg"
+                        disabled={!firstName.trim() || !lastName.trim()}
+                      >
+                        <span className="flex items-center gap-2">
+                          {t("payWithKaspi")}
+                          <ExternalLink className="w-5 h-5" />
+                        </span>
+                      </Button>
+                    ) : (
+                      <div className="rounded-lg border border-[#F14635]/30 bg-[#F14635]/5 p-4 space-y-3">
+                        <p className="text-sm text-foreground">{t("kaspiPhoneInstruction")}</p>
+                        <p className="text-xl font-bold text-center tracking-wide">
+                          {formatKaspiPhone(String(product.kaspi_phone))}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={handleCopyKaspiPhone}
+                          disabled={!firstName.trim() || !lastName.trim()}
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          {t("copyKaspiPhone")}
+                        </Button>
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      size="lg"
+                      className="w-full"
+                      disabled={isProcessing || !firstName.trim() || !lastName.trim()}
+                    >
+                      {isProcessing ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {t("processing")}
+                        </span>
+                      ) : (
+                        t("paidContinue")
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="border border-input rounded-lg p-4 bg-muted/50">
+                    <p className="text-sm text-muted-foreground text-center">
+                      {t("noPaymentMethod")}
+                    </p>
+                  </div>
+                )}
+
+                <p className="text-xs text-center text-muted-foreground mt-4">
+                  {t("termsAgreement")}
+                </p>
+              </form>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

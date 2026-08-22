@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { productHref } from "@/lib/catalog";
 import { BookOpen, Loader2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,7 @@ const CourseCard = ({ product }: { product: Product }) => {
   return (
     <article
       className="rounded-xl border bg-card overflow-hidden shadow-sm cursor-pointer"
-      onClick={() => navigate(`/product/${product.id}`)}
+      onClick={() => navigate(productHref(product))}
     >
       <div className="aspect-[16/9] bg-muted">
         {product.image_url ? (
@@ -49,7 +50,7 @@ const CourseCard = ({ product }: { product: Product }) => {
         )}
         <Button
           className="w-full mt-2"
-          onClick={() => navigate(`/product/${product.id}`)}
+          onClick={() => navigate(productHref(product))}
         >
           {t("moreDetails")}
         </Button>

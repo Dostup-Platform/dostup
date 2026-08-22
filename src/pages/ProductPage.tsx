@@ -1,18 +1,13 @@
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProduct, useProductProgram, type ProductProgramItem } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { formatPriceTenge } from "@/lib/catalog";
 import { ArrowLeft, FileText, Folder, Loader2, Play } from "lucide-react";
-
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
-    minimumFractionDigits: 0,
-  }).format(price);
-};
 
 const ProgramTree = ({ items, parentId }: { items: ProductProgramItem[]; parentId: string | null }) => {
   const children = items
@@ -57,29 +52,35 @@ const ProductPage = () => {
 
   const handleBuy = () => {
     const teacherParam = searchParams.get("teacher");
-    const checkoutUrl = `/checkout/${productId || ""}${teacherParam ? `?teacher=${encodeURIComponent(teacherParam)}` : ""}`;
+    const checkoutUrl = `/checkout/${product?.id || ""}${teacherParam ? `?teacher=${encodeURIComponent(teacherParam)}` : ""}`;
     navigate(checkoutUrl);
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background">
+        <MarketplaceHeader />
+        <div className="flex justify-center py-24">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
       </div>
     );
   }
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-background px-4 py-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground touch-manipulation mb-8"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span>{t("back")}</span>
-        </button>
-        <p className="text-center text-muted-foreground">{t("productNotFound")}</p>
+      <div className="min-h-screen bg-background">
+        <MarketplaceHeader />
+        <div className="px-4 py-6">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground touch-manipulation mb-8"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>{t("back")}</span>
+          </button>
+          <p className="text-center text-muted-foreground">{t("productNotFound")}</p>
+        </div>
       </div>
     );
   }
@@ -98,6 +99,7 @@ const ProductPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <MarketplaceHeader />
       <div className="relative w-full aspect-[4/3] md:aspect-[16/9] max-h-[50vh] bg-muted">
         <button
           onClick={() => navigate(-1)}
@@ -175,15 +177,32 @@ const ProductPage = () => {
 
           <div className="mt-6 flex items-baseline gap-2">
             <span className="text-3xl font-bold text-foreground">
-              {formatPrice(Number(product.price))}
+              {formatPriceTenge(Number(product.price))}
             </span>
             <span className="text-muted-foreground">{t("oneTime")}</span>
           </div>
 
           {product.author_name && (
-            <p className="mt-3 text-sm text-muted-foreground">
-              {t("author")}: {product.author_name}
-            </p>
+            product.seller_handle ? (
+              <Link
+                to={`/s/${encodeURIComponent(product.seller_handle)}`}
+                className="mt-4 flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <Avatar className="h-9 w-9">
+                  {product.seller_avatar_url && (
+                    <AvatarImage src={product.seller_avatar_url} alt={product.author_name} />
+                  )}
+                  <AvatarFallback>{product.author_name.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <span>
+                  {t("author")}: {product.author_name}
+                </span>
+              </Link>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t("author")}: {product.author_name}
+              </p>
+            )
           )}
         </div>
 

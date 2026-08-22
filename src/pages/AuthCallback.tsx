@@ -52,10 +52,10 @@ const AuthCallback = () => {
       writeOAuthResult({ error: { message: mapped, code: mapped }, dismissed: mapped === "oauth_popup_dismissed" });
       const handedOff = notifyOAuthOpener({ type: OAUTH_MESSAGE_TYPE, ok: false, code: mapped });
       if (handedOff) {
-        window.setTimeout(() => navigate(`/?auth_error=${encodeURIComponent(mapped)}`, { replace: true }), 400);
-        return;
-      }
-      navigate(`/?auth_error=${encodeURIComponent(mapped)}`, { replace: true });
+        window.setTimeout(() => navigate(`/login?auth_error=${encodeURIComponent(mapped)}`, { replace: true }), 400);
+          return;
+        }
+        navigate(`/login?auth_error=${encodeURIComponent(mapped)}`, { replace: true });
     };
 
     const fail = async (code: string) => {

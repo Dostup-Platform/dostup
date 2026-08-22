@@ -131,8 +131,28 @@ export function needsRoleOnboarding(email: string, profiles: AppProfile[] = []) 
   return true;
 }
 
+export const AUTH_NEXT_KEY = "dostup_auth_next";
+
+export function isSafeInternalPath(path: string | null | undefined): path is string {
+  if (!path) return false;
+  if (!path.startsWith("/")) return false;
+  if (path.startsWith("//") || path.startsWith("/\\")) return false;
+  return true;
+}
+
+export function rememberAuthNext(path: string | null | undefined) {
+  if (!isSafeInternalPath(path)) return;
+  sessionStorage.setItem(AUTH_NEXT_KEY, path);
+}
+
+export function consumeAuthNext() {
+  const path = sessionStorage.getItem(AUTH_NEXT_KEY);
+  sessionStorage.removeItem(AUTH_NEXT_KEY);
+  return isSafeInternalPath(path) ? path : null;
+}
+
 export function roleOnboardingPath(email: string) {
-  return `/?onboarding=role&email=${encodeURIComponent(email.trim().toLowerCase())}`;
+  return `/login?onboarding=role&email=${encodeURIComponent(email.trim().toLowerCase())}`;
 }
 
 export function resolvePostAuthPath(
@@ -144,6 +164,8 @@ export function resolvePostAuthPath(
   if (email && needsRoleOnboarding(email, profiles)) {
     return roleOnboardingPath(email);
   }
+  const next = consumeAuthNext();
+  if (next) return next;
   return profileHomePath(profileType || localStorage.getItem("profile_type") || "buyer", accountType);
 }
 
@@ -151,7 +173,10 @@ export function parseAuthRedirectPath(path: string):
   | { type: "role"; email: string }
   | { type: "route"; path: string } {
   const url = new URL(path, window.location.origin);
-  if (url.pathname === "/" && url.searchParams.get("onboarding") === "role") {
+  if (
+    (url.pathname === "/login" || url.pathname === "/") &&
+    url.searchParams.get("onboarding") === "role"
+  ) {
     return {
       type: "role",
       email: url.searchParams.get("email")?.trim().toLowerCase() || readAuthEmail(),

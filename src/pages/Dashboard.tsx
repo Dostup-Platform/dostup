@@ -49,9 +49,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   useAppResume();
 
-  // Загрузить lastViewedAt из localStorage (per-user key)
   const lastViewedKey = user?.id ? `student_notifications_last_viewed_${user.id}` : null;
-  const catalogDefaulted = useRef(false);
   
   useEffect(() => {
     if (!lastViewedKey) return;
@@ -62,7 +60,7 @@ const Dashboard = () => {
   }, [lastViewedKey]);
 
   // Get purchased product IDs for filtering material unlocks
-  const { data: purchasedProductIds = [], isFetched: purchasesFetched } = useQuery({
+  const { data: purchasedProductIds = [] } = useQuery({
     queryKey: ["student-purchased-product-ids", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -75,12 +73,6 @@ const Dashboard = () => {
     },
     enabled: !!user?.id,
   });
-
-  useEffect(() => {
-    if (!purchasesFetched || catalogDefaulted.current) return;
-    catalogDefaulted.current = true;
-    if (purchasedProductIds.length === 0) setActiveTab("courses");
-  }, [purchasesFetched, purchasedProductIds.length]);
 
   // Получить отменённые записи для подсчёта бейджа
   const { data: cancellations = [] } = useQuery({
@@ -228,7 +220,7 @@ const Dashboard = () => {
       return;
     }
     if (!user) {
-      navigate("/");
+      navigate("/login?next=/dashboard");
     }
   }, [user, loading, profileType, navigate]);
 
@@ -258,7 +250,7 @@ const Dashboard = () => {
       <main className="max-w-2xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsContent value="home" className="mt-0 animate-fade-in">
-            <HomeTab onBrowseCourses={() => handleTabChange("courses")} />
+            <HomeTab onBrowseCourses={() => navigate("/")} />
           </TabsContent>
           <TabsContent value="courses" className="mt-0 animate-fade-in">
             <CoursesTab />

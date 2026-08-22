@@ -1016,7 +1016,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    navigator.clipboard.writeText(`https://dostup.lovable.app/product/${product.id}`);
+                    navigator.clipboard.writeText(`${window.location.origin}${product.slug ? `/p/${encodeURIComponent(product.slug)}` : `/p/${product.id}`}`);
                     toast.success(language === "ru" ? "Ссылка скопирована!" : "Сілтеме көшірілді!");
                   }}
                   className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
@@ -1127,7 +1127,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
               )}
               <iframe
                 key={previewProduct.id}
-                src={`/product/${previewProduct.id}`}
+                src={previewProduct.slug ? `/p/${encodeURIComponent(previewProduct.slug)}` : `/p/${previewProduct.id}`}
                 title="preview"
                 className="bg-background border border-border rounded-lg shadow-lg max-w-full h-full relative z-0"
                 style={{ width: "min(390px, 100%)", minHeight: 600 }}

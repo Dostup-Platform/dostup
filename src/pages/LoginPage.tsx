@@ -1,48 +1,68 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
-import { useLanguage } from "@/contexts/LanguageContext";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import AuthEntryScreen from "@/components/auth/AuthEntryScreen";
 import EmailCodeScreen from "@/components/auth/EmailCodeScreen";
 import RoleSelectionScreen from "@/components/auth/RoleSelectionScreen";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useEmailAuth } from "@/hooks/useEmailAuth";
-import { authErrorTranslationKey, authErrorKeyFromUnknown } from "@/lib/authErrors";
+import { authErrorKeyFromUnknown, authErrorTranslationKey } from "@/lib/authErrors";
 import {
+  isSafeInternalPath,
   markRoleOnboardingComplete,
-  needsRoleOnboarding,
   parseAuthRedirectPath,
-  parseProfileType,
-  profileHomePath,
   readAuthEmail,
-  readStoredProfiles,
+  rememberAuthNext,
   type ProfileType,
 } from "@/lib/creatorAuth";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
 type Screen = "entry" | "code" | "role";
 
-const Index = () => {
+const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { loading, profileType, switchProfile, refreshSession } = useSimpleAuth();
+  const { loading, profileType, sessionToken, switchProfile, refreshSession } = useSimpleAuth();
   const { t } = useLanguage();
   const [screen, setScreen] = useState<Screen>("entry");
   const [roleEmail, setRoleEmail] = useState("");
+  const [pendingCreateType, setPendingCreateType] = useState<ProfileType | null>(null);
+  const pendingCreateTypeRef = useRef<ProfileType | null>(null);
+  const signedIn = Boolean(sessionToken || profileType);
+  const intentSell = searchParams.get("intent") === "sell";
+  const nextPath = searchParams.get("next");
+
+  const rememberCreateType = (type: ProfileType | null) => {
+    pendingCreateTypeRef.current = type;
+    setPendingCreateType(type);
+  };
 
   const applyAuthRedirect = useCallback(async (path: string) => {
     const parsed = parseAuthRedirectPath(path);
     if (parsed.type === "role") {
       setRoleEmail(parsed.email);
       setScreen("role");
-      window.history.replaceState({}, "", "/");
+      window.history.replaceState({}, "", "/login");
       return;
     }
     await refreshSession();
+    const createType = pendingCreateTypeRef.current;
+    if (createType && createType !== "buyer") {
+      const result = await switchProfile({ createType });
+      if ("path" in result) {
+        navigate(result.path, { replace: true });
+        return;
+      }
+    }
     navigate(parsed.path, { replace: true });
-  }, [navigate, refreshSession]);
+  }, [navigate, refreshSession, switchProfile]);
 
   const auth = useEmailAuth({ onAuthRedirect: applyAuthRedirect });
+
+  useEffect(() => {
+    if (nextPath) rememberAuthNext(nextPath);
+  }, [nextPath]);
 
   useEffect(() => {
     const authError = searchParams.get("auth_error");
@@ -69,40 +89,25 @@ const Index = () => {
 
   useEffect(() => {
     if (loading) return;
-    if (screen === "role") return;
-
-    const moderatorToken = localStorage.getItem("moderator_token");
-    if (moderatorToken) {
-      navigate("/moderator", { replace: true });
-      return;
-    }
-
-    const token = localStorage.getItem("creator_token");
-    if (!token) return;
-
-    const storedType = parseProfileType(localStorage.getItem("profile_type")) || profileType;
-    const accountType = localStorage.getItem("creator_account_type");
-    const email = readAuthEmail();
-    const profiles = readStoredProfiles();
-
-    if (email && needsRoleOnboarding(email, profiles)) {
-      setRoleEmail(email);
+    if (screen === "role" || screen === "code") return;
+    if (intentSell) {
       setScreen("role");
       return;
     }
-
-    if (storedType) {
-      navigate(profileHomePath(storedType, accountType), { replace: true });
+    if (signedIn) {
+      navigate(isSafeInternalPath(nextPath) ? nextPath : "/", { replace: true });
     }
-  }, [navigate, loading, profileType, screen]);
+  }, [intentSell, loading, navigate, screen, signedIn]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const goAfterCreate = async (type: ProfileType, address: string) => {
+    const result = await switchProfile({ createType: type });
+    if ("error" in result) {
+      toast.error(result.error === "network_failure" ? t("networkFailure") : t("switchProfileError"));
+      return;
+    }
+    if (address) markRoleOnboardingComplete(address);
+    navigate(result.path, { replace: true });
+  };
 
   const handleContinue = async (e: FormEvent) => {
     e.preventDefault();
@@ -125,28 +130,21 @@ const Index = () => {
 
   const handleRoleSelect = async (type: ProfileType) => {
     const address = roleEmail || auth.pendingEmail || auth.email || readAuthEmail();
-    if (!address) return;
-
-    if (type === "buyer") {
-      markRoleOnboardingComplete(address);
-      await refreshSession();
-      navigate("/dashboard", { replace: true });
+    if (signedIn) {
+      await goAfterCreate(type, address);
       return;
     }
-
-    const result = await switchProfile({ createType: type });
-    if ("error" in result) {
-      if (result.error === "network_failure") {
-        toast.error(t("networkFailure"));
-      } else {
-        toast.error(t("switchProfileError"));
-      }
-      return;
-    }
-
-    markRoleOnboardingComplete(address);
-    navigate(result.path, { replace: true });
+    rememberCreateType(type);
+    setScreen("entry");
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-hero flex flex-col">
@@ -160,6 +158,15 @@ const Index = () => {
             onVerify={async (code) => {
               const result = await auth.verifyCode(code);
               if (!result) return;
+              if (result.status === "navigated") return;
+              if (pendingCreateType && pendingCreateType !== "buyer") {
+                await refreshSession();
+                await goAfterCreate(
+                  pendingCreateType,
+                  result.status === "role_required" ? result.email : auth.pendingEmail || "",
+                );
+                return;
+              }
               if (result.status === "role_required") {
                 setRoleEmail(result.email);
                 setScreen("role");
@@ -168,11 +175,11 @@ const Index = () => {
             onResend={() => auth.sendCode(auth.pendingEmail || auth.email)}
             onBack={() => {
               auth.setPendingEmail(null);
-              setScreen("entry");
+              setScreen(intentSell || pendingCreateType ? "role" : "entry");
             }}
           />
         )}
-        {screen === "entry" && (
+        {screen === "entry" && !signedIn && (
           <AuthEntryScreen
             email={auth.email}
             onEmailChange={auth.setEmail}
@@ -183,8 +190,11 @@ const Index = () => {
           />
         )}
       </main>
+      <p className="pb-6 text-center text-sm text-muted-foreground">
+        <Link to="/" className="hover:text-foreground">{t("back")}</Link>
+      </p>
     </div>
   );
 };
 
-export default Index;
+export default LoginPage;
