@@ -181,6 +181,6 @@ export async function creatorProductIds(
 }
 
 export const CATALOG_COLUMNS =
-  'id, created_at, updated_at, creator_id, creator_account_id, title, headline, description, price, image_url, video_url, has_schedule, is_active, is_paused, paused_message, slug, telegram_link, group_link_label, faq, access_duration_days'
+  'id, created_at, updated_at, creator_id, creator_account_id, title, headline, description, price, image_url, video_url, has_schedule, is_active, is_paused, paused_message, slug, telegram_link, group_link_label, faq, access_duration_days, format, subject'
 
 export const CHECKOUT_COLUMNS = `${CATALOG_COLUMNS}, kaspi_link, kaspi_phone`

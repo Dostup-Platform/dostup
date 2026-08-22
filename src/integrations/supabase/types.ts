@@ -57,6 +57,13 @@ export type Database = {
             referencedRelation: "products_catalog"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "announcements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "public_products"
+            referencedColumns: ["id"]
+          },
         ]
       }
       app_settings: {
@@ -166,6 +173,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_cancellations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "public_products"
             referencedColumns: ["id"]
           },
           {
@@ -475,6 +489,13 @@ export type Database = {
             referencedRelation: "products_catalog"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "material_unlocks_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "public_products"
+            referencedColumns: ["id"]
+          },
         ]
       }
       materials: {
@@ -555,6 +576,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "materials_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "public_products"
             referencedColumns: ["id"]
           },
           {
@@ -773,6 +801,13 @@ export type Database = {
             referencedRelation: "products_catalog"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "product_teachers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "public_products"
+            referencedColumns: ["id"]
+          },
         ]
       }
       products: {
@@ -783,6 +818,7 @@ export type Database = {
           creator_id: string | null
           description: string | null
           faq: Json
+          format: string
           group_link_label: string | null
           has_schedule: boolean
           headline: string | null
@@ -795,6 +831,7 @@ export type Database = {
           paused_message: string | null
           price: number
           slug: string | null
+          subject: string | null
           telegram_link: string | null
           title: string
           updated_at: string
@@ -807,6 +844,7 @@ export type Database = {
           creator_id?: string | null
           description?: string | null
           faq?: Json
+          format?: string
           group_link_label?: string | null
           has_schedule?: boolean
           headline?: string | null
@@ -819,6 +857,7 @@ export type Database = {
           paused_message?: string | null
           price?: number
           slug?: string | null
+          subject?: string | null
           telegram_link?: string | null
           title: string
           updated_at?: string
@@ -831,6 +870,7 @@ export type Database = {
           creator_id?: string | null
           description?: string | null
           faq?: Json
+          format?: string
           group_link_label?: string | null
           has_schedule?: boolean
           headline?: string | null
@@ -843,6 +883,7 @@ export type Database = {
           paused_message?: string | null
           price?: number
           slug?: string | null
+          subject?: string | null
           telegram_link?: string | null
           title?: string
           updated_at?: string
@@ -861,24 +902,33 @@ export type Database = {
       profiles: {
         Row: {
           auth_user_id: string | null
+          avatar_url: string | null
+          bio: string | null
           created_at: string
           display_name: string | null
+          handle: string
           id: string
           last_used_at: string | null
           type: string
         }
         Insert: {
           auth_user_id?: string | null
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string | null
+          handle?: string
           id?: string
           last_used_at?: string | null
           type: string
         }
         Update: {
           auth_user_id?: string | null
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string | null
+          handle?: string
           id?: string
           last_used_at?: string | null
           type?: string
@@ -1022,6 +1072,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "schedules_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "public_products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "schedules_teacher_id_fkey"
             columns: ["teacher_id"]
             isOneToOne: false
@@ -1074,6 +1131,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signup_tokens_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "public_products"
             referencedColumns: ["id"]
           },
         ]
@@ -1201,6 +1265,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simple_purchases_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "public_products"
             referencedColumns: ["id"]
           },
           {
@@ -1367,6 +1438,7 @@ export type Database = {
           creator_id: string | null
           description: string | null
           faq: Json | null
+          format: string | null
           group_link_label: string | null
           has_schedule: boolean | null
           headline: string | null
@@ -1377,6 +1449,7 @@ export type Database = {
           paused_message: string | null
           price: number | null
           slug: string | null
+          subject: string | null
           telegram_link: string | null
           title: string | null
           updated_at: string | null
@@ -1389,6 +1462,7 @@ export type Database = {
           creator_id?: string | null
           description?: string | null
           faq?: Json | null
+          format?: string | null
           group_link_label?: string | null
           has_schedule?: boolean | null
           headline?: string | null
@@ -1399,6 +1473,7 @@ export type Database = {
           paused_message?: string | null
           price?: number | null
           slug?: string | null
+          subject?: string | null
           telegram_link?: string | null
           title?: string | null
           updated_at?: string | null
@@ -1411,6 +1486,7 @@ export type Database = {
           creator_id?: string | null
           description?: string | null
           faq?: Json | null
+          format?: string | null
           group_link_label?: string | null
           has_schedule?: boolean | null
           headline?: string | null
@@ -1421,6 +1497,7 @@ export type Database = {
           paused_message?: string | null
           price?: number | null
           slug?: string | null
+          subject?: string | null
           telegram_link?: string | null
           title?: string | null
           updated_at?: string | null
@@ -1436,12 +1513,77 @@ export type Database = {
           },
         ]
       }
+      public_products: {
+        Row: {
+          created_at: string | null
+          format: string | null
+          has_schedule: boolean | null
+          headline: string | null
+          id: string | null
+          image_url: string | null
+          price: number | null
+          seller_avatar_url: string | null
+          seller_display_name: string | null
+          seller_handle: string | null
+          seller_type: string | null
+          slug: string | null
+          subject: string | null
+          title: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      allocate_profile_handle: {
+        Args: { p_display_name: string; p_id: string }
+        Returns: string
+      }
       call_edge_function: {
         Args: { _name: string; _payload: Json }
         Returns: undefined
       }
+      get_seller_storefront: {
+        Args: { p_handle: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          display_name: string
+          handle: string
+          products: Json
+          type: string
+        }[]
+      }
+      immutable_unaccent: { Args: { txt: string }; Returns: string }
+      is_reserved_handle: { Args: { p_handle: string }; Returns: boolean }
+      search_catalog: {
+        Args: {
+          p_format?: string
+          p_limit?: number
+          p_max?: number
+          p_min?: number
+          p_offset?: number
+          p_sort?: string
+          p_subject?: string
+          q?: string
+        }
+        Returns: {
+          created_at: string
+          format: string
+          has_schedule: boolean
+          headline: string
+          id: string
+          image_url: string
+          price: number
+          seller_avatar_url: string
+          seller_display_name: string
+          seller_handle: string
+          seller_type: string
+          slug: string
+          subject: string
+          title: string
+        }[]
+      }
+      slugify_handle_source: { Args: { src: string }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "creator" | "user"
