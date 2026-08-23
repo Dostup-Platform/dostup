@@ -1,19 +1,12 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, Loader2, Eye, X, Check } from "lucide-react";
+import { formatPriceTenge } from "@/lib/catalog";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { creatorCreds, invokeApi, fetchCreatorReceiptBlob } from "@/lib/sessionApi";
 import { needsCreatorReview } from "@/lib/paymentReview";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
-    minimumFractionDigits: 0,
-  }).format(price);
-};
 
 export type CreatorPendingPurchase = {
   id: string;
@@ -127,7 +120,7 @@ export default function CreatorPendingPayments({ creatorName }: { creatorName: s
                   {purchase.user?.name || t("student")}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {purchase.product?.title} · {formatPrice(Number(purchase.amount))}
+                  {purchase.product?.title} · {formatPriceTenge(Number(purchase.amount))}
                 </p>
                 {purchase.latest_submission?.id && (
                   <button

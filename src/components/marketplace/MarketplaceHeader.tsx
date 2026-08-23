@@ -1,67 +1,60 @@
-import { Link, useNavigate } from "react-router-dom";
-import { AuthMark } from "@/components/auth/AuthMark";
+import { Link } from "react-router-dom";
 import AvatarSheet from "@/components/marketplace/AvatarSheet";
-import { Button } from "@/components/ui/button";
+import AppHeader from "@/components/layout/AppHeader";
+import PublicLocaleToggle from "@/components/marketplace/PublicLocaleToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
-import { rememberAuthNext } from "@/lib/creatorAuth";
+import { profileHomePath } from "@/lib/creatorAuth";
+
+function isSellerProfile(profileType: string | null | undefined) {
+  return profileType === "creator" || profileType === "school";
+}
 
 const MarketplaceHeader = () => {
   const { t } = useLanguage();
-  const navigate = useNavigate();
   const { loading, sessionToken, profileType } = useSimpleAuth();
-  const signedIn = Boolean(sessionToken || profileType);
-
-  const startSelling = () => {
-    if (signedIn) {
-      navigate("/login?intent=sell");
-      return;
-    }
-    rememberAuthNext("/");
-    navigate("/login?intent=sell");
-  };
+  const signedIn = Boolean(sessionToken && profileType);
+  const isSeller = isSellerProfile(profileType);
+  const cabinetPath = profileHomePath(
+    profileType || "buyer",
+    localStorage.getItem("creator_account_type"),
+  );
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
-        <Link to="/" className="shrink-0" aria-label="Dostup">
-          <AuthMark variant="brand" className="h-auto w-28 sm:w-32" />
-        </Link>
-        {!loading && (
-          signedIn ? (
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="cta"
-                className="hidden sm:inline-flex h-10 bg-[#FF6B00] px-4"
-                onClick={startSelling}
-              >
-                {t("startSelling")}
-              </Button>
-              <AvatarSheet />
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 sm:gap-4">
+    <AppHeader>
+      {!loading && (
+        signedIn ? (
+          <>
+            {isSeller ? (
               <Link
-                to="/login"
-                onClick={() => rememberAuthNext("/")}
-                className="text-sm text-muted-foreground hover:text-foreground"
+                to={cabinetPath}
+                className="text-sm font-medium text-foreground hover:text-[#1F2328] focus-ring rounded-md"
               >
-                {t("signIn")}
+                {t("myCabinet")}
               </Link>
-              <Button
-                type="button"
-                variant="cta"
-                className="h-10 bg-[#FF6B00] px-4"
-                onClick={startSelling}
+            ) : (
+              <Link
+                to="/dashboard"
+                className="text-sm font-medium text-foreground hover:text-[#1F2328] focus-ring rounded-md"
               >
-                {t("startSelling")}
-              </Button>
-            </div>
-          )
-        )}
-      </div>
-    </header>
+                {t("myCourses")}
+              </Link>
+            )}
+            <AvatarSheet />
+          </>
+        ) : (
+          <>
+            <PublicLocaleToggle />
+            <Link
+              to="/login"
+              className="inline-flex h-10 items-center rounded-full border border-[#E3E5E8] px-5 text-[15px] font-medium text-[#1F2328] transition-colors hover:bg-[#F6F7F8] focus-ring"
+            >
+              {t("signIn")}
+            </Link>
+          </>
+        )
+      )}
+    </AppHeader>
   );
 };
 

@@ -1,26 +1,13 @@
-import { FormEvent, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Search } from "lucide-react";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
 import ProductCard from "@/components/marketplace/ProductCard";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import PublicContainer from "@/components/marketplace/PublicContainer";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
-import {
-  useCatalogPreview,
-  useCatalogSearch,
-  useCatalogSubjects,
-  type CatalogSort,
-} from "@/hooks/useCatalogSearch";
-import { CATALOG_FILTER_THRESHOLD, type ProductFormat } from "@/lib/catalog";
-import { rememberAuthNext } from "@/lib/creatorAuth";
+import { useCatalogSearch, type CatalogSort } from "@/hooks/useCatalogSearch";
+import { type ProductFormat } from "@/lib/catalog";
+import { cn } from "@/lib/utils";
 
 const FORMAT_CHIPS: { format: ProductFormat; labelKey: "formatRecorded" | "formatIndividual" | "formatGroup" }[] = [
   { format: "recorded", labelKey: "formatRecorded" },
@@ -31,189 +18,114 @@ const FORMAT_CHIPS: { format: ProductFormat; labelKey: "formatRecorded" | "forma
 const MarketplacePage = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const { sessionToken, profileType } = useSimpleAuth();
-  const signedIn = Boolean(sessionToken || profileType);
-  const preview = useCatalogPreview();
-  const compact = (preview.data?.length ?? 0) < CATALOG_FILTER_THRESHOLD;
 
   const [query, setQuery] = useState("");
-  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [format, setFormat] = useState<ProductFormat | "">("");
-  const [subject, setSubject] = useState("");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [sort, setSort] = useState<CatalogSort>("newest");
+  const sort: CatalogSort = "newest";
 
-  const filtersEnabled = !compact && !preview.isLoading;
-  const subjects = useCatalogSubjects(filtersEnabled);
-  const search = useCatalogSearch(
-    {
-      q: submittedQuery,
-      format,
-      subject,
-      minPrice: minPrice.trim() ? Number(minPrice) : null,
-      maxPrice: maxPrice.trim() ? Number(maxPrice) : null,
-      sort,
-    },
-    filtersEnabled,
-  );
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => window.clearTimeout(id);
+  }, [query]);
 
-  const products = compact ? (preview.data ?? []) : (search.data ?? []);
-  const loading = preview.isLoading || (filtersEnabled && search.isLoading);
+  const search = useCatalogSearch({
+    q: debouncedQuery,
+    format,
+    sort,
+  });
 
-  const startSelling = () => {
-    if (signedIn) {
-      navigate("/login?intent=sell");
-      return;
-    }
-    rememberAuthNext("/");
-    navigate("/login?intent=sell");
+  const products = search.data ?? [];
+  const loading = search.isLoading;
+
+  const goLogin = () => {
+    navigate("/login");
   };
-
-  const handleSearch = (e: FormEvent) => {
-    e.preventDefault();
-    setSubmittedQuery(query.trim());
-  };
-
-  const subjectOptions = useMemo(() => subjects.data ?? [], [subjects.data]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <MarketplaceHeader />
-      <main className="mx-auto max-w-6xl px-4 pb-16 pt-10">
-        <section className="mx-auto max-w-3xl text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl text-balance">
-            {t("marketplaceHeadline")}
+      <PublicContainer as="main" className="flex flex-1 flex-col pb-0 pt-0">
+        <section className="text-center">
+          <h1 className="hero-headline mx-auto max-w-4xl pt-20 pb-14 text-balance">
+            <span className="block">{t("marketplaceHeadlineLine1")}</span>
+            <span className="block">{t("marketplaceHeadlineLine2")}</span>
           </h1>
-          {!compact && (
-            <form onSubmit={handleSearch} className="relative mx-auto mt-6 max-w-xl">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("searchCatalogPlaceholder")}
-                className="h-12 rounded-xl pl-11"
-              />
-            </form>
-          )}
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
+
+          <div className="relative mx-auto w-full max-w-[760px]">
+            <Search
+              className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9AA0A6]"
+              aria-hidden
+            />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("searchCatalogPlaceholder")}
+              aria-label={t("searchCatalogPlaceholder")}
+              className="h-[62px] w-full rounded-[10px] border-0 bg-[#F6F7F8] pl-[52px] pr-5 text-base text-[#1F2328] placeholder:text-[#9AA0A6] focus-ring"
+              type="search"
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="mx-auto mt-10 flex max-w-4xl flex-wrap justify-center gap-4">
             {FORMAT_CHIPS.map((chip) => {
-              const active = !compact && format === chip.format;
+              const active = format === chip.format;
               return (
                 <button
                   key={chip.format}
                   type="button"
-                  onClick={() => {
-                    if (compact) return;
-                    setFormat(active ? "" : chip.format);
-                  }}
-                  className={`rounded-full border px-4 py-2 text-sm transition-colors ${
+                  aria-pressed={active}
+                  onClick={() => setFormat(active ? "" : chip.format)}
+                  className={cn(
+                    "inline-flex h-11 items-center rounded-full border px-6 text-[15px] font-medium focus-ring",
                     active
-                      ? "border-[#FF6B00] bg-[#FF6B00]/10 text-foreground"
-                      : "border-border bg-card text-muted-foreground hover:text-foreground"
-                  }`}
+                      ? "border-[#FF6B00]/30 bg-[#FF6B00]/10 text-[#1F2328]"
+                      : "border-[#E3E5E8] bg-white text-[#1F2328] hover:border-[#D0D3D8]",
+                  )}
                 >
                   {t(chip.labelKey)}
                 </button>
               );
             })}
           </div>
-          <p className="mt-6 text-sm text-muted-foreground">
-            {t("marketplaceSellerLine")}
-          </p>
-          <button
-            type="button"
-            onClick={startSelling}
-            className="mt-2 text-sm font-medium text-[#FF6B00] hover:underline"
-          >
-            {t("startSellingArrow")}
-          </button>
         </section>
 
-        {!compact && (
-          <section className="mt-10 grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">{t("filterSubject")}</label>
-              <Select value={subject || "all"} onValueChange={(value) => setSubject(value === "all" ? "" : value)}>
-                <SelectTrigger className="h-11">
-                  <SelectValue placeholder={t("allSubjects")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("allSubjects")}</SelectItem>
-                  {subjectOptions.map((item) => (
-                    <SelectItem key={item} value={item}>{item}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">{t("filterFormat")}</label>
-              <Select value={format || "all"} onValueChange={(value) => setFormat(value === "all" ? "" : value as ProductFormat)}>
-                <SelectTrigger className="h-11">
-                  <SelectValue placeholder={t("allFormats")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("allFormats")}</SelectItem>
-                  {FORMAT_CHIPS.map((chip) => (
-                    <SelectItem key={chip.format} value={chip.format}>{t(chip.labelKey)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">{t("filterPrice")}</label>
-              <div className="flex gap-2">
-                <Input
-                  inputMode="numeric"
-                  placeholder={t("priceFrom")}
-                  value={minPrice}
-                  onChange={(e) => setMinPrice(e.target.value.replace(/[^\d]/g, ""))}
-                  className="h-11"
-                />
-                <Input
-                  inputMode="numeric"
-                  placeholder={t("priceTo")}
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(e.target.value.replace(/[^\d]/g, ""))}
-                  className="h-11"
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">{t("filterSort")}</label>
-              <Select value={sort} onValueChange={(value) => setSort(value as CatalogSort)}>
-                <SelectTrigger className="h-11">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">{t("sortNewest")}</SelectItem>
-                  <SelectItem value="price_asc">{t("sortPriceAsc")}</SelectItem>
-                  <SelectItem value="price_desc">{t("sortPriceDesc")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </section>
-        )}
-
-        <section className="mt-10">
+        <section className="mt-[140px] pb-16">
+          <h2 className="mb-6 text-[26px] font-bold tracking-tight text-[#1F2328]">
+            {t("allCatalogProducts")}
+          </h2>
           {loading ? (
             <div className="flex justify-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : products.length === 0 ? (
-            <div className="rounded-2xl border bg-card px-6 py-16 text-center">
+            <div className="rounded-2xl border border-border px-6 py-16 text-center">
               <p className="text-lg font-medium text-foreground">{t("catalogEmpty")}</p>
-              <p className="mt-2 text-sm text-muted-foreground">{t("catalogEmptyHint")}</p>
+              <p className="public-meta mt-2">{t("catalogEmptyHint")}</p>
             </div>
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="public-catalog-grid">
               {products.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
           )}
         </section>
-      </main>
+      </PublicContainer>
+
+      <div className="mt-auto border-t border-border">
+        <PublicContainer className="flex flex-col gap-3 py-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="public-body max-w-3xl text-[#6B7280]">{t("marketplaceSellerLine")}</p>
+          <button
+            type="button"
+            onClick={goLogin}
+            className="shrink-0 text-left text-sm font-medium text-[#FF6B00] focus-ring rounded-md hover:underline"
+          >
+            {t("teachOnDostupArrow")}
+          </button>
+        </PublicContainer>
+      </div>
     </div>
   );
 };

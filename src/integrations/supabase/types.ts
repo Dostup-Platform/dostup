@@ -906,7 +906,7 @@ export type Database = {
           bio: string | null
           created_at: string
           display_name: string | null
-          handle: string
+          handle: string | null
           id: string
           last_used_at: string | null
           type: string
@@ -917,7 +917,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           display_name?: string | null
-          handle?: string
+          handle?: string | null
           id?: string
           last_used_at?: string | null
           type: string
@@ -928,7 +928,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           display_name?: string | null
-          handle?: string
+          handle?: string | null
           id?: string
           last_used_at?: string | null
           type?: string
@@ -1552,6 +1552,10 @@ export type Database = {
           products: Json
           type: string
         }[]
+      }
+      handle_is_available: {
+        Args: { p_except_id?: string; p_handle: string }
+        Returns: boolean
       }
       immutable_unaccent: { Args: { txt: string }; Returns: string }
       is_reserved_handle: { Args: { p_handle: string }; Returns: boolean }

@@ -1,19 +1,11 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { productHref } from "@/lib/catalog";
+import { formatPriceTenge, productHref } from "@/lib/catalog";
 import { BookOpen, Loader2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCatalogProducts, type Product } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
-
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
-    minimumFractionDigits: 0,
-  }).format(price);
-};
 
 const CourseCard = ({ product }: { product: Product }) => {
   const navigate = useNavigate();
@@ -42,7 +34,7 @@ const CourseCard = ({ product }: { product: Product }) => {
         {product.headline && (
           <p className="text-sm text-muted-foreground line-clamp-2">{product.headline}</p>
         )}
-        <p className="text-base font-bold text-foreground">{formatPrice(Number(product.price))}</p>
+        <p className="text-base font-bold text-foreground">{formatPriceTenge(Number(product.price))}</p>
         {product.author_name && (
           <p className="text-sm text-muted-foreground">
             {t("author")}: {product.author_name}

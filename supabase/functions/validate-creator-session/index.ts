@@ -4,6 +4,8 @@ import {
   findOrCreateProfile,
   listProfiles,
   loadAccountForProfile,
+  parseOnboardingAuthUserId,
+  PROFILE_COLUMNS,
   profileTypeForAccount,
   publicProfiles,
   type ProfileRow,
@@ -49,6 +51,19 @@ serve(async (req) => {
       )
     }
 
+    const onboardingAuthId = parseOnboardingAuthUserId(session.creator_name)
+    if (onboardingAuthId) {
+      return new Response(
+        JSON.stringify({
+          valid: true,
+          needsOnboarding: true,
+          creatorName: session.creator_name,
+          profiles: [],
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     let profileId = session.profile_id
     if (!profileId) {
       if (typeof session.creator_name === 'string' && session.creator_name.startsWith('buyer:')) {
@@ -81,7 +96,7 @@ serve(async (req) => {
     if (profileId) {
       const { data } = await supabase
         .from('profiles')
-        .select('id, auth_user_id, type, display_name, last_used_at, created_at')
+        .select(PROFILE_COLUMNS)
         .eq('id', profileId)
         .maybeSingle()
       profile = (data as ProfileRow | null) ?? null
@@ -94,12 +109,20 @@ serve(async (req) => {
         ? publicProfiles([profile])
         : []
 
+    let email: string | null = null
+    if (profile?.auth_user_id) {
+      const { data: userData } = await supabase.auth.admin.getUserById(profile.auth_user_id)
+      email = userData?.user?.email?.trim().toLowerCase() ?? null
+    }
+
     return new Response(
       JSON.stringify({
         valid: true,
         profileId: profile?.id ?? null,
         profileType: profile?.type ?? null,
         displayName: profile?.display_name ?? session.creator_name,
+        handle: profile?.handle ?? null,
+        email,
         creatorName: session.creator_name,
         accountType: account?.account_type ?? null,
         createdAt: profile?.created_at ?? session.created_at,

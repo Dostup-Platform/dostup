@@ -2,9 +2,17 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import ProfileSwitcher from "@/components/auth/ProfileSwitcher";
-import { clearAppSession } from "@/lib/creatorAuth";
+import HandleSettingsCard from "@/components/account/HandleSettingsCard";
+import HandleSetupDialog from "@/components/account/HandleSetupDialog";
+import DisplayNameSetupDialog from "@/components/account/DisplayNameSetupDialog";
+import AppHeader from "@/components/layout/AppHeader";
+import { readAuthEmail } from "@/lib/creatorAuth";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { needsDisplayNamePrompt } from "@/lib/displayName";
+import { supabase } from "@/integrations/supabase/client";
 import {
   School, Users, GraduationCap, Layers, Calendar, BookOpen,
   ClipboardList, ListChecks, BarChart3, Lock, Bell, LogOut,
@@ -12,8 +20,13 @@ import {
 
 const SchoolDashboard = () => {
   const navigate = useNavigate();
+  const { logout } = useSimpleAuth();
   const { t } = useLanguage();
-  const [creatorName, setCreatorName] = useState<string>("");
+  const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [needsDisplayName, setNeedsDisplayName] = useState(false);
+  const [needsHandle, setNeedsHandle] = useState(false);
+  const profileId = typeof window !== "undefined" ? localStorage.getItem("profile_id") : null;
 
   useEffect(() => {
     const name = localStorage.getItem("creator_name");
@@ -23,11 +36,39 @@ const SchoolDashboard = () => {
       navigate("/");
       return;
     }
-    setCreatorName(name);
+    const token = localStorage.getItem("creator_token");
+    if (!token) {
+      const displayName = localStorage.getItem("profile_display_name") || "";
+      setProfileDisplayName(displayName || null);
+      setNeedsDisplayName(needsDisplayNamePrompt(displayName, readAuthEmail()));
+      setNeedsHandle(!localStorage.getItem("profile_handle"));
+      setIsLoading(false);
+      return;
+    }
+
+    void supabase.functions.invoke("validate-creator-session", {
+      body: { token, creatorName: name },
+    }).then(({ data }) => {
+      if (!data?.valid) {
+        navigate("/");
+        return;
+      }
+      const displayName =
+        typeof data.displayName === "string" ? data.displayName.trim() : localStorage.getItem("profile_display_name") || "";
+      if (displayName) localStorage.setItem("profile_display_name", displayName);
+      setProfileDisplayName(displayName || null);
+      const email = typeof data.email === "string" ? data.email : readAuthEmail();
+      setNeedsDisplayName(needsDisplayNamePrompt(displayName, email));
+      const handle = typeof data.handle === "string" ? data.handle.trim() : "";
+      if (handle) localStorage.setItem("profile_handle", handle);
+      else localStorage.removeItem("profile_handle");
+      setNeedsHandle(!handle);
+      setIsLoading(false);
+    });
   }, [navigate]);
 
   const handleLogout = () => {
-    clearAppSession();
+    logout();
     navigate("/");
   };
 
@@ -44,16 +85,45 @@ const SchoolDashboard = () => {
     { icon: Bell, label: t("schoolFeatureNotifications") },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-hero">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (needsDisplayName) {
+    return (
+      <div className="min-h-screen bg-background">
+        <DisplayNameSetupDialog
+          open
+          onSaved={(saved, handle) => {
+            setProfileDisplayName(saved);
+            setNeedsDisplayName(false);
+            if (handle) {
+              localStorage.setItem("profile_handle", handle);
+              setNeedsHandle(false);
+            } else if (handle === null) {
+              localStorage.removeItem("profile_handle");
+              setNeedsHandle(true);
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-hero py-8 px-4">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-hero">
+      <AppHeader variant="dashboard" />
+      <div className="max-w-3xl mx-auto space-y-6 px-4 py-8">
         <Card>
           <CardHeader className="text-center">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
               <School className="w-8 h-8 text-primary" />
             </div>
             <CardTitle className="text-2xl">{t("onlineSchoolMode")}</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">{creatorName}</p>
           </CardHeader>
           <CardContent className="text-center space-y-2">
             <p className="text-lg font-medium">{t("schoolComingSoonTitle")}</p>
@@ -79,12 +149,22 @@ const SchoolDashboard = () => {
           </CardContent>
         </Card>
 
+        <HandleSettingsCard
+          initialHandle={typeof window !== "undefined" ? localStorage.getItem("profile_handle") : null}
+          profileId={profileId}
+        />
+
         <ProfileSwitcher activeType="school" />
 
         <Button variant="outline" className="w-full" onClick={handleLogout}>
           <LogOut className="w-4 h-4 mr-2" />
           {t("signOut")}
         </Button>
+        <HandleSetupDialog
+          open={needsHandle}
+          profileId={profileId}
+          onSaved={() => setNeedsHandle(false)}
+        />
       </div>
     </div>
   );

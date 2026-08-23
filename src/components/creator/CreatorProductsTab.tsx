@@ -7,8 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { formatPriceTenge } from "@/lib/catalog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Minus, Copy, Package, Loader2, Edit, Trash2, ChevronDown, Eye, PauseCircle, PlayCircle } from "lucide-react";
+import { Plus, Minus, Package, Loader2, Edit, Trash2, ChevronDown, Eye, PauseCircle, PlayCircle } from "lucide-react";
+import ShareProductButton from "@/components/share/ShareProductButton";
 import {
   Dialog,
   DialogContent,
@@ -52,14 +54,6 @@ interface Product {
   is_paused?: boolean;
   paused_message?: string | null;
 }
-
-const formatPrice = (price: number, currency: string = "KZT") => {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 0,
-  }).format(price);
-};
 
 interface FormData {
   title: string;
@@ -711,6 +705,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const { t, language } = useLanguage();
   const isMobile = useIsMobile();
   const { data: products = [], isLoading } = useCreatorProducts(creatorName);
+  const sellerHandle = typeof window !== "undefined" ? localStorage.getItem("profile_handle") : null;
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
@@ -992,7 +987,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                   )}
                 </div>
                 <span className={`font-bold text-primary whitespace-nowrap ${isMobile ? "text-sm" : "text-base"}`}>
-                  {formatPrice(Number(product.price))}
+                  {formatPriceTenge(Number(product.price))}
                 </span>
               </div>
               
@@ -1012,18 +1007,13 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
               
               {/* Actions */}
               <div className={`flex items-center justify-end ${isMobile ? "flex-wrap gap-1.5" : "gap-2 flex-wrap"}`}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}${product.slug ? `/p/${encodeURIComponent(product.slug)}` : `/p/${product.id}`}`);
-                    toast.success(language === "ru" ? "Ссылка скопирована!" : "Сілтеме көшірілді!");
-                  }}
+                <ShareProductButton
+                  title={product.title}
+                  id={product.id}
+                  slug={product.slug}
+                  sellerHandle={sellerHandle}
                   className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span className="ml-1">{language === "ru" ? "Ссылка" : "Сілтеме"}</span>
-                </Button>
+                />
                 <Button
                   variant="outline"
                   size="sm"

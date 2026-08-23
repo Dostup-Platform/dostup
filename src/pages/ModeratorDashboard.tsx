@@ -11,6 +11,7 @@ import { Loader2, LogOut, Lock, Unlock, Trash2, KeyRound, MessageCircle, Users, 
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import SupportChat from "@/components/SupportChat";
+import { AppLogoLink } from "@/components/auth/AuthMark";
 
 interface CreatorRow {
   id: string;
@@ -150,7 +151,8 @@ const ModeratorDashboard = () => {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card sticky top-0 z-10">
         <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <AppLogoLink markClassName="h-auto w-20 sm:w-24" />
             <h1 className="text-lg font-bold">Панель модератора</h1>
           </div>
           <Button variant="ghost" size="sm" onClick={logout}>

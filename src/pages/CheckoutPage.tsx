@@ -9,16 +9,9 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 import { ArrowLeft, Lock, Loader2, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatPriceTenge } from "@/lib/catalog";
 import { toast } from "sonner";
 import heroBackground from "@/assets/hero-background.jpg";
-
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
-    minimumFractionDigits: 0,
-  }).format(price);
-};
 
 const CheckoutPage = () => {
   const { productId } = useParams();
@@ -159,13 +152,13 @@ const CheckoutPage = () => {
                 <p className="text-sm text-muted-foreground mt-1">{displayProduct.headline}</p>
               </div>
               <span className="text-lg font-bold text-foreground">
-                {formatPrice(Number(displayProduct.price))}
+                {formatPriceTenge(Number(displayProduct.price))}
               </span>
             </div>
             <div className="mt-4 pt-4 border-t border-border flex justify-between">
               <span className="font-semibold">{t("orderSummary")}</span>
               <span className="text-xl font-bold text-primary">
-                {formatPrice(Number(displayProduct.price))}
+                {formatPriceTenge(Number(displayProduct.price))}
               </span>
             </div>
           </CardContent>

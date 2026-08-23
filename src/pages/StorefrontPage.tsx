@@ -2,9 +2,11 @@ import { Loader2 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
 import ProductCard from "@/components/marketplace/ProductCard";
+import PublicContainer from "@/components/marketplace/PublicContainer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
+import { sellerInitial } from "@/lib/productCover";
 
 const StorefrontPage = () => {
   const { handle } = useParams();
@@ -14,41 +16,48 @@ const StorefrontPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <MarketplaceHeader />
-      <main className="mx-auto max-w-6xl px-4 pb-16 pt-10">
+      <PublicContainer as="main" className="pb-16 pt-8">
         {isLoading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : !seller ? (
-          <p className="py-16 text-center text-muted-foreground">{t("storefrontNotFound")}</p>
+          <p className="py-16 public-body text-[#6B7280]">{t("storefrontNotFound")}</p>
         ) : (
           <>
-            <section className="flex flex-col items-center text-center sm:flex-row sm:items-start sm:text-left gap-5">
-              <Avatar className="h-24 w-24">
-                {seller.avatar_url && <AvatarImage src={seller.avatar_url} alt={seller.display_name || seller.handle} />}
+            <section className="flex items-start gap-5">
+              <Avatar className="h-20 w-20">
+                {seller.avatar_url && (
+                  <AvatarImage src={seller.avatar_url} alt={seller.display_name || seller.handle} />
+                )}
                 <AvatarFallback className="text-2xl">
-                  {(seller.display_name || seller.handle).charAt(0).toUpperCase()}
+                  {sellerInitial(seller.display_name || seller.handle)}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 space-y-2">
-                <h1 className="text-2xl font-bold text-foreground">
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">
                   {seller.display_name || seller.handle}
                 </h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="public-meta">
                   {seller.type === "school" ? t("sellerRoleSchool") : t("sellerRoleCreator")}
                 </p>
                 {seller.bio && (
-                  <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                  <p className="public-body max-w-2xl whitespace-pre-wrap text-[#6B7280]">
                     {seller.bio}
                   </p>
                 )}
               </div>
             </section>
             <section className="mt-10">
+              <div className="mb-6">
+                <h2 className="text-[26px] font-bold tracking-tight text-[#1F2328]">
+                  {t("allCatalogProducts")}
+                </h2>
+              </div>
               {seller.products.length === 0 ? (
-                <p className="py-10 text-center text-muted-foreground">{t("catalogEmpty")}</p>
+                <p className="py-10 public-body text-[#6B7280]">{t("catalogEmpty")}</p>
               ) : (
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="public-catalog-grid">
                   {seller.products.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}
@@ -57,7 +66,7 @@ const StorefrontPage = () => {
             </section>
           </>
         )}
-      </main>
+      </PublicContainer>
     </div>
   );
 };

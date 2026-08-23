@@ -1,62 +1,59 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import AuthEntryScreen from "@/components/auth/AuthEntryScreen";
 import EmailCodeScreen from "@/components/auth/EmailCodeScreen";
 import RoleSelectionScreen from "@/components/auth/RoleSelectionScreen";
+import SellerNameScreen from "@/components/auth/SellerNameScreen";
+import AppHeader from "@/components/layout/AppHeader";
+import PublicLocaleToggle from "@/components/marketplace/PublicLocaleToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useEmailAuth } from "@/hooks/useEmailAuth";
 import { authErrorKeyFromUnknown, authErrorTranslationKey } from "@/lib/authErrors";
 import {
+  clearSellerDisplayName,
+  isOnboardingSession,
   isSafeInternalPath,
   markRoleOnboardingComplete,
   parseAuthRedirectPath,
+  profileHomePath,
   readAuthEmail,
+  readSellerDisplayName,
   rememberAuthNext,
+  rememberSellerDisplayName,
   type ProfileType,
 } from "@/lib/creatorAuth";
 
-type Screen = "entry" | "code" | "role";
+type Screen = "name" | "entry" | "code" | "role";
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { loading, profileType, sessionToken, switchProfile, refreshSession } = useSimpleAuth();
+  const { loading, profileType, sessionToken, switchProfile, createProfile, refreshSession } = useSimpleAuth();
   const { t } = useLanguage();
   const [screen, setScreen] = useState<Screen>("entry");
   const [roleEmail, setRoleEmail] = useState("");
-  const [pendingCreateType, setPendingCreateType] = useState<ProfileType | null>(null);
-  const pendingCreateTypeRef = useRef<ProfileType | null>(null);
-  const signedIn = Boolean(sessionToken || profileType);
-  const intentSell = searchParams.get("intent") === "sell";
+  const [sellerDisplayName, setSellerDisplayName] = useState(() => readSellerDisplayName());
+  const onboarding = isOnboardingSession(localStorage.getItem("creator_name"));
+  const signedIn = Boolean(sessionToken && profileType);
   const nextPath = searchParams.get("next");
 
-  const rememberCreateType = (type: ProfileType | null) => {
-    pendingCreateTypeRef.current = type;
-    setPendingCreateType(type);
+  const goToPostAuthStep = (email: string) => {
+    setRoleEmail(email);
+    setScreen(readSellerDisplayName() ? "role" : "name");
   };
 
   const applyAuthRedirect = useCallback(async (path: string) => {
     const parsed = parseAuthRedirectPath(path);
     if (parsed.type === "role") {
-      setRoleEmail(parsed.email);
-      setScreen("role");
+      goToPostAuthStep(parsed.email);
       window.history.replaceState({}, "", "/login");
       return;
     }
-    await refreshSession();
-    const createType = pendingCreateTypeRef.current;
-    if (createType && createType !== "buyer") {
-      const result = await switchProfile({ createType });
-      if ("path" in result) {
-        navigate(result.path, { replace: true });
-        return;
-      }
-    }
     navigate(parsed.path, { replace: true });
-  }, [navigate, refreshSession, switchProfile]);
+  }, [navigate]);
 
   const auth = useEmailAuth({ onAuthRedirect: applyAuthRedirect });
 
@@ -66,7 +63,7 @@ const LoginPage = () => {
 
   useEffect(() => {
     const authError = searchParams.get("auth_error");
-    const onboarding = searchParams.get("onboarding");
+    const onboardingParam = searchParams.get("onboarding");
     const emailParam = searchParams.get("email");
     let changed = false;
 
@@ -75,9 +72,8 @@ const LoginPage = () => {
       searchParams.delete("auth_error");
       changed = true;
     }
-    if (onboarding === "role") {
-      setRoleEmail(emailParam?.trim().toLowerCase() || readAuthEmail());
-      setScreen("role");
+    if (onboardingParam === "role") {
+      goToPostAuthStep(emailParam?.trim().toLowerCase() || readAuthEmail());
       searchParams.delete("onboarding");
       searchParams.delete("email");
       changed = true;
@@ -89,23 +85,32 @@ const LoginPage = () => {
 
   useEffect(() => {
     if (loading) return;
-    if (screen === "role" || screen === "code") return;
-    if (intentSell) {
-      setScreen("role");
+    if (screen === "role" || screen === "code" || screen === "name") return;
+    if (onboarding) return;
+    if (signedIn) {
+      const destination =
+        isSafeInternalPath(nextPath) && nextPath !== "/"
+          ? nextPath
+          : profileHomePath(profileType || "buyer", localStorage.getItem("creator_account_type"));
+      navigate(destination, { replace: true });
+    }
+  }, [loading, navigate, nextPath, onboarding, profileType, screen, signedIn]);
+
+  const goAfterRole = async (type: ProfileType, address: string) => {
+    const displayName = sellerDisplayName || readSellerDisplayName();
+    if (!displayName) {
+      setScreen("name");
       return;
     }
-    if (signedIn) {
-      navigate(isSafeInternalPath(nextPath) ? nextPath : "/", { replace: true });
-    }
-  }, [intentSell, loading, navigate, screen, signedIn]);
-
-  const goAfterCreate = async (type: ProfileType, address: string) => {
-    const result = await switchProfile({ createType: type });
+    const result = onboarding
+      ? await createProfile({ profileType: type, displayName })
+      : await switchProfile({ createType: type, displayName });
     if ("error" in result) {
       toast.error(result.error === "network_failure" ? t("networkFailure") : t("switchProfileError"));
       return;
     }
     if (address) markRoleOnboardingComplete(address);
+    clearSellerDisplayName();
     navigate(result.path, { replace: true });
   };
 
@@ -118,6 +123,7 @@ const LoginPage = () => {
   const handleGoogle = async () => {
     const result = await auth.handleGoogle();
     if (result.path) {
+      await refreshSession();
       await applyAuthRedirect(result.path);
       return;
     }
@@ -128,14 +134,15 @@ const LoginPage = () => {
     }
   };
 
+  const handleSellerNameContinue = (name: string) => {
+    rememberSellerDisplayName(name);
+    setSellerDisplayName(name);
+    setScreen("role");
+  };
+
   const handleRoleSelect = async (type: ProfileType) => {
     const address = roleEmail || auth.pendingEmail || auth.email || readAuthEmail();
-    if (signedIn) {
-      await goAfterCreate(type, address);
-      return;
-    }
-    rememberCreateType(type);
-    setScreen("entry");
+    await goAfterRole(type, address);
   };
 
   if (loading) {
@@ -148,7 +155,22 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-hero flex flex-col">
+      <AppHeader>
+        <PublicLocaleToggle />
+        <Link
+          to="/login"
+          className="inline-flex h-10 items-center rounded-full border border-[#E3E5E8] px-5 text-[15px] font-medium text-[#1F2328] transition-colors hover:bg-[#F6F7F8] focus-ring"
+        >
+          {t("signIn")}
+        </Link>
+      </AppHeader>
       <main className="flex-1 flex items-center justify-center px-4 py-6">
+        {screen === "name" && (
+          <SellerNameScreen
+            initialValue={sellerDisplayName}
+            onContinue={handleSellerNameContinue}
+          />
+        )}
         {screen === "role" && <RoleSelectionScreen onSelect={handleRoleSelect} />}
         {screen === "code" && auth.pendingEmail && (
           <EmailCodeScreen
@@ -159,27 +181,18 @@ const LoginPage = () => {
               const result = await auth.verifyCode(code);
               if (!result) return;
               if (result.status === "navigated") return;
-              if (pendingCreateType && pendingCreateType !== "buyer") {
-                await refreshSession();
-                await goAfterCreate(
-                  pendingCreateType,
-                  result.status === "role_required" ? result.email : auth.pendingEmail || "",
-                );
-                return;
-              }
               if (result.status === "role_required") {
-                setRoleEmail(result.email);
-                setScreen("role");
+                goToPostAuthStep(result.email);
               }
             }}
             onResend={() => auth.sendCode(auth.pendingEmail || auth.email)}
             onBack={() => {
               auth.setPendingEmail(null);
-              setScreen(intentSell || pendingCreateType ? "role" : "entry");
+              setScreen("entry");
             }}
           />
         )}
-        {screen === "entry" && !signedIn && (
+        {screen === "entry" && !signedIn && !onboarding && (
           <AuthEntryScreen
             email={auth.email}
             onEmailChange={auth.setEmail}

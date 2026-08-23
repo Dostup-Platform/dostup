@@ -25,6 +25,7 @@ const TeacherSupportButton = ({ activeTab, teacherName, teacherId, onClick }: { 
   );
 };
 import { useLanguage } from "@/contexts/LanguageContext";
+import AppHeader from "@/components/layout/AppHeader";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import TeacherScheduleTab from "@/components/teacher/TeacherScheduleTab";
@@ -43,7 +44,7 @@ const TeacherDashboard = () => {
   const [teacherName, setTeacherName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   useAppResume();
@@ -271,17 +272,9 @@ const TeacherDashboard = () => {
   return (
     <div className={`min-h-screen bg-background ${isMobile ? "pb-20" : ""}`}>
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">
-              {language === "ru" ? "Панель учителя" : "Мұғалім панелі"}
-            </h1>
-            <p className="text-sm text-muted-foreground">{teacherName}</p>
-          </div>
-          <TeacherSupportButton activeTab={activeTab} teacherName={teacherName} teacherId={teacherUser?.id} onClick={() => handleTabChange("support")} />
-        </div>
-      </header>
+      <AppHeader variant="dashboard">
+        <TeacherSupportButton activeTab={activeTab} teacherName={teacherName} teacherId={teacherUser?.id} onClick={() => handleTabChange("support")} />
+      </AppHeader>
 
       {/* Content */}
       <main className="max-w-4xl mx-auto px-4 py-6">

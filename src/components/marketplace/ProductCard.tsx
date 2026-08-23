@@ -1,59 +1,50 @@
 import { Link } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import ProductCover from "@/components/marketplace/ProductCover";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { formatPriceTenge, productHref, type CatalogProduct } from "@/lib/catalog";
-import { BookOpen } from "lucide-react";
-
-function formatLabelKey(format: string): "formatRecorded" | "formatIndividual" | "formatGroup" {
-  if (format === "individual") return "formatIndividual";
-  if (format === "group") return "formatGroup";
-  return "formatRecorded";
-}
+import { formatLabelKey, formatPriceTenge, productHref, type CatalogProduct } from "@/lib/catalog";
+import { sellerInitial } from "@/lib/productCover";
 
 const ProductCard = ({ product }: { product: CatalogProduct }) => {
   const { t } = useLanguage();
   const sellerName = product.seller_display_name || t("author");
-  const initial = sellerName.trim().charAt(0).toUpperCase() || "D";
+  const initial = sellerInitial(sellerName);
 
   return (
     <Link
       to={productHref(product)}
-      className="group overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow hover:shadow-md"
+      className="group block overflow-hidden rounded-2xl bg-card focus-ring motion-safe:transition-shadow motion-safe:hover:shadow-md"
     >
-      <div className="aspect-[16/9] bg-muted">
-        {product.image_url ? (
-          <img
-            src={product.image_url}
-            alt={product.title}
-            className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <BookOpen className="h-10 w-10 text-muted-foreground/40" />
-          </div>
-        )}
+      <div className="relative">
+        <ProductCover
+          productId={product.id}
+          title={product.title}
+          imageUrl={product.image_url}
+          className="rounded-none"
+        >
+          <span className="pointer-events-none absolute left-3 top-3 rounded-full border border-[#E3E5E8] bg-white px-2.5 py-1 text-[13px] font-medium leading-none text-[#1F2328]">
+            {t(formatLabelKey(String(product.format)))}
+          </span>
+        </ProductCover>
       </div>
-      <div className="space-y-3 p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">{t(formatLabelKey(String(product.format)))}</Badge>
-          {product.has_schedule && (
-            <span className="text-xs text-muted-foreground">{t("hasScheduleMarker")}</span>
-          )}
+      <div className="px-4 pb-4 pt-3">
+        <div className="flex items-start gap-3">
+          <h3 className="min-w-0 flex-1 line-clamp-2 text-base font-semibold leading-snug text-foreground">
+            {product.title}
+          </h3>
+          <p className="shrink-0 pt-0.5 text-base font-bold tabular-nums leading-snug text-foreground">
+            {formatPriceTenge(product.price)}
+          </p>
         </div>
-        <h3 className="text-base font-semibold leading-snug text-foreground line-clamp-2">
-          {product.title}
-        </h3>
-        <div className="flex items-center gap-2 min-w-0">
-          <Avatar className="h-7 w-7">
+        <div className="mt-2 flex min-w-0 items-center gap-2">
+          <Avatar className="h-5 w-5">
             {product.seller_avatar_url && (
-              <AvatarImage src={product.seller_avatar_url} alt={sellerName} />
+              <AvatarImage src={product.seller_avatar_url} alt="" />
             )}
-            <AvatarFallback className="text-xs">{initial}</AvatarFallback>
+            <AvatarFallback className="text-[10px]">{initial}</AvatarFallback>
           </Avatar>
-          <span className="truncate text-sm text-muted-foreground">{sellerName}</span>
+          <span className="public-meta truncate">{sellerName}</span>
         </div>
-        <p className="text-base font-bold text-foreground">{formatPriceTenge(product.price)}</p>
       </div>
     </Link>
   );

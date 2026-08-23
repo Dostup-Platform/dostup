@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Package, UserRound } from "lucide-react";
+import { LogOut, Package, Store, UserRound } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import ProfileSwitcher from "@/components/auth/ProfileSwitcher";
@@ -34,6 +34,7 @@ const AvatarSheet = () => {
     profileType || "buyer",
     localStorage.getItem("creator_account_type"),
   );
+  const isBuyer = profileType === "buyer";
 
   const handleLogout = () => {
     logout();
@@ -41,15 +42,20 @@ const AvatarSheet = () => {
     navigate("/");
   };
 
+  const goTeach = () => {
+    setOpen(false);
+    navigate("/login");
+  };
+
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] focus-visible:ring-offset-2"
         aria-label={t("profile")}
       >
-        <Avatar className="h-10 w-10">
+        <Avatar className="h-9 w-9">
           <AvatarFallback className="bg-[#FF6B00]/15 text-[#FF6B00] text-sm font-semibold">
             {initialsFrom(displayName)}
           </AvatarFallback>
@@ -91,6 +97,16 @@ const AvatarSheet = () => {
               <UserRound className="w-4 h-4" />
               {t("account")}
             </Button>
+            {isBuyer && (
+              <button
+                type="button"
+                onClick={goTeach}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-[#6B7280] hover:bg-muted/60 hover:text-foreground focus-ring"
+              >
+                <Store className="h-4 w-4 shrink-0" />
+                {t("teachOnDostupArrow")}
+              </button>
+            )}
             <ProfileSwitcher activeType={profileType} profiles={profiles} />
             <Button variant="outline" className="w-full" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" />

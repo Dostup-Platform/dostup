@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Calendar, User, Bell, Loader2, Home as HomeIcon, MessageCircle, BookOpen } from "lucide-react";
+import { FileText, Calendar, User, Bell, Loader2, BookOpen, MessageCircle, Store } from "lucide-react";
 import SupportChat from "@/components/SupportChat";
 import { useSupportUnread } from "@/hooks/useSupportUnread";
 
@@ -28,13 +28,13 @@ const StudentSupportButton = ({ activeTab, userId, userName, onClick }: { active
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { studentCreds, invokeApi } from "@/lib/sessionApi";
+import AppHeader from "@/components/layout/AppHeader";
 
 import MaterialsTab from "@/components/dashboard/MaterialsTab";
 import ScheduleTab from "@/components/dashboard/ScheduleTab";
 import AccountTab from "@/components/dashboard/AccountTab";
 import NotificationsTab from "@/components/dashboard/NotificationsTab";
 import HomeTab from "@/components/dashboard/HomeTab";
-import CoursesTab from "@/components/dashboard/CoursesTab";
 import { useRealtimeStudentNotifications } from "@/hooks/useRealtimeStudentNotifications";
 import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
@@ -238,22 +238,14 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">
-            {activeTab === "courses" ? "Dostup" : t("myDashboard")}
-          </h1>
-          <StudentSupportButton activeTab={activeTab} userId={user.id} userName={user.name} onClick={() => handleTabChange("support")} />
-        </div>
-      </header>
+      <AppHeader variant="dashboard">
+        <StudentSupportButton activeTab={activeTab} userId={user.id} userName={user.name} onClick={() => handleTabChange("support")} />
+      </AppHeader>
 
       <main className="max-w-2xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsContent value="home" className="mt-0 animate-fade-in">
             <HomeTab onBrowseCourses={() => navigate("/")} />
-          </TabsContent>
-          <TabsContent value="courses" className="mt-0 animate-fade-in">
-            <CoursesTab />
           </TabsContent>
           <TabsContent value="materials" className="mt-0 animate-fade-in">
             <MaterialsTab />
@@ -277,19 +269,20 @@ const Dashboard = () => {
         <div className="max-w-2xl mx-auto">
           <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-6 gap-0">
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 text-muted-foreground hover:text-foreground"
+              >
+                <Store className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t("catalog")}</span>
+              </button>
               <TabsTrigger 
                 value="home" 
                 className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
               >
-                <HomeIcon className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("home")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="courses" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-              >
                 <BookOpen className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("courses")}</span>
+                <span className="text-[10px] leading-tight">{t("myCourses")}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="materials" 

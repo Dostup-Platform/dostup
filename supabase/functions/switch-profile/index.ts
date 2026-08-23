@@ -7,7 +7,9 @@ import {
   findOrCreateProfile,
   listProfiles,
   loadAccountForProfile,
+  parseOnboardingAuthUserId,
   parseProfileType,
+  PROFILE_COLUMNS,
   profileTypeForAccount,
   publicProfiles,
   type ProfileRow,
@@ -34,50 +36,55 @@ Deno.serve(async (req) => {
       return json({ success: false, error: 'Invalid session' }, 401)
     }
 
+    const onboardingAuthId = parseOnboardingAuthUserId(session.creator_name)
     let profileId = session.profile_id
-    if (!profileId) {
-      if (typeof session.creator_name === 'string' && session.creator_name.startsWith('buyer:')) {
-        profileId = session.creator_name.slice(6)
-      } else if (session.creator_name) {
-        const { data: acc } = await supabase
-          .from('creator_accounts')
-          .select('profile_id, auth_user_id, display_name, account_type')
-          .ilike('login', session.creator_name)
-          .maybeSingle()
-        if (acc?.profile_id) {
-          profileId = acc.profile_id
-        } else if (acc?.auth_user_id) {
-          const type = profileTypeForAccount(acc.account_type)
-          const p = await findOrCreateProfile(
-            supabase,
-            acc.auth_user_id,
-            type,
-            acc.display_name || session.creator_name,
-          )
-          if (p) profileId = p.id
+    let authUserId: string | null = onboardingAuthId
+
+    if (!authUserId) {
+      if (!profileId) {
+        if (typeof session.creator_name === 'string' && session.creator_name.startsWith('buyer:')) {
+          profileId = session.creator_name.slice(6)
+        } else if (session.creator_name) {
+          const { data: acc } = await supabase
+            .from('creator_accounts')
+            .select('profile_id, auth_user_id, display_name, account_type')
+            .ilike('login', session.creator_name)
+            .maybeSingle()
+          if (acc?.profile_id) {
+            profileId = acc.profile_id
+          } else if (acc?.auth_user_id) {
+            const type = profileTypeForAccount(acc.account_type)
+            const p = await findOrCreateProfile(
+              supabase,
+              acc.auth_user_id,
+              type,
+              acc.display_name || session.creator_name,
+            )
+            if (p) profileId = p.id
+          }
+        }
+        if (profileId) {
+          await supabase.from('creator_sessions').update({ profile_id: profileId }).eq('token', token)
         }
       }
-      if (profileId) {
-        await supabase.from('creator_sessions').update({ profile_id: profileId }).eq('token', token)
+
+      if (!profileId) {
+        return json({ success: false, error: 'Invalid session' }, 401)
       }
+
+      const { data: current } = await supabase
+        .from('profiles')
+        .select(PROFILE_COLUMNS)
+        .eq('id', profileId)
+        .maybeSingle()
+
+      const currentProfile = current as ProfileRow | null
+      if (!currentProfile?.auth_user_id) {
+        return json({ success: false, error: 'identity_required' }, 403)
+      }
+      authUserId = currentProfile.auth_user_id
     }
 
-    if (!profileId) {
-      return json({ success: false, error: 'Invalid session' }, 401)
-    }
-
-    const { data: current } = await supabase
-      .from('profiles')
-      .select('id, auth_user_id, type, display_name, last_used_at, created_at')
-      .eq('id', profileId)
-      .maybeSingle()
-
-    const currentProfile = current as ProfileRow | null
-    if (!currentProfile?.auth_user_id) {
-      return json({ success: false, error: 'identity_required' }, 403)
-    }
-
-    const authUserId = currentProfile.auth_user_id
     const createType = parseProfileType(body.createType ?? body.create_type)
     const requestedId = typeof body.profileId === 'string'
       ? body.profileId.trim()
@@ -88,17 +95,20 @@ Deno.serve(async (req) => {
     let target: ProfileRow | null = null
 
     if (createType === 'creator' || createType === 'school' || createType === 'buyer') {
-      const { data: userData } = await supabase.auth.admin.getUserById(authUserId)
+      const { data: userData } = await supabase.auth.admin.getUserById(authUserId!)
       const email = userData?.user?.email ?? ''
-      const displayName = userData?.user
-        ? displayNameFrom(userData.user)
-        : currentProfile.display_name || 'User'
-      target = await findOrCreateProfile(supabase, authUserId, createType, displayName)
+      const customName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 100) : ''
+      const displayName = customName.length >= 2
+        ? customName
+        : userData?.user
+          ? displayNameFrom(userData.user)
+          : 'User'
+      target = await findOrCreateProfile(supabase, authUserId!, createType, displayName)
       if (!target) return json({ error: 'Failed to create profile' }, 500)
       const sellerType = accountTypeFor(createType)
       if (sellerType) {
         const account = await ensureCreatorAccount(supabase, {
-          authUserId,
+          authUserId: authUserId!,
           email: email ? email.trim().toLowerCase() : '',
           displayName: target.display_name || displayName,
           profile: target,
@@ -112,7 +122,7 @@ Deno.serve(async (req) => {
     } else if (requestedId) {
       const { data: requested } = await supabase
         .from('profiles')
-        .select('id, auth_user_id, type, display_name, last_used_at, created_at')
+        .select(PROFILE_COLUMNS)
         .eq('id', requestedId)
         .maybeSingle()
       target = (requested as ProfileRow | null) ?? null
@@ -131,7 +141,7 @@ Deno.serve(async (req) => {
     const activated = await activateSessionProfile(supabase, token, target, account)
     if (!activated.ok) return activated.response
 
-    const profiles = await listProfiles(supabase, authUserId)
+    const profiles = await listProfiles(supabase, authUserId!)
     return json({
       success: true,
       ...activated.session,

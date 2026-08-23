@@ -1,6 +1,7 @@
 import type { TranslationKey } from "@/lib/translations";
 
 export const OAUTH_MESSAGE_TYPE = "dostup-oauth";
+export const OAUTH_CODE_MESSAGE_TYPE = "dostup-oauth-code";
 
 export type AuthUiCode =
   | "oauth_popup_dismissed"

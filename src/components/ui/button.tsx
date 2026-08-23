@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 active:scale-[0.98] min-h-[44px] touch-manipulation",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 motion-safe:active:scale-[0.98] min-h-[44px] touch-manipulation",
   {
     variants: {
       variant: {
@@ -15,7 +15,7 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline min-h-0",
-        cta: "gradient-primary text-primary-foreground shadow-cta hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none disabled:hover:scale-100 disabled:opacity-100 disabled:[background-image:none]",
+        cta: "gradient-primary text-primary-foreground shadow-cta hover:shadow-lg motion-safe:hover:scale-[1.02] motion-safe:active:scale-[0.98] disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none disabled:hover:scale-100 disabled:opacity-100 disabled:[background-image:none]",
         success: "bg-success text-success-foreground hover:bg-success/90",
         toggle: "border border-input bg-background text-foreground hover:bg-muted hover:text-foreground",
       },

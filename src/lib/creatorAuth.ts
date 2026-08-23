@@ -1,10 +1,12 @@
+import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { classifyAuthError, OAUTH_MESSAGE_TYPE } from "@/lib/authErrors";
+import { classifyAuthError, OAUTH_CODE_MESSAGE_TYPE, OAUTH_MESSAGE_TYPE } from "@/lib/authErrors";
 
 export const OAUTH_ACCOUNT_TYPE_KEY = "dostup_oauth_account_type";
 export const OAUTH_PROFILE_TYPE_KEY = "dostup_oauth_profile_type";
 export const OAUTH_RESULT_KEY = "dostup_oauth_result";
 export const AUTH_EMAIL_KEY = "dostup_auth_email";
+export const SELLER_DISPLAY_NAME_KEY = "dostup_seller_display_name";
 
 export type CreatorAccountType = "course_creator" | "online_school";
 export type ProfileType = "buyer" | "creator" | "school";
@@ -23,6 +25,7 @@ export type SessionPayload = {
   profileId: string;
   displayName?: string | null;
   createdAt?: string | null;
+  handle?: string | null;
   profiles?: AppProfile[];
 };
 
@@ -43,6 +46,7 @@ export function storeCreatorSession(data: {
   profileType?: ProfileType | string | null;
   profileId?: string | null;
   displayName?: string | null;
+  handle?: string | null;
   createdAt?: string | null;
   profiles?: AppProfile[];
 }) {
@@ -59,6 +63,11 @@ export function storeCreatorSession(data: {
   localStorage.setItem("profile_type", profileType);
   if (data.profileId) localStorage.setItem("profile_id", data.profileId);
   localStorage.setItem("profile_display_name", data.displayName || data.creatorName);
+  if (data.handle) {
+    localStorage.setItem("profile_handle", data.handle);
+  } else if (data.handle === null) {
+    localStorage.removeItem("profile_handle");
+  }
   localStorage.setItem("creator_created_at", data.createdAt || new Date().toISOString());
   if (data.profiles) {
     localStorage.setItem("identity_profiles", JSON.stringify(data.profiles));
@@ -68,11 +77,13 @@ export function storeCreatorSession(data: {
 export function clearAppSession() {
   localStorage.removeItem("creator_token");
   localStorage.removeItem("creator_name");
+  localStorage.removeItem("creator_last_name");
   localStorage.removeItem("creator_account_type");
   localStorage.removeItem("creator_created_at");
   localStorage.removeItem("profile_type");
   localStorage.removeItem("profile_id");
   localStorage.removeItem("profile_display_name");
+  localStorage.removeItem("profile_handle");
   localStorage.removeItem("identity_profiles");
   localStorage.removeItem("simple_session_token");
   localStorage.removeItem("simple_user_id");
@@ -83,6 +94,32 @@ export function rememberAuthEmail(email: string) {
   const normalized = email.trim().toLowerCase();
   if (!normalized) return;
   localStorage.setItem(AUTH_EMAIL_KEY, normalized);
+}
+
+export function rememberSellerDisplayName(name: string) {
+  const trimmed = name.trim().slice(0, 100);
+  if (trimmed.length < 2) return;
+  try {
+    sessionStorage.setItem(SELLER_DISPLAY_NAME_KEY, trimmed);
+  } catch {
+    // private mode
+  }
+}
+
+export function readSellerDisplayName() {
+  try {
+    return sessionStorage.getItem(SELLER_DISPLAY_NAME_KEY)?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
+export function clearSellerDisplayName() {
+  try {
+    sessionStorage.removeItem(SELLER_DISPLAY_NAME_KEY);
+  } catch {
+    // private mode
+  }
 }
 
 export function readAuthEmail() {
@@ -125,10 +162,22 @@ export function markRoleOnboardingComplete(email: string) {
 
 export function needsRoleOnboarding(email: string, profiles: AppProfile[] = []) {
   if (hasCompletedRoleOnboarding(email)) return false;
-  if (profiles.some((profile) => profile.type === "creator" || profile.type === "school")) {
-    return false;
-  }
+  if (profiles.length > 0) return false;
   return true;
+}
+
+export function isOnboardingSession(creatorName?: string | null) {
+  return typeof creatorName === "string" && creatorName.startsWith("onboarding:");
+}
+
+export function storeOnboardingSession(token: string, creatorName: string) {
+  localStorage.setItem("creator_token", token);
+  localStorage.setItem("creator_name", creatorName);
+  localStorage.removeItem("creator_account_type");
+  localStorage.removeItem("profile_type");
+  localStorage.removeItem("profile_id");
+  localStorage.removeItem("profile_display_name");
+  localStorage.removeItem("profile_handle");
 }
 
 export const AUTH_NEXT_KEY = "dostup_auth_next";
@@ -148,7 +197,9 @@ export function rememberAuthNext(path: string | null | undefined) {
 export function consumeAuthNext() {
   const path = sessionStorage.getItem(AUTH_NEXT_KEY);
   sessionStorage.removeItem(AUTH_NEXT_KEY);
-  return isSafeInternalPath(path) ? path : null;
+  // "/" is the public marketplace — not a meaningful post-login destination.
+  if (!isSafeInternalPath(path) || path === "/") return null;
+  return path;
 }
 
 export function roleOnboardingPath(email: string) {
@@ -280,10 +331,113 @@ export function clearOAuthResult() {
   }
 }
 
+function authRedirectOrigin() {
+  if (!import.meta.env.DEV) return window.location.origin;
+  const port = window.location.port || "8080";
+  return `http://localhost:${port}`;
+}
+
 export function authCallbackUrl(profileType?: ProfileType) {
-  const url = new URL(`${window.location.origin}/auth/callback`);
+  const url = new URL(`${authRedirectOrigin()}/auth/callback`);
   if (profileType && profileType !== "buyer") url.searchParams.set("profile_type", profileType);
   return url.toString();
+}
+
+type ExchangeAuthResult = {
+  success?: boolean;
+  token?: string;
+  creatorName?: string;
+  accountType?: string;
+  profileType?: string;
+  profileId?: string;
+  displayName?: string;
+  handle?: string | null;
+  profiles?: { id: string; type: string; displayName: string | null }[];
+  error?: string;
+  needsOnboarding?: boolean;
+};
+
+export async function completeGoogleOAuthSession(session: Session): Promise<GoogleOAuthResult> {
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = params.get("profile_type") || params.get("account_type");
+  const profileType = parseProfileType(fromQuery) ?? readOAuthProfileType();
+
+  try {
+    const { data, error } = await supabase.functions.invoke("exchange-auth-session", {
+      body: {
+        access_token: session.access_token,
+        profileType: profileType ?? undefined,
+      },
+    });
+
+    const result = (data ?? {}) as ExchangeAuthResult;
+    const errCode = result.error || error?.message;
+
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      // creator session is what the app uses
+    }
+    clearOAuthAccountType();
+
+    const nextType = parseProfileType(result.profileType);
+    if (error || !result.success || !result.token) {
+      const code = errCode === "account_type_required" ? "account_type_required" : "exchange_failed";
+      return { error: { message: code, code } };
+    }
+
+    if (result.needsOnboarding) {
+      localStorage.setItem("creator_token", result.token);
+      localStorage.setItem("creator_name", result.creatorName || "");
+      localStorage.removeItem("profile_type");
+      localStorage.removeItem("profile_id");
+      const email = session.user.email?.trim().toLowerCase() || "";
+      if (email) rememberAuthEmail(email);
+      return {
+        error: null,
+        path: `/login?onboarding=role&email=${encodeURIComponent(email)}`,
+      };
+    }
+
+    if (!nextType) {
+      return { error: { message: "exchange_failed", code: "exchange_failed" } };
+    }
+
+    storeCreatorSession({
+      token: result.token,
+      creatorName: result.creatorName || result.displayName || "",
+      accountType: result.accountType,
+      profileType: nextType,
+      profileId: result.profileId,
+      displayName: result.displayName,
+      handle: result.handle ?? null,
+      profiles: result.profiles as SessionPayload["profiles"],
+    });
+    const email = session.user.email?.trim().toLowerCase() || "";
+    if (email) rememberAuthEmail(email);
+    const profiles = (result.profiles as SessionPayload["profiles"]) ?? [];
+    return {
+      error: null,
+      path: resolvePostAuthPath(email, profiles, nextType, result.accountType),
+    };
+  } catch {
+    return { error: { message: "network_failure", code: "network_failure" } };
+  }
+}
+
+async function completeGoogleOAuthCode(code: string): Promise<GoogleOAuthResult> {
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error || !data.session) {
+    return {
+      error: {
+        message: error?.message || "auth_callback_error",
+        code: classifyAuthError(error),
+        name: error?.name,
+        status: error?.status,
+      },
+    };
+  }
+  return completeGoogleOAuthSession(data.session);
 }
 
 function resultFromMessage(data: OAuthMessage): GoogleOAuthResult {
@@ -311,8 +465,23 @@ function waitForOAuthPopup(popup: Window): Promise<GoogleOAuthResult> {
 
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== origin) return;
-      const data = event.data as OAuthMessage | null;
-      if (!data || data.type !== OAUTH_MESSAGE_TYPE) return;
+      const data = event.data as
+        | OAuthMessage
+        | { type: typeof OAUTH_CODE_MESSAGE_TYPE; code: string }
+        | null;
+      if (!data || typeof data !== "object" || !("type" in data)) return;
+      if (data.type === OAUTH_CODE_MESSAGE_TYPE && typeof data.code === "string") {
+        void completeGoogleOAuthCode(data.code).then((result) => {
+          try {
+            popup.close();
+          } catch {
+            // popup may already be closed
+          }
+          finish(result);
+        });
+        return;
+      }
+      if (data.type !== OAUTH_MESSAGE_TYPE) return;
       finish(resultFromMessage(data));
     };
 
@@ -474,11 +643,17 @@ export async function verifyEmailCode(email: string, token: string) {
   return first.error ? first : second;
 }
 
-export async function exchangeAuthSession(accessToken: string, profileType?: ProfileType) {
+export async function exchangeAuthSession(
+  accessToken: string,
+  profileType?: ProfileType,
+  displayName?: string,
+) {
+  const sellerName = displayName || readSellerDisplayName();
   return supabase.functions.invoke("exchange-auth-session", {
     body: {
       access_token: accessToken,
       profileType: profileType ?? undefined,
+      displayName: sellerName.length >= 2 ? sellerName : undefined,
     },
   });
 }

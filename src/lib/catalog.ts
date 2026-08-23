@@ -33,13 +33,19 @@ export function productHref(product: { id: string; slug?: string | null }) {
 }
 
 export function formatPriceTenge(price: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
+  const amount = new Intl.NumberFormat("ru-KZ", {
     minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(Number(price) || 0);
+  return `${amount}\u00A0₸`;
 }
 
 export function isProductFormat(value: string | null | undefined): value is ProductFormat {
   return value === "recorded" || value === "individual" || value === "group";
+}
+
+export function formatLabelKey(format: string | null | undefined): "formatRecorded" | "formatIndividual" | "formatGroup" {
+  if (format === "individual") return "formatIndividual";
+  if (format === "group") return "formatGroup";
+  return "formatRecorded";
 }
