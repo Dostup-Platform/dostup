@@ -5,7 +5,7 @@ import {
   escapeHtml,
   fetchPublicProduct,
   getSiteOrigin,
-} from "./_lib/og";
+} from "./_lib/og.js";
 
 export const config = {
   runtime: "edge",

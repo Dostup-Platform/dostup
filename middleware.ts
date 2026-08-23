@@ -3,7 +3,7 @@ import {
   fetchProductSlugById,
   isCrawlerUserAgent,
   isUuid,
-} from "./api/_lib/og";
+} from "./api/_lib/og.js";
 
 export default async function middleware(request: Request) {
   const url = new URL(request.url);

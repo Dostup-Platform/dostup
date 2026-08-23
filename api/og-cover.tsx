@@ -1,5 +1,5 @@
 import { ImageResponse } from "@vercel/og";
-import { coverTintFromId } from "./_lib/og";
+import { coverTintFromId } from "./_lib/og.js";
 
 export const config = {
   runtime: "edge",
