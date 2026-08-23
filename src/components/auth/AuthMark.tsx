@@ -1,16 +1,21 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
-const LOGO_SRC = "/logo.png";
+const LOGO_WORDMARK_SRC = "/logo-wordmark.png";
+const LOGO_ICON_SRC = "/icon-192.png";
 const FALLBACK_LOGO_SRC = "/favicon.ico";
 
 export function AuthMark({
-  className = "h-14 w-14",
+  className,
   variant = "icon",
 }: {
   className?: string;
   variant?: "icon" | "brand";
 }) {
-  const [imgSrc, setImgSrc] = useState(LOGO_SRC);
+  const [imgSrc, setImgSrc] = useState(
+    variant === "brand" ? LOGO_WORDMARK_SRC : LOGO_ICON_SRC,
+  );
 
   const handleError = () => {
     if (imgSrc !== FALLBACK_LOGO_SRC) {
@@ -23,7 +28,7 @@ export function AuthMark({
       <img
         src={imgSrc}
         alt="Dostup"
-        className={`h-auto w-[7.5rem] sm:w-32 object-contain ${className}`}
+        className={cn("h-[28px] w-auto object-contain object-left", className)}
         onError={handleError}
       />
     );
@@ -31,15 +36,32 @@ export function AuthMark({
 
   return (
     <div
-      className={`relative flex items-center justify-center overflow-hidden rounded-2xl shadow-sm bg-background ${className}`}
+      className={cn(
+        "relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl",
+        className,
+      )}
     >
       <img
         src={imgSrc}
         alt="Dostup"
-        className="h-full w-full object-cover"
+        className="h-full w-full object-contain"
         onError={handleError}
       />
     </div>
+  );
+}
+
+export function AppLogoLink({
+  className,
+  markClassName,
+}: {
+  className?: string;
+  markClassName?: string;
+}) {
+  return (
+    <Link to="/" className={`flex shrink-0 items-center ${className ?? ""}`} aria-label="Dostup">
+      <AuthMark variant="brand" className={markClassName} />
+    </Link>
   );
 }
 

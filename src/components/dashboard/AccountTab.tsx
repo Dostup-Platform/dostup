@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useSimplePurchases } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { formatPriceTenge } from "@/lib/catalog";
 import { User, Package, LogOut, Loader2, Download, Globe } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -22,14 +23,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
-    minimumFractionDigits: 0,
-  }).format(price);
-};
 
 const AccountTab = () => {
   const navigate = useNavigate();
@@ -115,7 +108,7 @@ const AccountTab = () => {
                       </p>
                     </div>
                     <span className="text-sm font-medium text-foreground">
-                      {formatPrice(Number(purchase.amount))}
+                      {formatPriceTenge(Number(purchase.amount))}
                     </span>
                   </div>
                 </div>

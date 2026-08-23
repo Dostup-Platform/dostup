@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Check, Loader2, UserX, Users } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { formatPriceTenge } from "@/lib/catalog";
 import { creatorCreds, invokeApi } from "@/lib/sessionApi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -25,14 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const formatPrice = (price: number) => {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KZT",
-    minimumFractionDigits: 0,
-  }).format(price);
-};
 
 interface PurchaseWithUser {
   id: string;
@@ -291,7 +284,7 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
                       <Check className="w-3 h-3 text-success flex-shrink-0" />
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-1">
-                      {purchase.product.title} · <span className="text-success">{formatPrice(Number(purchase.amount))}</span>
+                      {purchase.product.title} · <span className="text-success">{formatPriceTenge(Number(purchase.amount))}</span>
                     </p>
                     
                     {/* Выбор учителя */}

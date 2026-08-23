@@ -5,6 +5,7 @@ import {
   ensureCreatorAccount,
   findOrCreateProfile,
   issueAppSession,
+  issueOnboardingSession,
   linkAccountsByEmail,
   listProfiles,
   loadAccountForProfile,
@@ -49,14 +50,34 @@ Deno.serve(async (req) => {
       return json({ success: false, error: 'Email is required' }, 400)
     }
 
-    const displayName = displayNameFrom(user)
+    let profiles = await listProfiles(supabase, user.id)
+
+    if (profiles.length === 0) {
+      const onboarding = await issueOnboardingSession(supabase, user.id)
+      if (!onboarding.ok) return onboarding.response
+      return json({
+        success: true,
+        needsOnboarding: true,
+        authUserId: user.id,
+        token: onboarding.token,
+        creatorName: onboarding.creatorName,
+        profiles: [],
+      })
+    }
+
+    const displayName = (() => {
+      const custom = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 100) : ''
+      if (custom.length >= 2) return custom
+      return displayNameFrom(user)
+    })()
     await linkAccountsByEmail(supabase, user.id, email, displayName)
+
+    profiles = await listProfiles(supabase, user.id)
 
     const requestedType = parseProfileType(
       body.profileType ?? body.profile_type ?? body.account_type ?? body.accountType,
     )
 
-    let profiles = await listProfiles(supabase, user.id)
     let target = pickProfile(profiles, requestedType)
 
     if (requestedType && !target) {
@@ -65,8 +86,7 @@ Deno.serve(async (req) => {
     }
 
     if (!target) {
-      target = await findOrCreateProfile(supabase, user.id, 'buyer', displayName)
-      if (target) profiles = await listProfiles(supabase, user.id)
+      target = pickProfile(profiles, null)
     }
 
     if (!target) {

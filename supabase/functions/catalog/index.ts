@@ -14,22 +14,37 @@ async function withAuthors(
       .map((row) => row.creator_account_id)
       .filter((id): id is string => typeof id === 'string' && id.length > 0),
   )]
-  const nameById = new Map<string, string>()
+  const sellerById = new Map<string, {
+    display_name: string | null
+    handle: string | null
+    avatar_url: string | null
+    type: string | null
+  }>()
   if (ids.length) {
     const { data: accounts } = await supabase
       .from('creator_accounts')
-      .select('id, display_name')
+      .select('id, display_name, profiles(handle, display_name, avatar_url, type)')
       .in('id', ids)
     for (const account of accounts ?? []) {
-      if (account.id && account.display_name) {
-        nameById.set(account.id, account.display_name)
-      }
+      const profile = Array.isArray(account.profiles) ? account.profiles[0] : account.profiles
+      sellerById.set(account.id, {
+        display_name: (profile?.display_name || account.display_name) ?? null,
+        handle: profile?.handle ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+        type: profile?.type ?? null,
+      })
     }
   }
-  return rows.map((row) => ({
-    ...row,
-    author_name: (row.creator_account_id && nameById.get(row.creator_account_id)) || null,
-  }))
+  return rows.map((row) => {
+    const seller = (row.creator_account_id && sellerById.get(row.creator_account_id)) || null
+    return {
+      ...row,
+      author_name: seller?.display_name ?? null,
+      seller_handle: seller?.handle ?? null,
+      seller_avatar_url: seller?.avatar_url ?? null,
+      seller_type: seller?.type ?? null,
+    }
+  })
 }
 
 Deno.serve(async (req) => {

@@ -32,6 +32,9 @@ import CreatorAnnouncementsTab from "@/components/creator/CreatorAnnouncementsTa
 import CreatorMaterialsTab from "@/components/creator/CreatorMaterialsTab";
 import { useCreatorPendingPurchases } from "@/components/creator/CreatorPendingPayments";
 import { useLanguage } from "@/contexts/LanguageContext";
+import AppHeader from "@/components/layout/AppHeader";
+import HandleSetupDialog from "@/components/account/HandleSetupDialog";
+import DisplayNameSetupDialog from "@/components/account/DisplayNameSetupDialog";
 
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
@@ -44,6 +47,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { creatorCreds, invokeApi } from "@/lib/sessionApi";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 import { useAppResume } from "@/hooks/useAppResume";
+import { readAuthEmail } from "@/lib/creatorAuth";
+import { needsDisplayNamePrompt } from "@/lib/displayName";
 
 const navItems = [
   { key: "products", labelKey: "products", icon: Package },
@@ -56,6 +61,10 @@ const navItems = [
 const CreatorDashboard = () => {
   const [activeTab, setActiveTab] = useState("products");
   const [creatorName, setCreatorName] = useState<string | null>(null);
+  const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(() => localStorage.getItem("profile_id"));
+  const [needsDisplayName, setNeedsDisplayName] = useState(false);
+  const [needsHandle, setNeedsHandle] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
   const { t } = useLanguage();
@@ -213,6 +222,20 @@ const CreatorDashboard = () => {
         }
 
         setCreatorName(name);
+        if (typeof data.profileId === "string" && data.profileId) {
+          setProfileId(data.profileId);
+          localStorage.setItem("profile_id", data.profileId);
+        }
+        const displayName =
+          typeof data.displayName === "string" ? data.displayName.trim() : localStorage.getItem("profile_display_name") || "";
+        if (displayName) localStorage.setItem("profile_display_name", displayName);
+        setProfileDisplayName(displayName || null);
+        const email = typeof data.email === "string" ? data.email : readAuthEmail();
+        setNeedsDisplayName(needsDisplayNamePrompt(displayName, email));
+        const handle = typeof data.handle === "string" ? data.handle.trim() : "";
+        if (handle) localStorage.setItem("profile_handle", handle);
+        else localStorage.removeItem("profile_handle");
+        setNeedsHandle(!handle);
         setIsLoading(false);
       } catch (err) {
         console.error('Session validation error:', err);
@@ -235,51 +258,63 @@ const CreatorDashboard = () => {
 
   if (!creatorName) return null;
 
+  if (needsDisplayName) {
+    return (
+      <div className="min-h-screen bg-background">
+        <DisplayNameSetupDialog
+          open
+          onSaved={(saved, handle) => {
+            setProfileDisplayName(saved);
+            setNeedsDisplayName(false);
+            if (handle) {
+              localStorage.setItem("profile_handle", handle);
+              setNeedsHandle(false);
+            } else if (handle === null) {
+              localStorage.removeItem("profile_handle");
+              setNeedsHandle(true);
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen bg-background ${isMobile ? "pb-20" : ""}`}>
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border px-4 py-4 safe-area-inset">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-foreground truncate">{t("creatorDashboard")}</h1>
-            <p className="text-sm text-muted-foreground truncate">{creatorName}</p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <SupportHeaderButton activeTab={activeTab} onClick={() => handleTabChange("support")} userType="creator" userRef={creatorName!} />
-            <button
-              onClick={() => handleTabChange("notifications")}
-              aria-label={t("notifications" as any)}
-              className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                activeTab === "notifications"
-                  ? "bg-accent text-white"
-                  : "text-muted-foreground hover:bg-accent/50"
-              }`}
-            >
-              <Bell className="w-5 h-5" />
-              {newNotificationsCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                  {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => handleTabChange("account")}
-              aria-label={t("account" as any)}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                activeTab === "account"
-                  ? "bg-accent text-white"
-                  : "text-muted-foreground hover:bg-accent/50"
-              }`}
-            >
-              <User className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader variant="dashboard">
+        <SupportHeaderButton activeTab={activeTab} onClick={() => handleTabChange("support")} userType="creator" userRef={creatorName!} />
+        <button
+          onClick={() => handleTabChange("notifications")}
+          aria-label={t("notifications" as any)}
+          className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+            activeTab === "notifications"
+              ? "bg-accent text-white"
+              : "text-muted-foreground hover:bg-accent/50"
+          }`}
+        >
+          <Bell className="w-5 h-5" />
+          {newNotificationsCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
+              {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => handleTabChange("account")}
+          aria-label={t("account" as any)}
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+            activeTab === "account"
+              ? "bg-accent text-white"
+              : "text-muted-foreground hover:bg-accent/50"
+          }`}
+        >
+          <User className="w-5 h-5" />
+        </button>
+      </AppHeader>
 
       {/* Desktop: sidebar + content */}
       {/* Mobile: content only */}
-      <div className={`${isMobile ? "" : "flex gap-6 items-start pl-4 pr-6 py-6"}`}>
+      <div className={`${isMobile ? "" : "flex gap-6 items-start px-6 py-6"}`}>
         
         {/* Left Sidebar - Desktop Only */}
         {!isMobile && (
@@ -346,7 +381,7 @@ const CreatorDashboard = () => {
           )}
           {activeTab === "support" && (
             <div className="animate-fade-in">
-              <SupportChat userType="creator" userRef={creatorName} displayName={creatorName} />
+              <SupportChat userType="creator" userRef={creatorName} displayName={profileDisplayName || creatorName} />
             </div>
           )}
         </main>
@@ -396,6 +431,11 @@ const CreatorDashboard = () => {
           </div>
         </nav>
       )}
+      <HandleSetupDialog
+        open={needsHandle}
+        profileId={profileId}
+        onSaved={() => setNeedsHandle(false)}
+      />
     </div>
   );
 };

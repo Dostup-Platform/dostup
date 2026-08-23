@@ -18,7 +18,7 @@ serve(async (req) => {
     const productId = url.searchParams.get('id')
     const teacher = url.searchParams.get('teacher')
 
-    let redirectUrl = `${APP_URL}/product/${productId || ''}`
+    let redirectUrl = `${APP_URL}/p/${productId || ''}`
     if (teacher) {
       redirectUrl += `?teacher=${encodeURIComponent(teacher)}`
     }

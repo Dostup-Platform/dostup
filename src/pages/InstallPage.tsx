@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { AppLogoLink } from "@/components/auth/AuthMark";
 import { useDeviceDetection, DeviceType } from "@/hooks/useDeviceDetection";
 import { ArrowLeft, Smartphone, Monitor, ChevronDown, ChevronUp, Share, MoreVertical, Download } from "lucide-react";
 
@@ -101,7 +102,8 @@ const InstallPage = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        <div className="container flex items-center h-14 px-4">
+        <div className="container flex items-center h-14 px-4 gap-3">
+          <AppLogoLink markClassName="h-auto w-20 sm:w-24" />
           <Button variant="ghost" size="sm" onClick={() => {
             navigate("/", { replace: true });
           }}>

@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
-import { AuthMark } from "@/components/auth/AuthMark";
-import { Download, Loader2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { AppLogoLink } from "@/components/auth/AuthMark";
+import { Loader2 } from "lucide-react";
 
 interface AuthEntryScreenProps {
   email: string;
@@ -31,10 +30,10 @@ const AuthEntryScreen = ({
 
   return (
     <Card className="w-full max-w-md rounded-2xl animate-fade-in">
-      <CardContent className="pt-8 pb-6 px-6 space-y-5">
-        <div className="flex flex-col items-center text-center gap-3">
-          <AuthMark variant="brand" />
-          <p className="text-2xl font-bold tracking-tight leading-snug">{t("authTagline")}</p>
+      <CardContent className="pt-5 pb-6 px-6 space-y-5">
+        <div className="flex flex-col items-center text-center gap-7">
+          <AppLogoLink markClassName="h-9 w-auto" />
+          <p className="text-2xl font-bold tracking-tight leading-[1.25]">{t("authTagline")}</p>
         </div>
 
         <form onSubmit={onContinue} className="space-y-3">
@@ -74,14 +73,6 @@ const AuthEntryScreen = ({
         </div>
 
         <GoogleSignInButton loading={googleLoading} disabled={sending} onClick={onGoogle} />
-
-        <Link
-          to="/install"
-          className="text-sm text-primary hover:underline flex items-center justify-center gap-1"
-        >
-          <Download className="w-4 h-4" />
-          {t("installApp")}
-        </Link>
       </CardContent>
     </Card>
   );

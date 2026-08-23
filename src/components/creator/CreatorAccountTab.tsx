@@ -8,7 +8,8 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate, Link } from "react-router-dom";
 import ProfileSwitcher from "@/components/auth/ProfileSwitcher";
-import { clearAppSession } from "@/lib/creatorAuth";
+import HandleSettingsCard from "@/components/account/HandleSettingsCard";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useState, useEffect } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
 import { usePWADetection } from "@/hooks/usePWADetection";
@@ -32,6 +33,7 @@ interface CreatorAccountTabProps {
 
 const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
   const navigate = useNavigate();
+  const { logout } = useSimpleAuth();
   const { t, language } = useLanguage();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [createdAt, setCreatedAt] = useState<Date | null>(null);
@@ -99,11 +101,8 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
   }, []);
 
   const handleLogout = async () => {
-    // Удаляем push-токены при выходе
     await unregisterPushToken(creatorName).catch(console.error);
-    
-    // Сохраняем имя для подсказки при следующем входе
-    clearAppSession();
+    logout();
     navigate("/");
   };
 
@@ -135,6 +134,11 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
           </div>
         </CardContent>
       </Card>
+
+      <HandleSettingsCard
+        initialHandle={typeof window !== "undefined" ? localStorage.getItem("profile_handle") : null}
+        profileId={typeof window !== "undefined" ? localStorage.getItem("profile_id") : null}
+      />
 
       <ProfileSwitcher
         activeType={accountType === "online_school" ? "school" : "creator"}

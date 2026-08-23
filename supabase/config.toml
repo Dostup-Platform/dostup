@@ -1,5 +1,24 @@
 project_id = "mebomnqdtuqmjjefvgkx"
 
+[auth]
+site_url = "https://trydostup.online"
+additional_redirect_urls = [
+  "http://localhost:8080/auth/callback",
+  "http://localhost:8080/**",
+  "http://127.0.0.1:8080/**",
+  "https://trydostup.online",
+  "https://trydostup.online/**",
+  "https://dostup.vercel.app/**",
+]
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.email]
+enable_confirmations = true
+max_frequency = "1m0s"
+otp_expiry = 600
 [functions.create-signup-token]
 verify_jwt = false
 
@@ -84,6 +103,9 @@ verify_jwt = false
 [functions.switch-profile]
 verify_jwt = false
 
+[functions.create-profile]
+verify_jwt = false
+
 [functions.catalog]
 verify_jwt = false
 
@@ -103,6 +125,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.manage-account]
+verify_jwt = false
+
+[functions.manage-profile]
 verify_jwt = false
 
 [functions.presigned-upload]

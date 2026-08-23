@@ -11,7 +11,11 @@
 VITE_SUPABASE_PROJECT_ID=mebomnqdtuqmjjefvgkx
 VITE_SUPABASE_URL=https://mebomnqdtuqmjjefvgkx.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=<anon key из Supabase Dashboard → Settings → API>
+SUPABASE_URL=https://mebomnqdtuqmjjefvgkx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service role key — только для serverless / middleware, не в браузер>
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` нужен для Vercel middleware (редирект UUID→slug) и OG-превью на `/p/*`.
 
 5. Нажать **Deploy**
 

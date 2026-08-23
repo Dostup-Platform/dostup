@@ -4,11 +4,15 @@ import { json } from './http.ts'
 export type ProfileType = 'buyer' | 'creator' | 'school'
 export type AccountType = 'course_creator' | 'online_school'
 
+export const PROFILE_COLUMNS =
+  'id, auth_user_id, type, display_name, handle, last_used_at, created_at'
+
 export type ProfileRow = {
   id: string
   auth_user_id: string | null
   type: ProfileType
   display_name: string | null
+  handle: string | null
   last_used_at: string | null
   created_at: string
 }
@@ -48,6 +52,88 @@ export function sessionCreatorName(
 ): string {
   if (profileType === 'buyer' || !login) return `buyer:${profileId}`
   return login
+}
+
+export function parseOnboardingAuthUserId(creatorName: string | null | undefined): string | null {
+  if (typeof creatorName !== 'string' || !creatorName.startsWith('onboarding:')) return null
+  const id = creatorName.slice('onboarding:'.length).trim()
+  return id.length > 0 ? id : null
+}
+
+export type CreatorSessionRow = {
+  token: string
+  creator_name: string
+  profile_id: string | null
+}
+
+export async function resolveSessionProfileId(
+  supabase: SupabaseClient,
+  session: CreatorSessionRow,
+  hintProfileId?: string | null,
+): Promise<string | null> {
+  let profileId = session.profile_id || hintProfileId?.trim() || null
+
+  if (!profileId) {
+    if (typeof session.creator_name === 'string' && session.creator_name.startsWith('buyer:')) {
+      profileId = session.creator_name.slice(6) || null
+    } else if (session.creator_name) {
+      const { data: acc } = await supabase
+        .from('creator_accounts')
+        .select('profile_id, auth_user_id, display_name, account_type')
+        .ilike('login', escapeIlike(session.creator_name))
+        .maybeSingle()
+      if (acc?.profile_id) {
+        profileId = acc.profile_id
+      } else if (acc?.auth_user_id) {
+        const type = profileTypeForAccount(acc.account_type)
+        const p = await findOrCreateProfile(
+          supabase,
+          acc.auth_user_id,
+          type,
+          acc.display_name || session.creator_name,
+        )
+        if (p) profileId = p.id
+      }
+    }
+  }
+
+  if (profileId && profileId !== session.profile_id) {
+    await supabase
+      .from('creator_sessions')
+      .update({ profile_id: profileId })
+      .eq('token', session.token)
+  }
+
+  return profileId
+}
+
+export async function issueOnboardingSession(
+  supabase: SupabaseClient,
+  authUserId: string,
+): Promise<{ ok: true; token: string; creatorName: string } | { ok: false; response: Response }> {
+  const creatorName = `onboarding:${authUserId}`
+  const sessionToken = crypto.randomUUID()
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+  await supabase
+    .from('creator_sessions')
+    .delete()
+    .eq('creator_name', creatorName)
+    .lt('expires_at', new Date().toISOString())
+
+  const { error: insertError } = await supabase.from('creator_sessions').insert({
+    token: sessionToken,
+    creator_name: creatorName,
+    expires_at: expiresAt.toISOString(),
+    profile_id: null,
+  })
+
+  if (insertError) {
+    console.error('Error creating onboarding session:', insertError)
+    return { ok: false, response: json({ error: 'Failed to create session' }, 500) }
+  }
+
+  return { ok: true, token: sessionToken, creatorName }
 }
 
 function escapeIlike(value: string): string {
@@ -107,7 +193,7 @@ export async function listProfiles(
 ): Promise<ProfileRow[]> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, auth_user_id, type, display_name, last_used_at, created_at')
+    .select(PROFILE_COLUMNS)
     .eq('auth_user_id', authUserId)
   return (data ?? []) as ProfileRow[]
 }
@@ -120,7 +206,7 @@ export async function findOrCreateProfile(
 ): Promise<ProfileRow | null> {
   const { data: existing } = await supabase
     .from('profiles')
-    .select('id, auth_user_id, type, display_name, last_used_at, created_at')
+    .select(PROFILE_COLUMNS)
     .eq('auth_user_id', authUserId)
     .eq('type', type)
     .maybeSingle()
@@ -133,7 +219,7 @@ export async function findOrCreateProfile(
       type,
       display_name: displayName,
     })
-    .select('id, auth_user_id, type, display_name, last_used_at, created_at')
+    .select(PROFILE_COLUMNS)
     .single()
 
   if (!error && created) return created as ProfileRow
@@ -141,7 +227,7 @@ export async function findOrCreateProfile(
   if ((error as { code?: string } | null)?.code === '23505') {
     const { data: again } = await supabase
       .from('profiles')
-      .select('id, auth_user_id, type, display_name, last_used_at, created_at')
+      .select(PROFILE_COLUMNS)
       .eq('auth_user_id', authUserId)
       .eq('type', type)
       .maybeSingle()
@@ -177,7 +263,7 @@ export async function profileForAccount(
   if (account.profile_id) {
     const { data } = await supabase
       .from('profiles')
-      .select('id, auth_user_id, type, display_name, last_used_at, created_at')
+      .select(PROFILE_COLUMNS)
       .eq('id', account.profile_id)
       .maybeSingle()
     if (data) return data as ProfileRow
@@ -200,7 +286,7 @@ export async function profileForAccount(
       type,
       display_name: account.display_name || account.login,
     })
-    .select('id, auth_user_id, type, display_name, last_used_at, created_at')
+    .select(PROFILE_COLUMNS)
     .single()
 
   if (error || !created) {
@@ -336,6 +422,7 @@ export type IssuedSession = {
   profileType: ProfileType
   profileId: string
   displayName: string
+  handle: string | null
 }
 
 export async function issueAppSession(
@@ -389,6 +476,7 @@ export async function issueAppSession(
       profileType,
       profileId: args.profile.id,
       displayName: args.profile.display_name || args.account?.display_name || creatorName,
+      handle: args.profile.handle ?? null,
     },
   }
 }
@@ -435,6 +523,7 @@ export async function activateSessionProfile(
       profileType,
       profileId: profile.id,
       displayName: profile.display_name || account?.display_name || creatorName,
+      handle: profile.handle ?? null,
     },
   }
 }

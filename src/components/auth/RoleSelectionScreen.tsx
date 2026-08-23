@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { type ProfileType } from "@/lib/creatorAuth";
-import { BookOpen, GraduationCap, Loader2, School } from "lucide-react";
+import { BookOpen, Loader2, School, ShoppingBag } from "lucide-react";
 
 const ROLE_OPTIONS: {
   type: ProfileType;
@@ -12,7 +12,7 @@ const ROLE_OPTIONS: {
 }[] = [
   {
     type: "buyer",
-    icon: GraduationCap,
+    icon: ShoppingBag,
     titleKey: "roleBuyer",
     descriptionKey: "roleBuyerDescription",
   },

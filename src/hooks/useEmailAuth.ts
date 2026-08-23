@@ -7,11 +7,14 @@ import {
   exchangeAuthSession,
   needsRoleOnboarding,
   parseProfileType,
+  readOAuthProfileType,
+  readSellerDisplayName,
   rememberAuthEmail,
   resolvePostAuthPath,
   sendEmailCode,
   startGoogleOAuth,
   storeCreatorSession,
+  storeOnboardingSession,
   verifyEmailCode,
   type GoogleOAuthResult,
   type SessionPayload,
@@ -27,9 +30,9 @@ type UseEmailAuthOptions = {
 };
 
 function asSession(data: Record<string, unknown> | null): SessionPayload | null {
-  if (!data?.success || typeof data.token !== "string" || typeof data.profileType !== "string") {
-    return null;
-  }
+  if (!data?.success || typeof data.token !== "string") return null;
+  if (data.needsOnboarding === true) return null;
+  if (typeof data.profileType !== "string") return null;
   const profileType = parseProfileType(String(data.profileType));
   if (!profileType) return null;
   return {
@@ -75,15 +78,31 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
   };
 
   const exchange = async (accessToken: string, address: string) => {
-    const { data, error } = await exchangeAuthSession(accessToken);
+    const { data, error } = await exchangeAuthSession(
+      accessToken,
+      readOAuthProfileType() ?? undefined,
+      readSellerDisplayName() || undefined,
+    );
     try {
       await supabase.auth.signOut({ scope: "local" });
     } catch {
       // app session is what we keep
     }
-    const session = asSession((data ?? null) as Record<string, unknown> | null);
-    if (error || !session) {
-      toast.error(t(authErrorKeyFromUnknown(error || { message: String((data as { error?: string } | null)?.error) })));
+    const payload = (data ?? null) as Record<string, unknown> | null;
+    if (error || !payload?.success || typeof payload.token !== "string") {
+      toast.error(t(authErrorKeyFromUnknown(error || { message: String(payload?.error) })));
+      return null;
+    }
+
+    if (payload.needsOnboarding === true) {
+      rememberAuthEmail(address);
+      storeOnboardingSession(payload.token, String(payload.creatorName || ""));
+      return { status: "role_required", email: address } as AuthCompletion;
+    }
+
+    const session = asSession(payload);
+    if (!session) {
+      toast.error(t("networkFailure"));
       return null;
     }
     return completeSession(session, address);
@@ -96,7 +115,7 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
       return false;
     }
     setSending(true);
-    const { error } = await sendEmailCode(trimmed);
+    const { error } = await sendEmailCode(trimmed, readOAuthProfileType() ?? undefined);
     setSending(false);
     if (error) {
       toast.error(t(authErrorKeyFromUnknown(error)));
@@ -129,7 +148,7 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
   const handleGoogle = async (): Promise<GoogleOAuthResult> => {
     setGoogleLoading(true);
     try {
-      return await startGoogleOAuth();
+      return await startGoogleOAuth(readOAuthProfileType() ?? undefined);
     } finally {
       setGoogleLoading(false);
     }

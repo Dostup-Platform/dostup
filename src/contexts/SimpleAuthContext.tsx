@@ -27,6 +27,11 @@ interface SimpleAuthContextType {
   switchProfile: (opts: {
     profileId?: string;
     createType?: ProfileType;
+    displayName?: string;
+  }) => Promise<{ path: string } | { error: string }>;
+  createProfile: (opts: {
+    profileType: ProfileType;
+    displayName: string;
   }) => Promise<{ path: string } | { error: string }>;
   logout: () => void;
 }
@@ -126,6 +131,16 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
         return;
       }
 
+      if (data.needsOnboarding) {
+        setSessionToken(token);
+        setProfileType(null);
+        setUser(null);
+        setProfiles([]);
+        localStorage.removeItem("profile_id");
+        localStorage.removeItem("profile_type");
+        return;
+      }
+
       const nextType = parseProfileType(data.profileType) || storedType;
       const nextProfiles = (data.profiles as AppProfile[] | undefined) ?? readStoredProfiles();
       setProfiles(nextProfiles);
@@ -134,6 +149,11 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       if (data.profileId) localStorage.setItem("profile_id", data.profileId);
       if (data.displayName) localStorage.setItem("profile_display_name", data.displayName);
       if (data.profileType) localStorage.setItem("profile_type", data.profileType);
+      if (typeof data.handle === "string" && data.handle) {
+        localStorage.setItem("profile_handle", data.handle);
+      } else if (data.handle === null || data.handle === "") {
+        localStorage.removeItem("profile_handle");
+      }
       if (nextProfiles.length) localStorage.setItem("identity_profiles", JSON.stringify(nextProfiles));
 
       if (nextType === "buyer") {
@@ -164,12 +184,19 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
     void refreshSession();
   }, [refreshSession]);
 
-  const switchProfile = async (opts: { profileId?: string; createType?: ProfileType }) => {
+  const createProfile = async (opts: {
+    profileType: ProfileType;
+    displayName: string;
+  }) => {
     const token = localStorage.getItem("creator_token") || sessionToken || "";
     if (!token) return { error: "Unauthorized" };
     try {
-      const { data, error } = await supabase.functions.invoke("switch-profile", {
-        body: { token, profileId: opts.profileId, createType: opts.createType },
+      const { data, error } = await supabase.functions.invoke("create-profile", {
+        body: {
+          token,
+          profileType: opts.profileType,
+          displayName: opts.displayName,
+        },
       });
       if (error || !data?.success || !data.token || !data.profileType) {
         return { error: String(data?.error || error?.message || "Failed") };
@@ -181,6 +208,57 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
         profileType: data.profileType,
         profileId: data.profileId,
         displayName: data.displayName,
+        handle: data.handle ?? null,
+        profiles: data.profiles,
+      });
+      const nextType = parseProfileType(data.profileType) || "buyer";
+      setProfileType(nextType);
+      setProfiles((data.profiles as AppProfile[]) ?? []);
+      if (nextType === "buyer") {
+        applyBuyer(data.token, {
+          id: data.profileId,
+          phone: "",
+          name: data.displayName || data.creatorName,
+          role: "student",
+          created_at: localStorage.getItem("creator_created_at") || new Date().toISOString(),
+        }, (data.profiles as AppProfile[]) ?? []);
+      } else {
+        setUser(null);
+        setSessionToken(data.token);
+      }
+      return { path: profileHomePath(data.profileType, data.accountType) };
+    } catch {
+      return { error: "network_failure" };
+    }
+  };
+
+  const switchProfile = async (opts: {
+    profileId?: string;
+    createType?: ProfileType;
+    displayName?: string;
+  }) => {
+    const token = localStorage.getItem("creator_token") || sessionToken || "";
+    if (!token) return { error: "Unauthorized" };
+    try {
+      const { data, error } = await supabase.functions.invoke("switch-profile", {
+        body: {
+          token,
+          profileId: opts.profileId,
+          createType: opts.createType,
+          displayName: opts.displayName,
+        },
+      });
+      if (error || !data?.success || !data.token || !data.profileType) {
+        return { error: String(data?.error || error?.message || "Failed") };
+      }
+      storeCreatorSession({
+        token: data.token,
+        creatorName: data.creatorName,
+        accountType: data.accountType,
+        profileType: data.profileType,
+        profileId: data.profileId,
+        displayName: data.displayName,
+        handle: data.handle ?? null,
         profiles: data.profiles,
       });
       const nextType = parseProfileType(data.profileType) || "buyer";
@@ -222,6 +300,7 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       profiles,
       refreshSession,
       switchProfile,
+      createProfile,
       logout,
     }}>
       {children}
