@@ -5,10 +5,10 @@ import {
   creatorProductIds,
   resolveCaller,
   serviceClient,
-  studentHasPurchase,
   unauthorized,
   forbidden,
 } from '../_shared/session.ts'
+import { buyerAccessibleProductIds, buyerHasProductAccess } from '../_shared/subscription.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return optionsResponse()
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
 
     const canReadProduct = async (productId: string) => {
       if (await assertCanManageProduct(supabase, caller, productId)) return true
-      if (caller.kind === 'user') return studentHasPurchase(supabase, caller.userId, productId)
+      if (caller.kind === 'user') return buyerHasProductAccess(supabase, caller.userId, productId)
       return false
     }
 
@@ -45,13 +45,16 @@ Deno.serve(async (req) => {
 
     if (action === 'list_student') {
       if (caller.kind !== 'user') return forbidden()
+      const productIds = await buyerAccessibleProductIds(supabase, caller.userId)
+      if (!productIds.length) return json({ materials: [], purchases: [] })
+
       const { data: purchases } = await supabase
         .from('simple_purchases')
         .select('product_id, assigned_teacher_id, can_choose_teacher')
         .eq('buyer_profile_id', caller.userId)
         .eq('status', 'completed')
-      if (!purchases?.length) return json({ materials: [], purchases: [] })
-      const productIds = purchases.map((p: { product_id: string }) => p.product_id)
+        .in('product_id', productIds)
+      const purchasesList = purchases ?? []
       const { data: creatorMaterials } = await supabase
         .from('materials')
         .select('*')
@@ -59,8 +62,8 @@ Deno.serve(async (req) => {
         .is('teacher_id', null)
         .is('deleted_at', null)
         .order('order_index')
-      const canChoose = purchases.filter((p: { can_choose_teacher: boolean | null }) => p.can_choose_teacher).map((p: { product_id: string }) => p.product_id)
-      const specific = purchases.filter((p: { can_choose_teacher: boolean | null; assigned_teacher_id: string | null }) => !p.can_choose_teacher && p.assigned_teacher_id)
+      const canChoose = purchasesList.filter((p: { can_choose_teacher: boolean | null }) => p.can_choose_teacher).map((p: { product_id: string }) => p.product_id)
+      const specific = purchasesList.filter((p: { can_choose_teacher: boolean | null; assigned_teacher_id: string | null }) => !p.can_choose_teacher && p.assigned_teacher_id)
       let teacherMaterials: unknown[] = []
       if (canChoose.length) {
         const { data } = await supabase
@@ -80,7 +83,7 @@ Deno.serve(async (req) => {
           .is('deleted_at', null)
         teacherMaterials = teacherMaterials.concat(data ?? [])
       }
-      return json({ materials: [...(creatorMaterials ?? []), ...teacherMaterials], purchases })
+      return json({ materials: [...(creatorMaterials ?? []), ...teacherMaterials], purchases: purchasesList })
     }
 
     if (action === 'list_all_creator') {

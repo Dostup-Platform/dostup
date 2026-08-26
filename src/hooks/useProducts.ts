@@ -28,8 +28,13 @@ export interface Product {
   seller_handle?: string | null;
   seller_avatar_url?: string | null;
   seller_type?: string | null;
-  format?: string | null;
-  subject?: string | null;
+  category_id?: string;
+  subcategory_id?: string;
+  lesson_format?: string | null;
+  event_starts_at?: string | null;
+  capacity?: number | null;
+  billing_period?: string | null;
+  category_slug?: string | null;
 }
 
 export interface ProductProgramItem {
@@ -143,6 +148,12 @@ interface CreateProductInput {
   faq?: Array<{ question: string; answer: string }> | null;
   kaspi_phone?: string | null;
   access_duration_days?: number | null;
+  category_id: string;
+  subcategory_id: string;
+  lesson_format?: string | null;
+  event_starts_at?: string | null;
+  capacity?: number | null;
+  billing_period?: string | null;
 }
 
 export const useCreateProduct = () => {

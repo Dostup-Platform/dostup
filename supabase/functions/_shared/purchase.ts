@@ -1,4 +1,5 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { onPurchaseCompleted } from './subscription.ts'
 
 export type CompletePurchaseResult =
   | { ok: true; already: boolean }
@@ -18,15 +19,26 @@ export async function completePurchase(
     .maybeSingle()
 
   if (error) return { ok: false, error: error.message }
-  if (data) return { ok: true, already: false }
+  if (data) {
+    const { data: purchase } = await supabase
+      .from('simple_purchases')
+      .select('product_id, buyer_profile_id, simple_user_id, amount')
+      .eq('id', purchaseId)
+      .maybeSingle()
+    if (purchase) await onPurchaseCompleted(supabase, purchase)
+    return { ok: true, already: false }
+  }
 
   const { data: existing } = await supabase
     .from('simple_purchases')
-    .select('status')
+    .select('status, product_id, buyer_profile_id, simple_user_id, amount')
     .eq('id', purchaseId)
     .maybeSingle()
 
-  if (existing?.status === 'completed') return { ok: true, already: true }
+  if (existing?.status === 'completed') {
+    await onPurchaseCompleted(supabase, existing)
+    return { ok: true, already: true }
+  }
   return { ok: false, error: 'Purchase is not pending' }
 }
 

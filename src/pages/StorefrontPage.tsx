@@ -1,7 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { useParams } from "react-router-dom";
+import CatalogGrid from "@/components/marketplace/CatalogGrid";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
-import ProductCard from "@/components/marketplace/ProductCard";
 import PublicContainer from "@/components/marketplace/PublicContainer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -48,7 +48,7 @@ const StorefrontPage = () => {
                 )}
               </div>
             </section>
-            <section className="mt-10">
+            <section className="mt-10 w-full">
               <div className="mb-6">
                 <h2 className="text-[26px] font-bold tracking-tight text-[#1F2328]">
                   {t("allCatalogProducts")}
@@ -57,11 +57,7 @@ const StorefrontPage = () => {
               {seller.products.length === 0 ? (
                 <p className="py-10 public-body text-[#6B7280]">{t("catalogEmpty")}</p>
               ) : (
-                <div className="public-catalog-grid">
-                  {seller.products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
+                <CatalogGrid products={seller.products} />
               )}
             </section>
           </>

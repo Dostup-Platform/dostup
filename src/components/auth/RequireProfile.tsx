@@ -2,14 +2,19 @@ import { ReactNode, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
-import { isOnboardingSession, readAuthEmail, roleOnboardingPath } from "@/lib/creatorAuth";
+import {
+  nameOnboardingPath,
+  needsNameOnboarding,
+  readAuthEmail,
+  readStoredProfiles,
+} from "@/lib/creatorAuth";
 
 type RequireProfileProps = {
   children: ReactNode;
 };
 
 /**
- * Blocks dashboard routes while the session has no profile_id (onboarding in progress).
+ * Blocks dashboard routes while the buyer still needs a display name.
  */
 const RequireProfile = ({ children }: RequireProfileProps) => {
   const navigate = useNavigate();
@@ -18,12 +23,16 @@ const RequireProfile = ({ children }: RequireProfileProps) => {
 
   useEffect(() => {
     if (loading) return;
-    const creatorName = localStorage.getItem("creator_name");
-    const onboarding = isOnboardingSession(creatorName);
+    const email = readAuthEmail();
+    const displayName = localStorage.getItem("profile_display_name");
+    const profiles = readStoredProfiles();
     const missingProfile = Boolean(sessionToken && !profileType && !localStorage.getItem("profile_id"));
-    if (onboarding || missingProfile) {
-      const email = readAuthEmail();
-      navigate(roleOnboardingPath(email), { replace: true });
+    const needsName =
+      Boolean(sessionToken) &&
+      needsNameOnboarding(email, displayName, profiles);
+
+    if (missingProfile || needsName) {
+      navigate(nameOnboardingPath(email), { replace: true });
       return;
     }
     setBlocked(false);

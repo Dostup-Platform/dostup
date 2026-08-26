@@ -1,11 +1,11 @@
-/** Six muted tints for generated covers — low saturation, never brand orange. */
+/** Six low-saturation tints — no brand orange. */
 const COVER_TINTS = [
-  "#E8E4DF",
-  "#DDE5E8",
-  "#E5E3EC",
-  "#E0E8E0",
-  "#E8E0E4",
-  "#E4E6E0",
+  "#E6E8EB",
+  "#E4E9E6",
+  "#E7E5EA",
+  "#E8E7E2",
+  "#E3E7EA",
+  "#E7E6E3",
 ] as const;
 
 export function coverTintFromId(id: string): string {

@@ -19,6 +19,7 @@ import {
   useToggleBookmark,
   type BookmarkViewer,
 } from "@/hooks/useMaterialBookmarks";
+import { rememberLastOpenedMaterial, touchRecentProduct } from "@/lib/buyerActivity";
 
 const getIcon = (type: string) => {
   switch (type) {
@@ -190,6 +191,31 @@ const MaterialsTab = () => {
   const { data: bookmarkRows = [] } = useMaterialBookmarks(viewer);
   const bookmarkIndex = useMemo(() => indexBookmarks(bookmarkRows, viewer), [bookmarkRows, viewer]);
   const toggleBookmark = useToggleBookmark(viewer);
+
+  const trackMaterialOpen = useCallback(
+    (material: { id: string; title: string; product_id: string; product?: { title?: string | null } | null }) => {
+      if (!user?.id) return;
+      const inProduct = (materials ?? [])
+        .filter((m) => m.product_id === material.product_id && m.type !== "folder")
+        .sort((a, b) => a.order_index - b.order_index);
+      const index = inProduct.findIndex((m) => m.id === material.id);
+      const progressPercent =
+        inProduct.length && index >= 0
+          ? Math.round(((index + 1) / inProduct.length) * 100)
+          : 0;
+      rememberLastOpenedMaterial(user.id, {
+        materialId: material.id,
+        materialTitle: material.title,
+        productId: material.product_id,
+        productTitle: material.product?.title || "",
+        openedAt: new Date().toISOString(),
+        progressPercent,
+      });
+      touchRecentProduct(user.id, material.product_id);
+    },
+    [user?.id, materials],
+  );
+
   const myBookmarkedIds = useMemo(() => {
     const ids = new Set<string>();
     for (const r of bookmarkRows) {
@@ -201,6 +227,8 @@ const MaterialsTab = () => {
   }, [bookmarkRows, viewer]);
 
   const toggleVideoExpand = (materialId: string) => {
+    const material = materials?.find((m) => m.id === materialId);
+    if (material) trackMaterialOpen(material);
     setExpandedVideos(prev => {
       const next = new Set(prev);
       if (next.has(materialId)) {

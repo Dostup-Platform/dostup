@@ -6,6 +6,11 @@ import {
   unauthorized,
 } from '../_shared/session.ts'
 import { latestSubmissionForPurchase } from '../_shared/purchase.ts'
+import {
+  isSubscriptionProduct,
+  subscriptionGrantsAccess,
+  type SubscriptionRow,
+} from '../_shared/subscription.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return optionsResponse()
@@ -120,6 +125,46 @@ Deno.serve(async (req) => {
       return json({ purchase: { ...data, latest_submission: submission } })
     }
 
+    if (action === 'list_my_subscriptions') {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('buyer_profile_id', user.userId)
+        .order('current_period_end', { ascending: true })
+      if (error) return json({ error: error.message }, 500)
+      if (!data?.length) return json({ subscriptions: [] })
+      const productIds = data.map((s: { product_id: string }) => s.product_id)
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, title, headline, telegram_link, group_link_label, slug, billing_period, price')
+        .in('id', productIds)
+      return json({
+        subscriptions: (data as SubscriptionRow[]).map((sub) => ({
+          ...sub,
+          has_access: subscriptionGrantsAccess(sub),
+          product: products?.find((p: { id: string }) => p.id === sub.product_id) || null,
+        })),
+      })
+    }
+
+    if (action === 'cancel_subscription') {
+      const subscriptionId = String(body.subscriptionId || '').trim()
+      if (!subscriptionId) return json({ error: 'Missing subscriptionId' }, 400)
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('id, buyer_profile_id, status')
+        .eq('id', subscriptionId)
+        .maybeSingle()
+      if (!sub || sub.buyer_profile_id !== user.userId) return json({ error: 'Not found' }, 404)
+      if (sub.status === 'cancelled') return json({ ok: true })
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({ status: 'cancelled' })
+        .eq('id', subscriptionId)
+      if (error) return json({ error: error.message }, 500)
+      return json({ ok: true })
+    }
+
     if (action === 'create_purchase') {
       const productId = String(body.productId || '').trim()
       if (!productId) return json({ error: 'Missing productId' }, 400)
@@ -133,13 +178,26 @@ Deno.serve(async (req) => {
         return json({ error: 'Product unavailable' }, 400)
       }
 
-      const { data: existing } = await supabase
-        .from('simple_purchases')
-        .select('id, status')
-        .eq('buyer_profile_id', user.userId)
-        .eq('product_id', productId)
-        .maybeSingle()
-      if (existing) return json({ purchase: existing })
+      const isSub = await isSubscriptionProduct(supabase, productId)
+
+      if (isSub) {
+        const { data: pending } = await supabase
+          .from('simple_purchases')
+          .select('id, status')
+          .eq('buyer_profile_id', user.userId)
+          .eq('product_id', productId)
+          .eq('status', 'pending')
+          .maybeSingle()
+        if (pending) return json({ purchase: pending })
+      } else {
+        const { data: existing } = await supabase
+          .from('simple_purchases')
+          .select('id, status')
+          .eq('buyer_profile_id', user.userId)
+          .eq('product_id', productId)
+          .maybeSingle()
+        if (existing) return json({ purchase: existing })
+      }
 
       const insertData: Record<string, unknown> = {
         buyer_profile_id: user.userId,

@@ -813,25 +813,30 @@ export type Database = {
       products: {
         Row: {
           access_duration_days: number | null
+          billing_period: string | null
+          capacity: number | null
+          category_id: string
           created_at: string
           creator_account_id: string | null
           creator_id: string | null
           description: string | null
+          event_starts_at: string | null
           faq: Json
-          format: string
           group_link_label: string | null
           has_schedule: boolean
           headline: string | null
           id: string
           image_url: string | null
           is_active: boolean
+          is_demo: boolean
           is_paused: boolean
           kaspi_link: string | null
           kaspi_phone: string | null
+          lesson_format: string | null
           paused_message: string | null
           price: number
           slug: string | null
-          subject: string | null
+          subcategory_id: string
           telegram_link: string | null
           title: string
           updated_at: string
@@ -839,25 +844,30 @@ export type Database = {
         }
         Insert: {
           access_duration_days?: number | null
+          billing_period?: string | null
+          capacity?: number | null
+          category_id: string
           created_at?: string
           creator_account_id?: string | null
           creator_id?: string | null
           description?: string | null
+          event_starts_at?: string | null
           faq?: Json
-          format?: string
           group_link_label?: string | null
           has_schedule?: boolean
           headline?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_demo?: boolean
           is_paused?: boolean
           kaspi_link?: string | null
           kaspi_phone?: string | null
+          lesson_format?: string | null
           paused_message?: string | null
           price?: number
           slug?: string | null
-          subject?: string | null
+          subcategory_id: string
           telegram_link?: string | null
           title: string
           updated_at?: string
@@ -865,25 +875,30 @@ export type Database = {
         }
         Update: {
           access_duration_days?: number | null
+          billing_period?: string | null
+          capacity?: number | null
+          category_id?: string
           created_at?: string
           creator_account_id?: string | null
           creator_id?: string | null
           description?: string | null
+          event_starts_at?: string | null
           faq?: Json
-          format?: string
           group_link_label?: string | null
           has_schedule?: boolean
           headline?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          is_demo?: boolean
           is_paused?: boolean
           kaspi_link?: string | null
           kaspi_phone?: string | null
+          lesson_format?: string | null
           paused_message?: string | null
           price?: number
           slug?: string | null
-          subject?: string | null
+          subcategory_id?: string
           telegram_link?: string | null
           title?: string
           updated_at?: string
@@ -908,6 +923,7 @@ export type Database = {
           display_name: string | null
           handle: string | null
           id: string
+          is_demo: boolean
           last_used_at: string | null
           type: string
         }
@@ -919,6 +935,7 @@ export type Database = {
           display_name?: string | null
           handle?: string | null
           id?: string
+          is_demo?: boolean
           last_used_at?: string | null
           type: string
         }
@@ -930,6 +947,7 @@ export type Database = {
           display_name?: string | null
           handle?: string | null
           id?: string
+          is_demo?: boolean
           last_used_at?: string | null
           type?: string
         }
@@ -1433,12 +1451,15 @@ export type Database = {
       products_catalog: {
         Row: {
           access_duration_days: number | null
+          billing_period: string | null
+          capacity: number | null
+          category_id: string | null
           created_at: string | null
           creator_account_id: string | null
           creator_id: string | null
           description: string | null
+          event_starts_at: string | null
           faq: Json | null
-          format: string | null
           group_link_label: string | null
           has_schedule: boolean | null
           headline: string | null
@@ -1446,10 +1467,11 @@ export type Database = {
           image_url: string | null
           is_active: boolean | null
           is_paused: boolean | null
+          lesson_format: string | null
           paused_message: string | null
           price: number | null
           slug: string | null
-          subject: string | null
+          subcategory_id: string | null
           telegram_link: string | null
           title: string | null
           updated_at: string | null
@@ -1457,12 +1479,15 @@ export type Database = {
         }
         Insert: {
           access_duration_days?: number | null
+          billing_period?: string | null
+          capacity?: number | null
+          category_id?: string | null
           created_at?: string | null
           creator_account_id?: string | null
           creator_id?: string | null
           description?: string | null
+          event_starts_at?: string | null
           faq?: Json | null
-          format?: string | null
           group_link_label?: string | null
           has_schedule?: boolean | null
           headline?: string | null
@@ -1470,10 +1495,11 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean | null
           is_paused?: boolean | null
+          lesson_format?: string | null
           paused_message?: string | null
           price?: number | null
           slug?: string | null
-          subject?: string | null
+          subcategory_id?: string | null
           telegram_link?: string | null
           title?: string | null
           updated_at?: string | null
@@ -1481,12 +1507,15 @@ export type Database = {
         }
         Update: {
           access_duration_days?: number | null
+          billing_period?: string | null
+          capacity?: number | null
+          category_id?: string | null
           created_at?: string | null
           creator_account_id?: string | null
           creator_id?: string | null
           description?: string | null
+          event_starts_at?: string | null
           faq?: Json | null
-          format?: string | null
           group_link_label?: string | null
           has_schedule?: boolean | null
           headline?: string | null
@@ -1494,10 +1523,11 @@ export type Database = {
           image_url?: string | null
           is_active?: boolean | null
           is_paused?: boolean | null
+          lesson_format?: string | null
           paused_message?: string | null
           price?: number | null
           slug?: string | null
-          subject?: string | null
+          subcategory_id?: string | null
           telegram_link?: string | null
           title?: string | null
           updated_at?: string | null
@@ -1515,19 +1545,30 @@ export type Database = {
       }
       public_products: {
         Row: {
+          billing_period: string | null
+          capacity: number | null
+          category_emoji: string | null
+          category_id: string | null
+          category_name_kk: string | null
+          category_name_ru: string | null
+          category_slug: string | null
           created_at: string | null
-          format: string | null
+          event_starts_at: string | null
           has_schedule: boolean | null
           headline: string | null
           id: string | null
           image_url: string | null
+          lesson_format: string | null
           price: number | null
           seller_avatar_url: string | null
           seller_display_name: string | null
           seller_handle: string | null
           seller_type: string | null
           slug: string | null
-          subject: string | null
+          subcategory_id: string | null
+          subcategory_name_kk: string | null
+          subcategory_name_ru: string | null
+          subcategory_slug: string | null
           title: string | null
         }
         Relationships: []
@@ -1542,8 +1583,18 @@ export type Database = {
         Args: { _name: string; _payload: Json }
         Returns: undefined
       }
+      get_catalog_taxonomy: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_seller_storefront: {
-        Args: { p_handle: string }
+        Args: {
+          p_billing_period?: string
+          p_category_slug?: string
+          p_handle: string
+          p_lesson_format?: string
+          p_subcategory_slug?: string
+        }
         Returns: {
           avatar_url: string
           bio: string
@@ -1561,29 +1612,42 @@ export type Database = {
       is_reserved_handle: { Args: { p_handle: string }; Returns: boolean }
       search_catalog: {
         Args: {
-          p_format?: string
+          p_billing_period?: string
+          p_category_slug?: string
+          p_lesson_format?: string
           p_limit?: number
           p_max?: number
           p_min?: number
           p_offset?: number
           p_sort?: string
-          p_subject?: string
+          p_subcategory_slug?: string
           q?: string
         }
         Returns: {
+          billing_period: string
+          capacity: number
+          category_emoji: string
+          category_id: string
+          category_name_kk: string
+          category_name_ru: string
+          category_slug: string
           created_at: string
-          format: string
+          event_starts_at: string
           has_schedule: boolean
           headline: string
           id: string
           image_url: string
+          lesson_format: string
           price: number
           seller_avatar_url: string
           seller_display_name: string
           seller_handle: string
           seller_type: string
           slug: string
-          subject: string
+          subcategory_id: string
+          subcategory_name_kk: string
+          subcategory_name_ru: string
+          subcategory_slug: string
           title: string
         }[]
       }

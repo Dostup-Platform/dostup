@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { json } from './http.ts'
+import { buyerHasProductAccess } from './subscription.ts'
 
 export function serviceClient(): SupabaseClient {
   return createClient(
@@ -133,14 +134,7 @@ export async function studentHasPurchase(
   userId: string,
   productId: string,
 ): Promise<boolean> {
-  const { data } = await supabase
-    .from('simple_purchases')
-    .select('id')
-    .eq('buyer_profile_id', userId)
-    .eq('product_id', productId)
-    .eq('status', 'completed')
-    .maybeSingle()
-  return !!data
+  return buyerHasProductAccess(supabase, userId, productId)
 }
 
 export async function productIdForSchedule(
@@ -181,6 +175,6 @@ export async function creatorProductIds(
 }
 
 export const CATALOG_COLUMNS =
-  'id, created_at, updated_at, creator_id, creator_account_id, title, headline, description, price, image_url, video_url, has_schedule, is_active, is_paused, paused_message, slug, telegram_link, group_link_label, faq, access_duration_days, format, subject'
+  'id, created_at, updated_at, creator_id, creator_account_id, title, headline, description, price, image_url, video_url, has_schedule, is_active, is_paused, paused_message, slug, telegram_link, group_link_label, faq, access_duration_days, category_id, subcategory_id, lesson_format, event_starts_at, capacity, billing_period'
 
 export const CHECKOUT_COLUMNS = `${CATALOG_COLUMNS}, kaspi_link, kaspi_phone`

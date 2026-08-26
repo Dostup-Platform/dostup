@@ -47,6 +47,31 @@ async function withAuthors(
   })
 }
 
+async function withCategorySlugs(
+  supabase: ReturnType<typeof serviceClient>,
+  rows: CatalogRow[],
+) {
+  const categoryIds = [...new Set(
+    rows
+      .map((row) => row.category_id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0),
+  )]
+  const slugById = new Map<string, string>()
+  if (categoryIds.length) {
+    const { data: categories } = await supabase
+      .from('categories')
+      .select('id, slug')
+      .in('id', categoryIds)
+    for (const cat of categories ?? []) {
+      slugById.set(cat.id, cat.slug)
+    }
+  }
+  return rows.map((row) => ({
+    ...row,
+    category_slug: typeof row.category_id === 'string' ? slugById.get(row.category_id) ?? null : null,
+  }))
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return optionsResponse()
 
@@ -64,7 +89,8 @@ Deno.serve(async (req) => {
         .order('created_at', { ascending: false })
         .limit(200)
       if (error) return json({ error: error.message }, 500)
-      const products = await withAuthors(supabase, (data ?? []) as CatalogRow[])
+      const withSlugs = await withCategorySlugs(supabase, (data ?? []) as CatalogRow[])
+      const products = await withAuthors(supabase, withSlugs)
       return json({ products })
     }
 
@@ -72,25 +98,54 @@ Deno.serve(async (req) => {
       const idOrSlug = String(body.idOrSlug || body.productId || '').trim()
       if (!idOrSlug) return json({ error: 'Missing product' }, 400)
 
-      let { data } = await supabase
-        .from('products')
-        .select(CATALOG_COLUMNS)
+      const byPublicSlug = await supabase
+        .from('public_products')
+        .select('id')
         .eq('slug', idOrSlug)
-        .eq('is_active', true)
         .maybeSingle()
+      const byPublicId = byPublicSlug.data?.id
+        ? byPublicSlug
+        : await supabase
+          .from('public_products')
+          .select('id')
+          .eq('id', idOrSlug)
+          .maybeSingle()
+      const catalogId = (byPublicSlug.data?.id || byPublicId.data?.id) as string | undefined
+
+      let data: CatalogRow | null = null
+      if (catalogId) {
+        const result = await supabase
+          .from('products')
+          .select(CATALOG_COLUMNS)
+          .eq('id', catalogId)
+          .eq('is_active', true)
+          .maybeSingle()
+        data = result.data as CatalogRow | null
+      }
 
       if (!data) {
-        const result = await supabase
+        const bySlug = await supabase
+          .from('products')
+          .select(CATALOG_COLUMNS)
+          .eq('slug', idOrSlug)
+          .eq('is_active', true)
+          .maybeSingle()
+        data = bySlug.data as CatalogRow | null
+      }
+
+      if (!data) {
+        const byId = await supabase
           .from('products')
           .select(CATALOG_COLUMNS)
           .eq('id', idOrSlug)
           .eq('is_active', true)
           .maybeSingle()
-        data = result.data
+        data = byId.data as CatalogRow | null
       }
 
       if (!data) return json({ product: null })
-      const [product] = await withAuthors(supabase, [data as CatalogRow])
+      const [withSlug] = await withCategorySlugs(supabase, [data])
+      const [product] = await withAuthors(supabase, [withSlug])
       return json({ product })
     }
 

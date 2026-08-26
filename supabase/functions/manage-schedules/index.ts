@@ -8,6 +8,7 @@ import {
   unauthorized,
   forbidden,
 } from '../_shared/session.ts'
+import { buyerAccessibleProductIds } from '../_shared/subscription.ts'
 
 async function ownsSchedule(supabase: ReturnType<typeof serviceClient>, caller: Awaited<ReturnType<typeof resolveCaller>>, scheduleId: string) {
   if (!caller) return false
@@ -280,15 +281,15 @@ Deno.serve(async (req) => {
       if (caller.kind !== 'user') return forbidden()
       const productIds = Array.isArray(body.productIds) ? body.productIds.filter((x: unknown) => typeof x === 'string') : []
       if (!productIds.length) return json({ schedules: [] })
+      const allowedIds = await buyerAccessibleProductIds(supabase, caller.userId)
+      const filtered = productIds.filter((id: string) => allowedIds.includes(id))
+      if (!filtered.length) return json({ schedules: [] })
       const { data: purchases } = await supabase
         .from('simple_purchases')
         .select('product_id, assigned_teacher_id, can_choose_teacher')
         .eq('buyer_profile_id', caller.userId)
         .eq('status', 'completed')
-        .in('product_id', productIds)
-      const allowed = new Set((purchases ?? []).map((p: { product_id: string }) => p.product_id))
-      const filtered = productIds.filter((id: string) => allowed.has(id))
-      if (!filtered.length) return json({ schedules: [] })
+        .in('product_id', filtered)
       const { data, error } = await supabase.from('schedules').select('*').in('product_id', filtered)
       if (error) return json({ error: error.message }, 500)
       return json({ schedules: data ?? [], purchases: purchases ?? [] })
@@ -299,14 +300,11 @@ Deno.serve(async (req) => {
       const scheduleIds = Array.isArray(body.scheduleIds) ? body.scheduleIds.filter((x: unknown) => typeof x === 'string') : []
       if (!scheduleIds.length) return json({ slots: [] })
       const { data: schedules } = await supabase.from('schedules').select('id, product_id').in('id', scheduleIds)
-      const productIds = [...new Set((schedules ?? []).map((s: { product_id: string }) => s.product_id))]
-      const { data: purchases } = await supabase
-        .from('simple_purchases')
-        .select('product_id')
-        .eq('buyer_profile_id', caller.userId)
-        .eq('status', 'completed')
-        .in('product_id', productIds)
-      const allowedProducts = new Set((purchases ?? []).map((p: { product_id: string }) => p.product_id))
+      const scheduleProductIds = [...new Set((schedules ?? []).map((s: { product_id: string }) => s.product_id))]
+      const allowedIds = await buyerAccessibleProductIds(supabase, caller.userId)
+      const allowedProducts = new Set(
+        scheduleProductIds.filter((id: string) => allowedIds.includes(id)),
+      )
       const allowedSchedules = (schedules ?? [])
         .filter((s: { product_id: string }) => allowedProducts.has(s.product_id))
         .map((s: { id: string }) => s.id)

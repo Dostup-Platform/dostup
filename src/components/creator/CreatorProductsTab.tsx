@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { useCreatorProducts, useCreateProduct, useUpdateProduct, useDeleteProduct } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { formatPriceTenge } from "@/lib/catalog";
+import { formatPriceTenge, categoryLabel, subcategoryLabel, type BillingPeriod, type CatalogCategory, type LessonFormat } from "@/lib/catalog";
+import { useCatalogTaxonomy } from "@/hooks/useCatalogTaxonomy";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Minus, Package, Loader2, Edit, Trash2, ChevronDown, Eye, PauseCircle, PlayCircle } from "lucide-react";
 import ShareProductButton from "@/components/share/ShareProductButton";
@@ -34,7 +35,16 @@ import ProductMaterialsManager from "./ProductMaterialsManager";
 import CreatorPendingPayments from "./CreatorPendingPayments";
 import { uploadProductMedia, getVideoDuration, MAX_VIDEO_DURATION_SECONDS } from "@/lib/productMediaUpload";
 import { ImageIcon, Video as VideoIcon, X as XIcon, HelpCircle, Play } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useQuery } from "@tanstack/react-query";
+import { creatorCreds, invokeApi } from "@/lib/sessionApi";
 
 interface Product {
   id: string;
@@ -53,9 +63,16 @@ interface Product {
   access_duration_days?: number | null;
   is_paused?: boolean;
   paused_message?: string | null;
+  billing_period?: string | null;
 }
 
 interface FormData {
+  categoryId: string;
+  subcategoryId: string;
+  lessonFormat: LessonFormat | "";
+  eventStartsAt: string;
+  capacity: string;
+  billingPeriod: "month" | "quarter" | "year" | "";
   title: string;
   headline: string;
   description: string;
@@ -84,6 +101,46 @@ interface ProductFormProps {
   pendingVideoFile?: File | null;
   setPendingImageFile?: (f: File | null) => void;
   setPendingVideoFile?: (f: File | null) => void;
+  taxonomyCategories?: CatalogCategory[];
+}
+
+function categorySlugById(categories: CatalogCategory[], categoryId: string) {
+  return categories.find((category) => category.id === categoryId)?.slug ?? "";
+}
+
+function buildTaxonomyPayload(
+  formData: FormData,
+  categories: CatalogCategory[],
+) {
+  const slug = categorySlugById(categories, formData.categoryId);
+  return {
+    category_id: formData.categoryId,
+    subcategory_id: formData.subcategoryId,
+    lesson_format: slug === "online-lessons" ? formData.lessonFormat || null : null,
+    event_starts_at:
+      slug === "events" && formData.eventStartsAt
+        ? new Date(formData.eventStartsAt).toISOString()
+        : null,
+    capacity: slug === "events" && formData.capacity ? Number(formData.capacity) : null,
+    billing_period: slug === "subscriptions" ? (formData.billingPeriod as BillingPeriod) || null : null,
+  };
+}
+
+function validateTaxonomyFields(formData: FormData, categories: CatalogCategory[]) {
+  if (!formData.categoryId || !formData.subcategoryId) {
+    return "Выберите категорию и подкатегорию";
+  }
+  const slug = categorySlugById(categories, formData.categoryId);
+  if (slug === "online-lessons" && !formData.lessonFormat) {
+    return "Выберите формат занятия";
+  }
+  if (slug === "events" && (!formData.eventStartsAt || !formData.capacity)) {
+    return "Укажите дату мероприятия и количество мест";
+  }
+  if (slug === "subscriptions" && !formData.billingPeriod) {
+    return "Выберите период оплаты";
+  }
+  return null;
 }
 
 const ProductForm = ({
@@ -98,7 +155,9 @@ const ProductForm = ({
   pendingVideoFile,
   setPendingImageFile,
   setPendingVideoFile,
+  taxonomyCategories = [],
 }: ProductFormProps) => {
+  const { language } = useLanguage();
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [removeImageOpen, setRemoveImageOpen] = useState(false);
@@ -250,6 +309,11 @@ const ProductForm = ({
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const taxonomyError = validateTaxonomyFields(formData, taxonomyCategories);
+    if (taxonomyError) {
+      toast.error(taxonomyError);
+      return;
+    }
     // Auto-open sections containing required-but-empty fields
     if (!formData.title) {
       setDetailsOpen(true);
@@ -283,6 +347,129 @@ const ProductForm = ({
 
   return (
   <form onSubmit={handleFormSubmit} className="space-y-4 mt-4">
+    <div className="space-y-4 rounded-md border border-border p-4">
+      <div className="space-y-2">
+        <Label>{t("productFormCategory")} *</Label>
+        <Select
+          value={formData.categoryId || undefined}
+          onValueChange={(value) => {
+            setFormData((prev) => ({
+              ...prev,
+              categoryId: value,
+              subcategoryId: "",
+              lessonFormat: "",
+              eventStartsAt: "",
+              capacity: "",
+              billingPeriod: "",
+            }));
+          }}
+        >
+          <SelectTrigger className="h-12">
+            <SelectValue placeholder={t("selectCategory")} />
+          </SelectTrigger>
+          <SelectContent>
+            {taxonomyCategories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {category.emoji} {categoryLabel(category, language)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {formData.categoryId && (
+        <div className="space-y-2">
+          <Label>{t("productFormSubcategory")} *</Label>
+          <Select
+            value={formData.subcategoryId || undefined}
+            onValueChange={(value) => setFormData((prev) => ({ ...prev, subcategoryId: value }))}
+          >
+            <SelectTrigger className="h-12">
+              <SelectValue placeholder={t("selectSubcategory")} />
+            </SelectTrigger>
+            <SelectContent>
+              {(taxonomyCategories.find((category) => category.id === formData.categoryId)?.subcategories ?? []).map(
+                (subcategory) => (
+                  <SelectItem key={subcategory.id} value={subcategory.id}>
+                    {subcategoryLabel(subcategory, language)}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {categorySlugById(taxonomyCategories, formData.categoryId) === "online-lessons" && (
+        <div className="space-y-2">
+          <Label>{t("productFormLessonFormat")} *</Label>
+          <Select
+            value={formData.lessonFormat || undefined}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, lessonFormat: value as LessonFormat }))
+            }
+          >
+            <SelectTrigger className="h-12">
+              <SelectValue placeholder={t("filterFormat")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="individual">{t("filterLessonIndividual")}</SelectItem>
+              <SelectItem value="group">{t("filterLessonGroup")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {categorySlugById(taxonomyCategories, formData.categoryId) === "events" && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="eventStartsAt">{t("productFormEventDate")} *</Label>
+            <Input
+              id="eventStartsAt"
+              type="datetime-local"
+              className="h-12"
+              value={formData.eventStartsAt}
+              onChange={(e) => setFormData((prev) => ({ ...prev, eventStartsAt: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="capacity">{t("productFormCapacity")} *</Label>
+            <Input
+              id="capacity"
+              type="number"
+              min={1}
+              className="h-12"
+              value={formData.capacity}
+              onChange={(e) => setFormData((prev) => ({ ...prev, capacity: e.target.value }))}
+              required
+            />
+          </div>
+        </>
+      )}
+
+      {categorySlugById(taxonomyCategories, formData.categoryId) === "subscriptions" && (
+        <div className="space-y-2">
+          <Label>{t("productFormBillingPeriod")} *</Label>
+          <Select
+            value={formData.billingPeriod || undefined}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, billingPeriod: value as BillingPeriod }))
+            }
+          >
+            <SelectTrigger className="h-12">
+              <SelectValue placeholder={t("productFormBillingPeriod")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="month">{t("billingPeriodMonth")}</SelectItem>
+              <SelectItem value="quarter">{t("billingPeriodQuarter")}</SelectItem>
+              <SelectItem value="year">{t("billingPeriodYear")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+    </div>
+
     {/* ============ ДЕТАЛИ ============ */}
     <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
       <SectionHeader label="Детали" open={detailsOpen} />
@@ -705,6 +892,30 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const { t, language } = useLanguage();
   const isMobile = useIsMobile();
   const { data: products = [], isLoading } = useCreatorProducts(creatorName);
+  const { data: subsData } = useQuery({
+    queryKey: ["creator-subscriptions", creatorName],
+    queryFn: async () => {
+      return invokeApi<{
+        subscriptions: Array<{
+          id: string;
+          product_id: string;
+          buyer_name: string;
+          status: string;
+          current_period_end: string;
+          product_title: string;
+        }>;
+        counts: Record<string, number>;
+      }>("manage-products", {
+        action: "list_subscriptions",
+        ...creatorCreds(),
+      });
+    },
+    enabled: !!creatorName,
+  });
+  const subscriberCounts = subsData?.counts ?? {};
+  const subscriptionRows = subsData?.subscriptions ?? [];
+  const { data: taxonomyRaw = [] } = useCatalogTaxonomy();
+  const taxonomyCategories = taxonomyRaw;
   const sellerHandle = typeof window !== "undefined" ? localStorage.getItem("profile_handle") : null;
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -728,6 +939,12 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   
   const [formData, setFormData] = useState<FormData>({
+    categoryId: "",
+    subcategoryId: "",
+    lessonFormat: "",
+    eventStartsAt: "",
+    capacity: "",
+    billingPeriod: "",
     title: "",
     headline: "",
     description: "",
@@ -746,6 +963,12 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
   const resetForm = () => {
     setFormData({
+      categoryId: "",
+      subcategoryId: "",
+      lessonFormat: "",
+      eventStartsAt: "",
+      capacity: "",
+      billingPeriod: "",
       title: "",
       headline: "",
       description: "",
@@ -769,9 +992,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.title || (formData.isPaid && !formData.price)) {
-      toast.error("Заполните обязательные поля");
+
+    const taxonomyError = validateTaxonomyFields(formData, taxonomyCategories);
+    if (!formData.title || (formData.isPaid && !formData.price) || taxonomyError) {
+      toast.error(taxonomyError || "Заполните обязательные поля");
       return;
     }
 
@@ -788,6 +1012,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         has_schedule: false,
         is_active: true,
         faq: formData.faq.filter(it => it.question.trim() || it.answer.trim()),
+        ...buildTaxonomyPayload(formData, taxonomyCategories),
       });
 
       // Upload pending media (if any)
@@ -829,7 +1054,17 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
+    const eventLocal =
+      product.event_starts_at && !Number.isNaN(Date.parse(product.event_starts_at))
+        ? new Date(product.event_starts_at).toISOString().slice(0, 16)
+        : "";
     setFormData({
+      categoryId: product.category_id || "",
+      subcategoryId: product.subcategory_id || "",
+      lessonFormat: (product.lesson_format as LessonFormat) || "",
+      eventStartsAt: eventLocal,
+      capacity: product.capacity != null ? String(product.capacity) : "",
+      billingPeriod: (product.billing_period as BillingPeriod) || "",
       title: product.title,
       headline: product.headline || "",
       description: product.description || "",
@@ -849,9 +1084,10 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!editingProduct || !formData.title || (formData.isPaid && !formData.price)) {
-      toast.error("Заполните обязательные поля");
+
+    const taxonomyError = validateTaxonomyFields(formData, taxonomyCategories);
+    if (!editingProduct || !formData.title || (formData.isPaid && !formData.price) || taxonomyError) {
+      toast.error(taxonomyError || "Заполните обязательные поля");
       return;
     }
 
@@ -868,6 +1104,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         image_url: formData.imageUrl || null,
         video_url: formData.videoUrl || null,
         faq: formData.faq.filter(it => it.question.trim() || it.answer.trim()) as any,
+        ...buildTaxonomyPayload(formData, taxonomyCategories),
       });
       
       toast.success("Продукт обновлён!");
@@ -902,6 +1139,41 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   return (
     <div className="space-y-6">
       <CreatorPendingPayments creatorName={creatorName} />
+
+      {subscriptionRows.length > 0 && (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <h3 className="font-semibold text-foreground">{t("activeSubscribers")}</h3>
+            <div className="space-y-2">
+              {subscriptionRows
+                .filter(
+                  (row) =>
+                    row.status !== "past_due" && new Date(row.current_period_end) > new Date(),
+                )
+                .map((row) => (
+                  <div
+                    key={row.id}
+                    className="flex flex-wrap items-center justify-between gap-2 text-sm border-b border-border pb-2 last:border-0 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">{row.buyer_name}</p>
+                      <p className="text-muted-foreground truncate">{row.product_title}</p>
+                    </div>
+                    <p className="text-muted-foreground whitespace-nowrap">
+                      {t("nextRenewal")}:{" "}
+                      {new Intl.DateTimeFormat(language === "kk" ? "kk-KZ" : "ru-RU", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      }).format(new Date(row.current_period_end))}
+                    </p>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">{t("products")}</h2>
         <Dialog open={isCreating} onOpenChange={(open) => { setIsCreating(open); if (!open) resetForm(); }}>
@@ -921,6 +1193,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
               setFormData={setFormData}
               isPending={createProduct.isPending}
               t={t}
+              taxonomyCategories={taxonomyCategories}
               pendingImageFile={pendingImageFile}
               pendingVideoFile={pendingVideoFile}
               setPendingImageFile={setPendingImageFile}
@@ -943,6 +1216,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
             setFormData={setFormData}
             isPending={updateProduct.isPending}
             t={t}
+            taxonomyCategories={taxonomyCategories}
             editingProductId={editingProduct?.id || null}
           />
         </DialogContent>
@@ -993,6 +1267,11 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
               
               {/* Badges */}
               <div className="flex items-center gap-1.5 mb-3">
+                {product.billing_period && (
+                  <span className={`bg-primary/10 text-primary px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
+                    {t("activeSubscribers")}: {subscriberCounts[product.id] ?? 0}
+                  </span>
+                )}
                 {product.has_schedule && (
                   <span className={`bg-primary/10 text-primary px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
                     {language === "ru" ? "Расписание" : "Кесте"}

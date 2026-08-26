@@ -2,40 +2,38 @@ import { Link } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ProductCover from "@/components/marketplace/ProductCover";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { formatLabelKey, formatPriceTenge, productHref, type CatalogProduct } from "@/lib/catalog";
+import { formatCatalogPrice, formatEventDate, productHref, type CatalogProduct } from "@/lib/catalog";
 import { sellerInitial } from "@/lib/productCover";
 
 const ProductCard = ({ product }: { product: CatalogProduct }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const sellerName = product.seller_display_name || t("author");
   const initial = sellerInitial(sellerName);
 
   return (
     <Link
       to={productHref(product)}
-      className="group block overflow-hidden rounded-2xl bg-card focus-ring motion-safe:transition-shadow motion-safe:hover:shadow-md"
+      className="group flex min-w-0 flex-col overflow-hidden rounded-2xl bg-card focus-ring motion-safe:transition-shadow motion-safe:hover:shadow-md"
     >
-      <div className="relative">
-        <ProductCover
-          productId={product.id}
-          title={product.title}
-          imageUrl={product.image_url}
-          className="rounded-none"
-        >
-          <span className="pointer-events-none absolute left-3 top-3 rounded-full border border-[#E3E5E8] bg-white px-2.5 py-1 text-[13px] font-medium leading-none text-[#1F2328]">
-            {t(formatLabelKey(String(product.format)))}
-          </span>
-        </ProductCover>
-      </div>
-      <div className="px-4 pb-4 pt-3">
-        <div className="flex items-start gap-3">
-          <h3 className="min-w-0 flex-1 line-clamp-2 text-base font-semibold leading-snug text-foreground">
-            {product.title}
-          </h3>
-          <p className="shrink-0 pt-0.5 text-base font-bold tabular-nums leading-snug text-foreground">
-            {formatPriceTenge(product.price)}
+      <ProductCover
+        productId={product.id}
+        title={product.title}
+        imageUrl={product.image_url}
+        emoji={product.category_emoji}
+        className="rounded-none"
+      />
+      <div className="flex min-w-0 flex-col px-4 pb-4 pt-3">
+        <h3 className="line-clamp-2 w-full min-w-0 text-base font-semibold leading-snug text-foreground">
+          {product.title}
+        </h3>
+        {product.category_slug === "events" && product.event_starts_at && (
+          <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-[#6B7280]">
+            {formatEventDate(product.event_starts_at, language)}
           </p>
-        </div>
+        )}
+        <p className="mt-2 w-full text-left text-base font-bold tabular-nums leading-snug text-foreground">
+          {formatCatalogPrice(product, language)}
+        </p>
         <div className="mt-2 flex min-w-0 items-center gap-2">
           <Avatar className="h-5 w-5">
             {product.seller_avatar_url && (

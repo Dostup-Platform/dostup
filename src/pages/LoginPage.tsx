@@ -1,59 +1,63 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import AuthEntryScreen from "@/components/auth/AuthEntryScreen";
 import EmailCodeScreen from "@/components/auth/EmailCodeScreen";
-import RoleSelectionScreen from "@/components/auth/RoleSelectionScreen";
-import SellerNameScreen from "@/components/auth/SellerNameScreen";
-import AppHeader from "@/components/layout/AppHeader";
-import PublicLocaleToggle from "@/components/marketplace/PublicLocaleToggle";
+import DisplayNameOnboardingScreen from "@/components/auth/DisplayNameOnboardingScreen";
+import LoginModal from "@/components/auth/LoginModal";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useEmailAuth } from "@/hooks/useEmailAuth";
 import { authErrorKeyFromUnknown, authErrorTranslationKey } from "@/lib/authErrors";
 import {
-  clearSellerDisplayName,
-  isOnboardingSession,
   isSafeInternalPath,
-  markRoleOnboardingComplete,
+  markNameOnboardingComplete,
   parseAuthRedirectPath,
   profileHomePath,
   readAuthEmail,
-  readSellerDisplayName,
   rememberAuthNext,
-  rememberSellerDisplayName,
-  type ProfileType,
 } from "@/lib/creatorAuth";
+import { LOGIN_CARD_CLASS, readLoginBackground } from "@/lib/loginModal";
+import { invokeApi } from "@/lib/sessionApi";
+import { cn } from "@/lib/utils";
 
-type Screen = "name" | "entry" | "code" | "role";
+type Screen = "name" | "entry" | "code";
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { loading, profileType, sessionToken, switchProfile, createProfile, refreshSession } = useSimpleAuth();
+  const { loading, profileType, sessionToken, refreshSession, switchProfile } = useSimpleAuth();
   const { t } = useLanguage();
   const [screen, setScreen] = useState<Screen>("entry");
-  const [roleEmail, setRoleEmail] = useState("");
-  const [sellerDisplayName, setSellerDisplayName] = useState(() => readSellerDisplayName());
-  const onboarding = isOnboardingSession(localStorage.getItem("creator_name"));
+  const [nameEmail, setNameEmail] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const signedIn = Boolean(sessionToken && profileType);
   const nextPath = searchParams.get("next");
 
-  const goToPostAuthStep = (email: string) => {
-    setRoleEmail(email);
-    setScreen(readSellerDisplayName() ? "role" : "name");
+  const closeModal = useCallback(() => {
+    if (readLoginBackground(location.state)) {
+      navigate(-1);
+      return;
+    }
+    navigate("/", { replace: true });
+  }, [location.state, navigate]);
+
+  const goToNameStep = (email: string) => {
+    setNameEmail(email);
+    setScreen("name");
   };
 
   const applyAuthRedirect = useCallback(async (path: string) => {
     const parsed = parseAuthRedirectPath(path);
-    if (parsed.type === "role") {
-      goToPostAuthStep(parsed.email);
-      window.history.replaceState({}, "", "/login");
+    if (parsed.type === "name") {
+      goToNameStep(parsed.email);
+      navigate("/login", { replace: true, state: location.state });
       return;
     }
     navigate(parsed.path, { replace: true });
-  }, [navigate]);
+  }, [location.state, navigate]);
 
   const auth = useEmailAuth({ onAuthRedirect: applyAuthRedirect });
 
@@ -72,21 +76,20 @@ const LoginPage = () => {
       searchParams.delete("auth_error");
       changed = true;
     }
-    if (onboardingParam === "role") {
-      goToPostAuthStep(emailParam?.trim().toLowerCase() || readAuthEmail());
+    if (onboardingParam === "name" || onboardingParam === "role") {
+      goToNameStep(emailParam?.trim().toLowerCase() || readAuthEmail());
       searchParams.delete("onboarding");
       searchParams.delete("email");
       changed = true;
     }
     if (changed) {
-      setSearchParams(searchParams, { replace: true });
+      setSearchParams(searchParams, { replace: true, state: location.state });
     }
-  }, [searchParams, setSearchParams, t]);
+  }, [location.state, searchParams, setSearchParams, t]);
 
   useEffect(() => {
     if (loading) return;
-    if (screen === "role" || screen === "code" || screen === "name") return;
-    if (onboarding) return;
+    if (screen === "code" || screen === "name") return;
     if (signedIn) {
       const destination =
         isSafeInternalPath(nextPath) && nextPath !== "/"
@@ -94,25 +97,7 @@ const LoginPage = () => {
           : profileHomePath(profileType || "buyer", localStorage.getItem("creator_account_type"));
       navigate(destination, { replace: true });
     }
-  }, [loading, navigate, nextPath, onboarding, profileType, screen, signedIn]);
-
-  const goAfterRole = async (type: ProfileType, address: string) => {
-    const displayName = sellerDisplayName || readSellerDisplayName();
-    if (!displayName) {
-      setScreen("name");
-      return;
-    }
-    const result = onboarding
-      ? await createProfile({ profileType: type, displayName })
-      : await switchProfile({ createType: type, displayName });
-    if ("error" in result) {
-      toast.error(result.error === "network_failure" ? t("networkFailure") : t("switchProfileError"));
-      return;
-    }
-    if (address) markRoleOnboardingComplete(address);
-    clearSellerDisplayName();
-    navigate(result.path, { replace: true });
-  };
+  }, [loading, navigate, nextPath, profileType, screen, signedIn]);
 
   const handleContinue = async (e: FormEvent) => {
     e.preventDefault();
@@ -134,80 +119,88 @@ const LoginPage = () => {
     }
   };
 
-  const handleSellerNameContinue = (name: string) => {
-    rememberSellerDisplayName(name);
-    setSellerDisplayName(name);
-    setScreen("role");
+  const handleNameContinue = async (displayName: string) => {
+    const address = nameEmail || auth.pendingEmail || auth.email || readAuthEmail();
+    setSavingName(true);
+    try {
+      const profileId = localStorage.getItem("profile_id") || "";
+      if (!profileId) {
+        const created = await switchProfile({ createType: "buyer", displayName });
+        if ("error" in created) {
+          toast.error(t("displayNameSaveError"));
+          return;
+        }
+      } else {
+        await invokeApi("manage-profile", {
+          action: "set_display_name",
+          token: localStorage.getItem("creator_token") || "",
+          profileId,
+          displayName,
+        });
+        localStorage.setItem("profile_display_name", displayName);
+      }
+      if (address) markNameOnboardingComplete(address);
+      await refreshSession();
+      const destination =
+        isSafeInternalPath(nextPath) && nextPath !== "/"
+          ? nextPath
+          : profileHomePath("buyer");
+      navigate(destination, { replace: true });
+    } catch {
+      toast.error(t("displayNameSaveError"));
+    } finally {
+      setSavingName(false);
+    }
   };
 
-  const handleRoleSelect = async (type: ProfileType) => {
-    const address = roleEmail || auth.pendingEmail || auth.email || readAuthEmail();
-    await goAfterRole(type, address);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-hero flex flex-col">
-      <AppHeader>
-        <PublicLocaleToggle />
-        <Link
-          to="/login"
-          className="inline-flex h-10 items-center rounded-full border border-[#E3E5E8] px-5 text-[15px] font-medium text-[#1F2328] transition-colors hover:bg-[#F6F7F8] focus-ring"
-        >
-          {t("signIn")}
-        </Link>
-      </AppHeader>
-      <main className="flex-1 flex items-center justify-center px-4 py-6">
-        {screen === "name" && (
-          <SellerNameScreen
-            initialValue={sellerDisplayName}
-            onContinue={handleSellerNameContinue}
-          />
-        )}
-        {screen === "role" && <RoleSelectionScreen onSelect={handleRoleSelect} />}
-        {screen === "code" && auth.pendingEmail && (
-          <EmailCodeScreen
-            email={auth.pendingEmail}
-            verifying={auth.verifying}
-            sending={auth.sending}
-            onVerify={async (code) => {
-              const result = await auth.verifyCode(code);
-              if (!result) return;
-              if (result.status === "navigated") return;
-              if (result.status === "role_required") {
-                goToPostAuthStep(result.email);
-              }
-            }}
-            onResend={() => auth.sendCode(auth.pendingEmail || auth.email)}
-            onBack={() => {
-              auth.setPendingEmail(null);
-              setScreen("entry");
-            }}
-          />
-        )}
-        {screen === "entry" && !signedIn && !onboarding && (
-          <AuthEntryScreen
-            email={auth.email}
-            onEmailChange={auth.setEmail}
-            onContinue={(e) => void handleContinue(e)}
-            onGoogle={() => void handleGoogle()}
-            sending={auth.sending}
-            googleLoading={auth.googleLoading}
-          />
-        )}
-      </main>
-      <p className="pb-6 text-center text-sm text-muted-foreground">
-        <Link to="/" className="hover:text-foreground">{t("back")}</Link>
-      </p>
+  const spinner = (
+    <div className={cn(LOGIN_CARD_CLASS, "flex items-center justify-center bg-background sm:min-h-[280px] sm:bg-card")}>
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
+
+  const body =
+    loading ? (
+      spinner
+    ) : screen === "name" ? (
+      <DisplayNameOnboardingScreen
+        initialValue={localStorage.getItem("profile_display_name") || ""}
+        onContinue={(name) => void handleNameContinue(name)}
+        saving={savingName}
+      />
+    ) : screen === "code" && auth.pendingEmail ? (
+      <EmailCodeScreen
+        email={auth.pendingEmail}
+        verifying={auth.verifying}
+        sending={auth.sending}
+        onVerify={async (code) => {
+          const result = await auth.verifyCode(code);
+          if (!result) return;
+          if (result.status === "navigated") return;
+          if (result.status === "name_required") {
+            goToNameStep(result.email);
+          }
+        }}
+        onResend={() => auth.sendCode(auth.pendingEmail || auth.email)}
+        onBack={() => {
+          auth.setPendingEmail(null);
+          setScreen("entry");
+        }}
+      />
+    ) : screen === "entry" && !signedIn ? (
+      <AuthEntryScreen
+        email={auth.email}
+        onEmailChange={auth.setEmail}
+        onContinue={(e) => void handleContinue(e)}
+        onGoogle={() => void handleGoogle()}
+        sending={auth.sending}
+        googleLoading={auth.googleLoading}
+      />
+    ) : (
+      spinner
+    );
+
+  return <LoginModal onClose={closeModal}>{body}</LoginModal>;
 };
 
 export default LoginPage;

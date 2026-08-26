@@ -1,4 +1,5 @@
-export type ProductFormat = "recorded" | "individual" | "group";
+export type LessonFormat = "individual" | "group";
+export type BillingPeriod = "month" | "quarter" | "year";
 
 export type CatalogProduct = {
   id: string;
@@ -7,14 +8,45 @@ export type CatalogProduct = {
   headline: string | null;
   image_url: string | null;
   price: number;
-  format: ProductFormat | string;
-  subject: string | null;
   has_schedule: boolean;
   created_at: string;
+  category_id: string;
+  category_slug: string;
+  category_name_ru: string;
+  category_name_kk: string;
+  category_emoji: string;
+  subcategory_id: string;
+  subcategory_slug: string;
+  subcategory_name_ru: string;
+  subcategory_name_kk: string;
+  lesson_format: LessonFormat | null;
+  event_starts_at: string | null;
+  capacity: number | null;
+  billing_period: BillingPeriod | null;
   seller_handle: string | null;
   seller_display_name: string | null;
   seller_avatar_url: string | null;
   seller_type: string | null;
+};
+
+export type CatalogSubcategory = {
+  id: string;
+  slug: string;
+  name_ru: string;
+  name_kk: string;
+  sort_order: number;
+  product_count: number;
+};
+
+export type CatalogCategory = {
+  id: string;
+  slug: string;
+  name_ru: string;
+  name_kk: string;
+  emoji: string;
+  sort_order: number;
+  product_count: number;
+  subcategories: CatalogSubcategory[];
 };
 
 export type SellerStorefront = {
@@ -40,12 +72,91 @@ export function formatPriceTenge(price: number) {
   return `${amount}\u00A0₸`;
 }
 
-export function isProductFormat(value: string | null | undefined): value is ProductFormat {
-  return value === "recorded" || value === "individual" || value === "group";
+export function isLessonFormat(value: string | null | undefined): value is LessonFormat {
+  return value === "individual" || value === "group";
 }
 
-export function formatLabelKey(format: string | null | undefined): "formatRecorded" | "formatIndividual" | "formatGroup" {
-  if (format === "individual") return "formatIndividual";
-  if (format === "group") return "formatGroup";
-  return "formatRecorded";
+export function isBillingPeriod(value: string | null | undefined): value is BillingPeriod {
+  return value === "month" || value === "quarter" || value === "year";
+}
+
+export function categoryLabel(category: Pick<CatalogCategory, "name_ru" | "name_kk">, language: "ru" | "kk") {
+  return language === "kk" ? category.name_kk : category.name_ru;
+}
+
+export function productCategoryLabel(
+  product: Pick<CatalogProduct, "category_name_ru" | "category_name_kk">,
+  language: "ru" | "kk",
+) {
+  return language === "kk" ? product.category_name_kk : product.category_name_ru;
+}
+
+export function subcategoryLabel(
+  subcategory: Pick<CatalogSubcategory, "name_ru" | "name_kk">,
+  language: "ru" | "kk",
+) {
+  return language === "kk" ? subcategory.name_kk : subcategory.name_ru;
+}
+
+export function visibleTaxonomy(categories: CatalogCategory[]): CatalogCategory[] {
+  return categories
+    .filter((category) => category.product_count > 0)
+    .map((category) => ({
+      ...category,
+      subcategories: category.subcategories.filter((subcategory) => subcategory.product_count > 0),
+    }));
+}
+
+export function billingPeriodLabel(period: BillingPeriod, language: "ru" | "kk") {
+  const labels: Record<BillingPeriod, { ru: string; kk: string }> = {
+    month: { ru: "в месяц", kk: "айына" },
+    quarter: { ru: "в квартал", kk: "тоқсанына" },
+    year: { ru: "в год", kk: "жылына" },
+  };
+  return language === "kk" ? labels[period].kk : labels[period].ru;
+}
+
+export function formatCatalogPrice(
+  product: Pick<CatalogProduct, "price" | "category_slug" | "billing_period">,
+  language: "ru" | "kk",
+) {
+  const price = formatPriceTenge(product.price);
+  if (product.category_slug === "subscriptions" && product.billing_period) {
+    return `${price} ${billingPeriodLabel(product.billing_period, language)}`;
+  }
+  return price;
+}
+
+export function formatEventDate(iso: string, language: "ru" | "kk") {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const months =
+    language === "kk"
+      ? ["қаң", "ақп", "нау", "сәу", "мам", "мау", "шіл", "там", "қыр", "қаз", "қар", "жел"]
+      : ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+  const day = date.getDate();
+  const month = months[date.getMonth()] || "";
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const year = date.getFullYear();
+  const yearPart = year !== new Date().getFullYear() ? ` ${year}` : "";
+  return `${day} ${month}${yearPart}, ${hours}:${minutes}`;
+}
+
+const CATALOG_GAP = 24;
+const CATALOG_MIN_CARD = 220;
+
+/** Columns from the content width next to the rail, never below 220px cards. */
+export function catalogColumnCount(width: number, gap = CATALOG_GAP, minCard = CATALOG_MIN_CARD) {
+  if (width <= 0) return 1;
+  let columns = 1;
+  if (width >= 1100) columns = 4;
+  else if (width >= 820) columns = 3;
+  else if (width >= 560) columns = 2;
+  while (columns > 1) {
+    const card = (width - gap * (columns - 1)) / columns;
+    if (card >= minCard) break;
+    columns -= 1;
+  }
+  return columns;
 }

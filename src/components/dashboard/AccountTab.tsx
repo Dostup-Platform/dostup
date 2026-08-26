@@ -8,11 +8,11 @@ import { User, Package, LogOut, Loader2, Download, Globe } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate, Link } from "react-router-dom";
-import ProfileSwitcher from "@/components/auth/ProfileSwitcher";
 import { useState } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
 import { usePWADetection } from "@/hooks/usePWADetection";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import AvatarSettings from "@/components/account/AvatarSettings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,23 +60,15 @@ const AccountTab = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-lg font-bold text-primary">
-                {user.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div>
-              <p className="font-medium text-foreground">{user.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {t("memberSince")} {format(parseISO(user.created_at), "LLLL yyyy", { locale: ru })}
-              </p>
-            </div>
+          <AvatarSettings displayName={user.name} />
+          <div>
+            <p className="font-medium text-foreground">{user.name}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("memberSince")} {format(parseISO(user.created_at), "LLLL yyyy", { locale: ru })}
+            </p>
           </div>
         </CardContent>
       </Card>
-
-      <ProfileSwitcher activeType="buyer" />
 
       {/* Purchased Products */}
       <Card>

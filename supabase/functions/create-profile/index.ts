@@ -23,7 +23,11 @@ Deno.serve(async (req) => {
     const token = typeof body.token === 'string' ? body.token.trim() : ''
     if (!token) return json({ success: false, error: 'Missing token' }, 401)
 
-    const profileType = parseProfileType(body.profileType ?? body.profile_type ?? body.createType ?? body.create_type)
+    const suppliedType = body.profileType ?? body.profile_type
+    if (typeof suppliedType !== 'string' || !suppliedType.trim()) {
+      return json({ error: 'profileType required' }, 400)
+    }
+    const profileType = parseProfileType(suppliedType)
     if (!profileType) return json({ error: 'profileType required' }, 400)
 
     const customName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 100) : ''
@@ -50,6 +54,9 @@ Deno.serve(async (req) => {
     const existing = await listProfiles(supabase, authUserId)
     if (existing.some((p) => p.type === profileType)) {
       return json({ success: false, error: 'profile_exists' }, 409)
+    }
+    if (profileType !== 'buyer' && !existing.some((p) => p.type === 'buyer')) {
+      return json({ success: false, error: 'buyer_required' }, 409)
     }
 
     const { data: created, error: insertError } = await supabase

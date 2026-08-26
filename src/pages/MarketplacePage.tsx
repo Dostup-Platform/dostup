@@ -1,27 +1,27 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Loader2, Search } from "lucide-react";
+import CatalogFilterRow from "@/components/marketplace/CatalogFilterRow";
+import CategoryMenu from "@/components/marketplace/CategoryMenu";
+import CatalogGrid from "@/components/marketplace/CatalogGrid";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
-import ProductCard from "@/components/marketplace/ProductCard";
 import PublicContainer from "@/components/marketplace/PublicContainer";
+import BuyerAppShell from "@/components/layout/BuyerAppShell";
+import BuyerMobileNav from "@/components/layout/BuyerMobileNav";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useCatalogSearch, type CatalogSort } from "@/hooks/useCatalogSearch";
-import { type ProductFormat } from "@/lib/catalog";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { useCatalogSearch, useCatalogTaxonomy, type CatalogSort } from "@/hooks/useCatalogSearch";
+import { categoryLabel, visibleTaxonomy, type LessonFormat } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
 
-const FORMAT_CHIPS: { format: ProductFormat; labelKey: "formatRecorded" | "formatIndividual" | "formatGroup" }[] = [
-  { format: "recorded", labelKey: "formatRecorded" },
-  { format: "individual", labelKey: "formatIndividual" },
-  { format: "group", labelKey: "formatGroup" },
-];
-
 const MarketplacePage = () => {
-  const { t } = useLanguage();
-  const navigate = useNavigate();
-
+  const { t, language } = useLanguage();
+  const { profileType, sessionToken } = useSimpleAuth();
+  const signedIn = Boolean(sessionToken && profileType);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [format, setFormat] = useState<ProductFormat | "">("");
+  const [categorySlug, setCategorySlug] = useState("");
+  const [subcategorySlug, setSubcategorySlug] = useState("");
+  const [lessonFormat, setLessonFormat] = useState<LessonFormat | "">("");
   const sort: CatalogSort = "newest";
 
   useEffect(() => {
@@ -29,30 +29,44 @@ const MarketplacePage = () => {
     return () => window.clearTimeout(id);
   }, [query]);
 
+  const taxonomy = useCatalogTaxonomy();
+  const categories = visibleTaxonomy(taxonomy.data ?? []);
+
   const search = useCatalogSearch({
     q: debouncedQuery,
-    format,
+    categorySlug,
+    subcategorySlug,
+    lessonFormat,
     sort,
   });
 
   const products = search.data ?? [];
-  const loading = search.isLoading;
+  const loading = search.isLoading || taxonomy.isLoading;
 
-  const goLogin = () => {
-    navigate("/login");
+  const selectCategory = (slug: string) => {
+    setCategorySlug((current) => (current === slug ? "" : slug));
+    setSubcategorySlug("");
+    setLessonFormat("");
   };
 
-  return (
+  const selectFromMenu = (catSlug: string, subSlug: string) => {
+    setCategorySlug(catSlug);
+    setSubcategorySlug(subSlug);
+    setLessonFormat("");
+  };
+
+  const page = (
     <div className="flex min-h-screen flex-col bg-background">
       <MarketplaceHeader />
-      <PublicContainer as="main" className="flex flex-1 flex-col pb-0 pt-0">
+      <main className="flex flex-1 flex-col pb-0 pt-0 md:pb-16">
+        <PublicContainer>
         <section className="text-center">
           <h1 className="hero-headline mx-auto max-w-4xl pt-20 pb-14 text-balance">
             <span className="block">{t("marketplaceHeadlineLine1")}</span>
             <span className="block">{t("marketplaceHeadlineLine2")}</span>
           </h1>
 
-          <div className="relative mx-auto w-full max-w-[760px]">
+          <div className="relative mx-auto flex w-full max-w-[760px] items-center rounded-[10px] bg-[#F6F7F8]">
             <Search
               className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#9AA0A6]"
               aria-hidden
@@ -62,39 +76,55 @@ const MarketplacePage = () => {
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t("searchCatalogPlaceholder")}
               aria-label={t("searchCatalogPlaceholder")}
-              className="h-[62px] w-full rounded-[10px] border-0 bg-[#F6F7F8] pl-[52px] pr-5 text-base text-[#1F2328] placeholder:text-[#9AA0A6] focus-ring"
+              className="h-[62px] min-w-0 flex-1 rounded-l-[10px] border-0 bg-transparent pl-[52px] pr-3 text-base text-[#1F2328] placeholder:text-[#9AA0A6] focus-ring"
               type="search"
               autoComplete="off"
             />
+            <CategoryMenu categories={categories} onSelect={selectFromMenu} />
           </div>
 
-          <div className="mx-auto mt-10 flex max-w-4xl flex-wrap justify-center gap-4">
-            {FORMAT_CHIPS.map((chip) => {
-              const active = format === chip.format;
-              return (
-                <button
-                  key={chip.format}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setFormat(active ? "" : chip.format)}
-                  className={cn(
-                    "inline-flex h-11 items-center rounded-full border px-6 text-[15px] font-medium focus-ring",
-                    active
-                      ? "border-[#FF6B00]/30 bg-[#FF6B00]/10 text-[#1F2328]"
-                      : "border-[#E3E5E8] bg-white text-[#1F2328] hover:border-[#D0D3D8]",
-                  )}
-                >
-                  {t(chip.labelKey)}
-                </button>
-              );
-            })}
-          </div>
+          {categories.length >= 3 && (
+            <div className="mx-auto mt-10 flex max-w-4xl flex-wrap justify-center gap-4">
+              {categories.map((category) => {
+                const active = categorySlug === category.slug;
+                return (
+                  <button
+                    key={category.slug}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => selectCategory(category.slug)}
+                    className={cn(
+                      "inline-flex h-11 items-center rounded-full border px-6 text-[15px] font-medium focus-ring",
+                      active
+                        ? "border-[#FF6B00]/30 bg-[#FF6B00]/10 text-[#1F2328]"
+                        : "border-[#E3E5E8] bg-white text-[#1F2328] hover:border-[#D0D3D8]",
+                    )}
+                  >
+                    {categoryLabel(category, language)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </section>
+        </PublicContainer>
 
-        <section className="mt-[140px] pb-16">
+        <section className="mt-[140px] w-full px-6 pb-16">
           <h2 className="mb-6 text-[26px] font-bold tracking-tight text-[#1F2328]">
             {t("allCatalogProducts")}
           </h2>
+
+          {categorySlug && (
+            <CatalogFilterRow
+              categories={categories}
+              categorySlug={categorySlug}
+              subcategorySlug={subcategorySlug}
+              lessonFormat={lessonFormat}
+              onSubcategoryChange={setSubcategorySlug}
+              onLessonFormatChange={setLessonFormat}
+            />
+          )}
+
           {loading ? (
             <div className="flex justify-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -105,29 +135,34 @@ const MarketplacePage = () => {
               <p className="public-meta mt-2">{t("catalogEmptyHint")}</p>
             </div>
           ) : (
-            <div className="public-catalog-grid">
-              {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
+            <CatalogGrid products={products} />
           )}
         </section>
-      </PublicContainer>
+      </main>
 
       <div className="mt-auto border-t border-border">
-        <PublicContainer className="flex flex-col gap-3 py-6 sm:flex-row sm:items-center sm:justify-between">
+        <PublicContainer className="py-6">
           <p className="public-body max-w-3xl text-[#6B7280]">{t("marketplaceSellerLine")}</p>
-          <button
-            type="button"
-            onClick={goLogin}
-            className="shrink-0 text-left text-sm font-medium text-[#FF6B00] focus-ring rounded-md hover:underline"
-          >
-            {t("teachOnDostupArrow")}
-          </button>
         </PublicContainer>
       </div>
     </div>
   );
-};
 
+  if (signedIn) {
+    return (
+      <BuyerAppShell
+        activeSection="search"
+        mobileNav={
+          profileType === "buyer" ? (
+            <BuyerMobileNav activeTab="search" />
+          ) : undefined
+        }
+      >
+        <div className="pb-20 md:pb-0">{page}</div>
+      </BuyerAppShell>
+    );
+  }
+
+  return page;
+};
 export default MarketplacePage;

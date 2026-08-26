@@ -1,12 +1,35 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Calendar, User, Bell, Loader2, BookOpen, MessageCircle, Store } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Loader2, MessageCircle } from "lucide-react";
 import SupportChat from "@/components/SupportChat";
 import { useSupportUnread } from "@/hooks/useSupportUnread";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { studentCreds, invokeApi } from "@/lib/sessionApi";
+import AppHeader from "@/components/layout/AppHeader";
+import BuyerAppShell from "@/components/layout/BuyerAppShell";
+import BuyerHeaderAccount from "@/components/layout/BuyerHeaderAccount";
+import BuyerMobileNav from "@/components/layout/BuyerMobileNav";
+import NotificationsTab from "@/components/dashboard/NotificationsTab";
+import HomeTab from "@/components/dashboard/HomeTab";
+import AccountTab from "@/components/dashboard/AccountTab";
+import MaterialsTab from "@/components/dashboard/MaterialsTab";
+import ScheduleTab from "@/components/dashboard/ScheduleTab";
+import { useRealtimeStudentNotifications } from "@/hooks/useRealtimeStudentNotifications";
+import { useFCMRegistration } from "@/hooks/useFCMRegistration";
+import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
+import { useAppResume } from "@/hooks/useAppResume";
+import { useQuery } from "@tanstack/react-query";
+import { buyerSectionFromPath } from "@/lib/navigation";
 
-const StudentSupportButton = ({ activeTab, userId, userName, onClick }: { activeTab: string; userId: string; userName: string; onClick: () => void }) => {
+const StudentSupportButton = ({
+  activeTab,
+  userId,
+  onClick,
+}: {
+  activeTab: string;
+  userId: string;
+  onClick: () => void;
+}) => {
   const unread = useSupportUnread("student", userId);
   return (
     <button
@@ -25,41 +48,25 @@ const StudentSupportButton = ({ activeTab, userId, userName, onClick }: { active
     </button>
   );
 };
-import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { studentCreds, invokeApi } from "@/lib/sessionApi";
-import AppHeader from "@/components/layout/AppHeader";
-
-import MaterialsTab from "@/components/dashboard/MaterialsTab";
-import ScheduleTab from "@/components/dashboard/ScheduleTab";
-import AccountTab from "@/components/dashboard/AccountTab";
-import NotificationsTab from "@/components/dashboard/NotificationsTab";
-import HomeTab from "@/components/dashboard/HomeTab";
-import { useRealtimeStudentNotifications } from "@/hooks/useRealtimeStudentNotifications";
-import { useFCMRegistration } from "@/hooks/useFCMRegistration";
-import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
-import { useAppResume } from "@/hooks/useAppResume";
 
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState("home");
+  const [supportOpen, setSupportOpen] = useState(false);
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
-  const previousTab = useRef(activeTab);
   const { user, loading, profileType, refreshSession } = useSimpleAuth();
-  const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAccountView = location.pathname === "/dashboard/account";
+  const buyerSection = buyerSectionFromPath(location.pathname) ?? "home";
   useAppResume();
 
   const lastViewedKey = user?.id ? `student_notifications_last_viewed_${user.id}` : null;
-  
+
   useEffect(() => {
     if (!lastViewedKey) return;
     const saved = localStorage.getItem(lastViewedKey);
-    if (saved) {
-      setLastViewedAt(new Date(saved));
-    }
+    if (saved) setLastViewedAt(new Date(saved));
   }, [lastViewedKey]);
 
-  // Get purchased product IDs for filtering material unlocks
   const { data: purchasedProductIds = [] } = useQuery({
     queryKey: ["student-purchased-product-ids", user?.id],
     queryFn: async () => {
@@ -69,12 +76,11 @@ const Dashboard = () => {
         ...studentCreds(),
         status: "completed",
       });
-      return [...new Set((data.purchases ?? []).map(p => p.product_id))];
+      return [...new Set((data.purchases ?? []).map((p) => p.product_id))];
     },
     enabled: !!user?.id,
   });
 
-  // Получить отменённые записи для подсчёта бейджа
   const { data: cancellations = [] } = useQuery({
     queryKey: ["student-cancellations-count", user?.id],
     queryFn: async () => {
@@ -109,7 +115,6 @@ const Dashboard = () => {
     enabled: !!user?.id,
   });
 
-  // Material unlocks count
   const { data: materialUnlocks = [] } = useQuery({
     queryKey: ["student-material-unlocks-count", purchasedProductIds],
     queryFn: async () => {
@@ -126,7 +131,6 @@ const Dashboard = () => {
     enabled: purchasedProductIds.length > 0,
   });
 
-  // Rejected reschedule requests count
   const { data: rejectedReschedules = [] } = useQuery({
     queryKey: ["student-rejected-reschedules-count", user?.id],
     queryFn: async () => {
@@ -143,7 +147,6 @@ const Dashboard = () => {
     enabled: !!user?.id,
   });
 
-  // Incoming reschedule requests from creator/teacher
   const { data: incomingReschedules = [] } = useQuery({
     queryKey: ["student-incoming-reschedules-count", user?.id],
     queryFn: async () => {
@@ -161,52 +164,41 @@ const Dashboard = () => {
     enabled: !!user?.id,
   });
 
-  // Подсчёт новых уведомлений
   const newNotificationsCount = useMemo(() => {
     const compareDate = lastViewedAt || new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const newCancellations = cancellations.filter(c => new Date(c.cancelled_at) > compareDate).length;
-    const newPurchases = confirmedPurchases.filter(p => p.confirmed_at && new Date(p.confirmed_at) > compareDate).length;
-    const newUnlocks = materialUnlocks.filter(u => new Date(u.unlocked_at) > compareDate).length;
-    const newRejections = rejectedReschedules.filter(r => r.responded_at && new Date(r.responded_at) > compareDate).length;
-    const newIncoming = incomingReschedules.filter(r => r.created_at && new Date(r.created_at) > compareDate).length;
+    const newCancellations = cancellations.filter((c) => new Date(c.cancelled_at) > compareDate).length;
+    const newPurchases = confirmedPurchases.filter((p) => p.confirmed_at && new Date(p.confirmed_at) > compareDate).length;
+    const newUnlocks = materialUnlocks.filter((u) => new Date(u.unlocked_at) > compareDate).length;
+    const newRejections = rejectedReschedules.filter((r) => r.responded_at && new Date(r.responded_at) > compareDate).length;
+    const newIncoming = incomingReschedules.filter((r) => r.created_at && new Date(r.created_at) > compareDate).length;
     return newCancellations + newPurchases + newUnlocks + newRejections + newIncoming;
   }, [cancellations, confirmedPurchases, materialUnlocks, rejectedReschedules, incomingReschedules, lastViewedAt]);
 
-  // Realtime уведомления (звуки и push) с badge count
   useRealtimeStudentNotifications(user?.id, !!user, newNotificationsCount, purchasedProductIds);
 
-  // Register FCM token for push notifications
   useFCMRegistration({
     userId: user?.id,
     userRole: "student",
-    enabled: !!user?.id
+    enabled: !!user?.id,
   });
 
-  // Set initial app badge based on notification count
   useEffect(() => {
-    if (activeTab !== "notifications") {
+    if (buyerSection !== "notifications") {
       setAppBadge(newNotificationsCount);
     }
-  }, [newNotificationsCount, activeTab]);
+  }, [newNotificationsCount, buyerSection]);
 
-  // Обновление lastViewedAt при входе/выходе с вкладки уведомлений
-  const handleTabChange = (value: string) => {
-    // Save lastViewedAt when entering OR leaving notifications tab
-    if (lastViewedKey && (value === "notifications" || (previousTab.current === "notifications" && value !== "notifications"))) {
-      const now = new Date();
-      localStorage.setItem(lastViewedKey, now.toISOString());
-      setLastViewedAt(now);
-      clearAppBadge();
-    }
-    previousTab.current = value;
-    setActiveTab(value);
-  };
+  useEffect(() => {
+    if (buyerSection !== "notifications" || !lastViewedKey) return;
+    const now = new Date();
+    localStorage.setItem(lastViewedKey, now.toISOString());
+    setLastViewedAt(now);
+    clearAppBadge();
+  }, [buyerSection, lastViewedKey]);
 
   useEffect(() => {
     if (loading || user) return;
-    if (localStorage.getItem("creator_token")) {
-      void refreshSession();
-    }
+    if (localStorage.getItem("creator_token")) void refreshSession();
   }, [loading, user, refreshSession]);
 
   useEffect(() => {
@@ -220,7 +212,7 @@ const Dashboard = () => {
       return;
     }
     if (!user) {
-      navigate("/login?next=/dashboard");
+      navigate("/login?next=/dashboard", { replace: true });
     }
   }, [user, loading, profileType, navigate]);
 
@@ -232,96 +224,49 @@ const Dashboard = () => {
     );
   }
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <AppHeader variant="dashboard">
-        <StudentSupportButton activeTab={activeTab} userId={user.id} userName={user.name} onClick={() => handleTabChange("support")} />
-      </AppHeader>
+    <BuyerAppShell
+      activeSection={isAccountView ? undefined : buyerSection}
+      mobileNav={
+        <BuyerMobileNav
+          activeTab={isAccountView ? "account" : buyerSection}
+          notificationCount={newNotificationsCount}
+        />
+      }
+    >
+      <div className="min-h-screen pb-20 md:pb-6">
+        <AppHeader>
+          <StudentSupportButton
+            activeTab={supportOpen ? "support" : buyerSection}
+            userId={user.id}
+            onClick={() => setSupportOpen((v) => !v)}
+          />
+          <BuyerHeaderAccount />
+        </AppHeader>
 
-      <main className="max-w-2xl mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsContent value="home" className="mt-0 animate-fade-in">
-            <HomeTab onBrowseCourses={() => navigate("/")} />
-          </TabsContent>
-          <TabsContent value="materials" className="mt-0 animate-fade-in">
-            <MaterialsTab />
-          </TabsContent>
-          <TabsContent value="schedule" className="mt-0 animate-fade-in">
-            <ScheduleTab />
-          </TabsContent>
-          <TabsContent value="notifications" className="mt-0 animate-fade-in">
-            <NotificationsTab lastViewedAt={lastViewedAt} purchasedProductIds={purchasedProductIds} />
-          </TabsContent>
-          <TabsContent value="account" className="mt-0 animate-fade-in">
-            <AccountTab />
-          </TabsContent>
-          <TabsContent value="support" className="mt-0 animate-fade-in">
+        <main className="px-4 py-6 md:px-6">
+          {supportOpen ? (
             <SupportChat userType="student" userRef={user.id} displayName={user.name} />
-          </TabsContent>
-        </Tabs>
-      </main>
-
-      <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
-        <div className="max-w-2xl mx-auto">
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
-            <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-6 gap-0">
-              <button
-                type="button"
-                onClick={() => navigate("/")}
-                className="flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 text-muted-foreground hover:text-foreground"
-              >
-                <Store className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("catalog")}</span>
-              </button>
-              <TabsTrigger 
-                value="home" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-              >
-                <BookOpen className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("myCourses")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="materials" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-              >
-                <FileText className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("materials")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="schedule" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-              >
-                <Calendar className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("schedule")}</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="notifications" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1 relative"
-              >
-                <Bell className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("notifications")}</span>
-                {newNotificationsCount > 0 && (
-                  <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="account" 
-                className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-1"
-              >
-                <User className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("account")}</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </nav>
-    </div>
+          ) : isAccountView ? (
+            <div className="mx-auto max-w-2xl">
+              <AccountTab />
+            </div>
+          ) : buyerSection === "notifications" ? (
+            <div className="mx-auto max-w-2xl">
+              <NotificationsTab lastViewedAt={lastViewedAt} purchasedProductIds={purchasedProductIds} />
+            </div>
+          ) : buyerSection === "schedule" ? (
+            <ScheduleTab />
+          ) : buyerSection === "materials" ? (
+            <MaterialsTab />
+          ) : (
+            <HomeTab onBrowseCourses={() => navigate("/")} />
+          )}
+        </main>
+      </div>
+    </BuyerAppShell>
   );
 };
 

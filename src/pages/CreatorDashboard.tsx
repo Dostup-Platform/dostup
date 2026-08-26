@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Package, Users, Calendar, Loader2, Bell, User, Megaphone, Library, MessageCircle } from "lucide-react";
 import SupportChat from "@/components/SupportChat";
 import { useSupportUnread } from "@/hooks/useSupportUnread";
@@ -33,8 +33,10 @@ import CreatorMaterialsTab from "@/components/creator/CreatorMaterialsTab";
 import { useCreatorPendingPurchases } from "@/components/creator/CreatorPendingPayments";
 import { useLanguage } from "@/contexts/LanguageContext";
 import AppHeader from "@/components/layout/AppHeader";
+import AppShell from "@/components/layout/BuyerAppShell";
 import HandleSetupDialog from "@/components/account/HandleSetupDialog";
 import DisplayNameSetupDialog from "@/components/account/DisplayNameSetupDialog";
+import { creatorTabFromPath, SELLER_NAV_ITEMS } from "@/lib/navigation";
 
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
@@ -50,16 +52,11 @@ import { useAppResume } from "@/hooks/useAppResume";
 import { readAuthEmail } from "@/lib/creatorAuth";
 import { needsDisplayNamePrompt } from "@/lib/displayName";
 
-const navItems = [
-  { key: "products", labelKey: "products", icon: Package },
-  { key: "announcements", labelKey: "announcements", icon: Megaphone },
-  { key: "materials", labelKey: "materials", icon: Library },
-  { key: "schedule", labelKey: "schedule", icon: Calendar },
-  { key: "users", labelKey: "users", icon: Users },
-];
-
 const CreatorDashboard = () => {
-  const [activeTab, setActiveTab] = useState("products");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [overlayTab, setOverlayTab] = useState<string | null>(null);
+  const urlTab = creatorTabFromPath("/creator", `?${searchParams.toString()}`);
+  const activeTab = overlayTab ?? urlTab;
   const [creatorName, setCreatorName] = useState<string | null>(null);
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(() => localStorage.getItem("profile_id"));
@@ -92,8 +89,13 @@ const CreatorDashboard = () => {
       setLastViewedAt(now);
       clearAppBadge();
     }
-    setActiveTab(value);
-  }, [activeTab]);
+    if (value === "notifications" || value === "support") {
+      setOverlayTab(value);
+      return;
+    }
+    setOverlayTab(null);
+    setSearchParams({ tab: value });
+  }, [activeTab, lastViewedKey, setSearchParams]);
   
   // Получаем продукты и бронирования для подсчёта уведомлений
   const { data: products } = useCreatorProducts();
@@ -280,8 +282,9 @@ const CreatorDashboard = () => {
   }
 
   return (
+    <AppShell sellerTab={urlTab}>
     <div className={`min-h-screen bg-background ${isMobile ? "pb-20" : ""}`}>
-      <AppHeader variant="dashboard">
+      <AppHeader>
         <SupportHeaderButton activeTab={activeTab} onClick={() => handleTabChange("support")} userType="creator" userRef={creatorName!} />
         <button
           onClick={() => handleTabChange("notifications")}
@@ -299,51 +302,22 @@ const CreatorDashboard = () => {
             </span>
           )}
         </button>
-        <button
-          onClick={() => handleTabChange("account")}
-          aria-label={t("account" as any)}
-          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-            activeTab === "account"
-              ? "bg-accent text-white"
-              : "text-muted-foreground hover:bg-accent/50"
-          }`}
-        >
-          <User className="w-5 h-5" />
-        </button>
+        {isMobile && (
+          <button
+            onClick={() => handleTabChange("account")}
+            aria-label={t("account" as any)}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+              activeTab === "account"
+                ? "bg-accent text-white"
+                : "text-muted-foreground hover:bg-accent/50"
+            }`}
+          >
+            <User className="w-5 h-5" />
+          </button>
+        )}
       </AppHeader>
 
-      {/* Desktop: sidebar + content */}
-      {/* Mobile: content only */}
-      <div className={`${isMobile ? "" : "flex gap-6 items-start px-6 py-6"}`}>
-        
-        {/* Left Sidebar - Desktop Only */}
-        {!isMobile && (
-          <aside className="w-56 flex-shrink-0 sticky top-[88px] self-start">
-            <nav className="flex flex-col gap-1">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.key;
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => handleTabChange(item.key)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
-                      isActive
-                        ? "bg-accent text-white"
-                        : "text-muted-foreground hover:bg-accent/50"
-                    }`}
-                  >
-                    <Icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="flex-1">{t(item.labelKey as any)}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </aside>
-        )}
-
-        {/* Main Content */}
-        <main className={isMobile ? "px-4 py-6" : "flex-1 min-w-0"}>
+      <main className={isMobile ? "px-4 py-6" : "mx-auto w-full max-w-5xl px-6 py-6"}>
           {activeTab === "products" && (
             <div className="animate-fade-in">
               <CreatorProductsTab creatorName={creatorName} />
@@ -385,48 +359,25 @@ const CreatorDashboard = () => {
             </div>
           )}
         </main>
-      </div>
 
       {/* Bottom Navigation - Mobile Only */}
       {isMobile && (
         <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
           <div className="max-w-2xl mx-auto">
             <div className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-0">
+              {SELLER_NAV_ITEMS.map((item) => {
+                const Icon = item.icon;
+                return (
               <button 
-                onClick={() => handleTabChange("products")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "products" ? "bg-accent text-white" : "text-muted-foreground"}`}
+                key={item.key}
+                onClick={() => handleTabChange(item.key)}
+                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === item.key ? "bg-accent text-white" : "text-muted-foreground"}`}
               >
-                <Package className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("products")}</span>
+                <Icon className="w-5 h-5" />
+                <span className="text-[10px] leading-tight">{t(item.labelKey)}</span>
               </button>
-              <button 
-                onClick={() => handleTabChange("announcements")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "announcements" ? "bg-accent text-white" : "text-muted-foreground"}`}
-              >
-                <Megaphone className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("announcements")}</span>
-              </button>
-              <button 
-                onClick={() => handleTabChange("materials")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "materials" ? "bg-accent text-white" : "text-muted-foreground"}`}
-              >
-                <Library className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("materials")}</span>
-              </button>
-              <button 
-                onClick={() => handleTabChange("schedule")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "schedule" ? "bg-accent text-white" : "text-muted-foreground"}`}
-              >
-                <Calendar className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("schedule")}</span>
-              </button>
-              <button 
-                onClick={() => handleTabChange("users")}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === "users" ? "bg-accent text-white" : "text-muted-foreground"}`}
-              >
-                <Users className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t("users")}</span>
-              </button>
+                );
+              })}
             </div>
           </div>
         </nav>
@@ -437,6 +388,7 @@ const CreatorDashboard = () => {
         onSaved={() => setNeedsHandle(false)}
       />
     </div>
+    </AppShell>
   );
 };
 

@@ -2,17 +2,22 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   CATALOG_FILTER_THRESHOLD,
-  isProductFormat,
+  isBillingPeriod,
+  isLessonFormat,
+  type BillingPeriod,
+  type CatalogCategory,
   type CatalogProduct,
-  type ProductFormat,
+  type LessonFormat,
 } from "@/lib/catalog";
 
 export type CatalogSort = "newest" | "price_asc" | "price_desc";
 
 export type CatalogFilters = {
   q?: string;
-  format?: ProductFormat | "";
-  subject?: string;
+  categorySlug?: string;
+  subcategorySlug?: string;
+  lessonFormat?: LessonFormat | "";
+  billingPeriod?: BillingPeriod | "";
   minPrice?: number | null;
   maxPrice?: number | null;
   sort?: CatalogSort;
@@ -26,7 +31,10 @@ function asCatalogRows(data: unknown): CatalogProduct[] {
       ...item,
       price: Number(item.price) || 0,
       has_schedule: Boolean(item.has_schedule),
-      format: isProductFormat(String(item.format)) ? item.format : "recorded",
+      category_emoji: item.category_emoji || "",
+      lesson_format: isLessonFormat(item.lesson_format) ? item.lesson_format : null,
+      billing_period: isBillingPeriod(item.billing_period) ? item.billing_period : null,
+      capacity: item.capacity == null ? null : Number(item.capacity),
     };
   });
 }
@@ -34,8 +42,10 @@ function asCatalogRows(data: unknown): CatalogProduct[] {
 async function searchCatalog(filters: CatalogFilters, limit = 48, offset = 0) {
   const { data, error } = await supabase.rpc("search_catalog", {
     q: filters.q?.trim() || null,
-    p_format: filters.format || null,
-    p_subject: filters.subject?.trim() || null,
+    p_category_slug: filters.categorySlug?.trim() || null,
+    p_subcategory_slug: filters.subcategorySlug?.trim() || null,
+    p_lesson_format: filters.lessonFormat || null,
+    p_billing_period: filters.billingPeriod || null,
     p_min: filters.minPrice ?? null,
     p_max: filters.maxPrice ?? null,
     p_sort: filters.sort || "newest",
@@ -46,10 +56,11 @@ async function searchCatalog(filters: CatalogFilters, limit = 48, offset = 0) {
   return asCatalogRows(data);
 }
 
-export function useCatalogPreview() {
+export function useCatalogPreview(enabled = true, limit = CATALOG_FILTER_THRESHOLD) {
   return useQuery({
-    queryKey: ["catalog-preview"],
-    queryFn: () => searchCatalog({}, CATALOG_FILTER_THRESHOLD, 0),
+    queryKey: ["catalog-preview", limit],
+    queryFn: () => searchCatalog({}, limit, 0),
+    enabled,
   });
 }
 
@@ -61,22 +72,28 @@ export function useCatalogSearch(filters: CatalogFilters, enabled = true) {
   });
 }
 
-export function useCatalogSubjects(enabled = true) {
+export function useCatalogTaxonomy(enabled = true) {
   return useQuery({
-    queryKey: ["catalog-subjects"],
+    queryKey: ["catalog-taxonomy"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("public_products")
-        .select("subject")
-        .not("subject", "is", null);
+      const { data, error } = await supabase.rpc("get_catalog_taxonomy");
       if (error) throw error;
-      const values = new Set<string>();
-      for (const row of data ?? []) {
-        const subject = typeof row.subject === "string" ? row.subject.trim() : "";
-        if (subject) values.add(subject);
-      }
-      return [...values].sort((a, b) => a.localeCompare(b, "ru"));
+      return (data ?? []) as CatalogCategory[];
     },
     enabled,
+  });
+}
+
+export function useCatalogProductsByIds(ids: string[]) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  return useQuery({
+    queryKey: ["catalog-by-ids", unique],
+    queryFn: async () => {
+      if (!unique.length) return [] as CatalogProduct[];
+      const { data, error } = await supabase.from("public_products").select("*").in("id", unique);
+      if (error) throw error;
+      return asCatalogRows(data);
+    },
+    enabled: unique.length > 0,
   });
 }

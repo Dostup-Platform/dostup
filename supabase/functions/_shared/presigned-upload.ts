@@ -2,8 +2,8 @@ import { json, optionsResponse } from './http.ts'
 import { authorizeUpload, presignPut } from './s3.ts'
 import { serviceClient } from './session.ts'
 
-const AVATAR_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+const AVATAR_MIME = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024
 
 function asString(value: unknown): string {
   if (typeof value === 'string') return value.trim()
@@ -12,12 +12,11 @@ function asString(value: unknown): string {
 
 function avatarExt(fileName: string, fileType: string): string {
   const fromName = fileName.split('.').pop()?.toLowerCase() || ''
-  if (fromName === 'jpg' || fromName === 'jpeg' || fromName === 'png' || fromName === 'webp' || fromName === 'gif') {
+  if (fromName === 'jpg' || fromName === 'jpeg' || fromName === 'png' || fromName === 'webp') {
     return fromName === 'jpeg' ? 'jpg' : fromName
   }
   if (fileType === 'image/png') return 'png'
   if (fileType === 'image/webp') return 'webp'
-  if (fileType === 'image/gif') return 'gif'
   return 'jpg'
 }
 
@@ -56,14 +55,6 @@ async function handleAvatarUpload(body: Record<string, unknown>): Promise<Respon
       console.error('avatar upload error', uploadError)
       return json({ error: 'Upload failed' }, 500)
     }
-  } else {
-    const { data: signed, error: signError } = await supabase.storage
-      .from('avatars')
-      .createSignedUploadUrl(objectPath)
-    if (signError || !signed?.signedUrl) {
-      console.error('avatar sign error', signError)
-      return json({ error: 'Server misconfiguration' }, 500)
-    }
     const { error: profileError } = await supabase
       .from('profiles')
       .update({ avatar_url: publicUrl })
@@ -73,27 +64,25 @@ async function handleAvatarUpload(body: Record<string, unknown>): Promise<Respon
       return json({ error: 'Failed to save avatar' }, 500)
     }
     return json({
-      uploadUrl: signed.signedUrl,
       path: objectPath,
       storagePath: objectPath,
       publicUrl,
-      contentType: fileType,
     })
   }
 
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ avatar_url: publicUrl })
-    .eq('id', session.profile_id)
-  if (profileError) {
-    console.error('avatar profile update error', profileError)
-    return json({ error: 'Failed to save avatar' }, 500)
+  const { data: signed, error: signError } = await supabase.storage
+    .from('avatars')
+    .createSignedUploadUrl(objectPath)
+  if (signError || !signed?.signedUrl) {
+    console.error('avatar sign error', signError)
+    return json({ error: 'Server misconfiguration' }, 500)
   }
-
   return json({
+    uploadUrl: signed.signedUrl,
     path: objectPath,
     storagePath: objectPath,
     publicUrl,
+    contentType: fileType,
   })
 }
 

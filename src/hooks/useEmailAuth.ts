@@ -4,17 +4,14 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { authErrorKeyFromUnknown } from "@/lib/authErrors";
 import {
+  completeExchangedSession,
   exchangeAuthSession,
-  needsRoleOnboarding,
-  parseProfileType,
-  readOAuthProfileType,
-  readSellerDisplayName,
+  needsNameOnboarding,
   rememberAuthEmail,
   resolvePostAuthPath,
   sendEmailCode,
   startGoogleOAuth,
   storeCreatorSession,
-  storeOnboardingSession,
   verifyEmailCode,
   type GoogleOAuthResult,
   type SessionPayload,
@@ -23,28 +20,11 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type AuthCompletion =
   | { status: "navigated" }
-  | { status: "role_required"; email: string };
+  | { status: "name_required"; email: string };
 
 type UseEmailAuthOptions = {
   onAuthRedirect?: (path: string) => void | Promise<void>;
 };
-
-function asSession(data: Record<string, unknown> | null): SessionPayload | null {
-  if (!data?.success || typeof data.token !== "string") return null;
-  if (data.needsOnboarding === true) return null;
-  if (typeof data.profileType !== "string") return null;
-  const profileType = parseProfileType(String(data.profileType));
-  if (!profileType) return null;
-  return {
-    token: data.token,
-    creatorName: String(data.creatorName || ""),
-    accountType: typeof data.accountType === "string" ? data.accountType : null,
-    profileType,
-    profileId: String(data.profileId || ""),
-    displayName: typeof data.displayName === "string" ? data.displayName : null,
-    profiles: Array.isArray(data.profiles) ? (data.profiles as SessionPayload["profiles"]) : [],
-  };
-}
 
 export function useEmailAuth(options: UseEmailAuthOptions = {}) {
   const navigate = useNavigate();
@@ -68,44 +48,40 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
   const completeSession = (session: SessionPayload, address: string): AuthCompletion => {
     rememberAuthEmail(address);
     storeCreatorSession(session);
-    if (needsRoleOnboarding(address, session.profiles ?? [])) {
-      return { status: "role_required", email: address };
+    if (needsNameOnboarding(address, session.displayName, session.profiles ?? [])) {
+      return { status: "name_required", email: address };
     }
     void redirectAfterAuth(
-      resolvePostAuthPath(address, session.profiles ?? [], session.profileType, session.accountType),
+      resolvePostAuthPath(
+        address,
+        session.profiles ?? [],
+        session.profileType,
+        session.accountType,
+        session.displayName,
+      ),
     );
     return { status: "navigated" };
   };
 
   const exchange = async (accessToken: string, address: string) => {
-    const { data, error } = await exchangeAuthSession(
-      accessToken,
-      readOAuthProfileType() ?? undefined,
-      readSellerDisplayName() || undefined,
-    );
+    const { data, error } = await exchangeAuthSession(accessToken);
     try {
       await supabase.auth.signOut({ scope: "local" });
     } catch {
       // app session is what we keep
     }
     const payload = (data ?? null) as Record<string, unknown> | null;
-    if (error || !payload?.success || typeof payload.token !== "string") {
-      toast.error(t(authErrorKeyFromUnknown(error || { message: String(payload?.error) })));
+    if (error && !payload?.success && payload?.needsOnboarding !== true) {
+      toast.error(t(authErrorKeyFromUnknown(error)));
       return null;
     }
 
-    if (payload.needsOnboarding === true) {
-      rememberAuthEmail(address);
-      storeOnboardingSession(payload.token, String(payload.creatorName || ""));
-      return { status: "role_required", email: address } as AuthCompletion;
-    }
-
-    const session = asSession(payload);
-    if (!session) {
-      toast.error(t("networkFailure"));
+    const resolved = await completeExchangedSession(payload);
+    if (!resolved.session) {
+      toast.error(t(authErrorKeyFromUnknown({ message: resolved.error || "exchange_failed" })));
       return null;
     }
-    return completeSession(session, address);
+    return completeSession(resolved.session, address);
   };
 
   const sendCode = async (address: string) => {
@@ -115,7 +91,7 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
       return false;
     }
     setSending(true);
-    const { error } = await sendEmailCode(trimmed, readOAuthProfileType() ?? undefined);
+    const { error } = await sendEmailCode(trimmed);
     setSending(false);
     if (error) {
       toast.error(t(authErrorKeyFromUnknown(error)));
@@ -148,7 +124,7 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
   const handleGoogle = async (): Promise<GoogleOAuthResult> => {
     setGoogleLoading(true);
     try {
-      return await startGoogleOAuth(readOAuthProfileType() ?? undefined);
+      return await startGoogleOAuth();
     } finally {
       setGoogleLoading(false);
     }

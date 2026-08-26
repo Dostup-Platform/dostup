@@ -5,7 +5,7 @@ export type ProfileType = 'buyer' | 'creator' | 'school'
 export type AccountType = 'course_creator' | 'online_school'
 
 export const PROFILE_COLUMNS =
-  'id, auth_user_id, type, display_name, handle, last_used_at, created_at'
+  'id, auth_user_id, type, display_name, handle, avatar_url, last_used_at, created_at'
 
 export type ProfileRow = {
   id: string
@@ -13,6 +13,7 @@ export type ProfileRow = {
   type: ProfileType
   display_name: string | null
   handle: string | null
+  avatar_url: string | null
   last_used_at: string | null
   created_at: string
 }
@@ -145,6 +146,18 @@ export function normalizeEmail(raw: string | undefined | null): string | null {
   const email = raw.trim().toLowerCase()
   if (!email.includes('@') || email.length < 3 || email.length > 254) return null
   return email
+}
+
+export function needsDisplayNamePrompt(
+  displayName: string | null | undefined,
+  email: string | null | undefined,
+): boolean {
+  const name = (displayName ?? '').trim()
+  if (!name) return true
+  const local = (email ?? '').split('@')[0]?.trim().toLowerCase()
+  if (local && name.toLowerCase() === local) return true
+  if (name.includes('@')) return true
+  return /^[A-Za-z0-9._%+-]*\.[A-Za-z0-9._%+-]+$/.test(name)
 }
 
 export function displayNameFrom(user: {
@@ -386,7 +399,6 @@ export async function linkAccountsByEmail(
   supabase: SupabaseClient,
   authUserId: string,
   email: string,
-  displayName: string,
 ): Promise<void> {
   const { data: byEmail } = await supabase
     .from('creator_accounts')
@@ -401,16 +413,6 @@ export async function linkAccountsByEmail(
         .from('creator_accounts')
         .update({ auth_user_id: authUserId, email })
         .eq('id', account.id)
-    }
-    const type = profileTypeForAccount(account.account_type)
-    const profile = await findOrCreateProfile(
-      supabase,
-      authUserId,
-      type,
-      account.display_name || displayName,
-    )
-    if (profile && account.profile_id !== profile.id) {
-      await supabase.from('creator_accounts').update({ profile_id: profile.id }).eq('id', account.id)
     }
   }
 }
@@ -533,5 +535,7 @@ export function publicProfiles(rows: ProfileRow[]) {
     id: p.id,
     type: p.type,
     displayName: p.display_name,
+    createdAt: p.created_at,
+    avatarUrl: p.avatar_url,
   }))
 }

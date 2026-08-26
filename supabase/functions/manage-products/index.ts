@@ -10,6 +10,7 @@ import {
   forbidden,
 } from '../_shared/session.ts'
 import { latestSubmissionsForPurchases, recordVerificationEvent } from '../_shared/purchase.ts'
+import { subscriptionGrantsAccess } from '../_shared/subscription.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return optionsResponse()
@@ -60,6 +61,9 @@ Deno.serve(async (req) => {
       if (denied) return denied
       const product = body.product && typeof body.product === 'object' ? body.product as Record<string, unknown> : null
       if (!product?.title) return json({ error: 'Missing title' }, 400)
+      if (!product.category_id || !product.subcategory_id) {
+        return json({ error: 'Missing category' }, 400)
+      }
       const { data, error } = await supabase
         .from('products')
         .insert({
@@ -79,6 +83,12 @@ Deno.serve(async (req) => {
           creator_account_id: caller.accountId,
           kaspi_phone: product.kaspi_phone ?? null,
           access_duration_days: product.access_duration_days ?? null,
+          category_id: product.category_id,
+          subcategory_id: product.subcategory_id,
+          lesson_format: product.lesson_format ?? null,
+          event_starts_at: product.event_starts_at ?? null,
+          capacity: product.capacity ?? null,
+          billing_period: product.billing_period ?? null,
         })
         .select()
         .single()
@@ -280,6 +290,57 @@ Deno.serve(async (req) => {
       const { error } = await supabase.from('simple_purchases').update(allowed).eq('id', purchaseId)
       if (error) return json({ error: error.message }, 500)
       return json({ ok: true })
+    }
+
+    if (action === 'list_subscriptions') {
+      const denied = requireCreator()
+      if (denied) return denied
+      const ids = await creatorProductIds(supabase, caller.accountId)
+      if (!ids.length) return json({ subscriptions: [], counts: {} })
+
+      const { data: subs, error } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .in('product_id', ids)
+        .order('current_period_end', { ascending: true })
+      if (error) return json({ error: error.message }, 500)
+
+      const profileIds = [...new Set((subs ?? []).map((s: { buyer_profile_id: string }) => s.buyer_profile_id))]
+      const productIds = [...new Set((subs ?? []).map((s: { product_id: string }) => s.product_id))]
+
+      const { data: profiles } = profileIds.length
+        ? await supabase.from('profiles').select('id, display_name').in('id', profileIds)
+        : { data: [] as { id: string; display_name: string | null }[] }
+      const { data: products } = productIds.length
+        ? await supabase.from('products').select('id, title, billing_period').in('id', productIds)
+        : { data: [] as { id: string; title: string; billing_period: string | null }[] }
+
+      const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]))
+      const productMap = new Map((products ?? []).map((p) => [p.id, p]))
+      const counts: Record<string, number> = {}
+
+      const rows = (subs ?? []).map((sub: {
+        id: string
+        product_id: string
+        buyer_profile_id: string
+        status: string
+        current_period_end: string
+        billing_period: string
+        price: number
+      }) => {
+        if (subscriptionGrantsAccess(sub as { status: string; current_period_end: string })) {
+          counts[sub.product_id] = (counts[sub.product_id] ?? 0) + 1
+        }
+        const profile = profileMap.get(sub.buyer_profile_id)
+        const product = productMap.get(sub.product_id)
+        return {
+          ...sub,
+          buyer_name: profile?.display_name || 'Buyer',
+          product_title: product?.title || '',
+        }
+      })
+
+      return json({ subscriptions: rows, counts })
     }
 
     if (action === 'list_users_by_ids') {

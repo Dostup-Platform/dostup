@@ -5,12 +5,11 @@ import {
   ensureCreatorAccount,
   findOrCreateProfile,
   issueAppSession,
-  issueOnboardingSession,
   linkAccountsByEmail,
   listProfiles,
   loadAccountForProfile,
+  needsDisplayNamePrompt,
   normalizeEmail,
-  parseProfileType,
   pickProfile,
   publicProfiles,
 } from '../_shared/profiles.ts'
@@ -50,51 +49,45 @@ Deno.serve(async (req) => {
       return json({ success: false, error: 'Email is required' }, 400)
     }
 
-    let profiles = await listProfiles(supabase, user.id)
-
-    if (profiles.length === 0) {
-      const onboarding = await issueOnboardingSession(supabase, user.id)
-      if (!onboarding.ok) return onboarding.response
-      return json({
-        success: true,
-        needsOnboarding: true,
-        authUserId: user.id,
-        token: onboarding.token,
-        creatorName: onboarding.creatorName,
-        profiles: [],
-      })
-    }
-
     const displayName = (() => {
       const custom = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 100) : ''
       if (custom.length >= 2) return custom
       return displayNameFrom(user)
     })()
-    await linkAccountsByEmail(supabase, user.id, email, displayName)
+
+    let profiles = await listProfiles(supabase, user.id)
+    const hadBuyer = profiles.some((p) => p.type === 'buyer')
+
+    if (!hadBuyer) {
+      const buyerProfile = await findOrCreateProfile(supabase, user.id, 'buyer', displayName)
+      if (!buyerProfile) {
+        return json({ error: 'Failed to create profile' }, 500)
+      }
+    }
+
+    await linkAccountsByEmail(supabase, user.id, email)
 
     profiles = await listProfiles(supabase, user.id)
 
-    const requestedType = parseProfileType(
-      body.profileType ?? body.profile_type ?? body.account_type ?? body.accountType,
-    )
-
-    let target = pickProfile(profiles, requestedType)
-
-    if (requestedType && !target) {
-      target = await findOrCreateProfile(supabase, user.id, requestedType, displayName)
-      if (target) profiles = await listProfiles(supabase, user.id)
+    if (!profiles.some((p) => p.type === 'buyer')) {
+      const buyerProfile = await findOrCreateProfile(supabase, user.id, 'buyer', displayName)
+      if (!buyerProfile) {
+        return json({ error: 'Failed to create profile' }, 500)
+      }
+      profiles = await listProfiles(supabase, user.id)
     }
 
-    if (!target) {
-      target = pickProfile(profiles, null)
-    }
+    // First verify always lands on the buyer. Returning identities keep last_used_at.
+    const target = !hadBuyer
+      ? (profiles.find((p) => p.type === 'buyer') ?? pickProfile(profiles, null))
+      : pickProfile(profiles, null)
 
     if (!target) {
       return json({ error: 'Failed to resolve profile' }, 500)
     }
 
     let account = await loadAccountForProfile(supabase, target.id)
-    const sellerType = accountTypeFor(target.type)
+    const sellerType = hadBuyer ? accountTypeFor(target.type) : null
     if (sellerType) {
       account = await ensureCreatorAccount(supabase, {
         authUserId: user.id,
@@ -115,6 +108,7 @@ Deno.serve(async (req) => {
       success: true,
       ...issued.session,
       profiles: publicProfiles(profiles),
+      needsNamePrompt: needsDisplayNamePrompt(target.display_name || displayName, email),
     })
   } catch (error) {
     console.error('exchange-auth-session error:', error)

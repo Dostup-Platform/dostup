@@ -272,7 +272,7 @@ const TeacherDashboard = () => {
   return (
     <div className={`min-h-screen bg-background ${isMobile ? "pb-20" : ""}`}>
       {/* Header */}
-      <AppHeader variant="dashboard">
+      <AppHeader>
         <TeacherSupportButton activeTab={activeTab} teacherName={teacherName} teacherId={teacherUser?.id} onClick={() => handleTabChange("support")} />
       </AppHeader>
 

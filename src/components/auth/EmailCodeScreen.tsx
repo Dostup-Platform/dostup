@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { maskEmail } from "@/components/auth/AuthMark";
+import { LOGIN_CARD_CLASS } from "@/lib/loginModal";
+import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 
 const COOLDOWN_MS = 60_000;
@@ -105,8 +107,8 @@ const EmailCodeScreen = ({
   };
 
   return (
-    <Card className="w-full max-w-md rounded-2xl animate-fade-in">
-      <CardContent className="pt-8 pb-6 px-6 space-y-5">
+    <Card className={cn(LOGIN_CARD_CLASS, "motion-safe:animate-fade-in")}>
+      <CardContent className="space-y-5 px-6 pb-6 pt-14">
         <div className="text-center space-y-1">
           <h1 className="text-xl font-bold">{t("enterCodeSentTo")}</h1>
           <p className="text-sm text-muted-foreground">{maskEmail(email)}</p>

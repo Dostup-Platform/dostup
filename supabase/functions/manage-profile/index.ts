@@ -48,12 +48,15 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     const row = profile as ProfileRow | null
-    if (!row || (row.type !== 'creator' && row.type !== 'school')) {
+    if (!row) {
       return json({ error: 'Forbidden' }, 403)
     }
 
     if (action === 'get_handle') {
-      return json({ handle: row.handle, profileId: row.id, displayName: row.display_name })
+      if (row.type !== 'creator' && row.type !== 'school') {
+        return json({ handle: null, profileId: row.id, displayName: row.display_name, avatarUrl: row.avatar_url })
+      }
+      return json({ handle: row.handle, profileId: row.id, displayName: row.display_name, avatarUrl: row.avatar_url })
     }
 
     if (action === 'set_display_name') {
@@ -72,16 +75,51 @@ Deno.serve(async (req) => {
         return json({ error: 'Failed to save display name' }, 500)
       }
 
-      await supabase
-        .from('creator_accounts')
-        .update({ display_name: displayName })
-        .eq('profile_id', row.id)
+      if (row.type === 'creator' || row.type === 'school') {
+        await supabase
+          .from('creator_accounts')
+          .update({ display_name: displayName })
+          .eq('profile_id', row.id)
+      }
 
       return json({
         ok: true,
         displayName: updated.display_name,
         handle: updated.handle ?? null,
       })
+    }
+
+    if (action === 'set_avatar') {
+      const avatarUrl = typeof body.avatarUrl === 'string' ? body.avatarUrl.trim() : ''
+      const marker = `/avatars/${row.id}/`
+      if (!avatarUrl || !avatarUrl.includes(marker)) {
+        return json({ error: 'invalid_avatar' }, 400)
+      }
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', row.id)
+      if (error) {
+        console.error('set_avatar error:', error)
+        return json({ error: 'Failed to save avatar' }, 500)
+      }
+      return json({ ok: true, avatarUrl })
+    }
+
+    if (action === 'clear_avatar') {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null })
+        .eq('id', row.id)
+      if (error) {
+        console.error('clear_avatar error:', error)
+        return json({ error: 'Failed to remove avatar' }, 500)
+      }
+      return json({ ok: true, avatarUrl: null })
+    }
+
+    if (row.type !== 'creator' && row.type !== 'school') {
+      return json({ error: 'Forbidden' }, 403)
     }
 
     const raw = typeof body.handle === 'string' ? body.handle.trim().toLowerCase() : ''

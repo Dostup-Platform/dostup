@@ -7,11 +7,24 @@ import ProductCover from "@/components/marketplace/ProductCover";
 import PublicContainer from "@/components/marketplace/PublicContainer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useProduct, useProductProgram, type ProductProgramItem } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { formatPriceTenge } from "@/lib/catalog";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { formatPriceTenge, formatCatalogPrice, isBillingPeriod } from "@/lib/catalog";
+import { touchRecentProduct } from "@/lib/buyerActivity";
 import { sellerInitial } from "@/lib/productCover";
 import { ArrowLeft, FileText, Folder, Loader2, Play } from "lucide-react";
+import { toast } from "sonner";
 
 const ProgramTree = ({ items, parentId }: { items: ProductProgramItem[]; parentId: string | null }) => {
   const children = items
@@ -78,14 +91,38 @@ const ProductPage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { user, profileType, profiles, switchProfile } = useSimpleAuth();
   const { data: product, isLoading } = useProduct(productId);
   const { data: program = [] } = useProductProgram(product?.id);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [switchBuyerOpen, setSwitchBuyerOpen] = useState(false);
+  const [switchingBuyer, setSwitchingBuyer] = useState(false);
+
+  const isSellerProfile = profileType === "creator" || profileType === "school";
+
+  const checkoutUrl = `/checkout/${product?.id || ""}${searchParams.get("teacher") ? `?teacher=${encodeURIComponent(searchParams.get("teacher")!)}` : ""}`;
 
   const handleBuy = () => {
-    const teacherParam = searchParams.get("teacher");
-    const checkoutUrl = `/checkout/${product?.id || ""}${teacherParam ? `?teacher=${encodeURIComponent(teacherParam)}` : ""}`;
+    if (isSellerProfile) {
+      setSwitchBuyerOpen(true);
+      return;
+    }
+    navigate(checkoutUrl);
+  };
+
+  const switchToBuyerAndBuy = async () => {
+    setSwitchingBuyer(true);
+    const buyer = profiles.find((p) => p.type === "buyer");
+    const result = buyer
+      ? await switchProfile({ profileId: buyer.id })
+      : await switchProfile({ createType: "buyer" });
+    setSwitchingBuyer(false);
+    if ("error" in result) {
+      toast.error(t("switchProfileError"));
+      return;
+    }
+    setSwitchBuyerOpen(false);
     navigate(checkoutUrl);
   };
 
@@ -95,6 +132,11 @@ const ProductPage = () => {
       navigate(`/p/${encodeURIComponent(product.slug)}${window.location.search}`, { replace: true });
     }
   }, [product?.slug, productId, navigate]);
+
+  useEffect(() => {
+    if (!user?.id || !product?.id) return;
+    touchRecentProduct(user.id, product.id);
+  }, [user?.id, product?.id]);
 
   if (isLoading) {
     return (
@@ -133,9 +175,27 @@ const ProductPage = () => {
   const pausedMessage: string =
     (product.paused_message && String(product.paused_message).trim()) || t("productPausedDefault");
   const sellerName = product.author_name || t("author");
-  const accessLabel = product.access_duration_days
-    ? t("accessDays", { days: product.access_duration_days })
-    : t("accessLifetime");
+  const isSubscription = product.category_slug === "subscriptions";
+  const accessLabel = isSubscription
+    ? t("subscriptionAccessNote")
+    : product.access_duration_days
+      ? t("accessDays", { days: product.access_duration_days })
+      : t("accessLifetime");
+  const firstChargeDate = new Intl.DateTimeFormat(language === "kk" ? "kk-KZ" : "ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+  const priceLabel = isSubscription && isBillingPeriod(product.billing_period)
+    ? formatCatalogPrice(
+        {
+          price: Number(product.price),
+          category_slug: "subscriptions",
+          billing_period: product.billing_period,
+        },
+        language,
+      )
+    : formatPriceTenge(Number(product.price));
 
   const sellerBlock = product.seller_handle ? (
     <Link
@@ -165,8 +225,13 @@ const ProductPage = () => {
   const purchaseBody = (
     <>
       <p className="text-3xl font-bold tracking-tight text-foreground">
-        {formatPriceTenge(Number(product.price))}
+        {priceLabel}
       </p>
+      {isSubscription && (
+        <p className="public-meta mt-2">
+          {t("subscriptionFirstCharge")}: {firstChargeDate}
+        </p>
+      )}
       <p className="public-meta mt-2">{accessLabel}</p>
       <div className="mt-6 border-t border-border pt-6">{sellerBlock}</div>
       <div className="mt-6">
@@ -211,7 +276,6 @@ const ProductPage = () => {
                   title={product.title}
                   imageUrl={product.image_url}
                   decorative={false}
-                  titleClassName="text-[28px] md:text-[32px] lg:text-[40px]"
                   className="rounded-2xl"
                 >
                   {videoUrl && (
@@ -321,6 +385,22 @@ const ProductPage = () => {
           )}
         </PublicContainer>
       </div>
+
+      <AlertDialog open={switchBuyerOpen} onOpenChange={setSwitchBuyerOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("switchToBuyerTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("switchToBuyerDescription")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={switchingBuyer}>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction disabled={switchingBuyer} onClick={() => void switchToBuyerAndBuy()}>
+              {switchingBuyer ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {t("switchToBuyerAction")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

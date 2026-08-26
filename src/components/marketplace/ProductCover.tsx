@@ -4,20 +4,20 @@ import { cn } from "@/lib/utils";
 
 type ProductCoverProps = {
   productId: string;
-  title: string;
+  title?: string;
   imageUrl?: string | null;
+  emoji?: string | null;
   className?: string;
-  titleClassName?: string;
   decorative?: boolean;
   children?: ReactNode;
 };
 
 const ProductCover = ({
   productId,
-  title,
+  title = "",
   imageUrl,
+  emoji,
   className,
-  titleClassName,
   decorative = true,
   children,
 }: ProductCoverProps) => {
@@ -26,7 +26,12 @@ const ProductCover = ({
   const tint = coverTintFromId(productId);
 
   return (
-    <div className={cn("relative aspect-[16/10] w-full overflow-hidden", className)}>
+    <div
+      className={cn(
+        "relative aspect-[16/10] w-full overflow-hidden [container-type:size]",
+        className,
+      )}
+    >
       {showImage ? (
         <img
           src={imageUrl!}
@@ -37,17 +42,23 @@ const ProductCover = ({
       ) : (
         <div
           aria-hidden={decorative || undefined}
-          className="flex h-full w-full items-center justify-center p-5"
+          className="relative h-full w-full"
           style={{ backgroundColor: tint }}
         >
-          <p
-            className={cn(
-              "line-clamp-3 text-center text-[20px] font-semibold leading-snug text-[#1F2328]",
-              titleClassName,
-            )}
-          >
-            {title}
-          </p>
+          {emoji ? (
+            <span
+              className="pointer-events-none absolute left-1/2 select-none leading-none"
+              style={{
+                top: "33%",
+                fontSize: "33cqh",
+                opacity: 0.4,
+                transform: "translate(-50%, -50%)",
+              }}
+              aria-hidden
+            >
+              {emoji}
+            </span>
+          ) : null}
         </div>
       )}
       {children}

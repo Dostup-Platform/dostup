@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SimpleAuthProvider } from "@/contexts/SimpleAuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -23,6 +23,7 @@ import InstallPage from "./pages/InstallPage";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 import RequireProfile from "@/components/auth/RequireProfile";
+import { MARKETPLACE_LOCATION, readLoginBackground } from "@/lib/loginModal";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,52 @@ function DevLocalhostRedirect() {
   const targetPort = port || "8080";
   window.location.replace(`http://localhost:${targetPort}${pathname}${search}`);
   return null;
+}
+
+function AppRoutes() {
+  const location = useLocation();
+  const isLogin = location.pathname === "/login";
+  const background = readLoginBackground(location.state);
+  const underlayLocation = isLogin ? (background ?? MARKETPLACE_LOCATION) : location;
+
+  return (
+    <>
+      <div
+        className={isLogin ? "pointer-events-none" : undefined}
+        aria-hidden={isLogin || undefined}
+        ref={(node) => {
+          if (!node) return;
+          if (isLogin) node.setAttribute("inert", "");
+          else node.removeAttribute("inert");
+        }}
+      >
+        <Routes location={underlayLocation}>
+          <Route path="/" element={<MarketplacePage />} />
+          <Route path="/s/:handle" element={<StorefrontPage />} />
+          <Route path="/p/:productId" element={<ProductPage />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/product/:productId" element={<ProductRedirect />} />
+          <Route path="/checkout/:productId" element={<ProductPurchasePage />} />
+          <Route path="/dashboard" element={<RequireProfile><Dashboard /></RequireProfile>} />
+          <Route path="/dashboard/account" element={<RequireProfile><Dashboard /></RequireProfile>} />
+          <Route path="/dashboard/schedule" element={<RequireProfile><Dashboard /></RequireProfile>} />
+          <Route path="/dashboard/materials" element={<RequireProfile><Dashboard /></RequireProfile>} />
+          <Route path="/dashboard/notifications" element={<RequireProfile><Dashboard /></RequireProfile>} />
+          <Route path="/creator" element={<RequireProfile><CreatorDashboard /></RequireProfile>} />
+          <Route path="/teacher" element={<TeacherDashboard />} />
+          <Route path="/school" element={<RequireProfile><SchoolDashboard /></RequireProfile>} />
+          <Route path="/moderator" element={<ModeratorDashboard />} />
+          <Route path="/install" element={<InstallPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </div>
+      {isLogin && (
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+        </Routes>
+      )}
+    </>
+  );
 }
 
 const App = () => (
@@ -47,22 +94,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<MarketplacePage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/s/:handle" element={<StorefrontPage />} />
-                <Route path="/p/:productId" element={<ProductPage />} />
-                <Route path="/auth/callback" element={<AuthCallback />} />
-                <Route path="/product/:productId" element={<ProductRedirect />} />
-                <Route path="/checkout/:productId" element={<ProductPurchasePage />} />
-                <Route path="/dashboard" element={<RequireProfile><Dashboard /></RequireProfile>} />
-                <Route path="/creator" element={<RequireProfile><CreatorDashboard /></RequireProfile>} />
-                <Route path="/teacher" element={<TeacherDashboard />} />
-                <Route path="/school" element={<RequireProfile><SchoolDashboard /></RequireProfile>} />
-                <Route path="/moderator" element={<ModeratorDashboard />} />
-                <Route path="/install" element={<InstallPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <AppRoutes />
             </BrowserRouter>
           </TooltipProvider>
         </AuthProvider>

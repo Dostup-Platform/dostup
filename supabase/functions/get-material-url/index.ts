@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { buyerHasProductAccess } from '../_shared/subscription.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,14 +48,8 @@ serve(async (req) => {
       )
     }
 
-    // Check if user has purchased this product
-    const { data: purchase } = await supabase
-      .from('simple_purchases')
-      .select('id')
-      .eq('buyer_profile_id', userId)
-      .eq('product_id', material.product_id)
-      .eq('status', 'completed')
-      .maybeSingle()
+    // Check if user has access to this product
+    const hasAccess = await buyerHasProductAccess(supabase, userId, material.product_id)
 
     // Also check if the user is the creator
     const { data: user, error: userError } = await supabase
@@ -70,7 +65,7 @@ serve(async (req) => {
       .maybeSingle()
     const isCreator = !!account && account.id === material.products?.creator_account_id
 
-    if (!purchase && !isCreator) {
+    if (!hasAccess && !isCreator) {
       return new Response(
         JSON.stringify({ error: 'Access denied - purchase required' }),
         { 

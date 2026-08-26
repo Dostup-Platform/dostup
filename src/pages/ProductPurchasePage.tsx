@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Copy } from "lucide-reac
 import { toast } from "sonner";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
 import { rememberAuthNext } from "@/lib/creatorAuth";
+import { loginPath, loginState } from "@/lib/loginModal";
 import { formatPriceTenge } from "@/lib/catalog";
 import ReceiptUploadCard, { ReceiptSubmission } from "@/components/checkout/ReceiptUploadCard";
 // Push notifications are now sent from the server via database triggers
@@ -31,6 +32,7 @@ const formatKaspiPhone = (phone: string) => {
 const ProductPurchasePage = () => {
   const { productId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { t } = useLanguage();
   const { user, sessionToken } = useSimpleAuth();
@@ -167,7 +169,7 @@ const ProductPurchasePage = () => {
       toast.error(t("loginRequiredCheckout"));
       const next = `/checkout/${product?.id || productId || ""}`;
       rememberAuthNext(next);
-      navigate(`/login?next=${encodeURIComponent(next)}`);
+      navigate(loginPath(next), { state: loginState(location) });
       setIsProcessing(false);
       return;
     }
@@ -222,7 +224,7 @@ const ProductPurchasePage = () => {
   const checkoutPath = `/checkout/${product.id}`;
   const goToLogin = () => {
     rememberAuthNext(checkoutPath);
-    navigate(`/login?next=${encodeURIComponent(checkoutPath)}`);
+    navigate(loginPath(checkoutPath), { state: loginState(location) });
   };
 
   const handleBackToPayment = async () => {

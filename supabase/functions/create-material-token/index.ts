@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buyerHasProductAccess } from "../_shared/subscription.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -95,15 +96,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (profile?.type === 'buyer') {
-          const { data: purchase } = await supabase
-            .from('simple_purchases')
-            .select('id')
-            .eq('buyer_profile_id', profile.id)
-            .eq('product_id', productId)
-            .eq('status', 'completed')
-            .maybeSingle();
-
-          if (purchase) {
+          if (await buyerHasProductAccess(supabase, profile.id, productId)) {
             authorized = true;
           }
         }

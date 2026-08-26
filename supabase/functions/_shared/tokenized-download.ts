@@ -1,6 +1,7 @@
 import { corsHeaders, json, optionsResponse } from './http.ts'
 import { authorizeDownload, mimeForKey, parseS3Path, presignGet } from './s3.ts'
 import { serviceClient } from './session.ts'
+import { buyerHasProductAccess } from './subscription.ts'
 
 async function consumeAccessToken(token: string): Promise<string | null> {
   const supabase = serviceClient()
@@ -73,14 +74,24 @@ export async function handleTokenizedDownload(req: Request): Promise<Response> {
           const parts = parsed.key.split('/')
           const productId = parts[0]?.startsWith('teacher-') ? parts[1] : parts[0]
           const supabase = serviceClient()
-          const { data: purchase } = await supabase
-            .from('simple_purchases')
+          const { data: profile } = await supabase
+            .from('profiles')
             .select('id')
-            .eq('simple_user_id', userId)
-            .eq('product_id', productId)
-            .eq('status', 'completed')
+            .eq('id', userId)
             .maybeSingle()
-          if (!purchase) return new Response('Access denied', { status: 403 })
+          const hasAccess = profile
+            ? await buyerHasProductAccess(supabase, profile.id, productId)
+            : false
+          if (!hasAccess) {
+            const { data: purchase } = await supabase
+              .from('simple_purchases')
+              .select('id')
+              .eq('simple_user_id', userId)
+              .eq('product_id', productId)
+              .eq('status', 'completed')
+              .maybeSingle()
+            if (!purchase) return new Response('Access denied', { status: 403 })
+          }
         } else if (role !== 'creator' && role !== 'teacher') {
           return new Response('Access denied', { status: 403 })
         }
@@ -108,14 +119,20 @@ export async function handleTokenizedDownload(req: Request): Promise<Response> {
         const parts = parsed.key.split('/')
         const productId = parts[0]?.startsWith('teacher-') ? parts[1] : parts[0]
         const supabase = serviceClient()
-        const { data: purchase } = await supabase
-          .from('simple_purchases')
-          .select('id')
-          .eq('simple_user_id', body.userId)
-          .eq('product_id', productId)
-          .eq('status', 'completed')
-          .maybeSingle()
-        if (!purchase) return json({ error: 'Access denied' }, 403)
+        const profileId = typeof body.userId === 'string' ? body.userId : ''
+        const hasAccess = profileId
+          ? await buyerHasProductAccess(supabase, profileId, productId)
+          : false
+        if (!hasAccess) {
+          const { data: purchase } = await supabase
+            .from('simple_purchases')
+            .select('id')
+            .eq('simple_user_id', body.userId)
+            .eq('product_id', productId)
+            .eq('status', 'completed')
+            .maybeSingle()
+          if (!purchase) return json({ error: 'Access denied' }, 403)
+        }
       } else if (body.role !== 'creator' && body.role !== 'teacher') {
         return json({ error: 'Access denied' }, 403)
       }

@@ -78,7 +78,7 @@ function localToday(): string {
   return `${year}-${month}-${day}`;
 }
 
-// Получить подтверждённые покупки пользователя
+// Получить подтверждённые покупки пользователя (без подписок — они в useSimpleSubscriptions)
 export const useSimplePurchases = () => {
   const { user } = useSimpleAuth();
   const queryClient = useQueryClient();
@@ -126,6 +126,61 @@ export const useSimplePurchases = () => {
       return data.purchases ?? [];
     },
     enabled: !!user,
+  });
+};
+
+export interface BuyerSubscription {
+  id: string;
+  product_id: string;
+  status: string;
+  current_period_end: string;
+  current_period_start: string;
+  billing_period: string;
+  has_access: boolean;
+  product: {
+    id: string;
+    title: string;
+    headline: string | null;
+    telegram_link: string | null;
+    group_link_label: string | null;
+    slug: string | null;
+    billing_period: string | null;
+    price: number;
+  } | null;
+}
+
+export const useSimpleSubscriptions = () => {
+  const { user } = useSimpleAuth();
+
+  return useQuery({
+    queryKey: ["simple-subscriptions", user?.id],
+    queryFn: async () => {
+      if (!user) return [] as BuyerSubscription[];
+
+      const data = await invokeApi<{ subscriptions: BuyerSubscription[] }>("checkout", {
+        action: "list_my_subscriptions",
+        ...studentCreds(),
+      });
+      return data.subscriptions ?? [];
+    },
+    enabled: !!user,
+  });
+};
+
+export const useCancelSubscription = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (subscriptionId: string) => {
+      await invokeApi("checkout", {
+        action: "cancel_subscription",
+        subscriptionId,
+        ...studentCreds(),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["simple-subscriptions"] });
+    },
   });
 };
 

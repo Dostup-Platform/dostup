@@ -1,26 +1,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
-import ProfileSwitcher from "@/components/auth/ProfileSwitcher";
+import AppShell from "@/components/layout/BuyerAppShell";
 import HandleSettingsCard from "@/components/account/HandleSettingsCard";
+import AvatarSettings from "@/components/account/AvatarSettings";
 import HandleSetupDialog from "@/components/account/HandleSetupDialog";
 import DisplayNameSetupDialog from "@/components/account/DisplayNameSetupDialog";
 import AppHeader from "@/components/layout/AppHeader";
 import { readAuthEmail } from "@/lib/creatorAuth";
-import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { needsDisplayNamePrompt } from "@/lib/displayName";
 import { supabase } from "@/integrations/supabase/client";
 import {
   School, Users, GraduationCap, Layers, Calendar, BookOpen,
-  ClipboardList, ListChecks, BarChart3, Lock, Bell, LogOut,
+  ClipboardList, ListChecks, BarChart3, Lock, Bell,
 } from "lucide-react";
 
 const SchoolDashboard = () => {
   const navigate = useNavigate();
-  const { logout } = useSimpleAuth();
   const { t } = useLanguage();
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,11 +65,6 @@ const SchoolDashboard = () => {
     });
   }, [navigate]);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
-
   const features = [
     { icon: Users, label: t("schoolFeatureStudents") },
     { icon: GraduationCap, label: t("schoolFeatureTeachers") },
@@ -115,8 +108,9 @@ const SchoolDashboard = () => {
   }
 
   return (
+    <AppShell>
     <div className="min-h-screen bg-gradient-hero">
-      <AppHeader variant="dashboard" />
+      <AppHeader />
       <div className="max-w-3xl mx-auto space-y-6 px-4 py-8">
         <Card>
           <CardHeader className="text-center">
@@ -149,17 +143,20 @@ const SchoolDashboard = () => {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">{t("profile")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AvatarSettings displayName={profileDisplayName || t("profileSchool")} />
+          </CardContent>
+        </Card>
+
         <HandleSettingsCard
           initialHandle={typeof window !== "undefined" ? localStorage.getItem("profile_handle") : null}
           profileId={profileId}
         />
 
-        <ProfileSwitcher activeType="school" />
-
-        <Button variant="outline" className="w-full" onClick={handleLogout}>
-          <LogOut className="w-4 h-4 mr-2" />
-          {t("signOut")}
-        </Button>
         <HandleSetupDialog
           open={needsHandle}
           profileId={profileId}
@@ -167,6 +164,7 @@ const SchoolDashboard = () => {
         />
       </div>
     </div>
+    </AppShell>
   );
 };
 

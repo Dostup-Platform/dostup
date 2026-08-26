@@ -33,6 +33,7 @@ interface SimpleAuthContextType {
     profileType: ProfileType;
     displayName: string;
   }) => Promise<{ path: string } | { error: string }>;
+  setProfileAvatar: (url: string | null) => void;
   logout: () => void;
 }
 
@@ -291,6 +292,22 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
     void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
   };
 
+  const setProfileAvatar = useCallback((url: string | null) => {
+    const profileId = localStorage.getItem("profile_id");
+    if (!profileId) return;
+    setProfiles((prev) => {
+      const next = prev.map((profile) =>
+        profile.id === profileId ? { ...profile, avatarUrl: url } : profile,
+      );
+      try {
+        localStorage.setItem("identity_profiles", JSON.stringify(next));
+      } catch {
+        // private mode
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <SimpleAuthContext.Provider value={{
       user,
@@ -301,6 +318,7 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       refreshSession,
       switchProfile,
       createProfile,
+      setProfileAvatar,
       logout,
     }}>
       {children}

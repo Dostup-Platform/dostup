@@ -7,8 +7,8 @@ import { User, LogOut, Download, Globe, Lock, Eye, EyeOff, Loader2 } from "lucid
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { useNavigate, Link } from "react-router-dom";
-import ProfileSwitcher from "@/components/auth/ProfileSwitcher";
 import HandleSettingsCard from "@/components/account/HandleSettingsCard";
+import AvatarSettings from "@/components/account/AvatarSettings";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useState, useEffect } from "react";
 import { unregisterPushToken } from "@/lib/firebase";
@@ -33,7 +33,7 @@ interface CreatorAccountTabProps {
 
 const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
   const navigate = useNavigate();
-  const { logout } = useSimpleAuth();
+  const { logout, profiles } = useSimpleAuth();
   const { t, language } = useLanguage();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [createdAt, setCreatedAt] = useState<Date | null>(null);
@@ -43,6 +43,10 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
     ? localStorage.getItem("creator_account_type")
     : null;
   const isLegacyAccount = !accountType;
+  const activeProfileId = typeof window !== "undefined" ? localStorage.getItem("profile_id") : null;
+  const shownName =
+    profiles.find((profile) => profile.id === activeProfileId)?.displayName?.trim() ||
+    creatorName;
 
   const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
@@ -117,20 +121,14 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-lg font-bold text-primary">
-                {creatorName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div>
-              <p className="font-medium text-foreground">{creatorName}</p>
-              {createdAt && (
-                <p className="text-sm text-muted-foreground">
-                  {t("memberSince")} {format(createdAt, "LLLL yyyy", { locale: ru })}
-                </p>
-              )}
-            </div>
+          <AvatarSettings displayName={shownName} />
+          <div>
+            <p className="font-medium text-foreground">{shownName}</p>
+            {createdAt && (
+              <p className="text-sm text-muted-foreground">
+                {t("memberSince")} {format(createdAt, "LLLL yyyy", { locale: ru })}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -138,10 +136,6 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
       <HandleSettingsCard
         initialHandle={typeof window !== "undefined" ? localStorage.getItem("profile_handle") : null}
         profileId={typeof window !== "undefined" ? localStorage.getItem("profile_id") : null}
-      />
-
-      <ProfileSwitcher
-        activeType={accountType === "online_school" ? "school" : "creator"}
       />
 
       {/* Language Switcher */}

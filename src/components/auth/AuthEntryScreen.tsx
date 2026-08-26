@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
-import { AppLogoLink } from "@/components/auth/AuthMark";
+import { AuthMark } from "@/components/auth/AuthMark";
+import { LOGIN_CARD_CLASS } from "@/lib/loginModal";
+import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 
 interface AuthEntryScreenProps {
@@ -29,11 +31,11 @@ const AuthEntryScreen = ({
   const busy = sending || googleLoading;
 
   return (
-    <Card className="w-full max-w-md rounded-2xl animate-fade-in">
-      <CardContent className="pt-5 pb-6 px-6 space-y-5">
-        <div className="flex flex-col items-center text-center gap-7">
-          <AppLogoLink markClassName="h-9 w-auto" />
-          <p className="text-2xl font-bold tracking-tight leading-[1.25]">{t("authTagline")}</p>
+    <Card className={cn(LOGIN_CARD_CLASS, "motion-safe:animate-fade-in")}>
+      <CardContent className="space-y-5 px-6 pb-6 pt-14">
+        <div className="flex flex-col items-center gap-7 text-center">
+          <AuthMark variant="brand" className="h-9 w-auto object-center" />
+          <h1 className="text-2xl font-bold leading-[1.25] tracking-tight">{t("authTagline")}</h1>
         </div>
 
         <form onSubmit={onContinue} className="space-y-3">
@@ -46,6 +48,7 @@ const AuthEntryScreen = ({
             value={email}
             onChange={(e) => onEmailChange(e.target.value)}
             className="h-12 rounded-xl"
+            autoFocus
             disabled={busy}
           />
           <Button

@@ -7,6 +7,7 @@ import {
   unauthorized,
   forbidden,
 } from '../_shared/session.ts'
+import { buyerHasProductAccess } from '../_shared/subscription.ts'
 
 function slotEndFromDuration(currentStart: string, currentEnd: string, newStart: string): string {
   const [sh, sm] = currentStart.split(':').map(Number)
@@ -45,14 +46,8 @@ Deno.serve(async (req) => {
       if (!timeSlotId || !scheduleId) return json({ error: 'Bad input' }, 400)
       const productId = await productIdForSchedule(supabase, scheduleId)
       if (!productId) return json({ error: 'Schedule not found' }, 404)
-      const { data: purchase } = await supabase
-        .from('simple_purchases')
-        .select('id')
-        .eq('buyer_profile_id', caller.userId)
-        .eq('product_id', productId)
-        .eq('status', 'completed')
-        .maybeSingle()
-      if (!purchase) return forbidden()
+      const hasAccess = await buyerHasProductAccess(supabase, caller.userId, productId)
+      if (!hasAccess) return forbidden()
       const { data, error } = await supabase
         .from('simple_bookings')
         .insert({

@@ -1,6 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { classifyAuthError, OAUTH_CODE_MESSAGE_TYPE, OAUTH_MESSAGE_TYPE } from "@/lib/authErrors";
+import { needsDisplayNamePrompt } from "@/lib/displayName";
 
 export const OAUTH_ACCOUNT_TYPE_KEY = "dostup_oauth_account_type";
 export const OAUTH_PROFILE_TYPE_KEY = "dostup_oauth_profile_type";
@@ -15,6 +16,8 @@ export type AppProfile = {
   id: string;
   type: ProfileType;
   displayName: string | null;
+  createdAt?: string | null;
+  avatarUrl?: string | null;
 };
 
 export type SessionPayload = {
@@ -146,24 +149,49 @@ export function profileHomePath(profileType: string, accountType?: string | null
   return "/creator";
 }
 
-export function roleOnboardingKey(email: string) {
-  return `dostup_role_onboarded_${email.trim().toLowerCase()}`;
+export function nameOnboardingKey(email: string) {
+  return `dostup_name_onboarded_${email.trim().toLowerCase()}`;
 }
 
-export function hasCompletedRoleOnboarding(email: string) {
+export function hasCompletedNameOnboarding(email: string) {
   if (!email.trim()) return false;
-  return localStorage.getItem(roleOnboardingKey(email)) === "1";
+  return localStorage.getItem(nameOnboardingKey(email)) === "1";
 }
 
-export function markRoleOnboardingComplete(email: string) {
+export function markNameOnboardingComplete(email: string) {
   if (!email.trim()) return;
-  localStorage.setItem(roleOnboardingKey(email), "1");
+  localStorage.setItem(nameOnboardingKey(email), "1");
 }
 
+/** @deprecated use name onboarding helpers */
+export function roleOnboardingKey(email: string) {
+  return nameOnboardingKey(email);
+}
+
+/** @deprecated use hasCompletedNameOnboarding */
+export function hasCompletedRoleOnboarding(email: string) {
+  return hasCompletedNameOnboarding(email);
+}
+
+/** @deprecated use markNameOnboardingComplete */
+export function markRoleOnboardingComplete(email: string) {
+  markNameOnboardingComplete(email);
+}
+
+export function needsNameOnboarding(
+  email: string,
+  displayName?: string | null,
+  profiles: AppProfile[] = [],
+) {
+  if (hasCompletedNameOnboarding(email)) return false;
+  const buyer = profiles.find((p) => p.type === "buyer");
+  const name = displayName ?? buyer?.displayName ?? localStorage.getItem("profile_display_name");
+  return needsDisplayNamePrompt(name, email);
+}
+
+/** @deprecated use needsNameOnboarding */
 export function needsRoleOnboarding(email: string, profiles: AppProfile[] = []) {
-  if (hasCompletedRoleOnboarding(email)) return false;
-  if (profiles.length > 0) return false;
-  return true;
+  return needsNameOnboarding(email, null, profiles);
 }
 
 export function isOnboardingSession(creatorName?: string | null) {
@@ -202,8 +230,13 @@ export function consumeAuthNext() {
   return path;
 }
 
+export function nameOnboardingPath(email: string) {
+  return `/login?onboarding=name&email=${encodeURIComponent(email.trim().toLowerCase())}`;
+}
+
+/** @deprecated use nameOnboardingPath */
 export function roleOnboardingPath(email: string) {
-  return `/login?onboarding=role&email=${encodeURIComponent(email.trim().toLowerCase())}`;
+  return nameOnboardingPath(email);
 }
 
 export function resolvePostAuthPath(
@@ -211,9 +244,10 @@ export function resolvePostAuthPath(
   profiles: AppProfile[] = readStoredProfiles(),
   profileType?: string | null,
   accountType?: string | null,
+  displayName?: string | null,
 ) {
-  if (email && needsRoleOnboarding(email, profiles)) {
-    return roleOnboardingPath(email);
+  if (email && needsNameOnboarding(email, displayName, profiles)) {
+    return nameOnboardingPath(email);
   }
   const next = consumeAuthNext();
   if (next) return next;
@@ -221,15 +255,15 @@ export function resolvePostAuthPath(
 }
 
 export function parseAuthRedirectPath(path: string):
-  | { type: "role"; email: string }
+  | { type: "name"; email: string }
   | { type: "route"; path: string } {
   const url = new URL(path, window.location.origin);
   if (
     (url.pathname === "/login" || url.pathname === "/") &&
-    url.searchParams.get("onboarding") === "role"
+    (url.searchParams.get("onboarding") === "name" || url.searchParams.get("onboarding") === "role")
   ) {
     return {
-      type: "role",
+      type: "name",
       email: url.searchParams.get("email")?.trim().toLowerCase() || readAuthEmail(),
     };
   }
@@ -355,23 +389,47 @@ type ExchangeAuthResult = {
   profiles?: { id: string; type: string; displayName: string | null }[];
   error?: string;
   needsOnboarding?: boolean;
+  needsNamePrompt?: boolean;
 };
 
-export async function completeGoogleOAuthSession(session: Session): Promise<GoogleOAuthResult> {
-  const params = new URLSearchParams(window.location.search);
-  const fromQuery = params.get("profile_type") || params.get("account_type");
-  const profileType = parseProfileType(fromQuery) ?? readOAuthProfileType();
+function sessionFromExchange(data: ExchangeAuthResult): SessionPayload | null {
+  if (!data.success || typeof data.token !== "string") return null;
+  const profileType = parseProfileType(data.profileType);
+  if (!profileType) return null;
+  return {
+    token: data.token,
+    creatorName: String(data.creatorName || data.displayName || ""),
+    accountType: typeof data.accountType === "string" ? data.accountType : null,
+    profileType,
+    profileId: String(data.profileId || ""),
+    displayName: typeof data.displayName === "string" ? data.displayName : null,
+    handle: data.handle ?? null,
+    profiles: Array.isArray(data.profiles) ? (data.profiles as SessionPayload["profiles"]) : [],
+  };
+}
 
+async function resolveExchangePayload(
+  payload: ExchangeAuthResult,
+): Promise<{ session: SessionPayload | null; error: string | null }> {
+  if (payload.needsOnboarding && !parseProfileType(payload.profileType)) {
+    return { session: null, error: String(payload.error || "exchange_failed") };
+  }
+  const session = sessionFromExchange(payload);
+  if (!session) return { session: null, error: String(payload.error || "exchange_failed") };
+  return { session, error: null };
+}
+
+export async function completeGoogleOAuthSession(session: Session): Promise<GoogleOAuthResult> {
   try {
     const { data, error } = await supabase.functions.invoke("exchange-auth-session", {
       body: {
         access_token: session.access_token,
-        profileType: profileType ?? undefined,
       },
     });
 
     const result = (data ?? {}) as ExchangeAuthResult;
     const errCode = result.error || error?.message;
+    const email = session.user.email?.trim().toLowerCase() || "";
 
     try {
       await supabase.auth.signOut({ scope: "local" });
@@ -380,45 +438,28 @@ export async function completeGoogleOAuthSession(session: Session): Promise<Goog
     }
     clearOAuthAccountType();
 
-    const nextType = parseProfileType(result.profileType);
-    if (error || !result.success || !result.token) {
+    if (error && !result.success && !result.needsOnboarding) {
       const code = errCode === "account_type_required" ? "account_type_required" : "exchange_failed";
       return { error: { message: code, code } };
     }
 
-    if (result.needsOnboarding) {
-      localStorage.setItem("creator_token", result.token);
-      localStorage.setItem("creator_name", result.creatorName || "");
-      localStorage.removeItem("profile_type");
-      localStorage.removeItem("profile_id");
-      const email = session.user.email?.trim().toLowerCase() || "";
-      if (email) rememberAuthEmail(email);
-      return {
-        error: null,
-        path: `/login?onboarding=role&email=${encodeURIComponent(email)}`,
-      };
+    const resolved = await resolveExchangePayload(result);
+    if (!resolved.session) {
+      const code = resolved.error === "account_type_required" ? "account_type_required" : "exchange_failed";
+      return { error: { message: code, code } };
     }
 
-    if (!nextType) {
-      return { error: { message: "exchange_failed", code: "exchange_failed" } };
-    }
-
-    storeCreatorSession({
-      token: result.token,
-      creatorName: result.creatorName || result.displayName || "",
-      accountType: result.accountType,
-      profileType: nextType,
-      profileId: result.profileId,
-      displayName: result.displayName,
-      handle: result.handle ?? null,
-      profiles: result.profiles as SessionPayload["profiles"],
-    });
-    const email = session.user.email?.trim().toLowerCase() || "";
+    storeCreatorSession(resolved.session);
     if (email) rememberAuthEmail(email);
-    const profiles = (result.profiles as SessionPayload["profiles"]) ?? [];
     return {
       error: null,
-      path: resolvePostAuthPath(email, profiles, nextType, result.accountType),
+      path: resolvePostAuthPath(
+        email,
+        resolved.session.profiles ?? [],
+        resolved.session.profileType,
+        resolved.session.accountType,
+        resolved.session.displayName,
+      ),
     };
   } catch {
     return { error: { message: "network_failure", code: "network_failure" } };
@@ -643,19 +684,18 @@ export async function verifyEmailCode(email: string, token: string) {
   return first.error ? first : second;
 }
 
-export async function exchangeAuthSession(
-  accessToken: string,
-  profileType?: ProfileType,
-  displayName?: string,
-) {
-  const sellerName = displayName || readSellerDisplayName();
+export async function exchangeAuthSession(accessToken: string) {
   return supabase.functions.invoke("exchange-auth-session", {
     body: {
       access_token: accessToken,
-      profileType: profileType ?? undefined,
-      displayName: sellerName.length >= 2 ? sellerName : undefined,
     },
   });
+}
+
+export async function completeExchangedSession(
+  payload: Record<string, unknown> | null,
+) {
+  return resolveExchangePayload((payload ?? {}) as ExchangeAuthResult);
 }
 
 export function sendCreatorMagicLink(email: string, accountType?: CreatorAccountType) {
