@@ -20,3 +20,9 @@ export function needsDisplayNamePrompt(
 export function isDisplayNameValid(value: string): boolean {
   return value.trim().length >= 2;
 }
+
+export function initialsFrom(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "D";
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || "").join("");
+}

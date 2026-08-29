@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { type ProfileType } from "@/lib/creatorAuth";
+import { LOGIN_CARD_CLASS } from "@/lib/loginModal";
+import { cn } from "@/lib/utils";
 import { BookOpen, Loader2, School, ShoppingBag } from "lucide-react";
 
 const ROLE_OPTIONS: {
@@ -32,11 +34,15 @@ const ROLE_OPTIONS: {
 
 interface RoleSelectionScreenProps {
   onSelect: (type: ProfileType) => void | Promise<void>;
+  types?: ProfileType[];
 }
 
-const RoleSelectionScreen = ({ onSelect }: RoleSelectionScreenProps) => {
+const RoleSelectionScreen = ({ onSelect, types }: RoleSelectionScreenProps) => {
   const { t } = useLanguage();
   const [busyType, setBusyType] = useState<ProfileType | null>(null);
+  const options = types?.length
+    ? ROLE_OPTIONS.filter((option) => types.includes(option.type))
+    : ROLE_OPTIONS;
 
   const handleSelect = async (type: ProfileType) => {
     if (busyType) return;
@@ -49,12 +55,12 @@ const RoleSelectionScreen = ({ onSelect }: RoleSelectionScreenProps) => {
   };
 
   return (
-    <Card className="w-full max-w-md rounded-2xl animate-fade-in">
-      <CardHeader className="pb-2 text-center">
+    <Card className={cn(LOGIN_CARD_CLASS, "motion-safe:animate-fade-in")}>
+      <CardHeader className="pb-2 pt-14 text-center">
         <CardTitle className="text-2xl font-bold">{t("chooseYourRole")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-2 pb-6">
-        {ROLE_OPTIONS.map(({ type, icon: Icon, titleKey, descriptionKey }) => {
+        {options.map(({ type, icon: Icon, titleKey, descriptionKey }) => {
           const busy = busyType === type;
           return (
             <button
