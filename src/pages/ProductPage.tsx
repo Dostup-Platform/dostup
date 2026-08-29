@@ -5,6 +5,7 @@ import { isUuid } from "@/lib/productShare";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
 import ProductCover from "@/components/marketplace/ProductCover";
 import PublicContainer from "@/components/marketplace/PublicContainer";
+import PublicFooter from "@/components/layout/PublicFooter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
@@ -140,20 +141,21 @@ const ProductPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen flex-col bg-background">
         <MarketplaceHeader />
-        <div className="flex justify-center py-24">
+        <div className="flex flex-1 justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+        <PublicFooter />
       </div>
     );
   }
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen flex-col bg-background">
         <MarketplaceHeader />
-        <PublicContainer className="py-6">
+        <PublicContainer className="flex-1 py-6">
           <Link
             to="/"
             className="mb-8 inline-flex items-center gap-2 public-meta hover:text-foreground focus-ring rounded-md"
@@ -163,6 +165,7 @@ const ProductPage = () => {
           </Link>
           <p className="public-body text-[#6B7280]">{t("productNotFound")}</p>
         </PublicContainer>
+        <PublicFooter />
       </div>
     );
   }
@@ -246,9 +249,9 @@ const ProductPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <MarketplaceHeader />
-      <PublicContainer className="pb-28 pt-4 lg:pb-16 lg:pt-6">
+      <PublicContainer className="flex-1 pb-28 pt-4 lg:pb-16 lg:pt-6">
         <Link
           to="/"
           className="mb-4 inline-flex items-center gap-2 public-meta hover:text-foreground focus-ring rounded-md"
@@ -362,6 +365,8 @@ const ProductPage = () => {
           </aside>
         </div>
       </PublicContainer>
+
+      <PublicFooter className="pb-28 lg:pb-0" />
 
       <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/90 p-4 backdrop-blur-lg safe-area-inset lg:hidden">
         <PublicContainer className="flex items-center gap-4">

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { AppLogoLink } from "@/components/auth/AuthMark";
+import PublicFooter from "@/components/layout/PublicFooter";
 import { useDeviceDetection, DeviceType } from "@/hooks/useDeviceDetection";
 import { ArrowLeft, Smartphone, Monitor, ChevronDown, ChevronUp, Share, MoreVertical, Download } from "lucide-react";
 
@@ -99,7 +100,7 @@ const InstallPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="container flex items-center h-14 px-4 gap-3">
@@ -114,7 +115,7 @@ const InstallPage = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container px-4 py-6 max-w-lg mx-auto">
+      <main className="container flex-1 px-4 py-6 max-w-lg mx-auto">
         <div className="text-center mb-6">
           <Smartphone className="w-12 h-12 mx-auto mb-3 text-primary" />
           <h1 className="text-2xl font-bold">{t("installApp")}</h1>
@@ -147,6 +148,7 @@ const InstallPage = () => {
           </Collapsible>
         </div>
       </main>
+      <PublicFooter />
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import CatalogGrid from "@/components/marketplace/CatalogGrid";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
 import PublicContainer from "@/components/marketplace/PublicContainer";
+import PublicFooter from "@/components/layout/PublicFooter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSellerStorefront } from "@/hooks/useSellerStorefront";
@@ -14,9 +15,9 @@ const StorefrontPage = () => {
   const { data: seller, isLoading } = useSellerStorefront(handle);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <MarketplaceHeader />
-      <PublicContainer as="main" className="pb-16 pt-8">
+      <PublicContainer as="main" className="flex-1 pb-16 pt-8">
         {isLoading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -63,6 +64,7 @@ const StorefrontPage = () => {
           </>
         )}
       </PublicContainer>
+      <PublicFooter />
     </div>
   );
 };

@@ -22,6 +22,7 @@ import ModeratorDashboard from "./pages/ModeratorDashboard";
 import InstallPage from "./pages/InstallPage";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
+import LegalPage from "./pages/LegalPage";
 import RequireProfile from "@/components/auth/RequireProfile";
 import { MARKETPLACE_LOCATION, readLoginBackground } from "@/lib/loginModal";
 
@@ -55,6 +56,8 @@ function AppRoutes() {
       >
         <Routes location={underlayLocation}>
           <Route path="/" element={<MarketplacePage />} />
+          <Route path="/terms" element={<LegalPage docId="terms" />} />
+          <Route path="/privacy" element={<LegalPage docId="privacy" />} />
           <Route path="/s/:handle" element={<StorefrontPage />} />
           <Route path="/p/:productId" element={<ProductPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />

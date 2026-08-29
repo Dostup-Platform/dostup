@@ -12,6 +12,7 @@ import { invokeApi, studentCreds } from "@/lib/sessionApi";
 import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Copy } from "lucide-react";
 import { toast } from "sonner";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
+import PublicFooter from "@/components/layout/PublicFooter";
 import { rememberAuthNext } from "@/lib/creatorAuth";
 import { loginPath, loginState } from "@/lib/loginModal";
 import { formatPriceTenge } from "@/lib/catalog";
@@ -200,20 +201,22 @@ const ProductPurchasePage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen flex-col bg-background">
         <MarketplaceHeader />
-        <div className="flex justify-center py-24">
+        <div className="flex flex-1 justify-center py-24">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
+        <PublicFooter />
       </div>
     );
   }
 
   if (!product) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen flex-col bg-background">
         <MarketplaceHeader />
-        <p className="px-4 py-16 text-center text-muted-foreground">{t("productNotFound")}</p>
+        <p className="flex-1 px-4 py-16 text-center text-muted-foreground">{t("productNotFound")}</p>
+        <PublicFooter />
       </div>
     );
   }

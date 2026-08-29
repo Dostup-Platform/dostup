@@ -76,6 +76,27 @@ const AuthEntryScreen = ({
         </div>
 
         <GoogleSignInButton loading={googleLoading} disabled={sending} onClick={onGoogle} />
+
+        <p className="text-center text-[12px] leading-relaxed text-[#6B7280]">
+          {t("authConsentPrefix")}{" "}
+          <a
+            href="/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-[#1F2328] focus-ring rounded-sm"
+          >
+            {t("authConsentTerms")}
+          </a>{" "}
+          {t("authConsentAnd")}{" "}
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-[#1F2328] focus-ring rounded-sm"
+          >
+            {t("authConsentPrivacy")}
+          </a>
+        </p>
       </CardContent>
     </Card>
   );

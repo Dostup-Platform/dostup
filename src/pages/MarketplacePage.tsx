@@ -7,6 +7,7 @@ import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
 import PublicContainer from "@/components/marketplace/PublicContainer";
 import BuyerAppShell from "@/components/layout/BuyerAppShell";
 import BuyerMobileNav from "@/components/layout/BuyerMobileNav";
+import PublicFooter from "@/components/layout/PublicFooter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useCatalogSearch, useCatalogTaxonomy, type CatalogSort } from "@/hooks/useCatalogSearch";
@@ -61,9 +62,8 @@ const MarketplacePage = () => {
       <main className="flex flex-1 flex-col pb-0 pt-0 md:pb-16">
         <PublicContainer>
         <section className="text-center">
-          <h1 className="hero-headline mx-auto max-w-4xl pt-20 pb-14 text-balance">
-            <span className="block">{t("marketplaceHeadlineLine1")}</span>
-            <span className="block">{t("marketplaceHeadlineLine2")}</span>
+          <h1 className="hero-headline mx-auto pt-20 pb-14">
+            {t("marketplaceHeadline")}
           </h1>
 
           <div className="relative mx-auto flex w-full max-w-[760px] items-center rounded-[10px] bg-[#F6F7F8]">
@@ -140,11 +140,7 @@ const MarketplacePage = () => {
         </section>
       </main>
 
-      <div className="mt-auto border-t border-border">
-        <PublicContainer className="py-6">
-          <p className="public-body max-w-3xl text-[#6B7280]">{t("marketplaceSellerLine")}</p>
-        </PublicContainer>
-      </div>
+      <PublicFooter />
     </div>
   );
 
