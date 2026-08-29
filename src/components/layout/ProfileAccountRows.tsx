@@ -14,11 +14,13 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { cn } from "@/lib/utils";
 import { type AppProfile, readAuthEmail, type ProfileType } from "@/lib/creatorAuth";
 import { initialsFrom } from "@/lib/displayName";
+import { profilesInSidebarOrder } from "@/lib/profileOrder";
 import { invalidateAvatarQueries, uploadProfileAvatar } from "@/lib/avatarUpload";
 import AddSellerProfileDialog from "@/components/layout/AddSellerProfileDialog";
 import { toast } from "sonner";
 
 export { initialsFrom };
+export { profilesInSidebarOrder, profilesInCreationOrder } from "@/lib/profileOrder";
 
 export function profileRoleLabel(
   profile: AppProfile,
@@ -37,15 +39,6 @@ export function profileDisplayLabel(profile: AppProfile) {
     if (local) return local;
   }
   return "—";
-}
-
-export function profilesInCreationOrder(profiles: AppProfile[]) {
-  return [...profiles].sort((a, b) => {
-    const aTime = a.createdAt ? Date.parse(a.createdAt) : 0;
-    const bTime = b.createdAt ? Date.parse(b.createdAt) : 0;
-    if (aTime !== bTime) return aTime - bTime;
-    return a.id.localeCompare(b.id);
-  });
 }
 
 type ProfileAccountRowsProps = {
@@ -103,7 +96,7 @@ export function ProfileAccountRows({
 }: ProfileAccountRowsProps) {
   const { t } = useLanguage();
   const [wizardOpen, setWizardOpen] = useState(false);
-  const orderedProfiles = profilesInCreationOrder(profiles);
+  const orderedProfiles = profilesInSidebarOrder(profiles);
   const showBottomGroup = Boolean(
     onToggleExpanded || (showAccountActions && (accountHref || (showSignOut && onSignOut))),
   );
