@@ -219,19 +219,30 @@ export async function listProfiles(
   return (data ?? []) as ProfileRow[]
 }
 
+async function findExistingProfile(
+  supabase: SupabaseClient,
+  authUserId: string,
+  type: ProfileType,
+): Promise<ProfileRow | null> {
+  const { data } = await supabase
+    .from('profiles')
+    .select(PROFILE_COLUMNS)
+    .eq('auth_user_id', authUserId)
+    .eq('type', type)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  return (data as ProfileRow | null) ?? null
+}
+
 export async function findOrCreateProfile(
   supabase: SupabaseClient,
   authUserId: string,
   type: ProfileType,
   displayName: string,
 ): Promise<ProfileRow | null> {
-  const { data: existing } = await supabase
-    .from('profiles')
-    .select(PROFILE_COLUMNS)
-    .eq('auth_user_id', authUserId)
-    .eq('type', type)
-    .maybeSingle()
-  if (existing) return existing as ProfileRow
+  const existing = await findExistingProfile(supabase, authUserId, type)
+  if (existing) return existing
 
   const { data: created, error } = await supabase
     .from('profiles')
@@ -246,16 +257,32 @@ export async function findOrCreateProfile(
   if (!error && created) return created as ProfileRow
 
   if ((error as { code?: string } | null)?.code === '23505') {
-    const { data: again } = await supabase
-      .from('profiles')
-      .select(PROFILE_COLUMNS)
-      .eq('auth_user_id', authUserId)
-      .eq('type', type)
-      .maybeSingle()
-    return (again as ProfileRow | null) ?? null
+    return findExistingProfile(supabase, authUserId, type)
   }
 
   console.error('findOrCreateProfile error:', error)
+  return null
+}
+
+export async function createSellerProfile(
+  supabase: SupabaseClient,
+  authUserId: string,
+  type: 'creator' | 'school',
+  displayName: string,
+): Promise<ProfileRow | null> {
+  const { data: created, error } = await supabase
+    .from('profiles')
+    .insert({
+      auth_user_id: authUserId,
+      type,
+      display_name: displayName,
+      last_used_at: new Date().toISOString(),
+    })
+    .select(PROFILE_COLUMNS)
+    .single()
+
+  if (!error && created) return created as ProfileRow
+  console.error('createSellerProfile error:', error)
   return null
 }
 
@@ -351,22 +378,6 @@ export async function ensureCreatorAccount(
     }
     if (existing.is_blocked) return existing
     return { ...existing, ...patch } as CreatorAccountRow
-  }
-
-  const { data: byAuthType } = await supabase
-    .from('creator_accounts')
-    .select('id, login, display_name, account_type, is_blocked, email, auth_user_id, profile_id')
-    .eq('auth_user_id', args.authUserId)
-    .eq('account_type', args.accountType)
-    .maybeSingle()
-  if (byAuthType) {
-    const patch: Record<string, unknown> = { profile_id: args.profile.id }
-    if (args.email) patch.email = args.email
-    await supabase
-      .from('creator_accounts')
-      .update(patch)
-      .eq('id', (byAuthType as CreatorAccountRow).id)
-    return { ...(byAuthType as CreatorAccountRow), ...patch }
   }
 
   const baseLogin = args.email

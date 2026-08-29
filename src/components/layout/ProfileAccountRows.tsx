@@ -107,10 +107,6 @@ export function ProfileAccountRows({
   const showBottomGroup = Boolean(
     onToggleExpanded || (showAccountActions && (accountHref || (showSignOut && onSignOut))),
   );
-  const canAddSeller =
-    !profiles.some((profile) => profile.type === "creator") ||
-    !profiles.some((profile) => profile.type === "school");
-
   const newProfileButton = (
     <button
       type="button"
@@ -231,7 +227,7 @@ export function ProfileAccountRows({
       {showProfilesHeading && expanded && (
         <p className="mb-1 px-2.5 text-[12px] font-medium text-[#6B7280]">{t("navProfiles")}</p>
       )}
-      {canAddSeller && newProfileControl}
+      {newProfileControl}
       <div className="flex max-h-[40vh] flex-col overflow-y-auto">
         {orderedProfiles.map((profile) => profileRow(profile))}
       </div>
