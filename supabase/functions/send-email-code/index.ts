@@ -1,12 +1,14 @@
 import { json, optionsResponse } from '../_shared/http.ts'
+import {
+  alreadyRegisteredMessage,
+  loginCodeEmailHtml,
+  parseAdminUsers,
+  pickEmailOtp,
+  type AuthUser,
+} from '../_shared/email-otp.ts'
 import { normalizeEmail } from '../_shared/profiles.ts'
 import { serviceClient } from '../_shared/session.ts'
-
-type AuthUser = {
-  id: string
-  email?: string | null
-  email_confirmed_at?: string | null
-}
+import { sendTransactionalEmail } from '../_shared/transactional-email.ts'
 
 async function authHeaders(key: string): Promise<Record<string, string>> {
   return {
@@ -18,14 +20,97 @@ async function authHeaders(key: string): Promise<Record<string, string>> {
 
 async function findUserByEmail(email: string, serviceKey: string): Promise<AuthUser | null> {
   const url = Deno.env.get('SUPABASE_URL')!
-  const res = await fetch(
-    `${url}/auth/v1/admin/users?email=${encodeURIComponent(email)}`,
-    { headers: await authHeaders(serviceKey) },
-  )
-  if (!res.ok) return null
-  const body = await res.json().catch(() => ({}))
-  const users: AuthUser[] = Array.isArray(body?.users) ? body.users : []
-  return users.find((u) => (u.email || '').toLowerCase() === email) ?? null
+  const headers = await authHeaders(serviceKey)
+  for (const query of [`email=${encodeURIComponent(email)}`, `filter=${encodeURIComponent(email)}`]) {
+    const res = await fetch(`${url}/auth/v1/admin/users?${query}`, { headers })
+    if (!res.ok) continue
+    const body = await res.json().catch(() => ({}))
+    const user = parseAdminUsers(body, email)
+    if (user) return user
+  }
+  return null
+}
+
+function fromAdminUser(user: {
+  id: string
+  email?: string | null
+  email_confirmed_at?: string | null
+} | null | undefined): AuthUser | null {
+  if (!user?.id) return null
+  return {
+    id: user.id,
+    email: user.email,
+    email_confirmed_at: user.email_confirmed_at ?? null,
+  }
+}
+
+async function ensureConfirmedUser(
+  supabase: ReturnType<typeof serviceClient>,
+  email: string,
+  serviceKey: string,
+): Promise<AuthUser | null> {
+  let user = await findUserByEmail(email, serviceKey)
+  if (!user) {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email,
+      email_confirm: true,
+    })
+    if (error && !alreadyRegisteredMessage(error.message)) {
+      throw new Error(error.message)
+    }
+    user = fromAdminUser(data.user) ?? await findUserByEmail(email, serviceKey)
+  }
+
+  if (user?.id && !user.email_confirmed_at) {
+    const { data, error } = await supabase.auth.admin.updateUserById(user.id, { email_confirm: true })
+    if (error) throw new Error(error.message)
+    user = fromAdminUser(data.user) ?? { ...user, email_confirmed_at: new Date().toISOString() }
+  }
+
+  return user
+}
+
+async function sendCodeViaResend(
+  supabase: ReturnType<typeof serviceClient>,
+  email: string,
+): Promise<boolean> {
+  const { data, error } = await supabase.auth.admin.generateLink({
+    type: 'magiclink',
+    email,
+  })
+  if (error) {
+    console.error('generateLink error:', error)
+    return false
+  }
+  const otp = pickEmailOtp(data)
+  if (!otp) {
+    console.error('generateLink missing email_otp')
+    return false
+  }
+  return await sendTransactionalEmail({
+    to: email,
+    subject: `${otp} — код входа`,
+    html: loginCodeEmailHtml(otp),
+  })
+}
+
+async function sendCodeViaGoTrue(
+  url: string,
+  anonKey: string,
+  email: string,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const otpRes = await fetch(`${url}/auth/v1/otp`, {
+    method: 'POST',
+    headers: await authHeaders(anonKey),
+    body: JSON.stringify({ email, create_user: false }),
+  })
+  const otpBody = await otpRes.json().catch(() => ({})) as Record<string, unknown>
+  if (!otpRes.ok) {
+    const error = [otpBody.msg, otpBody.error_description, otpBody.error]
+      .find((value) => typeof value === 'string' && value) as string | undefined
+    return { ok: false, status: otpRes.status, error: error || 'Failed to send code' }
+  }
+  return { ok: true }
 }
 
 Deno.serve(async (req) => {
@@ -43,35 +128,19 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabase = serviceClient()
 
-    let user = await findUserByEmail(email, serviceKey)
-    if (!user) {
-      const { data, error } = await supabase.auth.admin.createUser({
-        email,
-        email_confirm: true,
-      })
-      if (error && !/already been registered|already exists/i.test(error.message)) {
-        return json({ error: error.message }, 400)
-      }
-      user = data.user ? { id: data.user.id, email: data.user.email, email_confirmed_at: data.user.email_confirmed_at } : await findUserByEmail(email, serviceKey)
+    try {
+      await ensureConfirmedUser(supabase, email, serviceKey)
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : 'Failed to prepare user' }, 400)
     }
 
-    if (user?.id && !user.email_confirmed_at) {
-      const { error } = await supabase.auth.admin.updateUserById(user.id, { email_confirm: true })
-      if (error) return json({ error: error.message }, 500)
+    if (await sendCodeViaResend(supabase, email)) {
+      return json({ success: true })
     }
 
-    // Confirmed users get the Magic Link / OTP template, not Confirm signup.
-    const otpRes = await fetch(`${url}/auth/v1/otp`, {
-      method: 'POST',
-      headers: await authHeaders(anonKey),
-      body: JSON.stringify({ email, create_user: false }),
-    })
-    const otpBody = await otpRes.json().catch(() => ({}))
-    if (!otpRes.ok) {
-      return json(
-        { error: otpBody?.msg || otpBody?.error_description || otpBody?.error || 'Failed to send code' },
-        otpRes.status,
-      )
+    const fallback = await sendCodeViaGoTrue(url, anonKey, email)
+    if (!fallback.ok) {
+      return json({ error: fallback.error }, fallback.status)
     }
 
     return json({ success: true })

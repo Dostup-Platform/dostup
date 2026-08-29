@@ -45,7 +45,7 @@ interface SimpleAuthContextType {
     displayName: string;
   }) => Promise<{ path: string } | { error: string }>;
   setProfileAvatar: (url: string | null) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const SimpleAuthContext = createContext<SimpleAuthContextType | undefined>(undefined);
@@ -389,10 +389,14 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     clearAppSession();
     setGuest();
-    void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      // local sign-out is best-effort
+    }
   };
 
   const setProfileAvatar = useCallback((url: string | null) => {

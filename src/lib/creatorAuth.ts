@@ -471,10 +471,17 @@ export async function startGoogleOAuth(profileType?: ProfileType): Promise<Googl
   }
 }
 
+const EMAIL_OTP_TYPES = ["email", "magiclink", "signup"] as const;
+
 export async function sendEmailCode(email: string, profileType?: ProfileType) {
   rememberOAuthProfileType(profileType);
   const address = email.trim().toLowerCase();
   try {
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      // leftover Supabase session must not block a new code
+    }
     const { data, error } = await supabase.functions.invoke("send-email-code", {
       body: { email: address },
     });
@@ -509,20 +516,19 @@ export async function sendEmailCode(email: string, profileType?: ProfileType) {
 
 export async function verifyEmailCode(email: string, token: string) {
   const address = email.trim().toLowerCase();
-  const first = await supabase.auth.verifyOtp({
-    email: address,
-    token,
-    type: "email",
-  });
-  if (!first.error && first.data.session) return first;
-
-  const second = await supabase.auth.verifyOtp({
-    email: address,
-    token,
-    type: "signup",
-  });
-  if (!second.error && second.data.session) return second;
-  return first.error ? first : second;
+  let firstError: Awaited<ReturnType<typeof supabase.auth.verifyOtp>> | null = null;
+  let last = firstError;
+  for (const type of EMAIL_OTP_TYPES) {
+    const result = await supabase.auth.verifyOtp({
+      email: address,
+      token,
+      type,
+    });
+    if (!result.error && result.data.session) return result;
+    if (!firstError && result.error) firstError = result;
+    last = result;
+  }
+  return firstError ?? last!;
 }
 
 export async function exchangeAuthSession(accessToken: string) {
