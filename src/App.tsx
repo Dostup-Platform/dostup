@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import AuthSplash from "@/components/auth/AuthSplash";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SimpleAuthProvider } from "@/contexts/SimpleAuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -39,9 +41,15 @@ function DevLocalhostRedirect() {
 
 function AppRoutes() {
   const location = useLocation();
+  const { status } = useSimpleAuth();
   const isLogin = location.pathname === "/login";
+  const isAuthCallback = location.pathname === "/auth/callback";
   const background = readLoginBackground(location.state);
   const underlayLocation = isLogin ? (background ?? MARKETPLACE_LOCATION) : location;
+
+  if (status === "loading" && !isAuthCallback) {
+    return <AuthSplash />;
+  }
 
   return (
     <>

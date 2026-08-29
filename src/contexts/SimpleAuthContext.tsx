@@ -1,14 +1,22 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  buyerUserFromSession,
   clearAppSession,
+  isStoredSessionExpired,
   parseProfileType,
   profileHomePath,
   readAuthEmail,
+  readStoredAppSession,
+  readStoredProfiles,
   storeCreatorSession,
   type AppProfile,
   type ProfileType,
+  type SessionPayload,
+  type StoredAppSession,
 } from "@/lib/creatorAuth";
+
+export type AuthStatus = "loading" | "authenticated" | "guest";
 
 interface SimpleUser {
   id: string;
@@ -20,11 +28,13 @@ interface SimpleUser {
 
 interface SimpleAuthContextType {
   user: SimpleUser | null;
+  status: AuthStatus;
   loading: boolean;
   sessionToken: string | null;
   profileType: ProfileType | null;
   profiles: AppProfile[];
   refreshSession: () => Promise<void>;
+  applySession: (session: SessionPayload, expiresAt?: string | null) => void;
   switchProfile: (opts: {
     profileId?: string;
     createType?: ProfileType;
@@ -52,86 +62,163 @@ interface SimpleAuthProviderProps {
   children: ReactNode;
 }
 
-function buyerFromStorage(): SimpleUser | null {
-  const profileType = parseProfileType(localStorage.getItem("profile_type"));
-  const profileId = localStorage.getItem("profile_id");
-  if (profileType !== "buyer" || !profileId) return null;
-  const emailLocal = readAuthEmail().split("@")[0]?.trim() || "";
-  const storedName = localStorage.getItem("profile_display_name")?.trim() || "";
+type HydratedAuthState = {
+  status: AuthStatus;
+  user: SimpleUser | null;
+  sessionToken: string | null;
+  profileType: ProfileType | null;
+  profiles: AppProfile[];
+};
+
+function hydrateAuthState(): HydratedAuthState {
+  if (typeof window === "undefined") {
+    return {
+      status: "loading",
+      user: null,
+      sessionToken: null,
+      profileType: null,
+      profiles: [],
+    };
+  }
+
+  if (isStoredSessionExpired()) {
+    clearAppSession();
+    return {
+      status: "guest",
+      user: null,
+      sessionToken: null,
+      profileType: null,
+      profiles: [],
+    };
+  }
+
+  const stored = readStoredAppSession();
+  if (!stored) {
+    return {
+      status: "guest",
+      user: null,
+      sessionToken: null,
+      profileType: null,
+      profiles: [],
+    };
+  }
+
   return {
-    id: profileId,
-    phone: "",
-    name: storedName || emailLocal,
-    role: "student",
-    created_at: localStorage.getItem("creator_created_at") || new Date().toISOString(),
+    status: "authenticated",
+    sessionToken: stored.token,
+    profileType: stored.profileType,
+    profiles: stored.profiles,
+    user: stored.profileType === "buyer" ? buyerUserFromSession(stored) : null,
   };
 }
 
-function readStoredProfiles(): AppProfile[] {
-  try {
-    const raw = localStorage.getItem("identity_profiles");
-    if (!raw) return [];
-    return JSON.parse(raw) as AppProfile[];
-  } catch {
-    return [];
-  }
+function buyerFromStorage(): SimpleUser | null {
+  const stored = readStoredAppSession();
+  if (!stored || stored.profileType !== "buyer") return null;
+  return buyerUserFromSession(stored);
 }
 
 export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
-  const [user, setUser] = useState<SimpleUser | null>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-  const [profileType, setProfileType] = useState<ProfileType | null>(() =>
-    parseProfileType(typeof window === "undefined" ? null : localStorage.getItem("profile_type")),
-  );
-  const [profiles, setProfiles] = useState<AppProfile[]>(() =>
-    typeof window === "undefined" ? [] : readStoredProfiles(),
-  );
-  const [loading, setLoading] = useState(true);
+  const initial = hydrateAuthState();
+  const [status, setStatus] = useState<AuthStatus>(initial.status);
+  const [user, setUser] = useState<SimpleUser | null>(initial.user);
+  const [sessionToken, setSessionToken] = useState<string | null>(initial.sessionToken);
+  const [profileType, setProfileType] = useState<ProfileType | null>(initial.profileType);
+  const [profiles, setProfiles] = useState<AppProfile[]>(initial.profiles);
+  const validating = useRef(false);
+
+  const setGuest = useCallback(() => {
+    setUser(null);
+    setSessionToken(null);
+    setProfileType(null);
+    setProfiles([]);
+    setStatus("guest");
+  }, []);
 
   const applyBuyer = useCallback((token: string, next: SimpleUser, nextProfiles: AppProfile[]) => {
     setUser(next);
     setSessionToken(token);
     setProfileType("buyer");
     setProfiles(nextProfiles);
+    setStatus("authenticated");
   }, []);
 
-  const refreshSession = useCallback(async () => {
-    const token = localStorage.getItem("creator_token");
-    const storedType = parseProfileType(localStorage.getItem("profile_type"));
-    const creatorName = localStorage.getItem("creator_name") || "";
+  const applyStoredSession = useCallback((stored: StoredAppSession) => {
+    setSessionToken(stored.token);
+    setProfileType(stored.profileType);
+    setProfiles(stored.profiles);
+    if (stored.profileType === "buyer") {
+      applyBuyer(stored.token, buyerUserFromSession(stored), stored.profiles);
+      return;
+    }
+    setUser(null);
+    setStatus("authenticated");
+  }, [applyBuyer]);
 
+  const applySession = useCallback((session: SessionPayload, expiresAt?: string | null) => {
+    storeCreatorSession({
+      token: session.token,
+      creatorName: session.creatorName,
+      accountType: session.accountType,
+      profileType: session.profileType,
+      profileId: session.profileId,
+      displayName: session.displayName,
+      handle: session.handle,
+      createdAt: session.createdAt,
+      profiles: session.profiles,
+      expiresAt,
+    });
+    const nextProfiles = session.profiles ?? [];
+    setSessionToken(session.token);
+    setProfileType(session.profileType);
+    setProfiles(nextProfiles);
+    if (session.profileType === "buyer") {
+      applyBuyer(session.token, buyerUserFromSession({
+        profileId: session.profileId,
+        displayName: session.displayName ?? null,
+        createdAt: session.createdAt ?? null,
+      }), nextProfiles);
+      return;
+    }
+    setUser(null);
+    setStatus("authenticated");
+  }, [applyBuyer]);
+
+  const validateStoredSession = useCallback(async () => {
+    const token = localStorage.getItem("creator_token");
     if (!token) {
-      setUser(null);
-      setSessionToken(null);
-      setProfileType(null);
-      setProfiles([]);
-      setLoading(false);
+      setGuest();
       return;
     }
 
-    setLoading(true);
+    if (isStoredSessionExpired()) {
+      clearAppSession();
+      setGuest();
+      return;
+    }
+
+    const storedType = parseProfileType(localStorage.getItem("profile_type"));
+    const creatorName = localStorage.getItem("creator_name") || "";
+
     try {
       const { data, error } = await supabase.functions.invoke("validate-creator-session", {
         body: { token, creatorName },
       });
 
       if (error) {
-        if (storedType === "buyer") {
-          const cached = buyerFromStorage();
-          if (cached) applyBuyer(token, cached, readStoredProfiles());
-        } else {
-          setProfileType(storedType);
+        const cached = buyerFromStorage();
+        if (cached) applyBuyer(token, cached, readStoredProfiles());
+        else if (storedType) {
           setSessionToken(token);
+          setProfileType(storedType);
+          setStatus("authenticated");
         }
         return;
       }
 
       if (!data?.valid) {
         clearAppSession();
-        setUser(null);
-        setSessionToken(null);
-        setProfileType(null);
-        setProfiles([]);
+        setGuest();
         return;
       }
 
@@ -140,6 +227,7 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
         setProfileType(null);
         setUser(null);
         setProfiles([]);
+        setStatus("authenticated");
         localStorage.removeItem("profile_id");
         localStorage.removeItem("profile_type");
         return;
@@ -176,23 +264,30 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
         }, nextProfiles);
       } else {
         setUser(null);
+        setStatus("authenticated");
       }
     } catch {
-      if (storedType === "buyer") {
-        const cached = buyerFromStorage();
-        if (cached) applyBuyer(token, cached, readStoredProfiles());
-      } else {
-        setProfileType(storedType);
+      const cached = buyerFromStorage();
+      if (cached) applyBuyer(token, cached, readStoredProfiles());
+      else if (storedType) {
         setSessionToken(token);
+        setProfileType(storedType);
+        setStatus("authenticated");
       }
-    } finally {
-      setLoading(false);
     }
-  }, [applyBuyer]);
+  }, [applyBuyer, setGuest]);
+
+  const refreshSession = useCallback(async () => {
+    const stored = readStoredAppSession();
+    if (stored) applyStoredSession(stored);
+    await validateStoredSession();
+  }, [applyStoredSession, validateStoredSession]);
 
   useEffect(() => {
-    void refreshSession();
-  }, [refreshSession]);
+    if (validating.current) return;
+    validating.current = true;
+    void validateStoredSession();
+  }, [validateStoredSession]);
 
   const createProfile = async (opts: {
     profileType: ProfileType;
@@ -235,6 +330,7 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       } else {
         setUser(null);
         setSessionToken(data.token);
+        setStatus("authenticated");
       }
       return { path: profileHomePath(data.profileType, data.accountType) };
     } catch {
@@ -285,6 +381,7 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       } else {
         setUser(null);
         setSessionToken(data.token);
+        setStatus("authenticated");
       }
       return { path: profileHomePath(data.profileType, data.accountType) };
     } catch {
@@ -294,10 +391,7 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
 
   const logout = () => {
     clearAppSession();
-    setUser(null);
-    setSessionToken(null);
-    setProfileType(null);
-    setProfiles([]);
+    setGuest();
     void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
   };
 
@@ -320,11 +414,13 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
   return (
     <SimpleAuthContext.Provider value={{
       user,
-      loading,
+      status,
+      loading: status === "loading",
       sessionToken,
       profileType,
       profiles,
       refreshSession,
+      applySession,
       switchProfile,
       createProfile,
       setProfileAvatar,

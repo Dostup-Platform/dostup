@@ -32,8 +32,8 @@ const MarketplaceHeader = ({
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
-  const { loading, sessionToken, profileType } = useSimpleAuth();
-  const signedIn = Boolean(sessionToken && profileType);
+  const { status, sessionToken, profileType } = useSimpleAuth();
+  const signedIn = status === "authenticated" && Boolean(sessionToken && profileType);
 
   const defaultNotificationsClick = () => {
     if (profileType === "creator") {
@@ -47,33 +47,31 @@ const MarketplaceHeader = ({
 
   return (
     <AppHeader>
-      {!loading && (
-        signedIn ? (
-          <>
-            <HeaderChatsButton
-              active={supportActive}
-              unread={supportUnread}
-              onClick={onSupportClick ?? (() => navigate(profileHomePath(profileType || "buyer", localStorage.getItem("creator_account_type"))))}
-            />
-            <HeaderNotificationsButton
-              active={notificationsActive}
-              count={notificationCount}
-              onClick={onNotificationsClick ?? defaultNotificationsClick}
-            />
-            <HeaderAccountControl />
-          </>
-        ) : (
-          <>
-            <PublicLocaleToggle />
-            <Link
-              to="/login"
-              state={loginState(location)}
-              className="inline-flex h-10 items-center rounded-full border border-[#E3E5E8] px-5 text-[15px] font-medium text-[#1F2328] transition-colors hover:bg-[#F6F7F8] focus-ring"
-            >
-              {t("signIn")}
-            </Link>
-          </>
-        )
+      {status === "loading" ? null : signedIn ? (
+        <>
+          <HeaderChatsButton
+            active={supportActive}
+            unread={supportUnread}
+            onClick={onSupportClick ?? (() => navigate(profileHomePath(profileType || "buyer", localStorage.getItem("creator_account_type"))))}
+          />
+          <HeaderNotificationsButton
+            active={notificationsActive}
+            count={notificationCount}
+            onClick={onNotificationsClick ?? defaultNotificationsClick}
+          />
+          <HeaderAccountControl />
+        </>
+      ) : (
+        <>
+          <PublicLocaleToggle />
+          <Link
+            to="/login"
+            state={loginState(location)}
+            className="inline-flex h-10 items-center rounded-full border border-[#E3E5E8] px-5 text-[15px] font-medium text-[#1F2328] transition-colors hover:bg-[#F6F7F8] focus-ring"
+          >
+            {t("signIn")}
+          </Link>
+        </>
       )}
     </AppHeader>
   );

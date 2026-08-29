@@ -7,12 +7,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { parseCallbackError } from "@/lib/authErrors";
 import { exchangeCreatorSession } from "@/lib/creatorAuth";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 
 type CallbackPhase = "exchanging" | "error";
 
 const AuthCallback = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { applySession } = useSimpleAuth();
   const [phase, setPhase] = useState<CallbackPhase>("exchanging");
   const [message, setMessage] = useState(t("authExchanging"));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -41,11 +43,14 @@ const AuthCallback = () => {
         setPhase("error");
         return;
       }
+      if (result.session) {
+        applySession(result.session);
+      }
       if (result.path) {
         navigate(result.path, { replace: true });
       }
     },
-    [logFailure, navigate, t],
+    [applySession, logFailure, navigate, t],
   );
 
   const obtainSupabaseSession = useCallback(async (): Promise<Session | null> => {

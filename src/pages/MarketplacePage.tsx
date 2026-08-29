@@ -16,8 +16,8 @@ import { cn } from "@/lib/utils";
 
 const MarketplacePage = () => {
   const { t, language } = useLanguage();
-  const { profileType, sessionToken } = useSimpleAuth();
-  const signedIn = Boolean(sessionToken && profileType);
+  const { status, profileType, sessionToken } = useSimpleAuth();
+  const signedIn = status === "authenticated" && Boolean(sessionToken && profileType);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [categorySlug, setCategorySlug] = useState("");

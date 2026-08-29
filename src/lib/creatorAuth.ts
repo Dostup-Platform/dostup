@@ -33,6 +33,22 @@ export type SessionPayload = {
 export type GoogleOAuthResult = {
   error: { message: string; code?: string; name?: string; status?: number } | null;
   path?: string;
+  session?: SessionPayload;
+};
+
+export const CREATOR_TOKEN_EXPIRES_KEY = "creator_token_expires_at";
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type StoredAppSession = {
+  token: string;
+  creatorName: string;
+  profileType: ProfileType;
+  profileId: string;
+  displayName: string | null;
+  accountType: string | null;
+  createdAt: string | null;
+  profiles: AppProfile[];
+  expiresAt: string | null;
 };
 
 export function storeCreatorSession(data: {
@@ -45,8 +61,11 @@ export function storeCreatorSession(data: {
   handle?: string | null;
   createdAt?: string | null;
   profiles?: AppProfile[];
+  expiresAt?: string | null;
 }) {
   localStorage.setItem("creator_token", data.token);
+  const expiresAt = data.expiresAt || new Date(Date.now() + SESSION_TTL_MS).toISOString();
+  localStorage.setItem(CREATOR_TOKEN_EXPIRES_KEY, expiresAt);
   localStorage.setItem("creator_name", data.creatorName);
   localStorage.setItem("creator_last_name", data.creatorName);
   if (data.accountType) {
@@ -76,6 +95,7 @@ export function storeCreatorSession(data: {
 
 export function clearAppSession() {
   localStorage.removeItem("creator_token");
+  localStorage.removeItem(CREATOR_TOKEN_EXPIRES_KEY);
   localStorage.removeItem("creator_name");
   localStorage.removeItem("creator_last_name");
   localStorage.removeItem("creator_account_type");
@@ -134,6 +154,48 @@ export function readStoredProfiles(): AppProfile[] {
   } catch {
     return [];
   }
+}
+
+export function isStoredSessionExpired(): boolean {
+  const expiresAt = localStorage.getItem(CREATOR_TOKEN_EXPIRES_KEY);
+  if (!expiresAt) return false;
+  return new Date(expiresAt) <= new Date();
+}
+
+export function readStoredAppSession(): StoredAppSession | null {
+  if (typeof window === "undefined") return null;
+  const token = localStorage.getItem("creator_token");
+  if (!token || isStoredSessionExpired()) return null;
+
+  const profileType = parseProfileType(localStorage.getItem("profile_type"));
+  if (!profileType) return null;
+
+  const profileId = localStorage.getItem("profile_id") || "";
+  return {
+    token,
+    creatorName: localStorage.getItem("creator_name") || "",
+    profileType,
+    profileId,
+    displayName: localStorage.getItem("profile_display_name"),
+    accountType: localStorage.getItem("creator_account_type"),
+    createdAt: localStorage.getItem("creator_created_at"),
+    profiles: readStoredProfiles(),
+    expiresAt: localStorage.getItem(CREATOR_TOKEN_EXPIRES_KEY),
+  };
+}
+
+export function buyerUserFromSession(
+  session: Pick<StoredAppSession, "profileId" | "displayName" | "createdAt">,
+) {
+  const emailLocal = readAuthEmail().split("@")[0]?.trim() || "";
+  const storedName = session.displayName?.trim() || "";
+  return {
+    id: session.profileId,
+    phone: "",
+    name: storedName || emailLocal,
+    role: "student" as const,
+    created_at: session.createdAt || new Date().toISOString(),
+  };
 }
 
 export function creatorHomePath(accountType: string) {
@@ -352,6 +414,7 @@ export async function exchangeCreatorAccessToken(
 
     return {
       error: null,
+      session: resolved.session,
       path: resolvePostAuthPath(
         email,
         resolved.session.profiles ?? [],

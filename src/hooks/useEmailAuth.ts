@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { authErrorKeyFromUnknown } from "@/lib/authErrors";
 import {
   exchangeCreatorAccessToken,
@@ -23,6 +24,7 @@ type PendingExchange = {
 export function useEmailAuth(options: UseEmailAuthOptions = {}) {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { applySession } = useSimpleAuth();
   const { onAuthRedirect } = options;
   const [googleLoading, setGoogleLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -53,6 +55,9 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
 
     pendingExchange.current = null;
     setExchangeError(null);
+    if (result.session) {
+      applySession(result.session);
+    }
     if (result.path) {
       await redirectAfterAuth(result.path);
     }

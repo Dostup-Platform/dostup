@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import SupportChat from "@/components/SupportChat";
 import { useSupportUnread } from "@/hooks/useSupportUnread";
+import AuthSplash from "@/components/auth/AuthSplash";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { studentCreds, invokeApi } from "@/lib/sessionApi";
 import AppHeader from "@/components/layout/AppHeader";
@@ -28,7 +29,7 @@ import { buyerSectionFromPath, BUYER_NOTIFICATIONS_PATH } from "@/lib/navigation
 const Dashboard = () => {
   const [supportOpen, setSupportOpen] = useState(false);
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
-  const { user, loading, profileType, refreshSession } = useSimpleAuth();
+  const { user, status, profileType } = useSimpleAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isAccountView = location.pathname === "/dashboard/account";
@@ -174,12 +175,7 @@ const Dashboard = () => {
   }, [buyerSection, lastViewedKey]);
 
   useEffect(() => {
-    if (loading || user) return;
-    if (localStorage.getItem("creator_token")) void refreshSession();
-  }, [loading, user, refreshSession]);
-
-  useEffect(() => {
-    if (loading) return;
+    if (status === "loading") return;
     if (profileType === "creator") {
       navigate("/creator");
       return;
@@ -191,14 +187,10 @@ const Dashboard = () => {
     if (!user) {
       navigate("/login?next=/dashboard", { replace: true });
     }
-  }, [user, loading, profileType, navigate]);
+  }, [user, status, profileType, navigate]);
 
-  if (loading || (!user && localStorage.getItem("creator_token"))) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+  if (status === "loading") {
+    return <AuthSplash />;
   }
 
   if (!user) return null;

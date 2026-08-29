@@ -23,10 +23,10 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { loading, profileType, sessionToken, refreshSession } = useSimpleAuth();
+  const { status, profileType, sessionToken } = useSimpleAuth();
   const { t } = useLanguage();
   const [screen, setScreen] = useState<Screen>("entry");
-  const signedIn = Boolean(sessionToken && profileType);
+  const signedIn = status === "authenticated" && Boolean(sessionToken && profileType);
   const nextPath = searchParams.get("next");
 
   const closeModal = useCallback(() => {
@@ -72,7 +72,7 @@ const LoginPage = () => {
   }, [location.state, searchParams, setSearchParams, t]);
 
   useEffect(() => {
-    if (loading) return;
+    if (status === "loading") return;
     if (screen === "code") return;
     if (signedIn) {
       const destination =
@@ -81,7 +81,7 @@ const LoginPage = () => {
           : profileHomePath(profileType || "buyer", localStorage.getItem("creator_account_type"));
       navigate(destination, { replace: true });
     }
-  }, [loading, navigate, nextPath, profileType, screen, signedIn]);
+  }, [navigate, nextPath, profileType, screen, signedIn, status]);
 
   const handleContinue = async (e: FormEvent) => {
     e.preventDefault();
@@ -91,11 +91,6 @@ const LoginPage = () => {
 
   const handleGoogle = async () => {
     const result = await auth.handleGoogle();
-    if (result.path) {
-      await refreshSession();
-      await applyAuthRedirect(result.path);
-      return;
-    }
     if (result.error) {
       toast.error(t(authErrorKeyFromUnknown(result.error)));
     }
@@ -108,7 +103,7 @@ const LoginPage = () => {
   );
 
   const body =
-    loading ? (
+    status === "loading" ? (
       spinner
     ) : screen === "code" && auth.pendingEmail ? (
       <EmailCodeScreen
