@@ -8,7 +8,7 @@ import {
 } from '../_shared/email-otp.ts'
 import { normalizeEmail } from '../_shared/profiles.ts'
 import { serviceClient } from '../_shared/session.ts'
-import { sendTransactionalEmail } from '../_shared/transactional-email.ts'
+import { hasTransactionalEmail, sendTransactionalEmail } from '../_shared/transactional-email.ts'
 
 async function authHeaders(key: string): Promise<Record<string, string>> {
   return {
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
       return json({ error: error instanceof Error ? error.message : 'Failed to prepare user' }, 400)
     }
 
-    if (await sendCodeViaResend(supabase, email)) {
+    if (hasTransactionalEmail() && await sendCodeViaResend(supabase, email)) {
       return json({ success: true })
     }
 

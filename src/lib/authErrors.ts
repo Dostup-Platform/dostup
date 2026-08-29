@@ -11,6 +11,8 @@ export type AuthUiCode =
   | "email_rate_limited"
   | "network_failure"
   | "account_type_required"
+  | "email_send_failed"
+  | "login_failed"
   | "auth_callback_error";
 
 type AuthLikeError = {
@@ -82,6 +84,14 @@ export function classifyAuthCode(raw: string | null | undefined): AuthUiCode {
   if (RATE_LIMIT_CODES.has(code)) return "email_rate_limited";
   if (code === "account_type_required") return "account_type_required";
   if (code === "network_failure" || code === "failed_to_fetch") return "network_failure";
+  if (
+    code === "email_send_failed" ||
+    code === "functions_http_error" ||
+    messageLooksLikeSendFailure(code)
+  ) {
+    return "email_send_failed";
+  }
+  if (code === "login_failed" || code === "exchange_failed") return "login_failed";
   return "auth_callback_error";
 }
 
@@ -91,7 +101,13 @@ export function classifyAuthError(error: AuthLikeError): AuthUiCode {
   const name = (error.name || "").toLowerCase();
   const message = (error.message || "").toLowerCase();
 
-  if (error.status === 429 || RATE_LIMIT_CODES.has(code) || message.includes("rate limit")) {
+  if (
+    error.status === 429 ||
+    RATE_LIMIT_CODES.has(code) ||
+    message.includes("rate limit") ||
+    message.includes("for security purposes") ||
+    message.includes("only request this after")
+  ) {
     return "email_rate_limited";
   }
   if (
@@ -124,7 +140,27 @@ export function classifyAuthError(error: AuthLikeError): AuthUiCode {
   if (POPUP_CODES.has(code) || message.includes("popup")) {
     return "oauth_popup_dismissed";
   }
+  if (messageLooksLikeSendFailure(message) || code === "email_send_failed" || code === "functions_http_error") {
+    return "email_send_failed";
+  }
+  if (code === "login_failed" || code === "exchange_failed" || message.includes("exchange_failed")) {
+    return "login_failed";
+  }
   return classifyAuthCode(code || undefined);
+}
+
+function messageLooksLikeSendFailure(text: string): boolean {
+  return (
+    text.includes("already registered") ||
+    text.includes("already been registered") ||
+    text.includes("already exists") ||
+    text.includes("failed to send") ||
+    text.includes("failed to prepare") ||
+    text.includes("error sending") ||
+    text.includes("magic link email") ||
+    text.includes("edge function") ||
+    text.includes("non-2xx")
+  );
 }
 
 export function authErrorTranslationKey(code: string | null | undefined): TranslationKey {
@@ -143,6 +179,10 @@ export function authErrorTranslationKey(code: string | null | undefined): Transl
       return "networkFailure";
     case "account_type_required":
       return "accountTypeRequired";
+    case "email_send_failed":
+      return "emailSendFailed";
+    case "login_failed":
+      return "loginFailed";
     default:
       return "authCallbackError";
   }
