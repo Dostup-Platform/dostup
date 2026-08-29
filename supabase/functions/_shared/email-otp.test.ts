@@ -70,3 +70,23 @@ Deno.test('login email contains the code and no confirmation link', () => {
     throw new Error('must not include a magic link that email apps can prefetch')
   }
 })
+
+Deno.test('returning email still yields a 6-digit code after already-registered lookup', () => {
+  const email = 'same@example.com'
+  const firstCreate = parseAdminUsers({ users: [] }, email)
+  if (firstCreate) throw new Error('new email should not be found yet')
+
+  if (!alreadyRegisteredMessage('A user with this email address has already been registered')) {
+    throw new Error('second send must continue after already-registered')
+  }
+
+  const returning = parseAdminUsers({
+    users: [{ id: 'user-1', email, email_confirmed_at: '2026-08-29T00:00:00Z' }],
+  }, email)
+  if (returning?.id !== 'user-1') throw new Error('existing user must be found on repeat login')
+
+  const otp = pickEmailOtp({
+    properties: { email_otp: '998877', action_link: 'https://example.com/auth/v1/verify?token=abc' },
+  })
+  if (otp !== '998877') throw new Error('repeat login must use the 6-digit OTP, not the link')
+})
