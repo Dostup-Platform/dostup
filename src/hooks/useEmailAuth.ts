@@ -4,21 +4,20 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { authErrorKeyFromUnknown } from "@/lib/authErrors";
 import {
-  completeExchangedSession,
-  exchangeAuthSession,
-  rememberAuthEmail,
-  resolvePostAuthPath,
+  exchangeCreatorAccessToken,
   sendEmailCode,
   startGoogleOAuth,
-  storeCreatorSession,
   verifyEmailCode,
   type GoogleOAuthResult,
-  type SessionPayload,
 } from "@/lib/creatorAuth";
-import { supabase } from "@/integrations/supabase/client";
 
 type UseEmailAuthOptions = {
   onAuthRedirect?: (path: string) => void | Promise<void>;
+};
+
+type PendingExchange = {
+  accessToken: string;
+  address: string;
 };
 
 export function useEmailAuth(options: UseEmailAuthOptions = {}) {
@@ -28,9 +27,12 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [retryingExchange, setRetryingExchange] = useState(false);
+  const [exchangeError, setExchangeError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const submitting = useRef(false);
+  const pendingExchange = useRef<PendingExchange | null>(null);
 
   const redirectAfterAuth = async (path: string) => {
     if (onAuthRedirect) {
@@ -40,39 +42,32 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
     navigate(path, { replace: true });
   };
 
-  const completeSession = (session: SessionPayload, address: string) => {
-    rememberAuthEmail(address);
-    storeCreatorSession(session);
-    void redirectAfterAuth(
-      resolvePostAuthPath(
-        address,
-        session.profiles ?? [],
-        session.profileType,
-        session.accountType,
-      ),
-    );
+  const exchange = async (accessToken: string, address: string) => {
+    const result = await exchangeCreatorAccessToken(accessToken, address);
+    if (result.error) {
+      const raw = result.error.message || result.error.code || "exchange_failed";
+      pendingExchange.current = { accessToken, address };
+      setExchangeError(raw);
+      return false;
+    }
+
+    pendingExchange.current = null;
+    setExchangeError(null);
+    if (result.path) {
+      await redirectAfterAuth(result.path);
+    }
+    return true;
   };
 
-  const exchange = async (accessToken: string, address: string) => {
-    const { data, error } = await exchangeAuthSession(accessToken);
+  const retryExchange = async () => {
+    const pending = pendingExchange.current;
+    if (!pending || retryingExchange) return false;
+    setRetryingExchange(true);
     try {
-      await supabase.auth.signOut({ scope: "local" });
-    } catch {
-      // app session is what we keep
+      return await exchange(pending.accessToken, pending.address);
+    } finally {
+      setRetryingExchange(false);
     }
-    const payload = (data ?? null) as Record<string, unknown> | null;
-    if (error && !payload?.success && payload?.needsOnboarding !== true) {
-      toast.error(t(authErrorKeyFromUnknown(error)));
-      return null;
-    }
-
-    const resolved = await completeExchangedSession(payload);
-    if (!resolved.session) {
-      toast.error(t(authErrorKeyFromUnknown({ message: resolved.error || "exchange_failed" })));
-      return null;
-    }
-    completeSession(resolved.session, address);
-    return true;
   };
 
   const sendCode = async (address: string) => {
@@ -88,6 +83,8 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
       toast.error(t(authErrorKeyFromUnknown(error)));
       return false;
     }
+    setExchangeError(null);
+    pendingExchange.current = null;
     setPendingEmail(trimmed);
     return true;
   };
@@ -96,6 +93,7 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
     if (!pendingEmail || submitting.current) return null;
     submitting.current = true;
     setVerifying(true);
+    setExchangeError(null);
     try {
       const { data, error } = await verifyEmailCode(pendingEmail, token);
       if (error || !data.session?.access_token) {
@@ -129,9 +127,13 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
     googleLoading,
     sending,
     verifying,
-    busy: googleLoading || sending || verifying,
+    retryingExchange,
+    exchangeError,
+    canRetryExchange: Boolean(pendingExchange.current && exchangeError),
+    busy: googleLoading || sending || verifying || retryingExchange,
     sendCode,
     verifyCode,
+    retryExchange,
     handleGoogle,
   };
 }

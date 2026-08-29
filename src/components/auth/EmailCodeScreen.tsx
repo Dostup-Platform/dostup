@@ -14,16 +14,22 @@ interface EmailCodeScreenProps {
   email: string;
   verifying?: boolean;
   sending?: boolean;
+  exchangeError?: string | null;
+  retryingExchange?: boolean;
   onVerify: (code: string) => void | Promise<void>;
   onResend: () => void | Promise<void>;
+  onRetryExchange?: () => void | Promise<void>;
 }
 
 const EmailCodeScreen = ({
   email,
   verifying,
   sending,
+  exchangeError,
+  retryingExchange,
   onVerify,
   onResend,
+  onRetryExchange,
 }: EmailCodeScreenProps) => {
   const { t } = useLanguage();
   const [digits, setDigits] = useState(() => Array.from({ length: OTP_LENGTH }, () => ""));
@@ -139,6 +145,30 @@ const EmailCodeScreen = ({
             <Loader2 className="w-5 h-5 animate-spin" />
           </div>
         )}
+
+        {exchangeError ? (
+          <div className="space-y-2 text-center">
+            <p className="text-sm text-destructive break-words">{exchangeError}</p>
+            {onRetryExchange ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={retryingExchange}
+                onClick={() => void onRetryExchange()}
+              >
+                {retryingExchange ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {t("processing")}
+                  </span>
+                ) : (
+                  t("authRetryExchange")
+                )}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="space-y-2 text-center">
           <Button

@@ -115,10 +115,13 @@ const LoginPage = () => {
         email={auth.pendingEmail}
         verifying={auth.verifying}
         sending={auth.sending}
+        exchangeError={auth.exchangeError}
+        retryingExchange={auth.retryingExchange}
         onVerify={async (code) => {
           await auth.verifyCode(code);
         }}
         onResend={() => auth.sendCode(auth.pendingEmail || auth.email)}
+        onRetryExchange={() => auth.retryExchange()}
       />
     ) : screen === "entry" && !signedIn ? (
       <AuthEntryScreen

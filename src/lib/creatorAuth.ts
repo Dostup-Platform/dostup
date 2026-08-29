@@ -315,24 +315,19 @@ async function resolveExchangePayload(
   return { session, error: null };
 }
 
-export async function completeGoogleOAuthSession(session: Session): Promise<GoogleOAuthResult> {
+export async function exchangeCreatorAccessToken(
+  accessToken: string,
+  email = "",
+): Promise<GoogleOAuthResult> {
   try {
     const { data, error } = await supabase.functions.invoke("exchange-auth-session", {
       body: {
-        access_token: session.access_token,
+        access_token: accessToken,
       },
     });
 
     const result = (data ?? {}) as ExchangeAuthResult;
     const errCode = result.error || error?.message;
-    const email = session.user.email?.trim().toLowerCase() || "";
-
-    try {
-      await supabase.auth.signOut({ scope: "local" });
-    } catch {
-      // creator session is what the app uses
-    }
-    clearOAuthAccountType();
 
     if (error && !result.success && !result.needsOnboarding) {
       const code = errCode === "account_type_required" ? "account_type_required" : "exchange_failed";
@@ -347,6 +342,14 @@ export async function completeGoogleOAuthSession(session: Session): Promise<Goog
 
     storeCreatorSession(resolved.session);
     if (email) rememberAuthEmail(email);
+    clearOAuthAccountType();
+
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      // creator session is what the app uses
+    }
+
     return {
       error: null,
       path: resolvePostAuthPath(
@@ -356,9 +359,20 @@ export async function completeGoogleOAuthSession(session: Session): Promise<Goog
         resolved.session.accountType,
       ),
     };
-  } catch {
-    return { error: { message: "network_failure", code: "network_failure" } };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "network_failure";
+    return { error: { message, code: "network_failure" } };
   }
+}
+
+export async function exchangeCreatorSession(session: Session): Promise<GoogleOAuthResult> {
+  const email = session.user.email?.trim().toLowerCase() || "";
+  return exchangeCreatorAccessToken(session.access_token, email);
+}
+
+/** @deprecated Use exchangeCreatorSession */
+export async function completeGoogleOAuthSession(session: Session): Promise<GoogleOAuthResult> {
+  return exchangeCreatorSession(session);
 }
 
 export async function startGoogleOAuth(profileType?: ProfileType): Promise<GoogleOAuthResult> {
@@ -367,7 +381,7 @@ export async function startGoogleOAuth(profileType?: ProfileType): Promise<Googl
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: authCallbackUrl(profileType),
+        redirectTo: `${window.location.origin}/auth/callback`,
         queryParams: { prompt: "select_account" },
       },
     });
