@@ -57,7 +57,6 @@ type ProfileAccountRowsProps = {
   showSignOut?: boolean;
   accountHref?: string | null;
   onToggleExpanded?: () => void;
-  showProfilesHeading?: boolean;
   showAccountActions?: boolean;
 };
 
@@ -91,7 +90,6 @@ export function ProfileAccountRows({
   showSignOut = false,
   accountHref,
   onToggleExpanded,
-  showProfilesHeading = false,
   showAccountActions = false,
 }: ProfileAccountRowsProps) {
   const { t } = useLanguage();
@@ -217,9 +215,6 @@ export function ProfileAccountRows({
           if (ok !== false) setWizardOpen(false);
         }}
       />
-      {showProfilesHeading && expanded && (
-        <p className="mb-1 px-2.5 text-[12px] font-medium text-[#6B7280]">{t("navProfiles")}</p>
-      )}
       {newProfileControl}
       <div className="flex max-h-[40vh] flex-col overflow-y-auto">
         {orderedProfiles.map((profile) => profileRow(profile))}

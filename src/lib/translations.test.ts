@@ -6,12 +6,14 @@ import { translations } from "./translations.ts";
 test("seller name placeholder is short name-or-title copy", () => {
   assert.equal(translations.ru.sellerNamePlaceholder, "Название или имя");
   assert.equal(translations.kk.sellerNamePlaceholder, "Атау немесе есім");
-  assert.equal(translations.ru.sellerNameLabel, "Как вас представить покупателям?");
+  assert.equal(translations.ru.sellerNameLabel, "Как будет видно покупателям");
+  assert.equal(translations.kk.sellerNameLabel, "Сатып алушыларға қалай көрінеді");
 });
 
 test("add-profile button stays visible and both seller modes stay available", () => {
   const rows = readFileSync(new URL("../components/layout/ProfileAccountRows.tsx", import.meta.url), "utf8");
   assert.equal(rows.includes("canAddSeller"), false);
+  assert.equal(rows.includes("showProfilesHeading"), false);
   assert.match(rows, /\{newProfileControl\}/);
 
   const dialog = readFileSync(

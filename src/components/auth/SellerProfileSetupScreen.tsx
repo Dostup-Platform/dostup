@@ -111,7 +111,6 @@ const SellerProfileSetupScreen = ({ saving = false, onContinue }: SellerProfileS
               </Button>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">{t("sellerPhotoOptional")}</p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="seller-setup-name">{t("sellerNameLabel")}</Label>

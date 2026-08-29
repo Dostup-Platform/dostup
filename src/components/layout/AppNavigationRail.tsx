@@ -130,7 +130,6 @@ const AppNavigationRail = ({ activeSection, sellerTab }: AppNavigationRailProps)
             profiles={profiles}
             busyProfileId={busyProfileId}
             creatingType={creatingType}
-            showProfilesHeading
             onSwitch={(profile) => {
               setBusyProfileId(profile.id);
               void runSwitch(profile, navigate, () => setBusyProfileId(null));
