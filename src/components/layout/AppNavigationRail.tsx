@@ -135,9 +135,9 @@ const AppNavigationRail = ({ activeSection, sellerTab }: AppNavigationRailProps)
               setBusyProfileId(profile.id);
               void runSwitch(profile, navigate, () => setBusyProfileId(null));
             }}
-            onCreateSeller={(type, displayName) => {
+            onCreateSeller={(type, displayName, avatarFile) => {
               setCreatingType(type);
-              void createSeller(type, displayName, navigate, () => setCreatingType(null));
+              return createSeller(type, displayName, navigate, () => setCreatingType(null), avatarFile);
             }}
             onToggleExpanded={toggleExpanded}
           />

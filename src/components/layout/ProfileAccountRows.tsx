@@ -1,13 +1,9 @@
 import type { ReactElement } from "react";
 import { useState } from "react";
-import { BookOpen, ChevronLeft, ChevronRight, Loader2, LogOut, Plus, School, UserRound } from "lucide-react";import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Loader2, LogOut, Plus, UserRound } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -17,13 +13,12 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { cn } from "@/lib/utils";
 import { type AppProfile, readAuthEmail, type ProfileType } from "@/lib/creatorAuth";
-import SellerProfileCreateDialog from "@/components/layout/SellerProfileCreateDialog";
+import { initialsFrom } from "@/lib/displayName";
+import { invalidateAvatarQueries, uploadProfileAvatar } from "@/lib/avatarUpload";
+import AddSellerProfileDialog from "@/components/layout/AddSellerProfileDialog";
 import { toast } from "sonner";
-export function initialsFrom(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "D";
-  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || "").join("");
-}
+
+export { initialsFrom };
 
 export function profileRoleLabel(
   profile: AppProfile,
@@ -43,6 +38,7 @@ export function profileDisplayLabel(profile: AppProfile) {
   }
   return "—";
 }
+
 export function profilesInCreationOrder(profiles: AppProfile[]) {
   return [...profiles].sort((a, b) => {
     const aTime = a.createdAt ? Date.parse(a.createdAt) : 0;
@@ -59,7 +55,11 @@ type ProfileAccountRowsProps = {
   busyProfileId: string | null;
   creatingType: ProfileType | null;
   onSwitch: (profile: AppProfile) => void;
-  onCreateSeller: (type: "creator" | "school", displayName: string) => void;
+  onCreateSeller: (
+    type: "creator" | "school",
+    displayName: string,
+    avatarFile?: File | null,
+  ) => void | Promise<boolean | void>;
   onSignOut?: () => void;
   showSignOut?: boolean;
   accountHref?: string | null;
@@ -102,18 +102,23 @@ export function ProfileAccountRows({
   showAccountActions = false,
 }: ProfileAccountRowsProps) {
   const { t } = useLanguage();
-  const [sellerDialogOpen, setSellerDialogOpen] = useState(false);
-  const [pendingSellerType, setPendingSellerType] = useState<"creator" | "school" | null>(null);
-  const orderedProfiles = profilesInCreationOrder(profiles);  const showBottomGroup = Boolean(
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const orderedProfiles = profilesInCreationOrder(profiles);
+  const showBottomGroup = Boolean(
     onToggleExpanded || (showAccountActions && (accountHref || (showSignOut && onSignOut))),
   );
+  const canAddSeller =
+    !profiles.some((profile) => profile.type === "creator") ||
+    !profiles.some((profile) => profile.type === "school");
 
   const newProfileButton = (
     <button
       type="button"
       title={t("addSellerProfile")}
+      onClick={() => setWizardOpen(true)}
+      disabled={!!creatingType}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground",
+        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-60",
         !expanded && "justify-center px-0",
       )}
     >
@@ -128,40 +133,12 @@ export function ProfileAccountRows({
     </button>
   );
 
-  const newProfileControl = (
-    <DropdownMenu>
-      {expanded ? (
-        <DropdownMenuTrigger asChild>{newProfileButton}</DropdownMenuTrigger>
-      ) : (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>{newProfileButton}</DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="right">{t("addSellerProfile")}</TooltipContent>
-        </Tooltip>
-      )}
-      <DropdownMenuContent side="right" align="start" className="w-56">
-        <DropdownMenuItem
-          onClick={() => {
-            setPendingSellerType("creator");
-            setSellerDialogOpen(true);
-          }}
-          disabled={!!creatingType}
-        >
-          <BookOpen className="mr-2 h-4 w-4" />
-          {t("profileCreator")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            setPendingSellerType("school");
-            setSellerDialogOpen(true);
-          }}
-          disabled={!!creatingType}
-        >
-          <School className="mr-2 h-4 w-4" />
-          {t("profileSchool")}
-        </DropdownMenuItem>      </DropdownMenuContent>
-    </DropdownMenu>
+  const newProfileControl = expanded ? (
+    newProfileButton
+  ) : (
+    <CollapsedTip expanded={expanded} label={t("addSellerProfile")}>
+      {newProfileButton}
+    </CollapsedTip>
   );
 
   const profileRow = (profile: AppProfile) => {
@@ -240,26 +217,21 @@ export function ProfileAccountRows({
 
   return (
     <div className="flex shrink-0 flex-col">
-      <SellerProfileCreateDialog
-        open={sellerDialogOpen}
-        onOpenChange={(open) => {
-          if (!open && !creatingType) {
-            setSellerDialogOpen(false);
-            setPendingSellerType(null);
-          }
-        }}
+      <AddSellerProfileDialog
+        open={wizardOpen}
         creating={!!creatingType}
-        onConfirm={(displayName) => {
-          if (!pendingSellerType) return;
-          const type = pendingSellerType;
-          setSellerDialogOpen(false);
-          setPendingSellerType(null);
-          onCreateSeller(type, displayName);
+        onOpenChange={(open) => {
+          if (!open && !creatingType) setWizardOpen(false);
         }}
-      />      {showProfilesHeading && expanded && (
+        onConfirm={async (type, displayName, avatarFile) => {
+          const ok = await onCreateSeller(type, displayName, avatarFile);
+          if (ok !== false) setWizardOpen(false);
+        }}
+      />
+      {showProfilesHeading && expanded && (
         <p className="mb-1 px-2.5 text-[12px] font-medium text-[#6B7280]">{t("navProfiles")}</p>
       )}
-      {newProfileControl}
+      {canAddSeller && newProfileControl}
       <div className="flex max-h-[40vh] flex-col overflow-y-auto">
         {orderedProfiles.map((profile) => profileRow(profile))}
       </div>
@@ -323,7 +295,8 @@ export function ProfileAccountRows({
 
 export function useProfileAccountActions() {
   const { t } = useLanguage();
-  const { profiles, switchProfile, logout } = useSimpleAuth();
+  const { profiles, switchProfile, logout, setProfileAvatar } = useSimpleAuth();
+  const queryClient = useQueryClient();
 
   const runSwitch = async (
     profile: AppProfile,
@@ -349,14 +322,27 @@ export function useProfileAccountActions() {
     displayName: string,
     navigate: (path: string) => void,
     onDone?: () => void,
+    avatarFile?: File | null,
   ) => {
     const result = await switchProfile({ createType: type, displayName });
     if ("error" in result) {
       toast.error(t("switchProfileError"));
-    } else {
-      navigate(result.path);
+      onDone?.();
+      return false;
     }
+    if (avatarFile) {
+      try {
+        const url = await uploadProfileAvatar(avatarFile);
+        setProfileAvatar(url);
+        invalidateAvatarQueries(queryClient);
+      } catch {
+        toast.error(t("avatarSaveError"));
+      }
+    }
+    navigate(result.path);
     onDone?.();
+    return true;
   };
+
   return { profiles, runSwitch, createSeller, logout };
 }

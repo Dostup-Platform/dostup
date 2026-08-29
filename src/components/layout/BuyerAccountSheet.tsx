@@ -62,12 +62,14 @@ const AccountSheet = ({ open, onOpenChange }: AccountSheetProps) => {
                 onOpenChange(false);
               });
             }}
-            onCreateSeller={(type, displayName) => {
+            onCreateSeller={(type, displayName, avatarFile) => {
               setCreatingType(type);
-              void createSeller(type, displayName, navigate, () => {
-                setCreatingType(null);
-                onOpenChange(false);
-              });
+              return createSeller(type, displayName, navigate, () => setCreatingType(null), avatarFile).then(
+                (ok) => {
+                  if (ok) onOpenChange(false);
+                  return ok;
+                },
+              );
             }}
             onSignOut={() => {
               logout();
