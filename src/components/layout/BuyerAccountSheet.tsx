@@ -72,9 +72,10 @@ const AccountSheet = ({ open, onOpenChange }: AccountSheetProps) => {
               );
             }}
             onSignOut={() => {
-              logout();
-              onOpenChange(false);
-              navigate("/");
+              void logout().then(() => {
+                onOpenChange(false);
+                navigate("/");
+              });
             }}
           />
         </div>

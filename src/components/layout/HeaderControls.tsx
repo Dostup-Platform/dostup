@@ -158,8 +158,7 @@ export function HeaderAccountControl() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {
-            logout();
-            navigate("/");
+            void logout().then(() => navigate("/"));
           }}
         >
           <LogOut className="mr-2 h-4 w-4" />

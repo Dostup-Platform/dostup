@@ -37,7 +37,7 @@ const AccountTab = () => {
     if (user?.id) {
       await unregisterPushToken(user.id).catch(console.error);
     }
-    logout(); // logout уже сохраняет данные пользователя для повторного входа
+    await logout();
     navigate("/");
   };
 

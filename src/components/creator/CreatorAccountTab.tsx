@@ -106,7 +106,7 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
 
   const handleLogout = async () => {
     await unregisterPushToken(creatorName).catch(console.error);
-    logout();
+    await logout();
     navigate("/");
   };
 
