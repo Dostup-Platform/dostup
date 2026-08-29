@@ -13,7 +13,7 @@ import AccountSheet from "@/components/layout/BuyerAccountSheet";
 import {
   initialsFrom,
   profileDisplayLabel,
-  profilesInCreationOrder,
+  profilesInSidebarOrder,
   useProfileAccountActions,
 } from "@/components/layout/ProfileAccountRows";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -93,7 +93,7 @@ function ActiveProfileAvatar({ className }: { className?: string }) {
   const { profiles } = useSimpleAuth();
   const activeProfileId = localStorage.getItem("profile_id") || "";
   const activeProfile =
-    profiles.find((profile) => profile.id === activeProfileId) ?? profilesInCreationOrder(profiles)[0];
+    profiles.find((profile) => profile.id === activeProfileId) ?? profilesInSidebarOrder(profiles)[0];
   const displayName = activeProfile ? profileDisplayLabel(activeProfile) : "—";
 
   return (
