@@ -27,12 +27,10 @@ export function useCreatorOAuth(accountType?: CreatorAccountType) {
       navigate(result.path, { replace: true });
       return;
     }
-    if (result.dismissed) {
-      toast.error(t("oauthPopupDismissed"));
-    } else if (result.error) {
+    if (result.error) {
       toast.error(t(authErrorKeyFromUnknown(result.error)));
+      setGoogleLoading(false);
     }
-    setGoogleLoading(false);
   };
 
   const sendMagic = async (address: string) => {

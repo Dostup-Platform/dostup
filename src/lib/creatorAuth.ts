@@ -1,11 +1,9 @@
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { classifyAuthError, OAUTH_CODE_MESSAGE_TYPE, OAUTH_MESSAGE_TYPE } from "@/lib/authErrors";
-import { needsDisplayNamePrompt } from "@/lib/displayName";
+import { classifyAuthError } from "@/lib/authErrors";
 
 export const OAUTH_ACCOUNT_TYPE_KEY = "dostup_oauth_account_type";
 export const OAUTH_PROFILE_TYPE_KEY = "dostup_oauth_profile_type";
-export const OAUTH_RESULT_KEY = "dostup_oauth_result";
 export const AUTH_EMAIL_KEY = "dostup_auth_email";
 export const SELLER_DISPLAY_NAME_KEY = "dostup_seller_display_name";
 
@@ -34,13 +32,8 @@ export type SessionPayload = {
 
 export type GoogleOAuthResult = {
   error: { message: string; code?: string; name?: string; status?: number } | null;
-  dismissed?: boolean;
   path?: string;
 };
-
-type OAuthMessage =
-  | { type: typeof OAUTH_MESSAGE_TYPE; ok: true; path: string }
-  | { type: typeof OAUTH_MESSAGE_TYPE; ok: false; code: string };
 
 export function storeCreatorSession(data: {
   token: string;
@@ -65,7 +58,11 @@ export function storeCreatorSession(data: {
     || (data.accountType === "online_school" ? "school" : data.accountType ? "creator" : "buyer");
   localStorage.setItem("profile_type", profileType);
   if (data.profileId) localStorage.setItem("profile_id", data.profileId);
-  localStorage.setItem("profile_display_name", data.displayName || data.creatorName);
+  if (data.displayName?.trim()) {
+    localStorage.setItem("profile_display_name", data.displayName.trim());
+  } else {
+    localStorage.removeItem("profile_display_name");
+  }
   if (data.handle) {
     localStorage.setItem("profile_handle", data.handle);
   } else if (data.handle === null) {
@@ -149,51 +146,6 @@ export function profileHomePath(profileType: string, accountType?: string | null
   return "/creator";
 }
 
-export function nameOnboardingKey(email: string) {
-  return `dostup_name_onboarded_${email.trim().toLowerCase()}`;
-}
-
-export function hasCompletedNameOnboarding(email: string) {
-  if (!email.trim()) return false;
-  return localStorage.getItem(nameOnboardingKey(email)) === "1";
-}
-
-export function markNameOnboardingComplete(email: string) {
-  if (!email.trim()) return;
-  localStorage.setItem(nameOnboardingKey(email), "1");
-}
-
-/** @deprecated use name onboarding helpers */
-export function roleOnboardingKey(email: string) {
-  return nameOnboardingKey(email);
-}
-
-/** @deprecated use hasCompletedNameOnboarding */
-export function hasCompletedRoleOnboarding(email: string) {
-  return hasCompletedNameOnboarding(email);
-}
-
-/** @deprecated use markNameOnboardingComplete */
-export function markRoleOnboardingComplete(email: string) {
-  markNameOnboardingComplete(email);
-}
-
-export function needsNameOnboarding(
-  email: string,
-  displayName?: string | null,
-  profiles: AppProfile[] = [],
-) {
-  if (hasCompletedNameOnboarding(email)) return false;
-  const buyer = profiles.find((p) => p.type === "buyer");
-  const name = displayName ?? buyer?.displayName ?? localStorage.getItem("profile_display_name");
-  return needsDisplayNamePrompt(name, email);
-}
-
-/** @deprecated use needsNameOnboarding */
-export function needsRoleOnboarding(email: string, profiles: AppProfile[] = []) {
-  return needsNameOnboarding(email, null, profiles);
-}
-
 export function isOnboardingSession(creatorName?: string | null) {
   return typeof creatorName === "string" && creatorName.startsWith("onboarding:");
 }
@@ -225,49 +177,19 @@ export function rememberAuthNext(path: string | null | undefined) {
 export function consumeAuthNext() {
   const path = sessionStorage.getItem(AUTH_NEXT_KEY);
   sessionStorage.removeItem(AUTH_NEXT_KEY);
-  // "/" is the public marketplace — not a meaningful post-login destination.
-  if (!isSafeInternalPath(path) || path === "/") return null;
+  if (!isSafeInternalPath(path)) return null;
   return path;
 }
 
-export function nameOnboardingPath(email: string) {
-  return `/login?onboarding=name&email=${encodeURIComponent(email.trim().toLowerCase())}`;
-}
-
-/** @deprecated use nameOnboardingPath */
-export function roleOnboardingPath(email: string) {
-  return nameOnboardingPath(email);
-}
-
 export function resolvePostAuthPath(
-  email: string,
-  profiles: AppProfile[] = readStoredProfiles(),
+  _email?: string,
+  _profiles?: AppProfile[],
   profileType?: string | null,
   accountType?: string | null,
-  displayName?: string | null,
 ) {
-  if (email && needsNameOnboarding(email, displayName, profiles)) {
-    return nameOnboardingPath(email);
-  }
   const next = consumeAuthNext();
   if (next) return next;
   return profileHomePath(profileType || localStorage.getItem("profile_type") || "buyer", accountType);
-}
-
-export function parseAuthRedirectPath(path: string):
-  | { type: "name"; email: string }
-  | { type: "route"; path: string } {
-  const url = new URL(path, window.location.origin);
-  if (
-    (url.pathname === "/login" || url.pathname === "/") &&
-    (url.searchParams.get("onboarding") === "name" || url.searchParams.get("onboarding") === "role")
-  ) {
-    return {
-      type: "name",
-      email: url.searchParams.get("email")?.trim().toLowerCase() || readAuthEmail(),
-    };
-  }
-  return { type: "route", path: `${url.pathname}${url.search}${url.hash}` };
 }
 
 export function parseProfileType(value: string | null | undefined): ProfileType | null {
@@ -337,32 +259,6 @@ export function readOAuthProfileType(): ProfileType | null {
 
 export function clearOAuthAccountType() {
   rememberOAuthProfileType(undefined);
-}
-
-export function writeOAuthResult(result: GoogleOAuthResult) {
-  try {
-    localStorage.setItem(OAUTH_RESULT_KEY, JSON.stringify(result));
-  } catch {
-    // private mode
-  }
-}
-
-export function readOAuthResult(): GoogleOAuthResult | null {
-  try {
-    const raw = localStorage.getItem(OAUTH_RESULT_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as GoogleOAuthResult;
-  } catch {
-    return null;
-  }
-}
-
-export function clearOAuthResult() {
-  try {
-    localStorage.removeItem(OAUTH_RESULT_KEY);
-  } catch {
-    // private mode
-  }
 }
 
 function authRedirectOrigin() {
@@ -458,7 +354,6 @@ export async function completeGoogleOAuthSession(session: Session): Promise<Goog
         resolved.session.profiles ?? [],
         resolved.session.profileType,
         resolved.session.accountType,
-        resolved.session.displayName,
       ),
     };
   } catch {
@@ -466,158 +361,27 @@ export async function completeGoogleOAuthSession(session: Session): Promise<Goog
   }
 }
 
-async function completeGoogleOAuthCode(code: string): Promise<GoogleOAuthResult> {
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error || !data.session) {
-    return {
-      error: {
-        message: error?.message || "auth_callback_error",
-        code: classifyAuthError(error),
-        name: error?.name,
-        status: error?.status,
-      },
-    };
-  }
-  return completeGoogleOAuthSession(data.session);
-}
-
-function resultFromMessage(data: OAuthMessage): GoogleOAuthResult {
-  if (data.ok) return { error: null, path: data.path };
-  return {
-    error: { message: data.code, code: data.code },
-    dismissed: data.code === "oauth_popup_dismissed",
-  };
-}
-
-function waitForOAuthPopup(popup: Window): Promise<GoogleOAuthResult> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const origin = window.location.origin;
-
-    const finish = (result: GoogleOAuthResult) => {
-      if (settled) return;
-      settled = true;
-      window.removeEventListener("message", onMessage);
-      window.removeEventListener("storage", onStorage);
-      window.clearInterval(timer);
-      clearOAuthResult();
-      resolve(result);
-    };
-
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== origin) return;
-      const data = event.data as
-        | OAuthMessage
-        | { type: typeof OAUTH_CODE_MESSAGE_TYPE; code: string }
-        | null;
-      if (!data || typeof data !== "object" || !("type" in data)) return;
-      if (data.type === OAUTH_CODE_MESSAGE_TYPE && typeof data.code === "string") {
-        void completeGoogleOAuthCode(data.code).then((result) => {
-          try {
-            popup.close();
-          } catch {
-            // popup may already be closed
-          }
-          finish(result);
-        });
-        return;
-      }
-      if (data.type !== OAUTH_MESSAGE_TYPE) return;
-      finish(resultFromMessage(data));
-    };
-
-    const onStorage = (event: StorageEvent) => {
-      if (event.key !== OAUTH_RESULT_KEY || !event.newValue) return;
-      try {
-        finish(JSON.parse(event.newValue) as GoogleOAuthResult);
-      } catch {
-        // ignore malformed
-      }
-    };
-
-    const timer = window.setInterval(() => {
-      const stored = readOAuthResult();
-      if (stored) {
-        finish(stored);
-        return;
-      }
-      const token = localStorage.getItem("creator_token");
-      const profileType = localStorage.getItem("profile_type");
-      const accountType = localStorage.getItem("creator_account_type");
-      if (token && (profileType || localStorage.getItem("creator_name"))) {
-        const email = readAuthEmail();
-        const profiles = readStoredProfiles();
-        finish({
-          error: null,
-          path: resolvePostAuthPath(email, profiles, profileType, accountType),
-        });
-        return;
-      }
-      if (!popup.closed) return;
-      window.clearInterval(timer);
-      window.setTimeout(() => {
-        const late = readOAuthResult();
-        if (late) {
-          finish(late);
-          return;
-        }
-        const token = localStorage.getItem("creator_token");
-        if (token) {
-          const email = readAuthEmail();
-          const profiles = readStoredProfiles();
-          finish({
-            error: null,
-            path: resolvePostAuthPath(
-              email,
-              profiles,
-              localStorage.getItem("profile_type"),
-              localStorage.getItem("creator_account_type"),
-            ),
-          });
-          return;
-        }
-        finish({
-          error: { message: "oauth_popup_dismissed", code: "oauth_popup_dismissed" },
-          dismissed: true,
-        });
-      }, 2500);
-    }, 400);
-
-    window.addEventListener("message", onMessage);
-    window.addEventListener("storage", onStorage);
-  });
-}
-
 export async function startGoogleOAuth(profileType?: ProfileType): Promise<GoogleOAuthResult> {
   rememberOAuthProfileType(profileType);
-  clearOAuthResult();
   try {
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: authCallbackUrl(profileType),
-        skipBrowserRedirect: true,
         queryParams: { prompt: "select_account" },
       },
     });
     if (error) {
-      return { error: { message: error.message, code: error.code, name: error.name, status: error.status } };
+      return {
+        error: {
+          message: error.message,
+          code: error.code,
+          name: error.name,
+          status: error.status,
+        },
+      };
     }
-    if (!data.url) {
-      return { error: { message: "oauth_url_missing", code: "auth_callback_error" } };
-    }
-
-    const popup = window.open(
-      data.url,
-      "dostup-google-oauth",
-      "width=500,height=700,scrollbars=yes,resizable=yes",
-    );
-    if (!popup || popup.closed) {
-      window.location.assign(data.url);
-      return { error: null };
-    }
-
-    return waitForOAuthPopup(popup);
+    return { error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : "network_failure";
     return {
@@ -703,12 +467,4 @@ export function sendCreatorMagicLink(email: string, accountType?: CreatorAccount
     email,
     accountType === "online_school" ? "school" : accountType === "course_creator" ? "creator" : undefined,
   );
-}
-
-export function notifyOAuthOpener(payload: OAuthMessage) {
-  const opener = window.opener as Window | null;
-  if (!opener || opener.closed) return false;
-  opener.postMessage(payload, window.location.origin);
-  window.close();
-  return true;
 }

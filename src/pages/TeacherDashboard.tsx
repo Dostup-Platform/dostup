@@ -1,31 +1,16 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, FileText, Bell, User, Loader2, MessageCircle } from "lucide-react";
+import { Calendar, FileText, Loader2 } from "lucide-react";
 import SupportChat from "@/components/SupportChat";
 import { useSupportUnread } from "@/hooks/useSupportUnread";
-
-const TeacherSupportButton = ({ activeTab, teacherName, teacherId, onClick }: { activeTab: string; teacherName: string; teacherId?: string; onClick: () => void }) => {
-  const unread = useSupportUnread("teacher", teacherId || teacherName);
-  return (
-    <button
-      onClick={onClick}
-      aria-label="Сообщения"
-      className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-        activeTab === "support" ? "bg-accent text-white" : "text-muted-foreground hover:bg-accent/50"
-      }`}
-    >
-      <MessageCircle className="w-5 h-5" />
-      {unread > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-          {unread > 9 ? "9+" : unread}
-        </span>
-      )}
-    </button>
-  );
-};
 import { useLanguage } from "@/contexts/LanguageContext";
 import AppHeader from "@/components/layout/AppHeader";
+import {
+  HeaderChatsButton,
+  HeaderNotificationsButton,
+  TeacherHeaderAccount,
+} from "@/components/layout/HeaderControls";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import TeacherScheduleTab from "@/components/teacher/TeacherScheduleTab";
@@ -37,7 +22,7 @@ import { sessionCreds, studentCreds, invokeApi } from "@/lib/sessionApi";
 import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { useRealtimeTeacherNotifications } from "@/hooks/useRealtimeTeacherNotifications";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
-import { useAppResume } from "@/hooks/useAppResume";
+import { unregisterPushToken } from "@/lib/firebase";
 
 const TeacherDashboard = () => {
   const [activeTab, setActiveTab] = useState("schedule");
@@ -103,6 +88,7 @@ const TeacherDashboard = () => {
     },
     enabled: !!teacherName,
   });
+  const supportUnread = useSupportUnread("teacher", teacherUser?.id || teacherName || "");
 
   // Get teacher's schedule IDs for notifications
   const { data: teacherSchedules = [] } = useQuery({
@@ -259,6 +245,17 @@ const TeacherDashboard = () => {
     setActiveTab(value);
   }, [activeTab, lastViewedKey]);
 
+  const handleTeacherSignOut = useCallback(async () => {
+    if (teacherUser?.id) {
+      await unregisterPushToken(teacherUser.id).catch(console.error);
+    }
+    localStorage.removeItem("teacher_data");
+    localStorage.removeItem("teacher_notifications_last_viewed");
+    localStorage.removeItem("simple_session_token");
+    localStorage.removeItem("simple_user_id");
+    navigate("/");
+  }, [navigate, teacherUser?.id]);
+
   if (isLoading || productsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -273,7 +270,21 @@ const TeacherDashboard = () => {
     <div className={`min-h-screen bg-background ${isMobile ? "pb-20" : ""}`}>
       {/* Header */}
       <AppHeader>
-        <TeacherSupportButton activeTab={activeTab} teacherName={teacherName} teacherId={teacherUser?.id} onClick={() => handleTabChange("support")} />
+        <HeaderChatsButton
+          active={activeTab === "support"}
+          unread={supportUnread}
+          onClick={() => handleTabChange("support")}
+        />
+        <HeaderNotificationsButton
+          active={activeTab === "notifications"}
+          count={newNotificationsCount}
+          onClick={() => handleTabChange("notifications")}
+        />
+        <TeacherHeaderAccount
+          displayName={teacherName}
+          onAccount={() => handleTabChange("account")}
+          onSignOut={() => void handleTeacherSignOut()}
+        />
       </AppHeader>
 
       {/* Content */}
@@ -281,7 +292,7 @@ const TeacherDashboard = () => {
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           {/* Desktop Top Tabs */}
           {!isMobile && (
-            <TabsList className="w-full h-12 grid grid-cols-4 mb-6">
+            <TabsList className="mb-6 grid h-12 w-full grid-cols-2">
               <TabsTrigger value="schedule" className="gap-2">
                 <Calendar className="w-4 h-4" />
                 {t("schedule")}
@@ -289,19 +300,6 @@ const TeacherDashboard = () => {
               <TabsTrigger value="materials" className="gap-2">
                 <FileText className="w-4 h-4" />
                 {t("materials")}
-              </TabsTrigger>
-              <TabsTrigger value="notifications" className="gap-2 relative">
-                <Bell className="w-4 h-4" />
-                {t("notifications")}
-                {newNotificationsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                    {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="account" className="gap-2">
-                <User className="w-4 h-4" />
-                {t("account")}
               </TabsTrigger>
             </TabsList>
           )}
@@ -330,42 +328,23 @@ const TeacherDashboard = () => {
 
       {/* Bottom Navigation - Mobile Only */}
       {isMobile && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
-          <div className="max-w-2xl mx-auto">
+        <nav className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/80 backdrop-blur-lg safe-area-inset">
+          <div className="mx-auto max-w-2xl">
             <Tabs value={activeTab} onValueChange={handleTabChange}>
-              <TabsList className="w-full h-16 bg-transparent rounded-none grid grid-cols-4 gap-1">
-                <TabsTrigger 
-                  value="schedule" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+              <TabsList className="grid h-16 w-full grid-cols-2 gap-1 rounded-none bg-transparent">
+                <TabsTrigger
+                  value="schedule"
+                  className="h-full flex-col gap-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:text-primary"
                 >
-                  <Calendar className="w-5 h-5" />
+                  <Calendar className="h-5 w-5" />
                   <span className="text-xs">{t("schedule")}</span>
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="materials" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
+                <TabsTrigger
+                  value="materials"
+                  className="h-full flex-col gap-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:text-primary"
                 >
-                  <FileText className="w-5 h-5" />
+                  <FileText className="h-5 w-5" />
                   <span className="text-xs">{t("materials")}</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="notifications" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none relative"
-                >
-                  <Bell className="w-5 h-5" />
-                  <span className="text-xs">{t("notifications")}</span>
-                  {newNotificationsCount > 0 && (
-                    <span className="absolute top-1 right-1/4 translate-x-1/2 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-                      {newNotificationsCount > 9 ? "9+" : newNotificationsCount}
-                    </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="account" 
-                  className="flex-col h-full gap-1 data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none"
-                >
-                  <User className="w-5 h-5" />
-                  <span className="text-xs">{t("account")}</span>
                 </TabsTrigger>
               </TabsList>
             </Tabs>

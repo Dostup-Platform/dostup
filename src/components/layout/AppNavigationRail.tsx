@@ -35,7 +35,7 @@ const AppNavigationRail = ({ activeSection, sellerTab }: AppNavigationRailProps)
   const location = useLocation();
   const navigate = useNavigate();
   const { profileType } = useSimpleAuth();
-  const { profiles, runSwitch, createSeller, logout } = useProfileAccountActions();
+  const { profiles, runSwitch, createSeller } = useProfileAccountActions();
   const [expanded, setExpanded] = useState(() => {
     try {
       return localStorage.getItem(RAIL_STORAGE_KEY) !== "0";
@@ -58,15 +58,6 @@ const AppNavigationRail = ({ activeSection, sellerTab }: AppNavigationRailProps)
     sellerTab ?? (isSellerProfile ? creatorTabFromPath(location.pathname, location.search) : "products");
 
   const activeProfileId = localStorage.getItem("profile_id") || "";
-
-  const accountHref =
-    profileType === "creator"
-      ? "/creator?tab=account"
-      : profileType === "school"
-        ? "/school"
-        : profileType === "buyer"
-          ? "/dashboard/account"
-          : null;
 
   const toggleExpanded = () => {
     setExpanded((prev) => {
@@ -130,29 +121,27 @@ const AppNavigationRail = ({ activeSection, sellerTab }: AppNavigationRailProps)
           )}
         </div>
 
-        <div className="mx-2 my-2 border-t border-border" />
+        <div className="min-h-0 flex-1" aria-hidden />
 
-        <ProfileAccountRows
-          expanded={expanded}
-          activeProfileId={activeProfileId}
-          profiles={profiles}
-          busyProfileId={busyProfileId}
-          creatingType={creatingType}
-          onSwitch={(profile) => {
-            setBusyProfileId(profile.id);
-            void runSwitch(profile, navigate, () => setBusyProfileId(null));
-          }}
-          onCreateSeller={(type) => {
-            setCreatingType(type);
-            void createSeller(type, navigate, () => setCreatingType(null));
-          }}
-          onSignOut={() => {
-            logout();
-            navigate("/");
-          }}
-          accountHref={accountHref}
-          onToggleExpanded={toggleExpanded}
-        />
+        <div className="shrink-0 px-2">
+          <ProfileAccountRows
+            expanded={expanded}
+            activeProfileId={activeProfileId}
+            profiles={profiles}
+            busyProfileId={busyProfileId}
+            creatingType={creatingType}
+            showProfilesHeading
+            onSwitch={(profile) => {
+              setBusyProfileId(profile.id);
+              void runSwitch(profile, navigate, () => setBusyProfileId(null));
+            }}
+            onCreateSeller={(type, displayName) => {
+              setCreatingType(type);
+              void createSeller(type, displayName, navigate, () => setCreatingType(null));
+            }}
+            onToggleExpanded={toggleExpanded}
+          />
+        </div>
       </div>
     </aside>
   );

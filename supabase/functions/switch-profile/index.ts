@@ -98,15 +98,19 @@ Deno.serve(async (req) => {
       const { data: userData } = await supabase.auth.admin.getUserById(authUserId!)
       const email = userData?.user?.email ?? ''
       const customName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 100) : ''
-      const displayName = customName.length >= 2
-        ? customName
-        : userData?.user
-          ? displayNameFrom(userData.user)
-          : 'User'
+      let displayName = ''
+      if (createType === 'creator' || createType === 'school') {
+        if (customName.length < 2) {
+          return json({ success: false, error: 'display_name_required' }, 400)
+        }
+        displayName = customName
+      } else {
+        displayName = customName.length >= 2 ? customName : ''
+      }
       target = await findOrCreateProfile(supabase, authUserId!, createType, displayName)
       if (!target) return json({ error: 'Failed to create profile' }, 500)
       if (createType === 'creator' || createType === 'school') {
-        await findOrCreateProfile(supabase, authUserId!, 'buyer', displayName)
+        await findOrCreateProfile(supabase, authUserId!, 'buyer', '')
       }
       const sellerType = accountTypeFor(createType)
       if (sellerType) {

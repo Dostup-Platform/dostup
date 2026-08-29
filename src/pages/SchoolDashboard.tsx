@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import SupportChat from "@/components/SupportChat";
+import { useSupportUnread } from "@/hooks/useSupportUnread";
 import { useLanguage } from "@/contexts/LanguageContext";
 import AppShell from "@/components/layout/BuyerAppShell";
 import HandleSettingsCard from "@/components/account/HandleSettingsCard";
@@ -9,6 +11,11 @@ import AvatarSettings from "@/components/account/AvatarSettings";
 import HandleSetupDialog from "@/components/account/HandleSetupDialog";
 import DisplayNameSetupDialog from "@/components/account/DisplayNameSetupDialog";
 import AppHeader from "@/components/layout/AppHeader";
+import {
+  HeaderAccountControl,
+  HeaderChatsButton,
+  HeaderNotificationsButton,
+} from "@/components/layout/HeaderControls";
 import { readAuthEmail } from "@/lib/creatorAuth";
 import { needsDisplayNamePrompt } from "@/lib/displayName";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,11 +27,14 @@ import {
 const SchoolDashboard = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const [supportOpen, setSupportOpen] = useState(false);
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [needsDisplayName, setNeedsDisplayName] = useState(false);
   const [needsHandle, setNeedsHandle] = useState(false);
   const profileId = typeof window !== "undefined" ? localStorage.getItem("profile_id") : null;
+  const creatorName = typeof window !== "undefined" ? localStorage.getItem("creator_name") : null;
+  const supportUnread = useSupportUnread("creator", creatorName ?? "");
 
   useEffect(() => {
     const name = localStorage.getItem("creator_name");
@@ -110,8 +120,27 @@ const SchoolDashboard = () => {
   return (
     <AppShell>
     <div className="min-h-screen bg-gradient-hero">
-      <AppHeader />
+      <AppHeader>
+        <HeaderChatsButton
+          active={supportOpen}
+          unread={supportUnread}
+          onClick={() => setSupportOpen((open) => !open)}
+        />
+        <HeaderNotificationsButton
+          active={false}
+          count={0}
+          onClick={() => navigate("/school")}
+        />
+        <HeaderAccountControl />
+      </AppHeader>
       <div className="max-w-3xl mx-auto space-y-6 px-4 py-8">
+        {supportOpen && creatorName ? (
+          <SupportChat
+            userType="creator"
+            userRef={creatorName}
+            displayName={profileDisplayName || creatorName}
+          />
+        ) : null}
         <Card>
           <CardHeader className="text-center">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">

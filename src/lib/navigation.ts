@@ -1,5 +1,4 @@
 import {
-  Bell,
   Calendar,
   Home,
   Library,
@@ -23,8 +22,8 @@ export type SellerSectionKey =
 export type RailSectionKey = BuyerSectionKey | SellerSectionKey;
 
 export const BUYER_NAV_ITEMS: {
-  key: BuyerSectionKey;
-  labelKey: "navSearch" | "navHome" | "schedule" | "materials" | "notifications";
+  key: Exclude<BuyerSectionKey, "notifications">;
+  labelKey: "navSearch" | "navHome" | "schedule" | "materials";
   icon: LucideIcon;
   to: string;
 }[] = [
@@ -32,8 +31,9 @@ export const BUYER_NAV_ITEMS: {
   { key: "home", labelKey: "navHome", icon: Home, to: "/dashboard" },
   { key: "schedule", labelKey: "schedule", icon: Calendar, to: "/dashboard/schedule" },
   { key: "materials", labelKey: "materials", icon: Library, to: "/dashboard/materials" },
-  { key: "notifications", labelKey: "notifications", icon: Bell, to: "/dashboard/notifications" },
 ];
+
+export const BUYER_NOTIFICATIONS_PATH = "/dashboard/notifications";
 
 export const SELLER_NAV_ITEMS: {
   key: SellerSectionKey;

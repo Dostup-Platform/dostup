@@ -6,7 +6,6 @@ import { authErrorKeyFromUnknown } from "@/lib/authErrors";
 import {
   completeExchangedSession,
   exchangeAuthSession,
-  needsNameOnboarding,
   rememberAuthEmail,
   resolvePostAuthPath,
   sendEmailCode,
@@ -17,10 +16,6 @@ import {
   type SessionPayload,
 } from "@/lib/creatorAuth";
 import { supabase } from "@/integrations/supabase/client";
-
-export type AuthCompletion =
-  | { status: "navigated" }
-  | { status: "name_required"; email: string };
 
 type UseEmailAuthOptions = {
   onAuthRedirect?: (path: string) => void | Promise<void>;
@@ -45,22 +40,17 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
     navigate(path, { replace: true });
   };
 
-  const completeSession = (session: SessionPayload, address: string): AuthCompletion => {
+  const completeSession = (session: SessionPayload, address: string) => {
     rememberAuthEmail(address);
     storeCreatorSession(session);
-    if (needsNameOnboarding(address, session.displayName, session.profiles ?? [])) {
-      return { status: "name_required", email: address };
-    }
     void redirectAfterAuth(
       resolvePostAuthPath(
         address,
         session.profiles ?? [],
         session.profileType,
         session.accountType,
-        session.displayName,
       ),
     );
-    return { status: "navigated" };
   };
 
   const exchange = async (accessToken: string, address: string) => {
@@ -81,7 +71,8 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
       toast.error(t(authErrorKeyFromUnknown({ message: resolved.error || "exchange_failed" })));
       return null;
     }
-    return completeSession(resolved.session, address);
+    completeSession(resolved.session, address);
+    return true;
   };
 
   const sendCode = async (address: string) => {
@@ -101,7 +92,7 @@ export function useEmailAuth(options: UseEmailAuthOptions = {}) {
     return true;
   };
 
-  const verifyCode = async (token: string): Promise<AuthCompletion | null> => {
+  const verifyCode = async (token: string): Promise<boolean | null> => {
     if (!pendingEmail || submitting.current) return null;
     submitting.current = true;
     setVerifying(true);

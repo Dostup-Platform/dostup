@@ -16,7 +16,6 @@ interface EmailCodeScreenProps {
   sending?: boolean;
   onVerify: (code: string) => void | Promise<void>;
   onResend: () => void | Promise<void>;
-  onBack: () => void;
 }
 
 const EmailCodeScreen = ({
@@ -25,7 +24,6 @@ const EmailCodeScreen = ({
   sending,
   onVerify,
   onResend,
-  onBack,
 }: EmailCodeScreenProps) => {
   const { t } = useLanguage();
   const [digits, setDigits] = useState(() => Array.from({ length: OTP_LENGTH }, () => ""));
@@ -161,14 +159,6 @@ const EmailCodeScreen = ({
               t("resendLink")
             )}
           </Button>
-          <button
-            type="button"
-            className="text-sm text-muted-foreground hover:text-foreground"
-            onClick={onBack}
-            disabled={verifying}
-          >
-            {t("back")}
-          </button>
         </div>
       </CardContent>
     </Card>

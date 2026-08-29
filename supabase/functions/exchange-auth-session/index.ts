@@ -4,6 +4,7 @@ import {
   displayNameFrom,
   ensureCreatorAccount,
   findOrCreateProfile,
+  isGoogleOAuthUser,
   issueAppSession,
   linkAccountsByEmail,
   listProfiles,
@@ -52,7 +53,8 @@ Deno.serve(async (req) => {
     const displayName = (() => {
       const custom = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 100) : ''
       if (custom.length >= 2) return custom
-      return displayNameFrom(user)
+      if (isGoogleOAuthUser(user)) return displayNameFrom(user)
+      return ''
     })()
 
     let profiles = await listProfiles(supabase, user.id)

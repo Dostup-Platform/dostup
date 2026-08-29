@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+const normalizeNewlines = (text: string) => text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
 const renderInline = (text: string): ReactNode[] => {
   const parts: ReactNode[] = [];
   const pattern = /(\*\*[^*]+\*\*|_[^_]+_|[^*_]+)/g;
@@ -20,7 +22,7 @@ const renderInline = (text: string): ReactNode[] => {
 };
 
 const LegalDocumentBody = ({ markdown }: { markdown: string }) => {
-  const blocks = markdown.split(/\n{2,}/).filter(Boolean);
+  const blocks = normalizeNewlines(markdown).split(/\n{2,}/).filter(Boolean);
 
   return (
     <div className="space-y-4 text-base leading-[1.7] text-[#1F2328]">

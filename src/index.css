@@ -160,7 +160,14 @@
 
   @media (min-width: 1024px) {
     .hero-headline {
-      font-size: 60px;
+      font-size: 76px;
+      width: fit-content;
+      max-width: 100%;
+      white-space: nowrap;
+    }
+
+    :lang(kk) .hero-headline {
+      white-space: normal;
     }
   }
 

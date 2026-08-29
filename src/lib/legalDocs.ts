@@ -9,8 +9,10 @@ export type LegalDocument = {
   body: string;
 };
 
+const normalizeNewlines = (text: string) => text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
 const parseDocument = (id: LegalDocId, block: string): LegalDocument => {
-  const lines = block.trim().split("\n");
+  const lines = normalizeNewlines(block).trim().split("\n");
   let title = "";
   let updated = "";
   let bodyStart = 0;
@@ -42,7 +44,7 @@ const parseDocument = (id: LegalDocId, block: string): LegalDocument => {
 };
 
 const parseLegalDocs = (raw: string): Record<LegalDocId, LegalDocument> => {
-  const blocks = raw
+  const blocks = normalizeNewlines(raw)
     .trim()
     .split(/\n(?=# (?:terms|privacy)\b)/)
     .map((block) => block.trim())

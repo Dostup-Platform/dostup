@@ -160,6 +160,14 @@ export function needsDisplayNamePrompt(
   return /^[A-Za-z0-9._%+-]*\.[A-Za-z0-9._%+-]+$/.test(name)
 }
 
+export function isGoogleOAuthUser(user: {
+  app_metadata?: Record<string, unknown>
+  identities?: Array<{ provider?: string }>
+}): boolean {
+  if (user.app_metadata?.provider === 'google') return true
+  return user.identities?.some((identity) => identity.provider === 'google') === true
+}
+
 export function displayNameFrom(user: {
   email?: string
   user_metadata?: Record<string, unknown>

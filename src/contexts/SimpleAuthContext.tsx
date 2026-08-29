@@ -4,6 +4,7 @@ import {
   clearAppSession,
   parseProfileType,
   profileHomePath,
+  readAuthEmail,
   storeCreatorSession,
   type AppProfile,
   type ProfileType,
@@ -55,10 +56,12 @@ function buyerFromStorage(): SimpleUser | null {
   const profileType = parseProfileType(localStorage.getItem("profile_type"));
   const profileId = localStorage.getItem("profile_id");
   if (profileType !== "buyer" || !profileId) return null;
+  const emailLocal = readAuthEmail().split("@")[0]?.trim() || "";
+  const storedName = localStorage.getItem("profile_display_name")?.trim() || "";
   return {
     id: profileId,
     phone: "",
-    name: localStorage.getItem("profile_display_name") || localStorage.getItem("creator_name") || "",
+    name: storedName || emailLocal,
     role: "student",
     created_at: localStorage.getItem("creator_created_at") || new Date().toISOString(),
   };
@@ -148,7 +151,11 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       setProfileType(nextType);
       setSessionToken(token);
       if (data.profileId) localStorage.setItem("profile_id", data.profileId);
-      if (data.displayName) localStorage.setItem("profile_display_name", data.displayName);
+      if (data.displayName?.trim()) {
+        localStorage.setItem("profile_display_name", data.displayName.trim());
+      } else if (nextType === "buyer") {
+        localStorage.removeItem("profile_display_name");
+      }
       if (data.profileType) localStorage.setItem("profile_type", data.profileType);
       if (typeof data.handle === "string" && data.handle) {
         localStorage.setItem("profile_handle", data.handle);
@@ -158,10 +165,12 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       if (nextProfiles.length) localStorage.setItem("identity_profiles", JSON.stringify(nextProfiles));
 
       if (nextType === "buyer") {
+        const emailLocal = readAuthEmail().split("@")[0]?.trim() || "";
+        const storedName = data.displayName?.trim() || localStorage.getItem("profile_display_name")?.trim() || "";
         applyBuyer(token, {
           id: data.profileId || localStorage.getItem("profile_id") || "",
           phone: "",
-          name: data.displayName || localStorage.getItem("profile_display_name") || "",
+          name: storedName || emailLocal,
           role: "student",
           created_at: data.createdAt || localStorage.getItem("creator_created_at") || new Date().toISOString(),
         }, nextProfiles);

@@ -19,7 +19,7 @@ interface AccountSheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
-/** Mobile account sheet — same profile list as the navigation rail. */
+/** Mobile account sheet — profiles, new profile, account, and sign out. */
 const AccountSheet = ({ open, onOpenChange }: AccountSheetProps) => {
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -43,7 +43,7 @@ const AccountSheet = ({ open, onOpenChange }: AccountSheetProps) => {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl">
         <SheetHeader className="text-left">
-          <SheetTitle>{t("account")}</SheetTitle>
+          <SheetTitle>{t("navProfiles")}</SheetTitle>
         </SheetHeader>
         <div className="mt-4 flex flex-col gap-1">
           <ProfileAccountRows
@@ -52,6 +52,9 @@ const AccountSheet = ({ open, onOpenChange }: AccountSheetProps) => {
             profiles={profiles}
             busyProfileId={busyProfileId}
             creatingType={creatingType}
+            showAccountActions
+            showSignOut
+            accountHref={accountHref}
             onSwitch={(profile) => {
               setBusyProfileId(profile.id);
               void runSwitch(profile, navigate, () => {
@@ -59,9 +62,9 @@ const AccountSheet = ({ open, onOpenChange }: AccountSheetProps) => {
                 onOpenChange(false);
               });
             }}
-            onCreateSeller={(type) => {
+            onCreateSeller={(type, displayName) => {
               setCreatingType(type);
-              void createSeller(type, navigate, () => {
+              void createSeller(type, displayName, navigate, () => {
                 setCreatingType(null);
                 onOpenChange(false);
               });
@@ -71,7 +74,6 @@ const AccountSheet = ({ open, onOpenChange }: AccountSheetProps) => {
               onOpenChange(false);
               navigate("/");
             }}
-            accountHref={accountHref}
           />
         </div>
       </SheetContent>

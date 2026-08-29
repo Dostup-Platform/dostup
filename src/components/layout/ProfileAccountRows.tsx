@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
-import { BookOpen, ChevronLeft, ChevronRight, Loader2, LogOut, Plus, School, UserRound } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { BookOpen, ChevronLeft, ChevronRight, Loader2, LogOut, Plus, School, UserRound } from "lucide-react";import { Link } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -16,9 +16,9 @@ import {
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { cn } from "@/lib/utils";
-import { type AppProfile, type ProfileType } from "@/lib/creatorAuth";
+import { type AppProfile, readAuthEmail, type ProfileType } from "@/lib/creatorAuth";
+import SellerProfileCreateDialog from "@/components/layout/SellerProfileCreateDialog";
 import { toast } from "sonner";
-
 export function initialsFrom(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "D";
@@ -35,9 +35,14 @@ export function profileRoleLabel(
 }
 
 export function profileDisplayLabel(profile: AppProfile) {
-  return profile.displayName?.trim() || "—";
+  const name = profile.displayName?.trim();
+  if (name) return name;
+  if (profile.type === "buyer") {
+    const local = readAuthEmail().split("@")[0]?.trim();
+    if (local) return local;
+  }
+  return "—";
 }
-
 export function profilesInCreationOrder(profiles: AppProfile[]) {
   return [...profiles].sort((a, b) => {
     const aTime = a.createdAt ? Date.parse(a.createdAt) : 0;
@@ -54,11 +59,13 @@ type ProfileAccountRowsProps = {
   busyProfileId: string | null;
   creatingType: ProfileType | null;
   onSwitch: (profile: AppProfile) => void;
-  onCreateSeller: (type: "creator" | "school") => void;
+  onCreateSeller: (type: "creator" | "school", displayName: string) => void;
   onSignOut?: () => void;
   showSignOut?: boolean;
   accountHref?: string | null;
   onToggleExpanded?: () => void;
+  showProfilesHeading?: boolean;
+  showAccountActions?: boolean;
 };
 
 function CollapsedTip({
@@ -88,13 +95,18 @@ export function ProfileAccountRows({
   onSwitch,
   onCreateSeller,
   onSignOut,
-  showSignOut = true,
+  showSignOut = false,
   accountHref,
   onToggleExpanded,
+  showProfilesHeading = false,
+  showAccountActions = false,
 }: ProfileAccountRowsProps) {
   const { t } = useLanguage();
-  const orderedProfiles = profilesInCreationOrder(profiles);
-  const showBottomGroup = Boolean(accountHref || (showSignOut && onSignOut) || onToggleExpanded);
+  const [sellerDialogOpen, setSellerDialogOpen] = useState(false);
+  const [pendingSellerType, setPendingSellerType] = useState<"creator" | "school" | null>(null);
+  const orderedProfiles = profilesInCreationOrder(profiles);  const showBottomGroup = Boolean(
+    onToggleExpanded || (showAccountActions && (accountHref || (showSignOut && onSignOut))),
+  );
 
   const newProfileButton = (
     <button
@@ -129,15 +141,26 @@ export function ProfileAccountRows({
         </Tooltip>
       )}
       <DropdownMenuContent side="right" align="start" className="w-56">
-        <DropdownMenuItem onClick={() => onCreateSeller("creator")} disabled={!!creatingType}>
+        <DropdownMenuItem
+          onClick={() => {
+            setPendingSellerType("creator");
+            setSellerDialogOpen(true);
+          }}
+          disabled={!!creatingType}
+        >
           <BookOpen className="mr-2 h-4 w-4" />
           {t("profileCreator")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onCreateSeller("school")} disabled={!!creatingType}>
+        <DropdownMenuItem
+          onClick={() => {
+            setPendingSellerType("school");
+            setSellerDialogOpen(true);
+          }}
+          disabled={!!creatingType}
+        >
           <School className="mr-2 h-4 w-4" />
           {t("profileSchool")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+        </DropdownMenuItem>      </DropdownMenuContent>
     </DropdownMenu>
   );
 
@@ -216,19 +239,36 @@ export function ProfileAccountRows({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col">
-        {newProfileControl}
-        <div className="flex flex-col overflow-y-auto">
-          {orderedProfiles.map((profile) => profileRow(profile))}
-        </div>
+    <div className="flex shrink-0 flex-col">
+      <SellerProfileCreateDialog
+        open={sellerDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !creatingType) {
+            setSellerDialogOpen(false);
+            setPendingSellerType(null);
+          }
+        }}
+        creating={!!creatingType}
+        onConfirm={(displayName) => {
+          if (!pendingSellerType) return;
+          const type = pendingSellerType;
+          setSellerDialogOpen(false);
+          setPendingSellerType(null);
+          onCreateSeller(type, displayName);
+        }}
+      />      {showProfilesHeading && expanded && (
+        <p className="mb-1 px-2.5 text-[12px] font-medium text-[#6B7280]">{t("navProfiles")}</p>
+      )}
+      {newProfileControl}
+      <div className="flex max-h-[40vh] flex-col overflow-y-auto">
+        {orderedProfiles.map((profile) => profileRow(profile))}
       </div>
 
       {showBottomGroup && (
         <>
           <div className="mx-2 my-2 border-t border-border" />
           <div className="flex shrink-0 flex-col pb-2">
-            {accountHref && (
+            {showAccountActions && accountHref && (
               <CollapsedTip expanded={expanded} label={t("account")}>
                 <Link to={accountHref} title={t("account")} className={bottomRowClass}>
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center">
@@ -238,7 +278,7 @@ export function ProfileAccountRows({
                 </Link>
               </CollapsedTip>
             )}
-            {showSignOut && onSignOut && (
+            {showAccountActions && showSignOut && onSignOut && (
               <CollapsedTip expanded={expanded} label={t("signOut")}>
                 <button
                   type="button"
@@ -283,7 +323,7 @@ export function ProfileAccountRows({
 
 export function useProfileAccountActions() {
   const { t } = useLanguage();
-  const { profiles, switchProfile, logout, user } = useSimpleAuth();
+  const { profiles, switchProfile, logout } = useSimpleAuth();
 
   const runSwitch = async (
     profile: AppProfile,
@@ -306,15 +346,10 @@ export function useProfileAccountActions() {
 
   const createSeller = async (
     type: "creator" | "school",
+    displayName: string,
     navigate: (path: string) => void,
     onDone?: () => void,
   ) => {
-    const buyerProfile = profiles.find((p) => p.type === "buyer");
-    const displayName =
-      user?.name ||
-      localStorage.getItem("profile_display_name") ||
-      buyerProfile?.displayName ||
-      undefined;
     const result = await switchProfile({ createType: type, displayName });
     if ("error" in result) {
       toast.error(t("switchProfileError"));
@@ -323,6 +358,5 @@ export function useProfileAccountActions() {
     }
     onDone?.();
   };
-
   return { profiles, runSwitch, createSeller, logout };
 }

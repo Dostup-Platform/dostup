@@ -1,14 +1,18 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Loader2, MessageCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import SupportChat from "@/components/SupportChat";
 import { useSupportUnread } from "@/hooks/useSupportUnread";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { studentCreds, invokeApi } from "@/lib/sessionApi";
 import AppHeader from "@/components/layout/AppHeader";
 import BuyerAppShell from "@/components/layout/BuyerAppShell";
-import BuyerHeaderAccount from "@/components/layout/BuyerHeaderAccount";
 import BuyerMobileNav from "@/components/layout/BuyerMobileNav";
+import {
+  HeaderAccountControl,
+  HeaderChatsButton,
+  HeaderNotificationsButton,
+} from "@/components/layout/HeaderControls";
 import NotificationsTab from "@/components/dashboard/NotificationsTab";
 import HomeTab from "@/components/dashboard/HomeTab";
 import AccountTab from "@/components/dashboard/AccountTab";
@@ -19,35 +23,7 @@ import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 import { useAppResume } from "@/hooks/useAppResume";
 import { useQuery } from "@tanstack/react-query";
-import { buyerSectionFromPath } from "@/lib/navigation";
-
-const StudentSupportButton = ({
-  activeTab,
-  userId,
-  onClick,
-}: {
-  activeTab: string;
-  userId: string;
-  onClick: () => void;
-}) => {
-  const unread = useSupportUnread("student", userId);
-  return (
-    <button
-      onClick={onClick}
-      aria-label="Сообщения"
-      className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-        activeTab === "support" ? "bg-accent text-white" : "text-muted-foreground hover:bg-accent/50"
-      }`}
-    >
-      <MessageCircle className="w-5 h-5" />
-      {unread > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center">
-          {unread > 9 ? "9+" : unread}
-        </span>
-      )}
-    </button>
-  );
-};
+import { buyerSectionFromPath, BUYER_NOTIFICATIONS_PATH } from "@/lib/navigation";
 
 const Dashboard = () => {
   const [supportOpen, setSupportOpen] = useState(false);
@@ -57,6 +33,7 @@ const Dashboard = () => {
   const location = useLocation();
   const isAccountView = location.pathname === "/dashboard/account";
   const buyerSection = buyerSectionFromPath(location.pathname) ?? "home";
+  const supportUnread = useSupportUnread("student", user?.id ?? "");
   useAppResume();
 
   const lastViewedKey = user?.id ? `student_notifications_last_viewed_${user.id}` : null;
@@ -230,20 +207,22 @@ const Dashboard = () => {
     <BuyerAppShell
       activeSection={isAccountView ? undefined : buyerSection}
       mobileNav={
-        <BuyerMobileNav
-          activeTab={isAccountView ? "account" : buyerSection}
-          notificationCount={newNotificationsCount}
-        />
+        <BuyerMobileNav activeTab={isAccountView ? "account" : buyerSection} />
       }
     >
       <div className="min-h-screen pb-20 md:pb-6">
         <AppHeader>
-          <StudentSupportButton
-            activeTab={supportOpen ? "support" : buyerSection}
-            userId={user.id}
+          <HeaderChatsButton
+            active={supportOpen}
+            unread={supportUnread}
             onClick={() => setSupportOpen((v) => !v)}
           />
-          <BuyerHeaderAccount />
+          <HeaderNotificationsButton
+            active={buyerSection === "notifications"}
+            count={newNotificationsCount}
+            onClick={() => navigate(BUYER_NOTIFICATIONS_PATH)}
+          />
+          <HeaderAccountControl />
         </AppHeader>
 
         <main className="px-4 py-6 md:px-6">

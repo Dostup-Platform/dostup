@@ -1,50 +1,66 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import AppHeader from "@/components/layout/AppHeader";
-import BuyerHeaderAccount from "@/components/layout/BuyerHeaderAccount";
+import {
+  HeaderAccountControl,
+  HeaderChatsButton,
+  HeaderNotificationsButton,
+} from "@/components/layout/HeaderControls";
 import PublicLocaleToggle from "@/components/marketplace/PublicLocaleToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
+import { BUYER_NOTIFICATIONS_PATH } from "@/lib/navigation";
 import { profileHomePath } from "@/lib/creatorAuth";
 import { loginState } from "@/lib/loginModal";
 
-function isSellerProfile(profileType: string | null | undefined) {
-  return profileType === "creator" || profileType === "school";
-}
+type MarketplaceHeaderProps = {
+  supportActive?: boolean;
+  supportUnread?: number;
+  onSupportClick?: () => void;
+  notificationCount?: number;
+  notificationsActive?: boolean;
+  onNotificationsClick?: () => void;
+};
 
-const MarketplaceHeader = () => {
+const MarketplaceHeader = ({
+  supportActive,
+  supportUnread = 0,
+  onSupportClick,
+  notificationCount = 0,
+  notificationsActive,
+  onNotificationsClick,
+}: MarketplaceHeaderProps) => {
   const { t } = useLanguage();
   const location = useLocation();
+  const navigate = useNavigate();
   const { loading, sessionToken, profileType } = useSimpleAuth();
   const signedIn = Boolean(sessionToken && profileType);
-  const isSeller = isSellerProfile(profileType);
-  const cabinetPath = profileHomePath(
-    profileType || "buyer",
-    localStorage.getItem("creator_account_type"),
-  );
+
+  const defaultNotificationsClick = () => {
+    if (profileType === "creator") {
+      navigate("/creator?tab=notifications");
+      return;
+    }
+    if (profileType === "buyer") {
+      navigate(BUYER_NOTIFICATIONS_PATH);
+    }
+  };
 
   return (
     <AppHeader>
       {!loading && (
         signedIn ? (
           <>
-            {isSeller ? (
-              <Link
-                to={cabinetPath}
-                className="text-sm font-medium text-foreground hover:text-[#1F2328] focus-ring rounded-md"
-              >
-                {t("myCabinet")}
-              </Link>
-            ) : (
-              <>
-                <Link
-                  to="/dashboard"
-                  className="text-sm font-medium text-foreground hover:text-[#1F2328] focus-ring rounded-md"
-                >
-                  {t("myCourses")}
-                </Link>
-                <BuyerHeaderAccount />
-              </>
-            )}
+            <HeaderChatsButton
+              active={supportActive}
+              unread={supportUnread}
+              onClick={onSupportClick ?? (() => navigate(profileHomePath(profileType || "buyer", localStorage.getItem("creator_account_type"))))}
+            />
+            <HeaderNotificationsButton
+              active={notificationsActive}
+              count={notificationCount}
+              onClick={onNotificationsClick ?? defaultNotificationsClick}
+            />
+            <HeaderAccountControl />
           </>
         ) : (
           <>
