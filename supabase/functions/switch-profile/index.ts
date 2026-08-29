@@ -2,6 +2,7 @@ import { json, optionsResponse } from '../_shared/http.ts'
 import {
   accountTypeFor,
   activateSessionProfile,
+  createSellerProfile,
   displayNameFrom,
   ensureCreatorAccount,
   findOrCreateProfile,
@@ -107,7 +108,9 @@ Deno.serve(async (req) => {
       } else {
         displayName = customName.length >= 2 ? customName : ''
       }
-      target = await findOrCreateProfile(supabase, authUserId!, createType, displayName)
+      target = createType === 'buyer'
+        ? await findOrCreateProfile(supabase, authUserId!, createType, displayName)
+        : await createSellerProfile(supabase, authUserId!, createType, displayName)
       if (!target) return json({ error: 'Failed to create profile' }, 500)
       if (createType === 'creator' || createType === 'school') {
         await findOrCreateProfile(supabase, authUserId!, 'buyer', '')
