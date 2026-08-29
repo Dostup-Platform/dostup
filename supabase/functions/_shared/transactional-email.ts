@@ -1,3 +1,7 @@
+export function hasTransactionalEmail(): boolean {
+  return Boolean(Deno.env.get('RESEND_API_KEY'))
+}
+
 export async function sendTransactionalEmail(input: {
   to: string
   subject: string
