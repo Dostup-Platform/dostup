@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
 import { Loader2, Search } from "lucide-react";
 import CatalogFilterRow from "@/components/marketplace/CatalogFilterRow";
 import CategoryMenu from "@/components/marketplace/CategoryMenu";
@@ -12,12 +13,17 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useCatalogSearch, useCatalogTaxonomy, type CatalogSort } from "@/hooks/useCatalogSearch";
 import { categoryLabel, visibleTaxonomy, type LessonFormat } from "@/lib/catalog";
+import { profileHomePath } from "@/lib/creatorAuth";
 import { cn } from "@/lib/utils";
 
 const MarketplacePage = () => {
   const { t, language } = useLanguage();
   const { status, profileType, sessionToken } = useSimpleAuth();
   const signedIn = status === "authenticated" && Boolean(sessionToken && profileType);
+
+  if (signedIn && profileType !== "buyer") {
+    return <Navigate to={profileHomePath(profileType)} replace />;
+  }
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [categorySlug, setCategorySlug] = useState("");

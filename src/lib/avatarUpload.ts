@@ -1,24 +1,27 @@
 import { invokeApi } from "@/lib/sessionApi";
 
-export async function uploadProfileAvatar(file: File): Promise<string> {
+export async function uploadProfileAvatar(file: File, profileId?: string | null): Promise<string> {
   const token = localStorage.getItem("creator_token") || "";
+  const targetProfileId = profileId || localStorage.getItem("profile_id") || "";
   const signed = await invokeApi<{ uploadUrl?: string; publicUrl?: string }>("presigned-upload", {
     purpose: "avatar",
     fileName: file.name,
     fileType: file.type,
     creatorToken: token,
     sessionToken: token,
+    profileId: targetProfileId,
   });
   if (!signed.uploadUrl || !signed.publicUrl) throw new Error("sign");
   const put = await fetch(signed.uploadUrl, {
     method: "PUT",
-    headers: { "Content-Type": "image/jpeg" },
+    headers: { "Content-Type": file.type || "image/jpeg" },
     body: file,
   });
   if (!put.ok) throw new Error("upload");
   await invokeApi("manage-profile", {
     action: "set_avatar",
     token,
+    profileId: targetProfileId,
     avatarUrl: signed.publicUrl,
   });
   return signed.publicUrl;

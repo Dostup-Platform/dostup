@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import AccountSheet from "@/components/layout/BuyerAccountSheet";
+import AccountSettingsDialog from "@/components/account/AccountSettingsDialog";
 import {
   initialsFrom,
   profileDisplayLabel,
@@ -90,42 +91,45 @@ function accountHrefForProfileType(profileType: string | null | undefined) {
 }
 
 function ActiveProfileAvatar({ className }: { className?: string }) {
-  const { profiles } = useSimpleAuth();
-  const activeProfileId = localStorage.getItem("profile_id") || "";
+  const { profiles, user } = useSimpleAuth();
+  const activeProfileId = typeof window !== "undefined" ? localStorage.getItem("profile_id") || "" : "";
+  const storedName = typeof window !== "undefined" ? localStorage.getItem("profile_display_name") || localStorage.getItem("creator_name") || "" : "";
   const activeProfile =
     profiles.find((profile) => profile.id === activeProfileId) ?? profilesInSidebarOrder(profiles)[0];
-  const displayName = activeProfile ? profileDisplayLabel(activeProfile) : "—";
+  const displayName = (activeProfile ? profileDisplayLabel(activeProfile) : "") || user?.name || storedName || "П";
+  const avatarUrl = activeProfile?.avatarUrl || null;
 
   return (
-    <Avatar className={cn("h-8 w-8 shrink-0", className)}>
-      {activeProfile?.avatarUrl && <AvatarImage src={activeProfile.avatarUrl} alt="" />}
-      <AvatarFallback className="rounded-full bg-muted text-xs font-medium text-muted-foreground">
-        {initialsFrom(displayName)}
-      </AvatarFallback>
-    </Avatar>
+    <div
+      className={cn(
+        "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden border border-border/80 bg-muted text-foreground font-semibold text-xs select-none shadow-xs",
+        className,
+      )}
+    >
+      {avatarUrl ? (
+        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span>{initialsFrom(displayName)}</span>
+      )}
+    </div>
   );
 }
 
-/** Header avatar — desktop menu (account + sign out), mobile sheet (profiles + account + sign out). */
+/** Header avatar — desktop opens account settings modal directly, mobile opens account sheet. */
 export function HeaderAccountControl() {
   const { t } = useLanguage();
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { profileType } = useSimpleAuth();
-  const { logout } = useProfileAccountActions();
+  const { user, profileType, profiles } = useSimpleAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const accountHref = accountHrefForProfileType(profileType);
-
-  const avatarTrigger = (
-    <button
-      type="button"
-      aria-label={t("account")}
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent/50"
-    >
-      <ActiveProfileAvatar />
-    </button>
-  );
+  const activeProfileId = typeof window !== "undefined" ? localStorage.getItem("profile_id") : null;
+  const currentUserId = typeof window !== "undefined" ? localStorage.getItem("simple_user_id") || "" : "";
+  const creatorName = typeof window !== "undefined" ? localStorage.getItem("creator_name") : null;
+  const activeProfile = profiles.find((p) => p.id === activeProfileId);
+  const shownName = activeProfile?.displayName?.trim() || user?.name || creatorName || "—";
+  const effectiveUserId = user?.id || currentUserId || creatorName || "";
+  const createdAt = user?.created_at || (typeof window !== "undefined" ? localStorage.getItem("creator_created_at") : null);
 
   if (isMobile) {
     return (
@@ -138,34 +142,42 @@ export function HeaderAccountControl() {
         >
           <ActiveProfileAvatar />
         </button>
-        <AccountSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+        <AccountSheet
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+        <AccountSettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          role={profileType || "buyer"}
+          displayName={shownName}
+          userId={effectiveUserId}
+          createdAt={createdAt}
+        />
       </>
     );
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>{avatarTrigger}</DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        {accountHref && (
-          <DropdownMenuItem asChild>
-            <Link to={accountHref} className="cursor-pointer">
-              <UserRound className="mr-2 h-4 w-4" />
-              {t("account")}
-            </Link>
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => {
-            void logout().then(() => navigate("/"));
-          }}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          {t("signOut")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <button
+        type="button"
+        onClick={() => setSettingsOpen(true)}
+        aria-label={t("accountSettings")}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent/50 focus-ring"
+      >
+        <ActiveProfileAvatar />
+      </button>
+      <AccountSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        role={profileType || "buyer"}
+        displayName={shownName}
+        userId={effectiveUserId}
+        createdAt={createdAt}
+      />
+    </>
   );
 }
 

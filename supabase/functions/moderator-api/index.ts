@@ -40,29 +40,38 @@ serve(async (req) => {
     }
 
     if (action === 'stats') {
-      const [creators, purchases, products, users] = await Promise.all([
+      const [creators, purchases, products, users, teachers, pendingTopics] = await Promise.all([
         supabase.from('creator_accounts').select('*').order('created_at', { ascending: false }),
         supabase.from('simple_purchases').select('product_id, simple_user_id, amount, status').eq('status', 'completed'),
         supabase.from('products').select('id, creator_id, title, is_active'),
-        supabase.from('simple_users').select('id, name'),
+        supabase.from('simple_users').select('id, name, role'),
+        supabase.from('product_teachers').select('id, product_id, teacher_name'),
+        supabase.from('topics').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       ])
       const productById = new Map((products.data ?? []).map((p: any) => [p.id, p]))
-      const perCreator: Record<string, { revenue: number; students: Set<string>; products: number }> = {}
+      const perCreator: Record<string, { revenue: number; students: Set<string>; products: number; teachers: Set<string> }> = {}
       for (const p of products.data ?? []) {
         const c = (p as any).creator_id
-        if (!perCreator[c]) perCreator[c] = { revenue: 0, students: new Set(), products: 0 }
+        if (!perCreator[c]) perCreator[c] = { revenue: 0, students: new Set(), products: 0, teachers: new Set() }
         perCreator[c].products += 1
+      }
+      for (const t of teachers.data ?? []) {
+        const prod = productById.get((t as any).product_id) as any
+        if (!prod) continue
+        const c = prod.creator_id
+        if (!perCreator[c]) perCreator[c] = { revenue: 0, students: new Set(), products: 0, teachers: new Set() }
+        if ((t as any).teacher_name?.trim()) perCreator[c].teachers.add((t as any).teacher_name.trim())
       }
       for (const pur of purchases.data ?? []) {
         const prod = productById.get((pur as any).product_id) as any
         if (!prod) continue
         const c = prod.creator_id
-        if (!perCreator[c]) perCreator[c] = { revenue: 0, students: new Set(), products: 0 }
+        if (!perCreator[c]) perCreator[c] = { revenue: 0, students: new Set(), products: 0, teachers: new Set() }
         perCreator[c].revenue += Number((pur as any).amount ?? 0)
         perCreator[c].students.add((pur as any).simple_user_id)
       }
       const list = (creators.data ?? []).map((c: any) => {
-        const stats = perCreator[c.login] ?? perCreator[c.display_name] ?? { revenue: 0, students: new Set(), products: 0 }
+        const stats = perCreator[c.login] ?? perCreator[c.display_name] ?? { revenue: 0, students: new Set(), products: 0, teachers: new Set() }
         return {
           id: c.id,
           login: c.login,
@@ -73,13 +82,33 @@ serve(async (req) => {
           students_count: stats.students.size,
           revenue: stats.revenue,
           products_count: stats.products,
+          teachers_count: stats.teachers.size,
         }
       })
+      const courseCreators = list.filter((c: any) => c.account_type === 'course_creator' || c.account_type === 'creator')
+      const onlineSchools = list.filter((c: any) => c.account_type === 'online_school' || c.account_type === 'school')
+
       const totals = {
+        sellers: list.length,
         creators: list.length,
         students: (users.data ?? []).filter((u: any) => u.role === 'student' || !u.role).length,
         revenue: list.reduce((s, c) => s + c.revenue, 0),
         products: (products.data ?? []).length,
+        teachers: (teachers.data ?? []).length,
+        pending_topics: pendingTopics?.count ?? 0,
+        course_creators: {
+          count: courseCreators.length,
+          revenue: courseCreators.reduce((s, c) => s + c.revenue, 0),
+          students: courseCreators.reduce((s, c) => s + c.students_count, 0),
+          products: courseCreators.reduce((s, c) => s + c.products_count, 0),
+        },
+        online_schools: {
+          count: onlineSchools.length,
+          revenue: onlineSchools.reduce((s, c) => s + c.revenue, 0),
+          students: onlineSchools.reduce((s, c) => s + c.students_count, 0),
+          teachers: onlineSchools.reduce((s, c) => s + c.teachers_count, 0),
+          products: onlineSchools.reduce((s, c) => s + c.products_count, 0),
+        },
       }
       return json({ success: true, creators: list, totals })
     }
@@ -161,6 +190,113 @@ serve(async (req) => {
         last_message_preview: text.trim().slice(0, 200),
         unread_for_user: (thread.unread_for_user ?? 0) + 1,
       }).eq('id', thread_id)
+      return json({ success: true })
+    }
+
+    // TOPIC SUGGESTIONS
+    if (action === 'list_topic_suggestions') {
+      const { status } = body as any
+      let query = supabase
+        .from('topics')
+        .select(`
+          id,
+          category_id,
+          subcategory_id,
+          name,
+          normalized_name,
+          status,
+          created_at,
+          created_by,
+          categories:category_id (name_ru, slug),
+          subcategories:subcategory_id (name_ru, slug)
+        `)
+        .order('created_at', { ascending: false })
+
+      if (status && status !== 'all') {
+        query = query.eq('status', status)
+      }
+      const { data, error } = await query
+      if (error) return json({ error: error.message }, 500)
+
+      // Lookup profiles to resolve handle/username to display_name
+      const createdByHandles = (data ?? []).map((r: any) => r.created_by).filter(Boolean)
+      let profileMap: Record<string, string> = {}
+      if (createdByHandles.length > 0) {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('handle, display_name')
+          .in('handle', createdByHandles)
+        if (profs) {
+          profs.forEach((p: any) => {
+            if (p.handle && p.display_name) profileMap[p.handle] = p.display_name
+          })
+        }
+      }
+
+      const items = (data ?? []).map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        normalized_name: row.normalized_name,
+        category_id: row.category_id,
+        subcategory_id: row.subcategory_id,
+        category_name: row.categories?.name_ru || '',
+        subcategory_name: row.subcategories?.name_ru || '',
+        status: row.status,
+        created_at: row.created_at,
+        created_by: profileMap[row.created_by] || row.created_by,
+      }))
+
+      return json({ success: true, topics: items })
+    }
+
+    if (action === 'update_topic_suggestion') {
+      const { topic_id, name } = body as any
+      if (!topic_id || !name?.trim()) return json({ error: 'topic_id and name required' }, 400)
+      const formatted = name.trim()
+      const normalized = formatted.toLowerCase().replace(/\s+/g, ' ')
+      const { error } = await supabase
+        .from('topics')
+        .update({
+          name: formatted,
+          normalized_name: normalized,
+        })
+        .eq('id', topic_id)
+      if (error) return json({ error: error.message }, 500)
+      return json({ success: true, name: formatted, normalized_name: normalized })
+    }
+
+    if (action === 'approve_topic_suggestion') {
+      const { topic_id, name } = body as any
+      if (!topic_id) return json({ error: 'No topic_id' }, 400)
+      const updateData: Record<string, any> = {
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: 'moderator',
+      }
+      if (name && typeof name === 'string' && name.trim()) {
+        updateData.name = name.trim()
+        updateData.normalized_name = name.trim().toLowerCase().replace(/\s+/g, ' ')
+      }
+      const { error } = await supabase
+        .from('topics')
+        .update(updateData)
+        .eq('id', topic_id)
+      if (error) return json({ error: error.message }, 500)
+      return json({ success: true })
+    }
+
+    if (action === 'reject_topic_suggestion') {
+      const { topic_id } = body as any
+      if (!topic_id) return json({ error: 'No topic_id' }, 400)
+      const { error } = await supabase
+        .from('topics')
+        .update({
+          status: 'rejected',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: 'moderator',
+        })
+        .eq('id', topic_id)
+      if (error) return json({ error: error.message }, 500)
       return json({ success: true })
     }
 

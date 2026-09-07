@@ -28,6 +28,7 @@ export async function uploadProductMedia(
   file: File,
   productId: string,
   kind: ProductMediaKind,
+  retries = 1
 ): Promise<string> {
   const creatorToken = localStorage.getItem("creator_token") || "";
   const creatorName = localStorage.getItem("creator_name") || "";
@@ -39,11 +40,40 @@ export async function uploadProductMedia(
   form.append("creatorToken", creatorToken);
   form.append("kind", kind);
 
-  const { data, error } = await supabase.functions.invoke("upload-product-media", {
-    body: form,
-  });
+  let lastError: any = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    try {
+      const { data, error } = await supabase.functions.invoke("upload-product-media", {
+        body: form,
+      });
 
-  if (error) throw new Error(error.message || "Upload failed");
-  if (!data?.url) throw new Error("Upload failed: no URL returned");
-  return data.url as string;
+      if (error) {
+        const msg = error.message || "Upload failed";
+        if (msg.includes("Failed to send a request") && attempt < retries) {
+          lastError = new Error(msg);
+          continue;
+        }
+        if (msg.includes("Failed to send a request")) {
+          throw new Error("Не удалось загрузить медиафайл из-за сбоя соединения. Попробуйте ещё раз.");
+        }
+        throw new Error(msg);
+      }
+      if (!data?.url) throw new Error("Upload failed: no URL returned");
+      return data.url as string;
+    } catch (err: any) {
+      lastError = err;
+      if (err?.message?.includes("Failed to send a request") && attempt < retries) {
+        continue;
+      }
+      if (err?.message?.includes("Failed to send a request")) {
+        throw new Error("Не удалось загрузить медиафайл из-за сбоя соединения. Попробуйте ещё раз.");
+      }
+      throw err;
+    }
+  }
+
+  throw lastError || new Error("Не удалось загрузить файл");
 }

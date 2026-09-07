@@ -97,12 +97,17 @@ export async function buyerHasProductAccess(
 
   const { data } = await supabase
     .from('simple_purchases')
-    .select('id')
+    .select('id, is_trial, trial_ends_at')
     .eq('buyer_profile_id', buyerProfileId)
     .eq('product_id', productId)
     .eq('status', 'completed')
     .maybeSingle()
-  return !!data
+
+  if (!data) return false
+  if (data.is_trial) {
+    return !!(data.trial_ends_at && new Date(data.trial_ends_at) > new Date())
+  }
+  return true
 }
 
 export async function buyerAccessibleProductIds(
@@ -110,15 +115,22 @@ export async function buyerAccessibleProductIds(
   buyerProfileId: string,
 ): Promise<string[]> {
   const ids = new Set<string>()
+  const now = new Date()
 
   const { data: purchases } = await supabase
     .from('simple_purchases')
-    .select('product_id')
+    .select('product_id, is_trial, trial_ends_at')
     .eq('buyer_profile_id', buyerProfileId)
     .eq('status', 'completed')
 
   for (const row of purchases ?? []) {
     const productId = row.product_id as string
+    if (row.is_trial) {
+      if (row.trial_ends_at && new Date(row.trial_ends_at) > now) {
+        ids.add(productId)
+      }
+      continue
+    }
     if (!(await isSubscriptionProduct(supabase, productId))) {
       ids.add(productId)
     }

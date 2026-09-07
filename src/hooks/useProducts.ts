@@ -35,6 +35,25 @@ export interface Product {
   capacity?: number | null;
   billing_period?: string | null;
   category_slug?: string | null;
+  payment_type?: string | null;
+  recurring_interval?: string | null;
+  has_free_trial?: boolean;
+  trial_days?: number | null;
+  pricing_options?: ProductPricingOption[] | null;
+}
+
+export interface ProductPricingOption {
+  id: string;
+  name?: string;
+  payment_type: "one_time" | "recurring";
+  price: number;
+  recurring_interval?: string | null;
+  recurring_custom_days?: number | null;
+  has_free_trial: boolean;
+  trial_preset?: "3" | "7" | "30" | "custom";
+  trial_days?: number | null;
+  kaspi_link?: string | null;
+  kaspi_phone?: string | null;
 }
 
 export interface ProductProgramItem {
@@ -154,6 +173,12 @@ interface CreateProductInput {
   event_starts_at?: string | null;
   capacity?: number | null;
   billing_period?: string | null;
+  payment_type?: string | null;
+  recurring_interval?: string | null;
+  has_free_trial?: boolean;
+  trial_days?: number | null;
+  pricing_options?: ProductPricingOption[] | null;
+  topic?: string | null;
 }
 
 export const useCreateProduct = () => {

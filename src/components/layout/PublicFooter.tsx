@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import PublicContainer from "@/components/marketplace/PublicContainer";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 
@@ -14,8 +13,8 @@ const PublicFooter = ({ className }: PublicFooterProps) => {
   const { t } = useLanguage();
 
   return (
-    <footer className={cn("mt-auto border-t border-[#E3E5E8]", className)}>
-      <PublicContainer className="py-6">
+    <footer className={cn("mt-auto border-t border-[#E3E5E8] w-full", className)}>
+      <div className="w-full px-4 sm:px-6 py-5">
         <div className="flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between">
           <p className="text-[13px] text-[#6B7280]">{t("footerCopyright")}</p>
           <div className="flex flex-col gap-3 min-[640px]:flex-row min-[640px]:items-center min-[640px]:gap-6">
@@ -25,12 +24,12 @@ const PublicFooter = ({ className }: PublicFooterProps) => {
             <Link to="/privacy" className={FOOTER_LINK_CLASS}>
               {t("footerPrivacy")}
             </Link>
-            <a href="mailto:chingizkhairulla@gmail.com" className={FOOTER_LINK_CLASS}>
+            <a href="mailto:dostup.support@gmail.com" className={FOOTER_LINK_CLASS}>
               {t("footerContactEmail")}
             </a>
           </div>
         </div>
-      </PublicContainer>
+      </div>
     </footer>
   );
 };

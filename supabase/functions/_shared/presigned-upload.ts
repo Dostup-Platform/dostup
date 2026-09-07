@@ -20,19 +20,60 @@ function avatarExt(fileName: string, fileType: string): string {
   return 'jpg'
 }
 
-async function handleAvatarUpload(body: Record<string, unknown>): Promise<Response> {
-  const token = asString(body.creatorToken) || asString(body.sessionToken)
-  if (!token) return json({ error: 'Unauthorized' }, 401)
-
+async function handleAvatarUpload(body: Record<string, unknown>, req?: Request): Promise<Response> {
+  const token = asString(body.creatorToken) || asString(body.sessionToken) || asString(body.token)
   const supabase = serviceClient()
-  const { data: session } = await supabase
-    .from('creator_sessions')
-    .select('profile_id')
-    .eq('token', token)
-    .gt('expires_at', new Date().toISOString())
-    .maybeSingle()
 
-  if (!session?.profile_id) return json({ error: 'Unauthorized' }, 401)
+  let profileId = asString(body.profileId)
+
+  if (token) {
+    const { data: session } = await supabase
+      .from('creator_sessions')
+      .select('profile_id, creator_name')
+      .eq('token', token)
+      .maybeSingle()
+
+    if (session) {
+      if (session.profile_id) {
+        profileId = profileId || session.profile_id
+      } else if (typeof session.creator_name === 'string' && session.creator_name.startsWith('buyer:')) {
+        profileId = profileId || session.creator_name.slice(6)
+      } else if (session.creator_name) {
+        const { data: acc } = await supabase
+          .from('creator_accounts')
+          .select('profile_id')
+          .ilike('login', session.creator_name)
+          .maybeSingle()
+        if (acc?.profile_id) profileId = profileId || acc.profile_id
+      }
+    }
+  }
+
+  // Fallback to JWT if available
+  if (!profileId && req) {
+    const authHeader = req.headers.get('authorization') || ''
+    const jwt = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : ''
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
+    if (jwt && jwt !== anonKey) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser(jwt)
+        if (user?.id) {
+          const { data: p } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('auth_user_id', user.id)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle()
+          if (p?.id) profileId = p.id
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  if (!profileId) return json({ error: 'Unauthorized' }, 401)
 
   const file = body.file
   const fileName = asString(body.fileName) || (file instanceof File ? file.name : 'avatar.jpg')
@@ -43,7 +84,7 @@ async function handleAvatarUpload(body: Record<string, unknown>): Promise<Respon
   }
 
   const ext = avatarExt(fileName, fileType)
-  const objectPath = `${session.profile_id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const objectPath = `${profileId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
   const publicUrl = `${supabaseUrl}/storage/v1/object/public/avatars/${objectPath}`
 
@@ -58,7 +99,7 @@ async function handleAvatarUpload(body: Record<string, unknown>): Promise<Respon
     const { error: profileError } = await supabase
       .from('profiles')
       .update({ avatar_url: publicUrl })
-      .eq('id', session.profile_id)
+      .eq('id', profileId)
     if (profileError) {
       console.error('avatar profile update error', profileError)
       return json({ error: 'Failed to save avatar' }, 500)
@@ -113,7 +154,7 @@ export async function handlePresignedUpload(req: Request): Promise<Response> {
 
     const purpose = asString(body.purpose) || asString(body.role)
     if (purpose === 'avatar') {
-      return handleAvatarUpload(body)
+      return handleAvatarUpload(body, req)
     }
 
     const auth = await authorizeUpload(body)

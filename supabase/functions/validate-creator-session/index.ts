@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
   findOrCreateProfile,
+  issueAppSession,
   listProfiles,
   loadAccountForProfile,
   parseOnboardingAuthUserId,
@@ -44,9 +45,60 @@ serve(async (req) => {
       .gt('expires_at', new Date().toISOString())
       .maybeSingle()
 
+    // --- JWT fallback: if token not in DB, try Authorization header ---
     if (error || !session) {
+      const authHeader = req.headers.get('authorization') || ''
+      const jwt = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+      let authUserId: string | null = null
+      if (jwt) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser(jwt)
+          if (user?.id) authUserId = user.id
+        } catch { /* JWT invalid */ }
+      }
+      if (!authUserId) {
+        return new Response(
+          JSON.stringify({ valid: false }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+      // Re-establish session for user via JWT
+      const allProfiles = await listProfiles(supabase, authUserId)
+      if (allProfiles.length === 0) {
+        return new Response(
+          JSON.stringify({ valid: false }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+      const buyer = allProfiles.find(p => p.type === 'buyer')
+      const profile = buyer || allProfiles[0]
+      const account = await loadAccountForProfile(supabase, profile.id)
+      const issued = await issueAppSession(supabase, { profile, account })
+      if (!issued.ok) {
+        return new Response(
+          JSON.stringify({ valid: false }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+
+      let email: string | null = null
+      const { data: userData } = await supabase.auth.admin.getUserById(authUserId)
+      email = userData?.user?.email?.trim().toLowerCase() ?? null
+
       return new Response(
-        JSON.stringify({ valid: false }),
+        JSON.stringify({
+          valid: true,
+          profileId: profile.id,
+          profileType: profile.type,
+          displayName: profile.display_name ?? '',
+          handle: profile.handle ?? null,
+          email,
+          creatorName: issued.session.creatorName,
+          accountType: account?.account_type ?? null,
+          createdAt: profile.created_at,
+          profiles: publicProfiles(allProfiles),
+          newToken: issued.session.token,
+        }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }

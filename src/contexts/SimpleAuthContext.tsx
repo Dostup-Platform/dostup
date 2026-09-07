@@ -45,6 +45,8 @@ interface SimpleAuthContextType {
     displayName: string;
   }) => Promise<{ path: string } | { error: string }>;
   setProfileAvatar: (url: string | null) => void;
+  setProfileName: (name: string) => void;
+  removeProfile: (deletedId: string, newSession: SessionPayload | null) => void;
   logout: () => Promise<void>;
 }
 
@@ -81,7 +83,7 @@ function hydrateAuthState(): HydratedAuthState {
     };
   }
 
-  if (isStoredSessionExpired()) {
+  if (readAuthEmail() === "dostup.support@gmail.com" || isStoredSessionExpired()) {
     clearAppSession();
     return {
       status: "guest",
@@ -185,6 +187,12 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
   }, [applyBuyer]);
 
   const validateStoredSession = useCallback(async () => {
+    if (readAuthEmail() === "dostup.support@gmail.com") {
+      clearAppSession();
+      setGuest();
+      return;
+    }
+
     const token = localStorage.getItem("creator_token");
     if (!token) {
       setGuest();
@@ -233,11 +241,17 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
         return;
       }
 
+      // If server recovered the session via JWT fallback, use the new token
+      const activeToken = typeof data.newToken === "string" && data.newToken ? data.newToken : token;
+      if (activeToken !== token) {
+        localStorage.setItem("creator_token", activeToken);
+      }
+
       const nextType = parseProfileType(data.profileType) || storedType;
       const nextProfiles = (data.profiles as AppProfile[] | undefined) ?? readStoredProfiles();
       setProfiles(nextProfiles);
       setProfileType(nextType);
-      setSessionToken(token);
+      setSessionToken(activeToken);
       if (data.profileId) localStorage.setItem("profile_id", data.profileId);
       if (data.displayName?.trim()) {
         localStorage.setItem("profile_display_name", data.displayName.trim());
@@ -304,7 +318,19 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
         },
       });
       if (error || !data?.success || !data.token || !data.profileType) {
-        return { error: String(data?.error || error?.message || "Failed") };
+        let errCode = String(data?.error || "");
+        if (!errCode && error && typeof error === "object" && "context" in error) {
+          try {
+            const ctx = (error as any).context;
+            if (typeof ctx?.json === "function") {
+              const errJson = await ctx.json();
+              if (errJson?.error) errCode = String(errJson.error);
+            }
+          } catch {
+            // ignore
+          }
+        }
+        return { error: errCode || String(error?.message || "Failed") };
       }
       storeCreatorSession({
         token: data.token,
@@ -355,7 +381,19 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
         },
       });
       if (error || !data?.success || !data.token || !data.profileType) {
-        return { error: String(data?.error || error?.message || "Failed") };
+        let errCode = String(data?.error || "");
+        if (!errCode && error && typeof error === "object" && "context" in error) {
+          try {
+            const ctx = (error as any).context;
+            if (typeof ctx?.json === "function") {
+              const errJson = await ctx.json();
+              if (errJson?.error) errCode = String(errJson.error);
+            }
+          } catch {
+            // ignore
+          }
+        }
+        return { error: errCode || String(error?.message || "Failed") };
       }
       storeCreatorSession({
         token: data.token,
@@ -389,6 +427,47 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
     }
   };
 
+  const removeProfile = useCallback((deletedId: string, newSession: SessionPayload | null) => {
+    // 1. Compute filtered list
+    setProfiles((prev) => {
+      const next = prev.filter((p) => p.id !== deletedId);
+      try {
+        localStorage.setItem("identity_profiles", JSON.stringify(next));
+      } catch { /* private mode */ }
+
+      // 2. Apply new buyer session using the filtered list
+      if (newSession) {
+        storeCreatorSession({
+          token: newSession.token,
+          creatorName: newSession.creatorName,
+          accountType: newSession.accountType,
+          profileType: newSession.profileType,
+          profileId: newSession.profileId,
+          displayName: newSession.displayName,
+          handle: newSession.handle,
+          createdAt: newSession.createdAt,
+        });
+        // setSessionToken / setProfileType / setUser / setStatus
+        // are called outside setState but batched by React 18
+      }
+
+      return next;
+    });
+
+    if (newSession) {
+      setSessionToken(newSession.token);
+      setProfileType(newSession.profileType);
+      if (newSession.profileType === "buyer") {
+        setUser(buyerUserFromSession({
+          profileId: newSession.profileId,
+          displayName: newSession.displayName ?? null,
+          createdAt: newSession.createdAt ?? null,
+        }));
+      }
+      setStatus("authenticated");
+    }
+  }, []);
+
   const logout = async () => {
     clearAppSession();
     setGuest();
@@ -415,6 +494,25 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
     });
   }, []);
 
+  const setProfileName = useCallback((name: string) => {
+    const profileId = localStorage.getItem("profile_id");
+    localStorage.setItem("profile_display_name", name);
+    setProfiles((prev) => {
+      const next = prev.map((profile) =>
+        profile.id === profileId || (!profileId && profile.isCurrent)
+          ? { ...profile, displayName: name }
+          : profile,
+      );
+      try {
+        localStorage.setItem("identity_profiles", JSON.stringify(next));
+      } catch {
+        // private mode
+      }
+      return next;
+    });
+    setUser((prev) => (prev ? { ...prev, name } : prev));
+  }, []);
+
   return (
     <SimpleAuthContext.Provider value={{
       user,
@@ -428,6 +526,8 @@ export const SimpleAuthProvider = ({ children }: SimpleAuthProviderProps) => {
       switchProfile,
       createProfile,
       setProfileAvatar,
+      setProfileName,
+      removeProfile,
       logout,
     }}>
       {children}

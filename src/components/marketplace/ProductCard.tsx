@@ -31,9 +31,16 @@ const ProductCard = ({ product }: { product: CatalogProduct }) => {
             {formatEventDate(product.event_starts_at, language)}
           </p>
         )}
-        <p className="mt-2 w-full text-left text-base font-bold tabular-nums leading-snug text-foreground">
-          {formatCatalogPrice(product, language)}
-        </p>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <p className="text-left text-base font-bold tabular-nums leading-snug text-foreground">
+            {formatCatalogPrice(product, language)}
+          </p>
+          {product.has_free_trial && (
+            <span className="text-[11px] font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">
+              Пробный период
+            </span>
+          )}
+        </div>
         <div className="mt-2 flex min-w-0 items-center gap-2">
           <Avatar className="h-5 w-5">
             {product.seller_avatar_url && (

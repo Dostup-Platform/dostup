@@ -10,7 +10,7 @@ export function useAvatarCrop() {
   const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoomState] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
   const previewStyle = useMemo(() => {
@@ -18,17 +18,31 @@ export function useAvatarCrop() {
     const minSide = Math.min(image.naturalWidth, image.naturalHeight);
     const scale = (AVATAR_PREVIEW_SIZE * zoom) / minSide;
     return {
-      width: image.naturalWidth * scale,
-      height: image.naturalHeight * scale,
-      transform: `translate(${-offset.x * scale}px, ${-offset.y * scale}px)`,
+      width: `${image.naturalWidth * scale}px`,
+      height: `${image.naturalHeight * scale}px`,
+      transform: `translate(calc(-50% + ${-offset.x * scale}px), calc(-50% + ${-offset.y * scale}px))`,
     };
   }, [image, zoom, offset]);
+
+  const setZoom = (newZoom: number) => {
+    const clamped = Math.min(3.5, Math.max(1, newZoom));
+    setZoomState(clamped);
+    if (!image) return;
+    const minSide = Math.min(image.naturalWidth, image.naturalHeight);
+    const crop = minSide / clamped;
+    const maxX = Math.max(0, (image.naturalWidth - crop) / 2);
+    const maxY = Math.max(0, (image.naturalHeight - crop) / 2);
+    setOffset((prev) => ({
+      x: Math.min(maxX, Math.max(-maxX, prev.x)),
+      y: Math.min(maxY, Math.max(-maxY, prev.y)),
+    }));
+  };
 
   const resetCrop = () => {
     if (source) URL.revokeObjectURL(source);
     setSource(null);
     setImage(null);
-    setZoom(1);
+    setZoomState(1);
     setOffset({ x: 0, y: 0 });
   };
 
@@ -46,7 +60,7 @@ export function useAvatarCrop() {
     img.onload = () => {
       setImage(img);
       setSource(url);
-      setZoom(1);
+      setZoomState(1);
       setOffset({ x: 0, y: 0 });
     };
     img.onerror = () => {

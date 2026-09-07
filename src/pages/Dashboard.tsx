@@ -221,7 +221,7 @@ const Dashboard = () => {
           {supportOpen ? (
             <SupportChat userType="student" userRef={user.id} displayName={user.name} />
           ) : isAccountView ? (
-            <div className="mx-auto max-w-2xl">
+            <div className="mx-auto max-w-5xl">
               <AccountTab />
             </div>
           ) : buyerSection === "notifications" ? (

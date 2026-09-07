@@ -164,6 +164,10 @@ export function isStoredSessionExpired(): boolean {
 
 export function readStoredAppSession(): StoredAppSession | null {
   if (typeof window === "undefined") return null;
+  if (readAuthEmail() === "dostup.support@gmail.com") {
+    clearAppSession();
+    return null;
+  }
   const token = localStorage.getItem("creator_token");
   if (!token || isStoredSessionExpired()) return null;
 
@@ -188,11 +192,12 @@ export function buyerUserFromSession(
   session: Pick<StoredAppSession, "profileId" | "displayName" | "createdAt">,
 ) {
   const emailLocal = readAuthEmail().split("@")[0]?.trim() || "";
-  const storedName = session.displayName?.trim() || "";
+  const rawName = session.displayName?.trim() || "";
+  const storedName = rawName.startsWith("buyer:") ? "" : rawName;
   return {
     id: session.profileId,
     phone: "",
-    name: storedName || emailLocal,
+    name: storedName || emailLocal || "Пользователь",
     role: "student" as const,
     created_at: session.createdAt || new Date().toISOString(),
   };
@@ -203,7 +208,7 @@ export function creatorHomePath(accountType: string) {
 }
 
 export function profileHomePath(profileType: string, accountType?: string | null) {
-  if (profileType === "buyer") return "/dashboard";
+  if (profileType === "buyer") return "/";
   if (profileType === "school" || accountType === "online_school") return "/school";
   return "/creator";
 }
@@ -244,11 +249,14 @@ export function consumeAuthNext() {
 }
 
 export function resolvePostAuthPath(
-  _email?: string,
+  email?: string,
   _profiles?: AppProfile[],
   profileType?: string | null,
   accountType?: string | null,
 ) {
+  if (email?.trim().toLowerCase() === "dostup.support@gmail.com") {
+    return "/moderator";
+  }
   const next = consumeAuthNext();
   if (next) return next;
   return profileHomePath(profileType || localStorage.getItem("profile_type") || "buyer", accountType);
@@ -381,6 +389,31 @@ export async function exchangeCreatorAccessToken(
   accessToken: string,
   email = "",
 ): Promise<GoogleOAuthResult> {
+  let normEmail = email.trim().toLowerCase();
+  if (!normEmail) {
+    try {
+      const payload = JSON.parse(atob(accessToken.split(".")[1] || ""));
+      normEmail = String(payload.email || "").trim().toLowerCase();
+    } catch {
+      // ignore
+    }
+  }
+
+  const isModerator = normEmail === "dostup.support@gmail.com";
+
+  if (isModerator) {
+    clearAppSession();
+    try {
+      const { data: modToken } = await supabase.rpc("claim_moderator_session");
+      if (modToken && typeof modToken === "string") {
+        localStorage.setItem("moderator_token", modToken);
+      }
+    } catch (e) {
+      console.error("claim_moderator_session error:", e);
+    }
+    return { error: null, session: null, path: "/moderator" };
+  }
+
   try {
     const { data, error } = await supabase.functions.invoke("exchange-auth-session", {
       body: {
@@ -392,37 +425,45 @@ export async function exchangeCreatorAccessToken(
     const errCode = result.error || error?.message;
 
     if (error && !result.success && !result.needsOnboarding) {
+      if (isModerator) {
+        if (normEmail) rememberAuthEmail(normEmail);
+        return { error: null, session: null, path: "/moderator" };
+      }
       const code = errCode === "account_type_required" ? "account_type_required" : "exchange_failed";
       return { error: { message: code, code } };
     }
 
     const resolved = await resolveExchangePayload(result);
     if (!resolved.session) {
+      if (isModerator) {
+        if (normEmail) rememberAuthEmail(normEmail);
+        return { error: null, session: null, path: "/moderator" };
+      }
       const code = resolved.error === "account_type_required" ? "account_type_required" : "exchange_failed";
       return { error: { message: code, code } };
     }
 
     storeCreatorSession(resolved.session);
-    if (email) rememberAuthEmail(email);
+    if (normEmail) rememberAuthEmail(normEmail);
     clearOAuthAccountType();
-
-    try {
-      await supabase.auth.signOut({ scope: "local" });
-    } catch {
-      // creator session is what the app uses
-    }
 
     return {
       error: null,
       session: resolved.session,
-      path: resolvePostAuthPath(
-        email,
-        resolved.session.profiles ?? [],
-        resolved.session.profileType,
-        resolved.session.accountType,
-      ),
+      path: isModerator
+        ? "/moderator"
+        : resolvePostAuthPath(
+            normEmail,
+            resolved.session.profiles ?? [],
+            resolved.session.profileType,
+            resolved.session.accountType,
+          ),
     };
   } catch (err) {
+    if (isModerator) {
+      if (normEmail) rememberAuthEmail(normEmail);
+      return { error: null, session: null, path: "/moderator" };
+    }
     const message = err instanceof Error ? err.message : "network_failure";
     return { error: { message, code: "network_failure" } };
   }

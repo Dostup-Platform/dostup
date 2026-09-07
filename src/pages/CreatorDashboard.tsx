@@ -19,7 +19,6 @@ import {
   HeaderChatsButton,
   HeaderNotificationsButton,
 } from "@/components/layout/HeaderControls";
-import HandleSetupDialog from "@/components/account/HandleSetupDialog";
 import DisplayNameSetupDialog from "@/components/account/DisplayNameSetupDialog";
 import { creatorTabFromPath, SELLER_NAV_ITEMS } from "@/lib/navigation";
 
@@ -46,7 +45,6 @@ const CreatorDashboard = () => {
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<string | null>(() => localStorage.getItem("profile_id"));
   const [needsDisplayName, setNeedsDisplayName] = useState(false);
-  const [needsHandle, setNeedsHandle] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
   const { t } = useLanguage();
@@ -220,10 +218,6 @@ const CreatorDashboard = () => {
         setProfileDisplayName(displayName || null);
         const email = typeof data.email === "string" ? data.email : readAuthEmail();
         setNeedsDisplayName(needsDisplayNamePrompt(displayName, email));
-        const handle = typeof data.handle === "string" ? data.handle.trim() : "";
-        if (handle) localStorage.setItem("profile_handle", handle);
-        else localStorage.removeItem("profile_handle");
-        setNeedsHandle(!handle);
         setIsLoading(false);
       } catch (err) {
         console.error('Session validation error:', err);
@@ -251,16 +245,9 @@ const CreatorDashboard = () => {
       <div className="min-h-screen bg-background">
         <DisplayNameSetupDialog
           open
-          onSaved={(saved, handle) => {
+          onSaved={(saved) => {
             setProfileDisplayName(saved);
             setNeedsDisplayName(false);
-            if (handle) {
-              localStorage.setItem("profile_handle", handle);
-              setNeedsHandle(false);
-            } else if (handle === null) {
-              localStorage.removeItem("profile_handle");
-              setNeedsHandle(true);
-            }
           }}
         />
       </div>
@@ -349,11 +336,6 @@ const CreatorDashboard = () => {
           </div>
         </nav>
       )}
-      <HandleSetupDialog
-        open={needsHandle}
-        profileId={profileId}
-        onSaved={() => setNeedsHandle(false)}
-      />
     </div>
     </AppShell>
   );

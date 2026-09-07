@@ -23,6 +23,11 @@ export type CatalogProduct = {
   event_starts_at: string | null;
   capacity: number | null;
   billing_period: BillingPeriod | null;
+  payment_type?: string | null;
+  recurring_interval?: string | null;
+  has_free_trial?: boolean;
+  trial_days?: number | null;
+  pricing_options?: any[] | null;
   seller_handle: string | null;
   seller_display_name: string | null;
   seller_avatar_url: string | null;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 import { invokeApi, studentCreds } from "@/lib/sessionApi";
-import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Copy } from "lucide-react";
+import { ArrowLeft, Lock, Loader2, ExternalLink, Clock, Copy, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
 import PublicFooter from "@/components/layout/PublicFooter";
@@ -17,6 +17,22 @@ import { rememberAuthNext } from "@/lib/creatorAuth";
 import { loginPath, loginState } from "@/lib/loginModal";
 import { formatPriceTenge } from "@/lib/catalog";
 import ReceiptUploadCard, { ReceiptSubmission } from "@/components/checkout/ReceiptUploadCard";
+import { cn } from "@/lib/utils";
+
+function getOptionDisplay(opt: any) {
+  const priceStr = formatPriceTenge(Number(opt.price));
+  if (opt.payment_type === "one_time") {
+    return `${priceStr} (разово)`;
+  }
+  let periodStr = "в месяц";
+  if (opt.recurring_interval === "7d") periodStr = "каждые 7 дней";
+  else if (opt.recurring_interval === "14d") periodStr = "каждые 14 дней";
+  else if (opt.recurring_interval === "1m") periodStr = "в месяц";
+  else if (opt.recurring_interval === "3m") periodStr = "каждые 3 месяца";
+  else if (opt.recurring_interval === "1y") periodStr = "в год";
+  else if (opt.recurring_interval === "custom") periodStr = `каждые ${opt.access_duration_days || 30} дн.`;
+  return `${priceStr} / ${periodStr}`;
+}
 // Push notifications are now sent from the server via database triggers
 
 const formatKaspiPhone = (phone: string) => {
@@ -39,7 +55,23 @@ const ProductPurchasePage = () => {
   const { user, sessionToken } = useSimpleAuth();
   const { data: product, isLoading } = useCheckoutProduct(productId);
   
-  // Получить параметры учителя из URL
+  // Получить параметры тарифа и учителя из URL
+  const optionParam = searchParams.get("option");
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(optionParam || null);
+
+  const activeOption = useMemo(() => {
+    if (!product?.pricing_options || product.pricing_options.length === 0) return null;
+    if (selectedOptionId) {
+      const found = product.pricing_options.find((o: any) => o.id === selectedOptionId);
+      if (found) return found;
+    }
+    return product.pricing_options[0];
+  }, [product?.pricing_options, selectedOptionId]);
+
+  const effectivePrice = activeOption ? Number(activeOption.price) : Number(product?.price || 0);
+  const effectiveHasTrial = activeOption ? Boolean(activeOption.has_free_trial) : Boolean(product?.has_free_trial);
+  const effectiveTrialDays = activeOption ? activeOption.trial_days : product?.trial_days;
+
   const teacherParam = searchParams.get("teacher");
   const canChoose = teacherParam === "choice";
   
@@ -52,6 +84,57 @@ const ProductPurchasePage = () => {
   const [purchaseStatus, setPurchaseStatus] = useState<"form" | "pending" | "completed">("form");
   const [purchaseId, setPurchaseId] = useState<string | null>(null);
   const [receiptSubmission, setReceiptSubmission] = useState<ReceiptSubmission | null>(null);
+  const [activatingTrial, setActivatingTrial] = useState(false);
+  const [trialInfo, setTrialInfo] = useState<{
+    hasFreeTrial: boolean;
+    hasUsedTrial: boolean;
+    canUseTrial: boolean;
+    trialDays: number | null;
+  } | null>(null);
+
+  useEffect(() => {
+    const checkTrial = async () => {
+      if (!user || !productId) return;
+      try {
+        const token = sessionToken || localStorage.getItem("creator_token") || "";
+        const res = await invokeApi<{
+          hasFreeTrial: boolean;
+          hasUsedTrial: boolean;
+          canUseTrial: boolean;
+          trialDays: number | null;
+        }>("checkout", {
+          action: "check_trial",
+          productId,
+          sessionToken: token,
+        });
+        setTrialInfo(res);
+      } catch {
+        // ignore
+      }
+    };
+    checkTrial();
+  }, [user, productId, sessionToken]);
+
+  const handleActivateTrial = async () => {
+    if (!user || !productId) return;
+    setActivatingTrial(true);
+    try {
+      const token = sessionToken || localStorage.getItem("creator_token") || "";
+      const res = await invokeApi<{ ok: boolean; trialEndsAt: string; message?: string }>("checkout", {
+        action: "activate_trial",
+        productId,
+        sessionToken: token,
+      });
+      if (res.ok) {
+        toast.success(`Пробный период на ${effectiveTrialDays || product?.trial_days || trialInfo?.trialDays} дн. активирован!`);
+        navigate("/dashboard");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Пробный период уже был использован");
+    } finally {
+      setActivatingTrial(false);
+    }
+  };
   // Push notifications are now sent from the server via database triggers
 
   // Найти teacher_id по имени из URL
@@ -137,19 +220,21 @@ const ProductPurchasePage = () => {
     return () => window.clearInterval(id);
   }, [purchaseStatus, purchaseId, navigate, t, sessionToken, productId]);
 
+  const activeKaspiLink = activeOption?.kaspi_link || product?.kaspi_link || null;
+  const activeKaspiPhone = activeOption?.kaspi_phone || product?.kaspi_phone || null;
+
   const handleKaspiPayment = () => {
-    if (!product?.kaspi_link) return;
-    window.open(product.kaspi_link, "_blank");
+    if (!activeKaspiLink) return;
+    window.open(activeKaspiLink, "_blank");
   };
 
   const handleCopyKaspiPhone = async () => {
-    const phone = product?.kaspi_phone;
-    if (!phone) return;
+    if (!activeKaspiPhone) return;
     try {
-      await navigator.clipboard.writeText(phone);
+      await navigator.clipboard.writeText(activeKaspiPhone);
       toast.success(t("kaspiPhoneCopied"));
     } catch {
-      toast.error(phone);
+      toast.error(activeKaspiPhone);
     }
   };
 
@@ -221,8 +306,8 @@ const ProductPurchasePage = () => {
     );
   }
 
-  const hasKaspiLink = Boolean(product.kaspi_link);
-  const hasKaspiPhone = Boolean(product.kaspi_phone);
+  const hasKaspiLink = Boolean(activeKaspiLink);
+  const hasKaspiPhone = Boolean(activeKaspiPhone);
   const hasPaymentMethod = hasKaspiLink || hasKaspiPhone;
   const checkoutPath = `/checkout/${product.id}`;
   const goToLogin = () => {
@@ -319,18 +404,95 @@ const ProductPurchasePage = () => {
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">{t("orderSummary")}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="font-semibold text-foreground">{product.title}</h3>
                 <p className="text-sm text-muted-foreground mt-1">{product.headline}</p>
               </div>
               <span className="text-lg font-bold text-foreground">
-                {formatPriceTenge(Number(product.price))}
+                {formatPriceTenge(effectivePrice)}
               </span>
             </div>
+
+            {product.pricing_options && product.pricing_options.length > 1 && (
+              <div className="pt-3 border-t border-border space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Выберите вариант тарифа:</p>
+                <div className="space-y-2">
+                  {product.pricing_options.map((opt: any) => {
+                    const isSelected = activeOption?.id === opt.id;
+                    const summary = getOptionDisplay(opt);
+                    return (
+                      <div
+                        key={opt.id}
+                        onClick={() => setSelectedOptionId(opt.id)}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
+                          isSelected
+                            ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-xs"
+                            : "border-border bg-card/60 hover:bg-muted/30"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm font-semibold text-foreground truncate">{summary}</span>
+                          {opt.has_free_trial && (
+                            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium shrink-0">
+                              {opt.trial_days} дн. триал
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className={cn(
+                            "w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ml-2 transition-colors",
+                            isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                          )}
+                        >
+                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {/* Free trial card if product supports it */}
+        {effectiveHasTrial && effectiveTrialDays && (
+          <Card className="mb-6 border-primary/40 bg-primary/5 animate-fade-in">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h4 className="font-semibold text-foreground text-sm flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    Бесплатный пробный период на {effectiveTrialDays} {effectiveTrialDays === 3 ? "дня" : "дней"}
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {trialInfo?.hasUsedTrial
+                      ? "Вы уже использовали пробный период для этого продукта. Доступно только приобретение."
+                      : "Получите полный доступ к продукту на весь пробный период бесплатно."}
+                  </p>
+                </div>
+                {user && !trialInfo?.hasUsedTrial && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 rounded-xl border-primary/50 text-primary hover:bg-primary/10 font-medium"
+                    disabled={isProcessing || activatingTrial}
+                    onClick={handleActivateTrial}
+                  >
+                    {activatingTrial ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      "Попробовать бесплатно"
+                    )}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {!user ? (
           <Card className="animate-fade-in">
@@ -402,7 +564,7 @@ const ProductPurchasePage = () => {
                       <div className="rounded-lg border border-[#F14635]/30 bg-[#F14635]/5 p-4 space-y-3">
                         <p className="text-sm text-foreground">{t("kaspiPhoneInstruction")}</p>
                         <p className="text-xl font-bold text-center tracking-wide">
-                          {formatKaspiPhone(String(product.kaspi_phone))}
+                          {formatKaspiPhone(String(activeKaspiPhone))}
                         </p>
                         <Button
                           type="button"

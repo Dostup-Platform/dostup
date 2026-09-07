@@ -10,7 +10,11 @@ type AddSellerProfileDialogProps = {
   open: boolean;
   creating?: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (type: "creator" | "school", displayName: string, avatarFile: File | null) => void;
+  onConfirm: (
+    type: "creator" | "school",
+    displayName: string,
+    avatarFile: File | null
+  ) => Promise<boolean | { ok: boolean; error?: string } | void> | boolean | void;
 };
 
 const SELLER_TYPES: ProfileType[] = ["creator", "school"];
@@ -24,11 +28,13 @@ const AddSellerProfileDialog = ({
   const { t } = useLanguage();
   const [step, setStep] = useState<"role" | "setup">("role");
   const [pendingType, setPendingType] = useState<"creator" | "school" | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) return;
     setStep("role");
     setPendingType(null);
+    setSetupError(null);
   }, [open]);
 
   useEffect(() => {
@@ -99,8 +105,13 @@ const AddSellerProfileDialog = ({
         {step === "setup" && pendingType ? (
           <SellerProfileSetupScreen
             saving={creating}
-            onContinue={(displayName, avatarFile) => {
-              onConfirm(pendingType, displayName, avatarFile);
+            errorMessage={setupError}
+            onContinue={async (displayName, avatarFile) => {
+              setSetupError(null);
+              const res = await onConfirm(pendingType, displayName, avatarFile);
+              if (res && typeof res === "object" && "error" in res && res.error) {
+                setSetupError(res.error);
+              }
             }}
           />
         ) : (

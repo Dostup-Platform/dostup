@@ -1,11 +1,12 @@
 import { json, optionsResponse } from '../_shared/http.ts'
 import {
   accountTypeFor,
-  activateSessionProfile,
   createSellerProfile,
   displayNameFrom,
   ensureCreatorAccount,
   findOrCreateProfile,
+  isDisplayNameTaken,
+  issueAppSession,
   listProfiles,
   loadAccountForProfile,
   parseOnboardingAuthUserId,
@@ -33,57 +34,73 @@ Deno.serve(async (req) => {
       .gt('expires_at', new Date().toISOString())
       .maybeSingle()
 
-    if (!session) {
-      return json({ success: false, error: 'Invalid session' }, 401)
-    }
+    let authUserId: string | null = null
 
-    const onboardingAuthId = parseOnboardingAuthUserId(session.creator_name)
-    let profileId = session.profile_id
-    let authUserId: string | null = onboardingAuthId
+    if (session) {
+      const onboardingAuthId = parseOnboardingAuthUserId(session.creator_name)
+      let profileId = session.profile_id
 
-    if (!authUserId) {
-      if (!profileId) {
-        if (typeof session.creator_name === 'string' && session.creator_name.startsWith('buyer:')) {
-          profileId = session.creator_name.slice(6)
-        } else if (session.creator_name) {
-          const { data: acc } = await supabase
-            .from('creator_accounts')
-            .select('profile_id, auth_user_id, display_name, account_type')
-            .ilike('login', session.creator_name)
-            .maybeSingle()
-          if (acc?.profile_id) {
-            profileId = acc.profile_id
-          } else if (acc?.auth_user_id) {
-            const type = profileTypeForAccount(acc.account_type)
-            const p = await findOrCreateProfile(
-              supabase,
-              acc.auth_user_id,
-              type,
-              acc.display_name || session.creator_name,
-            )
-            if (p) profileId = p.id
+      if (onboardingAuthId) {
+        authUserId = onboardingAuthId
+      } else {
+        if (!profileId) {
+          if (typeof session.creator_name === 'string' && session.creator_name.startsWith('buyer:')) {
+            profileId = session.creator_name.slice(6)
+          } else if (session.creator_name) {
+            const { data: acc } = await supabase
+              .from('creator_accounts')
+              .select('profile_id, auth_user_id, display_name, account_type')
+              .ilike('login', session.creator_name)
+              .maybeSingle()
+            if (acc?.profile_id) {
+              profileId = acc.profile_id
+            } else if (acc?.auth_user_id) {
+              const type = profileTypeForAccount(acc.account_type)
+              const p = await findOrCreateProfile(
+                supabase,
+                acc.auth_user_id,
+                type,
+                acc.display_name || session.creator_name,
+              )
+              if (p) profileId = p.id
+            }
+          }
+          if (profileId) {
+            await supabase.from('creator_sessions').update({ profile_id: profileId }).eq('token', token)
           }
         }
+
         if (profileId) {
-          await supabase.from('creator_sessions').update({ profile_id: profileId }).eq('token', token)
+          const { data: current } = await supabase
+            .from('profiles')
+            .select(PROFILE_COLUMNS)
+            .eq('id', profileId)
+            .maybeSingle()
+
+          const currentProfile = current as ProfileRow | null
+          if (currentProfile?.auth_user_id) {
+            authUserId = currentProfile.auth_user_id
+          }
         }
       }
+    }
 
-      if (!profileId) {
-        return json({ success: false, error: 'Invalid session' }, 401)
+    // JWT fallback: if session token didn't resolve authUserId, try Authorization header
+    if (!authUserId) {
+      const authHeader = req.headers.get('authorization') || ''
+      const jwt = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+      if (jwt) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser(jwt)
+          if (user?.id) authUserId = user.id
+        } catch {
+          // JWT invalid
+        }
       }
+    }
 
-      const { data: current } = await supabase
-        .from('profiles')
-        .select(PROFILE_COLUMNS)
-        .eq('id', profileId)
-        .maybeSingle()
-
-      const currentProfile = current as ProfileRow | null
-      if (!currentProfile?.auth_user_id) {
-        return json({ success: false, error: 'identity_required' }, 403)
-      }
-      authUserId = currentProfile.auth_user_id
+    if (!authUserId) {
+      return json({ success: false, error: 'Invalid session' }, 401)
     }
 
     const createType = parseProfileType(body.createType ?? body.create_type)
@@ -110,7 +127,15 @@ Deno.serve(async (req) => {
       }
       target = createType === 'buyer'
         ? await findOrCreateProfile(supabase, authUserId!, createType, displayName)
-        : await createSellerProfile(supabase, authUserId!, createType, displayName)
+        : null
+      if (createType !== 'buyer') {
+        // Check display_name uniqueness for seller profiles
+        const taken = await isDisplayNameTaken(supabase, displayName)
+        if (taken) {
+          return json({ success: false, error: 'name_taken', message: 'Это название уже используется. Выберите другое.' }, 409)
+        }
+        target = await createSellerProfile(supabase, authUserId!, createType, displayName)
+      }
       if (!target) return json({ error: 'Failed to create profile' }, 500)
       if (createType === 'creator' || createType === 'school') {
         await findOrCreateProfile(supabase, authUserId!, 'buyer', '')
@@ -148,13 +173,14 @@ Deno.serve(async (req) => {
       return json({ success: false, error: 'account_blocked' })
     }
 
-    const activated = await activateSessionProfile(supabase, token, target, account)
-    if (!activated.ok) return activated.response
+    // Always issue a fresh session (handles stale/missing tokens from JWT fallback)
+    const issued = await issueAppSession(supabase, { profile: target, account })
+    if (!issued.ok) return issued.response
 
     const profiles = await listProfiles(supabase, authUserId!)
     return json({
       success: true,
-      ...activated.session,
+      ...issued.session,
       profiles: publicProfiles(profiles),
     })
   } catch (error) {

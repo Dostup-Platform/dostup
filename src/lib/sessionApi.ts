@@ -30,13 +30,77 @@ export function sessionCreds() {
 export async function invokeApi<T = Record<string, unknown>>(
   fn: string,
   body: Record<string, unknown> = {},
+  retries = 2
 ): Promise<T> {
-  const { data, error } = await supabase.functions.invoke(fn, { body });
-  if (error) throw error;
-  if (data && typeof data === "object" && "error" in data && (data as { error?: unknown }).error) {
-    throw new Error(String((data as { error: unknown }).error));
+  const creatorToken = localStorage.getItem("creator_token") || localStorage.getItem("simple_session_token") || "";
+
+  // NOTE: supabase.functions.invoke overrides any custom Authorization header with anon key.
+  // We pass the creator token both in body and in x-creator-token header.
+  const headers: Record<string, string> = {};
+  if (creatorToken) {
+    headers["x-creator-token"] = creatorToken;
   }
-  return data as T;
+
+  const enrichedBody: Record<string, unknown> = {
+    token: body.token || creatorToken,
+    ...body,
+  };
+
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, 800 * attempt));
+      }
+
+      const { data, error } = await supabase.functions.invoke(fn, {
+        body: enrichedBody,
+        headers,
+      });
+
+      if (error) {
+        let msg = error.message;
+        try {
+          if ("context" in error && typeof (error as any).context?.json === "function") {
+            const errJson = await (error as any).context.json();
+            if (errJson?.error) msg = String(errJson.error);
+          }
+        } catch {
+          // ignore
+        }
+
+        if (msg.includes("Failed to send a request") && attempt < retries) {
+          lastError = new Error(msg);
+          continue;
+        }
+
+        if (msg.includes("Failed to send a request")) {
+          throw new Error("Не удалось связаться с сервером. Пожалуйста, проверьте подключение к интернету или обновите страницу.");
+        }
+
+        throw new Error(msg);
+      }
+
+      if (data && typeof data === "object" && "error" in data && (data as { error?: unknown }).error) {
+        throw new Error(String((data as { error: unknown }).error));
+      }
+
+      return data as T;
+    } catch (err: any) {
+      lastError = err;
+      const errMsg = err?.message || "";
+      if (errMsg.includes("Failed to send a request") && attempt < retries) {
+        continue;
+      }
+      if (errMsg.includes("Failed to send a request")) {
+        throw new Error("Не удалось связаться с сервером. Пожалуйста, проверьте подключение к интернету или обновите страницу.");
+      }
+      throw err;
+    }
+  }
+
+  throw lastError || new Error("Не удалось связаться с сервером.");
 }
 
 export type FunctionFail = {

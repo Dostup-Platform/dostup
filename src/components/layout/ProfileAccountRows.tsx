@@ -52,7 +52,7 @@ type ProfileAccountRowsProps = {
     type: "creator" | "school",
     displayName: string,
     avatarFile?: File | null,
-  ) => void | Promise<boolean | void>;
+  ) => void | Promise<boolean | { ok: boolean; error?: string } | void> | boolean | { ok: boolean; error?: string };
   onSignOut?: () => void;
   showSignOut?: boolean;
   accountHref?: string | null;
@@ -151,25 +151,15 @@ export function ProfileAccountRows({
         {active && (
           <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-[#FF6B00]" aria-hidden />
         )}
-        <Avatar className="h-8 w-8 shrink-0">
-          {profile.avatarUrl && !busy && (
-            <AvatarImage src={profile.avatarUrl} alt="" />
+        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden border border-border/80 bg-muted text-foreground font-semibold text-xs select-none">
+          {profile.avatarUrl && !busy ? (
+            <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : busy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <span>{initialsFrom(displayName)}</span>
           )}
-          <AvatarFallback
-            className={cn(
-              "rounded-full text-xs font-medium",
-              active
-                ? "bg-foreground text-background"
-                : "bg-muted text-muted-foreground",
-            )}
-          >
-            {busy ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              initialsFrom(displayName)
-            )}
-          </AvatarFallback>
-        </Avatar>
+        </div>
         {expanded && (
           <div className="min-w-0 flex-1 text-left">
             <p className="truncate text-[15px] font-medium leading-tight">{displayName}</p>
@@ -211,8 +201,11 @@ export function ProfileAccountRows({
           if (!open && !creatingType) setWizardOpen(false);
         }}
         onConfirm={async (type, displayName, avatarFile) => {
-          const ok = await onCreateSeller(type, displayName, avatarFile);
-          if (ok !== false) setWizardOpen(false);
+          const res = await onCreateSeller(type, displayName, avatarFile);
+          if (res === true || (typeof res === "object" && res?.ok === true)) {
+            setWizardOpen(false);
+          }
+          return res;
         }}
       />
       {newProfileControl}
@@ -310,9 +303,13 @@ export function useProfileAccountActions() {
   ) => {
     const result = await switchProfile({ createType: type, displayName });
     if ("error" in result) {
-      toast.error(t("switchProfileError"));
+      const isNameTaken = result.error === "name_taken" || result.error?.includes("name_taken");
+      const errText = isNameTaken
+        ? "Это название уже используется. Выберите другое."
+        : t("switchProfileError");
+      toast.error(errText);
       onDone?.();
-      return false;
+      return { ok: false, error: errText };
     }
     if (avatarFile) {
       try {
@@ -325,7 +322,7 @@ export function useProfileAccountActions() {
     }
     navigate(result.path);
     onDone?.();
-    return true;
+    return { ok: true };
   };
 
   return { profiles, runSwitch, createSeller, logout };

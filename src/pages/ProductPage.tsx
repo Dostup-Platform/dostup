@@ -1,5 +1,6 @@
-import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { Link, useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useEffect, useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ShareProductButton from "@/components/share/ShareProductButton";
 import { isUuid } from "@/lib/productShare";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
@@ -8,6 +9,7 @@ import PublicContainer from "@/components/marketplace/PublicContainer";
 import PublicFooter from "@/components/layout/PublicFooter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +19,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useProduct, useProductProgram, type ProductProgramItem } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -24,8 +27,72 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { formatPriceTenge, formatCatalogPrice, isBillingPeriod } from "@/lib/catalog";
 import { touchRecentProduct } from "@/lib/buyerActivity";
 import { sellerInitial } from "@/lib/productCover";
+import { invokeApi } from "@/lib/sessionApi";
+import { rememberAuthNext } from "@/lib/creatorAuth";
+import { loginPath, loginState } from "@/lib/loginModal";
 import { ArrowLeft, FileText, Folder, Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import DOMPurify from "dompurify";
+import { parseMarkdownToHtml } from "@/components/ui/RichTextEditor";
+
+function sanitizeRichText(html: string | null | undefined): string {
+  if (!html) return "";
+  const hasHtml = /<[a-z][\s\S]*>/i.test(html);
+  const formatted = hasHtml ? html : parseMarkdownToHtml(html);
+  return DOMPurify.sanitize(formatted, {
+    ADD_TAGS: [
+      "b", "strong", "i", "em", "u", "s", "strike", "br", "p", "span",
+      "ul", "ol", "li", "a", "h1", "h2", "h3", "h4", "code", "pre", "blockquote"
+    ],
+    ADD_ATTR: ["style", "href", "target", "class", "rel"],
+  });
+}
+
+function renderSafeFormattedContent(text: string | null | undefined) {
+  if (!text) return null;
+
+  const lines = text.split("\n");
+  return (
+    <div className="whitespace-pre-wrap break-words space-y-1">
+      {lines.map((line, idx) => {
+        if (!line.trim() && line === "") {
+          return <div key={idx} className="h-3" aria-hidden="true" />;
+        }
+        const parts = line.split(/(\*\*.*?\*\*)/g);
+        return (
+          <div key={idx} className="min-h-[1.4em]">
+            {parts.map((part, pIdx) => {
+              if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
+                return (
+                  <strong key={pIdx} className="font-bold text-foreground">
+                    {part.slice(2, -2)}
+                  </strong>
+                );
+              }
+              return part;
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function getOptionDisplay(opt: any) {
+  const priceStr = formatPriceTenge(Number(opt.price));
+  if (opt.payment_type === "one_time") {
+    return `${priceStr} (разово)`;
+  }
+  let periodStr = "в месяц";
+  if (opt.recurring_interval === "7d") periodStr = "каждые 7 дней";
+  else if (opt.recurring_interval === "14d") periodStr = "каждые 14 дней";
+  else if (opt.recurring_interval === "1m") periodStr = "в месяц";
+  else if (opt.recurring_interval === "3m") periodStr = "каждые 3 месяца";
+  else if (opt.recurring_interval === "1y") periodStr = "в год";
+  else if (opt.recurring_interval === "custom") periodStr = `каждые ${opt.access_duration_days || 30} дн.`;
+  return `${priceStr} / ${periodStr}`;
+}
 
 const ProgramTree = ({ items, parentId }: { items: ProductProgramItem[]; parentId: string | null }) => {
   const children = items
@@ -102,7 +169,32 @@ const ProductPage = () => {
 
   const isSellerProfile = profileType === "creator" || profileType === "school";
 
-  const checkoutUrl = `/checkout/${product?.id || ""}${searchParams.get("teacher") ? `?teacher=${encodeURIComponent(searchParams.get("teacher")!)}` : ""}`;
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
+
+  const activeOption = useMemo(() => {
+    if (!product?.pricing_options || product.pricing_options.length === 0) return null;
+    if (selectedOptionId) {
+      const found = product.pricing_options.find((o: any) => o.id === selectedOptionId);
+      if (found) return found;
+    }
+    return product.pricing_options[0];
+  }, [product?.pricing_options, selectedOptionId]);
+
+  const effectivePrice = activeOption ? Number(activeOption.price) : Number(product?.price || 0);
+  const effectiveHasTrial = activeOption ? Boolean(activeOption.has_free_trial) : Boolean(product?.has_free_trial);
+  const effectiveTrialDays = activeOption ? activeOption.trial_days : product?.trial_days;
+
+  const checkoutUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (searchParams.get("teacher")) {
+      params.set("teacher", searchParams.get("teacher")!);
+    }
+    if (activeOption?.id) {
+      params.set("option", activeOption.id);
+    }
+    const q = params.toString();
+    return `/checkout/${product?.id || ""}${q ? `?${q}` : ""}`;
+  }, [product?.id, searchParams, activeOption?.id]);
 
   const handleBuy = () => {
     if (isSellerProfile) {
@@ -125,6 +217,62 @@ const ProductPage = () => {
     }
     setSwitchBuyerOpen(false);
     navigate(checkoutUrl);
+  };
+
+  const [activatingTrial, setActivatingTrial] = useState(false);
+  const queryClient = useQueryClient();
+  const location = useLocation();
+
+  const { data: trialInfo } = useQuery({
+    queryKey: ["check-trial", product?.id, user?.id],
+    queryFn: async () => {
+      if (!user || !product?.id) return null;
+      return invokeApi<{
+        hasFreeTrial: boolean;
+        hasUsedTrial: boolean;
+        canUseTrial: boolean;
+        trialDays: number | null;
+        trialEndsAt: string | null;
+      }>("checkout", {
+        action: "check_trial",
+        productId: product.id,
+        sessionToken: localStorage.getItem("creator_token") || "",
+      });
+    },
+    enabled: Boolean(user && product?.id && (effectiveHasTrial || product?.has_free_trial)),
+  });
+
+  const handleActivateTrial = async () => {
+    if (!user) {
+      toast.error(t("loginRequiredCheckout") || "Для активации необходимо войти");
+      const next = `/p/${product?.slug || product?.id}`;
+      rememberAuthNext(next);
+      navigate(loginPath(next), { state: loginState(location) });
+      return;
+    }
+    if (isSellerProfile) {
+      toast.info("Переключитесь на профиль покупателя");
+      setSwitchBuyerOpen(true);
+      return;
+    }
+    setActivatingTrial(true);
+    try {
+      const res = await invokeApi<{ ok: boolean; trialEndsAt: string; message?: string }>("checkout", {
+        action: "activate_trial",
+        productId: product?.id,
+        sessionToken: localStorage.getItem("creator_token") || "",
+      });
+      if (res.ok) {
+        toast.success(`Пробный период на ${effectiveTrialDays || product?.trial_days} дн. активирован!`);
+        queryClient.invalidateQueries({ queryKey: ["simple-purchases"] });
+        queryClient.invalidateQueries({ queryKey: ["check-trial", product?.id] });
+        navigate("/dashboard");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Пробный период уже был использован");
+    } finally {
+      setActivatingTrial(false);
+    }
   };
 
   useEffect(() => {
@@ -178,27 +326,20 @@ const ProductPage = () => {
   const pausedMessage: string =
     (product.paused_message && String(product.paused_message).trim()) || t("productPausedDefault");
   const sellerName = product.author_name || t("author");
-  const isSubscription = product.category_slug === "subscriptions";
-  const accessLabel = isSubscription
+  const isEffectiveSubscription = activeOption
+    ? activeOption.payment_type === "recurring"
+    : (product.category_slug === "subscriptions" || product.payment_type === "recurring");
+  const effectiveAccessLabel = isEffectiveSubscription
     ? t("subscriptionAccessNote")
-    : product.access_duration_days
-      ? t("accessDays", { days: product.access_duration_days })
+    : (activeOption?.access_duration_days || product.access_duration_days)
+      ? t("accessDays", { days: activeOption?.access_duration_days || product.access_duration_days })
       : t("accessLifetime");
   const firstChargeDate = new Intl.DateTimeFormat(language === "kk" ? "kk-KZ" : "ru-RU", {
     day: "numeric",
     month: "long",
     year: "numeric",
   }).format(new Date());
-  const priceLabel = isSubscription && isBillingPeriod(product.billing_period)
-    ? formatCatalogPrice(
-        {
-          price: Number(product.price),
-          category_slug: "subscriptions",
-          billing_period: product.billing_period,
-        },
-        language,
-      )
-    : formatPriceTenge(Number(product.price));
+  const priceLabel = formatPriceTenge(effectivePrice);
 
   const sellerBlock = product.seller_handle ? (
     <Link
@@ -227,17 +368,75 @@ const ProductPage = () => {
 
   const purchaseBody = (
     <>
+      {product.pricing_options && product.pricing_options.length > 1 && (
+        <div className="space-y-2 mb-4">
+          <p className="text-xs font-semibold text-muted-foreground">Вариант доступа:</p>
+          <div className="space-y-2">
+            {product.pricing_options.map((opt: any) => {
+              const isSelected = (activeOption?.id === opt.id);
+              const summary = getOptionDisplay(opt);
+              return (
+                <div
+                  key={opt.id}
+                  onClick={() => setSelectedOptionId(opt.id)}
+                  className={cn(
+                    "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
+                    isSelected
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-xs"
+                      : "border-border bg-card/60 hover:bg-muted/30"
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-semibold text-foreground truncate">{summary}</span>
+                    {opt.has_free_trial && (
+                      <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium shrink-0">
+                        {opt.trial_days} дн. триал
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    className={cn(
+                      "w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ml-2 transition-colors",
+                      isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                    )}
+                  >
+                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <p className="text-3xl font-bold tracking-tight text-foreground">
         {priceLabel}
       </p>
-      {isSubscription && (
+      {isEffectiveSubscription && (
         <p className="public-meta mt-2">
           {t("subscriptionFirstCharge")}: {firstChargeDate}
         </p>
       )}
-      <p className="public-meta mt-2">{accessLabel}</p>
+      <p className="public-meta mt-2">{effectiveAccessLabel}</p>
       <div className="mt-6 border-t border-border pt-6">{sellerBlock}</div>
       <div className="mt-6">
+        {effectiveHasTrial && effectiveTrialDays && (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full mb-3 rounded-2xl border-primary/40 text-primary hover:bg-primary/10 font-semibold h-12 text-sm"
+            disabled={isPaused || activatingTrial || trialInfo?.hasUsedTrial}
+            onClick={handleActivateTrial}
+          >
+            {activatingTrial ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : trialInfo?.hasUsedTrial ? (
+              "Пробный период уже использован"
+            ) : (
+              `Попробовать бесплатно (${effectiveTrialDays} ${effectiveTrialDays === 3 ? "дня" : "дней"})`
+            )}
+          </Button>
+        )}
         <BuyButton
           disabled={isPaused}
           pausedMessage={pausedMessage}
@@ -298,8 +497,8 @@ const ProductPage = () => {
             </div>
 
             <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
-              <h1 className="public-display text-foreground text-balance min-w-0 flex-1">
-                {product.title}
+              <h1 className="public-display text-foreground text-balance min-w-0 flex-1 whitespace-pre-wrap break-words">
+                {renderSafeFormattedContent(product.title)}
               </h1>
               <ShareProductButton
                 title={product.title}
@@ -312,12 +511,24 @@ const ProductPage = () => {
               />
             </div>
             {product.headline && (
-              <p className="public-body mt-3 text-foreground">{product.headline}</p>
+              <div className="public-body mt-3 text-foreground whitespace-pre-wrap break-words">
+                {renderSafeFormattedContent(product.headline)}
+              </div>
             )}
             {product.description && (
-              <p className="public-body mt-4 whitespace-pre-wrap text-[#6B7280]">
-                {product.description}
-              </p>
+              <div
+                className="prose prose-sm sm:prose-base max-w-none text-foreground/90 break-words mt-4
+                  [&_strong]:text-foreground [&_strong]:font-bold
+                  [&_h1]:text-foreground [&_h1]:font-bold [&_h1]:text-2xl [&_h1]:mt-6 [&_h1]:mb-3
+                  [&_h2]:text-foreground [&_h2]:font-bold [&_h2]:text-xl [&_h2]:mt-5 [&_h2]:mb-2.5
+                  [&_h3]:text-foreground [&_h3]:font-semibold [&_h3]:text-lg [&_h3]:mt-4 [&_h3]:mb-2
+                  [&_p]:mb-3 [&_p]:leading-relaxed
+                  [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-3 [&_ul]:space-y-1
+                  [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-3 [&_ol]:space-y-1
+                  [&_li]:leading-relaxed
+                  [&_a]:text-primary [&_a]:underline"
+                dangerouslySetInnerHTML={{ __html: sanitizeRichText(product.description) }}
+              />
             )}
 
             {program.length > 0 && (
@@ -343,11 +554,11 @@ const ProductPage = () => {
                 <Accordion type="single" collapsible className="w-full">
                   {faq.map((item, idx) => (
                     <AccordionItem key={idx} value={`faq-${idx}`} className="border-border">
-                      <AccordionTrigger className="public-body text-left font-medium hover:no-underline">
-                        {item.question}
+                      <AccordionTrigger className="text-left font-semibold text-foreground hover:no-underline whitespace-pre-wrap break-words text-base py-3.5">
+                        {renderSafeFormattedContent(item.question)}
                       </AccordionTrigger>
-                      <AccordionContent className="public-body whitespace-pre-wrap text-[#6B7280]">
-                        {item.answer}
+                      <AccordionContent className="text-base text-foreground/85 leading-relaxed pt-1 pb-4">
+                        {renderSafeFormattedContent(item.answer)}
                       </AccordionContent>
                     </AccordionItem>
                   ))}
@@ -368,24 +579,42 @@ const ProductPage = () => {
 
       <PublicFooter className="pb-28 lg:pb-0" />
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/90 p-4 backdrop-blur-lg safe-area-inset lg:hidden">
-        <PublicContainer className="flex items-center gap-4">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/90 p-3 backdrop-blur-lg safe-area-inset lg:hidden">
+        <PublicContainer className="flex flex-col gap-2">
           {isPaused ? (
             <div className="w-full rounded-2xl border border-border bg-muted/60 px-4 py-3 text-center text-sm text-foreground whitespace-pre-wrap">
               {pausedMessage}
             </div>
           ) : (
             <>
-              <p className="shrink-0 text-lg font-bold tabular-nums text-foreground">
-                {formatPriceTenge(Number(product.price))}
-              </p>
-              <button
-                type="button"
-                onClick={handleBuy}
-                className="h-12 min-w-0 flex-1 rounded-2xl bg-[#FF6B00] px-6 text-base font-semibold text-white focus-ring hover:bg-[#E86000]"
-              >
-                {t("buy")}
-              </button>
+              {product.has_free_trial && product.trial_days && !trialInfo?.hasUsedTrial && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full rounded-xl border-primary/40 text-primary font-medium"
+                  disabled={activatingTrial}
+                  onClick={handleActivateTrial}
+                >
+                  {activatingTrial ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    `Попробовать бесплатно (${product.trial_days} ${product.trial_days === 3 ? "дня" : "дней"})`
+                  )}
+                </Button>
+              )}
+              <div className="flex items-center gap-4">
+                <p className="shrink-0 text-lg font-bold tabular-nums text-foreground">
+                  {formatPriceTenge(Number(product.price))}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleBuy}
+                  className="h-12 min-w-0 flex-1 rounded-2xl bg-[#FF6B00] px-6 text-base font-semibold text-white focus-ring hover:bg-[#E86000]"
+                >
+                  {t("buy")}
+                </button>
+              </div>
             </>
           )}
         </PublicContainer>

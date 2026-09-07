@@ -6,9 +6,7 @@ import SupportChat from "@/components/SupportChat";
 import { useSupportUnread } from "@/hooks/useSupportUnread";
 import { useLanguage } from "@/contexts/LanguageContext";
 import AppShell from "@/components/layout/BuyerAppShell";
-import HandleSettingsCard from "@/components/account/HandleSettingsCard";
-import AvatarSettings from "@/components/account/AvatarSettings";
-import HandleSetupDialog from "@/components/account/HandleSetupDialog";
+import AccountSettingsView from "@/components/account/AccountSettingsView";
 import DisplayNameSetupDialog from "@/components/account/DisplayNameSetupDialog";
 import AppHeader from "@/components/layout/AppHeader";
 import {
@@ -31,9 +29,8 @@ const SchoolDashboard = () => {
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [needsDisplayName, setNeedsDisplayName] = useState(false);
-  const [needsHandle, setNeedsHandle] = useState(false);
-  const profileId = typeof window !== "undefined" ? localStorage.getItem("profile_id") : null;
   const creatorName = typeof window !== "undefined" ? localStorage.getItem("creator_name") : null;
+  const currentUserId = typeof window !== "undefined" ? localStorage.getItem("simple_user_id") || "" : "";
   const supportUnread = useSupportUnread("creator", creatorName ?? "");
 
   useEffect(() => {
@@ -49,7 +46,6 @@ const SchoolDashboard = () => {
       const displayName = localStorage.getItem("profile_display_name") || "";
       setProfileDisplayName(displayName || null);
       setNeedsDisplayName(needsDisplayNamePrompt(displayName, readAuthEmail()));
-      setNeedsHandle(!localStorage.getItem("profile_handle"));
       setIsLoading(false);
       return;
     }
@@ -67,10 +63,6 @@ const SchoolDashboard = () => {
       setProfileDisplayName(displayName || null);
       const email = typeof data.email === "string" ? data.email : readAuthEmail();
       setNeedsDisplayName(needsDisplayNamePrompt(displayName, email));
-      const handle = typeof data.handle === "string" ? data.handle.trim() : "";
-      if (handle) localStorage.setItem("profile_handle", handle);
-      else localStorage.removeItem("profile_handle");
-      setNeedsHandle(!handle);
       setIsLoading(false);
     });
   }, [navigate]);
@@ -101,16 +93,9 @@ const SchoolDashboard = () => {
       <div className="min-h-screen bg-background">
         <DisplayNameSetupDialog
           open
-          onSaved={(saved, handle) => {
+          onSaved={(saved) => {
             setProfileDisplayName(saved);
             setNeedsDisplayName(false);
-            if (handle) {
-              localStorage.setItem("profile_handle", handle);
-              setNeedsHandle(false);
-            } else if (handle === null) {
-              localStorage.removeItem("profile_handle");
-              setNeedsHandle(true);
-            }
           }}
         />
       </div>
@@ -133,7 +118,7 @@ const SchoolDashboard = () => {
         />
         <HeaderAccountControl />
       </AppHeader>
-      <div className="max-w-3xl mx-auto space-y-6 px-4 py-8">
+      <div className="max-w-5xl mx-auto space-y-6 px-4 py-8">
         {supportOpen && creatorName ? (
           <SupportChat
             userType="creator"
@@ -172,24 +157,11 @@ const SchoolDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">{t("profile")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AvatarSettings displayName={profileDisplayName || t("profileSchool")} />
-          </CardContent>
-        </Card>
-
-        <HandleSettingsCard
-          initialHandle={typeof window !== "undefined" ? localStorage.getItem("profile_handle") : null}
-          profileId={profileId}
-        />
-
-        <HandleSetupDialog
-          open={needsHandle}
-          profileId={profileId}
-          onSaved={() => setNeedsHandle(false)}
+        {/* Account Settings View */}
+        <AccountSettingsView
+          role="school"
+          displayName={profileDisplayName || t("profileSchool")}
+          userId={currentUserId}
         />
       </div>
     </div>

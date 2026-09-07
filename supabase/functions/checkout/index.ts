@@ -232,6 +232,122 @@ Deno.serve(async (req) => {
       return json({ ok: true })
     }
 
+    if (action === 'check_trial') {
+      const productId = String(body.productId || '').trim()
+      if (!productId) return json({ error: 'Missing productId' }, 400)
+
+      const { data: product } = await supabase
+        .from('products')
+        .select('id, has_free_trial, trial_days')
+        .eq('id', productId)
+        .maybeSingle()
+
+      if (!product || !product.has_free_trial || !product.trial_days) {
+        return json({ hasFreeTrial: false, hasUsedTrial: false, canUseTrial: false, trialDays: null })
+      }
+
+      const { data: trial } = await supabase
+        .from('product_trials')
+        .select('id, starts_at, ends_at')
+        .eq('product_id', productId)
+        .eq('buyer_profile_id', user.userId)
+        .maybeSingle()
+
+      const hasUsedTrial = Boolean(trial)
+      return json({
+        hasFreeTrial: true,
+        hasUsedTrial,
+        canUseTrial: !hasUsedTrial,
+        trialDays: product.trial_days,
+        trialEndsAt: trial?.ends_at ?? null,
+      })
+    }
+
+    if (action === 'activate_trial') {
+      const productId = String(body.productId || '').trim()
+      if (!productId) return json({ error: 'Missing productId' }, 400)
+
+      const { data: product } = await supabase
+        .from('products')
+        .select('id, has_free_trial, trial_days, is_active, is_paused')
+        .eq('id', productId)
+        .maybeSingle()
+
+      if (!product || !product.is_active || product.is_paused) {
+        return json({ error: 'Product unavailable' }, 400)
+      }
+
+      if (!product.has_free_trial || !product.trial_days || product.trial_days <= 0) {
+        return json({ error: 'Free trial not available for this product' }, 400)
+      }
+
+      // Check if user already used trial
+      const { data: existingTrial } = await supabase
+        .from('product_trials')
+        .select('id')
+        .eq('product_id', productId)
+        .eq('buyer_profile_id', user.userId)
+        .maybeSingle()
+
+      if (existingTrial) {
+        return json({ error: 'trial_already_used', message: 'Пробный период уже был использован' }, 400)
+      }
+
+      const trialDays = Number(product.trial_days)
+      const now = new Date()
+      const endsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000)
+
+      // 1. Record trial in product_trials (enforces uniqueness)
+      const { error: trialError } = await supabase
+        .from('product_trials')
+        .insert({
+          product_id: productId,
+          buyer_profile_id: user.userId,
+          trial_days: trialDays,
+          starts_at: now.toISOString(),
+          ends_at: endsAt.toISOString(),
+        })
+
+      if (trialError) {
+        return json({ error: 'trial_already_used', message: 'Пробный период уже был использован' }, 400)
+      }
+
+      // 2. Grant access in simple_purchases
+      const { data: existingPurchase } = await supabase
+        .from('simple_purchases')
+        .select('id')
+        .eq('buyer_profile_id', user.userId)
+        .eq('product_id', productId)
+        .maybeSingle()
+
+      if (existingPurchase) {
+        await supabase
+          .from('simple_purchases')
+          .update({
+            status: 'completed',
+            amount: 0,
+            is_trial: true,
+            trial_ends_at: endsAt.toISOString(),
+            confirmed_at: now.toISOString(),
+          })
+          .eq('id', existingPurchase.id)
+      } else {
+        await supabase
+          .from('simple_purchases')
+          .insert({
+            buyer_profile_id: user.userId,
+            product_id: productId,
+            amount: 0,
+            status: 'completed',
+            is_trial: true,
+            trial_ends_at: endsAt.toISOString(),
+            confirmed_at: now.toISOString(),
+          })
+      }
+
+      return json({ ok: true, trialEndsAt: endsAt.toISOString(), trialDays })
+    }
+
     return json({ error: 'Unknown action' }, 400)
   } catch (e) {
     console.error('checkout error', e)

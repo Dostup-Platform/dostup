@@ -15,6 +15,7 @@ import { invokeApi } from "@/lib/sessionApi";
 import { isDisplayNameValid } from "@/lib/displayName";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface DisplayNameSetupDialogProps {
   open: boolean;
@@ -24,13 +25,14 @@ interface DisplayNameSetupDialogProps {
 const DisplayNameSetupDialog = ({ open, onSaved }: DisplayNameSetupDialogProps) => {
   const { t } = useLanguage();
   const [value, setValue] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
   const valid = isDisplayNameValid(value);
 
   const save = async () => {
     const displayName = value.trim();
     if (!valid || saving) return;
     setSaving(true);
+    setErrorText(null);
     try {
       const data = await invokeApi<{ displayName?: string; handle?: string | null }>("manage-profile", {
         action: "set_display_name",
@@ -47,8 +49,14 @@ const DisplayNameSetupDialog = ({ open, onSaved }: DisplayNameSetupDialogProps) 
       }
       toast.success(t("displayNameSaved"));
       onSaved(saved, data.handle);
-    } catch {
-      toast.error(t("displayNameSaveError"));
+    } catch (err: any) {
+      const msg = err?.message || "";
+      if (msg.includes("name_taken") || err?.status === 409) {
+        setErrorText("Это название уже используется. Выберите другое.");
+        toast.error("Это название уже используется. Выберите другое.");
+      } else {
+        toast.error(t("displayNameSaveError"));
+      }
     } finally {
       setSaving(false);
     }
@@ -66,11 +74,18 @@ const DisplayNameSetupDialog = ({ open, onSaved }: DisplayNameSetupDialogProps) 
           <Input
             id="setup-display-name"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value);
+              if (errorText) setErrorText(null);
+            }}
             placeholder={t("sellerNamePlaceholder")}
             maxLength={100}
             autoFocus
+            className={cn(errorText && "border-destructive focus-visible:ring-destructive")}
           />
+          {errorText && (
+            <p className="text-xs text-destructive font-medium animate-in fade-in">{errorText}</p>
+          )}
         </div>
         <AlertDialogFooter>
           <Button type="button" onClick={() => void save()} disabled={!valid || saving}>

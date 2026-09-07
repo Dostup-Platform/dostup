@@ -2,7 +2,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import AuthSplash from "@/components/auth/AuthSplash";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -33,7 +35,15 @@ const queryClient = new QueryClient();
 function DevLocalhostRedirect() {
   if (!import.meta.env.DEV) return null;
   const { hostname, port, pathname, search } = window.location;
-  if (hostname === "localhost" || hostname === "127.0.0.1") return null;
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    /^192\.168\.\d+\.\d+$/.test(hostname) ||
+    /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(hostname)
+  ) {
+    return null;
+  }
   const targetPort = port || "8080";
   window.location.replace(`http://localhost:${targetPort}${pathname}${search}`);
   return null;
@@ -41,11 +51,26 @@ function DevLocalhostRedirect() {
 
 function AppRoutes() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { status } = useSimpleAuth();
   const isLogin = location.pathname === "/login";
   const isAuthCallback = location.pathname === "/auth/callback";
   const background = readLoginBackground(location.state);
   const underlayLocation = isLogin ? (background ?? MARKETPLACE_LOCATION) : location;
+
+  useEffect(() => {
+    if (location.pathname === "/moderator" || location.pathname === "/auth/callback") return;
+    const modToken = localStorage.getItem("moderator_token");
+    if (modToken) {
+      navigate("/moderator", { replace: true });
+      return;
+    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email?.trim().toLowerCase() === "dostup.support@gmail.com") {
+        navigate("/moderator", { replace: true });
+      }
+    });
+  }, [location.pathname, navigate]);
 
   if (status === "loading" && !isAuthCallback) {
     return <AuthSplash />;

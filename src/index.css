@@ -240,32 +240,32 @@
   }
 
   /* Hide scrollbar but keep functionality */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  .scrollbar-hide,
+  .no-scrollbar,
+  .faq-cards-scroll {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
   }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  .scrollbar-hide::-webkit-scrollbar,
+  .no-scrollbar::-webkit-scrollbar,
+  .faq-cards-scroll::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+    -webkit-appearance: none !important;
   }
 }
 
 .login-modal-backdrop {
-  background-color: rgb(255 255 255 / 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background-color: rgb(255 255 255 / 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-@supports not ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+@supports not ((backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px))) {
   .login-modal-backdrop {
     background-color: rgb(255 255 255 / 0.95);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-}
-
-@media (max-width: 639px) {
-  .login-modal-backdrop {
-    background-color: #fff;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -303,4 +303,20 @@
     overflow-y: auto !important;
     overflow-x: hidden !important;
   }
+}
+
+/* Hide scrollbar completely across all browsers */
+.no-scrollbar::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar-thumb,
+.no-scrollbar::-webkit-scrollbar-track {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  -webkit-appearance: none !important;
+  opacity: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
 }

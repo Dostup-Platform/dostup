@@ -89,6 +89,12 @@ Deno.serve(async (req) => {
           event_starts_at: product.event_starts_at ?? null,
           capacity: product.capacity ?? null,
           billing_period: product.billing_period ?? null,
+          payment_type: product.payment_type ?? 'one_time',
+          recurring_interval: product.recurring_interval ?? null,
+          has_free_trial: product.has_free_trial ?? false,
+          trial_days: product.trial_days ?? null,
+          pricing_options: product.pricing_options ?? [],
+          topic: product.topic ?? null,
         })
         .select()
         .single()

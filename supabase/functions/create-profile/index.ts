@@ -4,6 +4,7 @@ import {
   activateSessionProfile,
   displayNameFrom,
   ensureCreatorAccount,
+  isDisplayNameTaken,
   listProfiles,
   normalizeEmail,
   parseOnboardingAuthUserId,
@@ -57,6 +58,12 @@ Deno.serve(async (req) => {
     }
     if (profileType !== 'buyer' && !existing.some((p) => p.type === 'buyer')) {
       return json({ success: false, error: 'buyer_required' }, 409)
+    }
+
+    // Check display_name uniqueness
+    const taken = await isDisplayNameTaken(supabase, customName)
+    if (taken) {
+      return json({ success: false, error: 'name_taken', message: 'Это название уже используется. Выберите другое.' }, 409)
     }
 
     const { data: created, error: insertError } = await supabase

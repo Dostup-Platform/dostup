@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { profileHomePath } from "@/lib/creatorAuth";
 
 interface Props {
   children: ReactNode;
@@ -22,7 +23,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Error caught by ErrorBoundary:", error, errorInfo);
+    console.error("Uncaught error:", error, errorInfo);
   }
 
   private handleReload = () => {
@@ -30,7 +31,9 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleGoHome = () => {
-    window.location.href = "/";
+    const profileType = localStorage.getItem("profile_type") || "buyer";
+    const accountType = localStorage.getItem("creator_account_type");
+    window.location.href = profileHomePath(profileType, accountType);
   };
 
   public render() {

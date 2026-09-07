@@ -137,8 +137,34 @@ export async function issueOnboardingSession(
   return { ok: true, token: sessionToken, creatorName }
 }
 
-function escapeIlike(value: string): string {
+export function escapeIlike(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
+export async function isDisplayNameTaken(
+  supabase: SupabaseClient,
+  displayName: string,
+  excludeProfileId?: string | null,
+): Promise<boolean> {
+  const trimmed = displayName.trim()
+  if (!trimmed) return false
+  let query = supabase
+    .from('profiles')
+    .select('id')
+    .in('type', ['creator', 'school'])
+    .ilike('display_name', escapeIlike(trimmed))
+    .limit(1)
+
+  if (excludeProfileId) {
+    query = query.neq('id', excludeProfileId)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.error('isDisplayNameTaken error:', error)
+    return false
+  }
+  return !!(data && data.length > 0)
 }
 
 export function normalizeEmail(raw: string | undefined | null): string | null {
