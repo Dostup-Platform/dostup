@@ -38,6 +38,26 @@ async function validateIdentity(
     return true;
   }
 
+  if (userRole === 'moderator') {
+    const token = creatorToken || userId;
+    if (!token) {
+      console.log('Moderator role requires token');
+      return false;
+    }
+    const { data: session } = await supabase
+      .from('moderator_sessions')
+      .select('id')
+      .eq('token', token)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    
+    if (!session) {
+      console.log('Invalid moderator session');
+      return false;
+    }
+    return true;
+  }
+
   // For students/teachers: verify user exists in simple_users by id
   if (userId) {
     const { data: user } = await supabase
@@ -106,8 +126,14 @@ serve(async (req) => {
           .delete()
           .eq('fcm_token', fcmToken)
 
-        // Delete old tokens for this user
-        if (isUuid) {
+        // Delete old tokens for this user/device
+        if (userRole === 'moderator') {
+          await supabase
+            .from('push_tokens')
+            .delete()
+            .eq('user_role', 'moderator')
+            .eq('device_info', deviceInfo || '')
+        } else if (isUuid) {
           await supabase
             .from('push_tokens')
             .delete()
@@ -125,7 +151,7 @@ serve(async (req) => {
         const { error } = await supabase
           .from('push_tokens')
           .insert({
-            user_id: isUuid ? userId : null,
+            user_id: (userRole === 'creator' || userRole === 'moderator') ? null : (isUuid ? userId : null),
             user_role: userRole || 'student',
             fcm_token: fcmToken,
             device_info: deviceInfo || null,
@@ -152,6 +178,8 @@ serve(async (req) => {
         
         if (fcmToken) {
           deleteQuery = deleteQuery.eq('fcm_token', fcmToken)
+        } else if (userRole === 'moderator') {
+          deleteQuery = deleteQuery.eq('user_role', 'moderator')
         } else if (isUuid) {
           deleteQuery = deleteQuery.eq('user_id', userId)
         } else {

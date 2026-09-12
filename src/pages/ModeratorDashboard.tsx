@@ -43,6 +43,8 @@ import {
   X,
   ChevronRight,
   Edit,
+  Bell,
+  Flag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,6 +53,8 @@ import { AppLogoLink } from "@/components/auth/AuthMark";
 import { clearAppSession } from "@/lib/creatorAuth";
 import { HeaderChatsButton, HeaderNotificationsButton } from "@/components/layout/HeaderControls";
 import ModeratorSettingsDialog from "@/components/account/ModeratorSettingsDialog";
+import { registerPushToken } from "@/lib/firebase";
+import { useFCMRegistration } from "@/hooks/useFCMRegistration";
 import { cn } from "@/lib/utils";
 
 interface CreatorRow {
@@ -73,6 +77,7 @@ interface Totals {
   products: number;
   teachers?: number;
   pending_topics?: number;
+  pending_reports?: number;
   course_creators?: {
     count: number;
     revenue: number;
@@ -99,6 +104,25 @@ interface TopicSuggestion {
   status: "pending" | "approved" | "rejected";
   created_at: string;
   created_by?: string;
+}
+
+interface ProductReport {
+  id: string;
+  product_id: string;
+  user_id?: string;
+  reporter_name?: string;
+  reporter_contact?: string;
+  reason: string;
+  description?: string;
+  status: "pending" | "resolved" | "dismissed";
+  created_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  products?: {
+    id: string;
+    title: string;
+    creator_id: string;
+  };
 }
 
 interface Thread {
@@ -175,11 +199,48 @@ const ModeratorDashboard = () => {
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
   const [editingTopicName, setEditingTopicName] = useState("");
 
+  const [reports, setReports] = useState<ProductReport[]>([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [actionBusyReportId, setActionBusyReportId] = useState<string | null>(null);
+  const [reportsFilter, setReportsFilter] = useState<"all" | "pending" | "resolved" | "dismissed">("pending");
+
+  const [pushEnabled, setPushEnabled] = useState(() =>
+    typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted"
+  );
+
+  // Автоматическая регистрация push-уведомлений для модератора
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        setPushEnabled(true);
+      } else if (Notification.permission === "default") {
+        Notification.requestPermission()
+          .then((perm) => {
+            if (perm === "granted") setPushEnabled(true);
+          })
+          .catch(console.error);
+      }
+    }
+  }, []);
+
+  useFCMRegistration({
+    userId: token,
+    userRole: "moderator",
+    enabled: !!token,
+  });
+
   const pendingTopicsCount = useMemo(() => {
-    return topicSuggestions.length > 0
-      ? topicSuggestions.length
-      : totals.pending_topics ?? 0;
-  }, [topicSuggestions.length, totals.pending_topics]);
+    return topicSuggestions.filter((t) => t.status === "pending").length || totals.pending_topics || 0;
+  }, [topicSuggestions, totals.pending_topics]);
+
+  const pendingReportsCount = useMemo(() => {
+    return reports.filter((r) => r.status === "pending").length || totals.pending_reports || 0;
+  }, [reports, totals.pending_reports]);
+
+  // Число чатов, в которых есть непрочитанные сообщения (если несколько сообщений в 1 чате, счетчик равен 1)
+  const unreadChatsCount = useMemo(() => {
+    return threads.filter((t) => (t.unread_for_moderator || 0) > 0).length;
+  }, [threads]);
 
   const [selectedCreator, setSelectedCreator] = useState<CreatorRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CreatorRow | null>(null);
@@ -240,6 +301,71 @@ const ModeratorDashboard = () => {
     },
     [call]
   );
+
+  const loadReports = useCallback(
+    async (overrideToken?: string) => {
+      try {
+        setLoadingReports(true);
+        const data = await call({ action: "list_reports" }, overrideToken);
+        if (data?.success) {
+          setReports(data.reports || []);
+        }
+      } catch (err) {
+        console.error("Failed to load reports:", err);
+      } finally {
+        setLoadingReports(false);
+      }
+    },
+    [call]
+  );
+
+  const handleUpdateReportStatus = async (reportId: string, newStatus: "resolved" | "dismissed") => {
+    setActionBusyReportId(reportId);
+    try {
+      const data = await call({
+        action: "update_report_status",
+        report_id: reportId,
+        status: newStatus,
+      });
+      if (data?.success) {
+        setReports((prev) =>
+          prev.map((r) => (r.id === reportId ? { ...r, status: newStatus } : r))
+        );
+        toast.success(newStatus === "resolved" ? "Жалоба решена" : "Жалоба отклонена");
+        void loadStats();
+      } else {
+        toast.error(data?.error || "Не удалось обновить статус жалобы");
+      }
+    } catch (err) {
+      toast.error("Ошибка при обновлении статуса");
+    } finally {
+      setActionBusyReportId(null);
+    }
+  };
+
+  const handleEnablePushNotifications = async () => {
+    if (!("Notification" in window)) {
+      toast.error("Для уведомлений на iPhone добавьте сайт на экран «Домой» (Поделиться → На экран «Домой»)");
+      return;
+    }
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") {
+        const success = await registerPushToken(token, "moderator");
+        if (success) {
+          setPushEnabled(true);
+          toast.success("Уведомления на телефон успешно подключены!");
+        } else {
+          toast.error("Не удалось зарегистрировать устройство для уведомлений");
+        }
+      } else {
+        toast.error("Разрешение на уведомления отклонено в браузере");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Ошибка при запросе разрешения");
+    }
+  };
 
   const handleSaveEditedTopic = async (topicId: string) => {
     if (!editingTopicName.trim()) {
@@ -328,7 +454,12 @@ const ModeratorDashboard = () => {
         if (v?.success) {
           if (!active) return;
           setToken(currentToken);
-          await Promise.all([loadStats(currentToken), loadThreads(currentToken), loadTopicSuggestions(currentToken)]);
+          await Promise.all([
+            loadStats(currentToken),
+            loadThreads(currentToken),
+            loadTopicSuggestions(currentToken),
+            loadReports(currentToken),
+          ]);
           setLoading(false);
           return;
         }
@@ -345,7 +476,12 @@ const ModeratorDashboard = () => {
             localStorage.setItem("moderator_token", claimedToken);
             if (!active) return;
             setToken(claimedToken);
-            await Promise.all([loadStats(claimedToken), loadThreads(claimedToken), loadTopicSuggestions(claimedToken)]);
+            await Promise.all([
+              loadStats(claimedToken),
+              loadThreads(claimedToken),
+              loadTopicSuggestions(claimedToken),
+              loadReports(claimedToken),
+            ]);
             setLoading(false);
             return;
           }
@@ -364,7 +500,7 @@ const ModeratorDashboard = () => {
     return () => {
       active = false;
     };
-  }, [navigate, call, loadStats, loadThreads, loadTopicSuggestions]);
+  }, [navigate, call, loadStats, loadThreads, loadTopicSuggestions, loadReports]);
 
   // Realtime threads
   useEffect(() => {
@@ -394,6 +530,21 @@ const ModeratorDashboard = () => {
       supabase.removeChannel(ch);
     };
   }, [loadTopicSuggestions, loadStats, token]);
+
+  // Realtime reports
+  useEffect(() => {
+    if (!token) return;
+    const ch = supabase
+      .channel("mod-reports")
+      .on("postgres_changes", { event: "*", schema: "public", table: "product_reports" }, () => {
+        void loadReports(token);
+        void loadStats(token);
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [loadReports, loadStats, token]);
 
   const logout = async () => {
     localStorage.removeItem("moderator_token");
@@ -534,13 +685,18 @@ const ModeratorDashboard = () => {
                 <Icon className="h-5 w-5 shrink-0" />
                 <span className="truncate">{item.label}</span>
                 {item.key === "topic_suggestions" && pendingTopicsCount > 0 && (
-                  <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-[#FF6B00] bg-[#FF6B00]/10 px-2 py-0.5 rounded-full border border-[#FF6B00]/20">
-                    🔔 {pendingTopicsCount}
+                  <span className="ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#FF6B00] text-white text-[11px] font-bold shadow-xs">
+                    {pendingTopicsCount}
                   </span>
                 )}
-                {item.key === "support" && totalUnread > 0 && (
-                  <span className="ml-auto flex items-center justify-center text-[11px] font-semibold text-white bg-primary px-2 py-0.5 rounded-full">
-                    {totalUnread}
+                {item.key === "reports" && pendingReportsCount > 0 && (
+                  <span className="ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#FF6B00] text-white text-[11px] font-bold shadow-xs">
+                    {pendingReportsCount}
+                  </span>
+                )}
+                {item.key === "support" && unreadChatsCount > 0 && (
+                  <span className="ml-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#FF6B00] text-white text-[11px] font-bold shadow-xs">
+                    {unreadChatsCount}
                   </span>
                 )}
               </button>
@@ -568,13 +724,18 @@ const ModeratorDashboard = () => {
                 <div className="relative">
                   <Icon className="h-5 w-5" />
                   {item.key === "topic_suggestions" && pendingTopicsCount > 0 && (
-                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6B00] px-1 text-[10px] font-bold text-white shadow-xs">
+                    <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6B00] px-1 text-[10px] font-bold text-white shadow-xs">
                       {pendingTopicsCount}
                     </span>
                   )}
-                  {item.key === "support" && totalUnread > 0 && (
-                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white shadow-xs">
-                      {totalUnread}
+                  {item.key === "reports" && pendingReportsCount > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6B00] px-1 text-[10px] font-bold text-white shadow-xs">
+                      {pendingReportsCount}
+                    </span>
+                  )}
+                  {item.key === "support" && unreadChatsCount > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF6B00] px-1 text-[10px] font-bold text-white shadow-xs">
+                      {unreadChatsCount}
                     </span>
                   )}
                 </div>
@@ -610,11 +771,11 @@ const ModeratorDashboard = () => {
                 variant="ghost"
                 size="sm"
                 onClick={logout}
-                className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-9 px-3 rounded-xl transition-colors"
+                className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-9 px-2.5 sm:px-3 rounded-xl transition-colors"
                 title="Выйти"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Выйти</span>
+                <span className="hidden sm:inline">Выйти</span>
               </Button>
             </div>
           </div>
@@ -1028,23 +1189,201 @@ const ModeratorDashboard = () => {
 
           {activeSection === "reports" && (
             <div className="space-y-6">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-xl font-bold">Жалобы на продукты</h2>
-                <p className="text-sm text-muted-foreground">
-                  Жалобы покупателей на подозрительные продукты или нарушения правил продавцами
-                </p>
-              </div>
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-4">
-                    <AlertTriangle className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-semibold text-lg">Жалоб нет</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mt-1.5">
-                    Здесь будут отображаться жалобы от пользователей на некачественные или подозрительные продукты и продавцов.
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">Жалобы на продукты</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Жалобы пользователей на нарушения, подозрительный или некачественный контент
                   </p>
-                </CardContent>
-              </Card>
+                </div>
+                <div className="flex flex-wrap gap-1.5 bg-muted/60 p-1 rounded-xl border border-border/60">
+                  <Button
+                    type="button"
+                    variant={reportsFilter === "pending" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setReportsFilter("pending")}
+                    className={cn(
+                      "h-8 px-3 text-xs rounded-lg font-medium",
+                      reportsFilter === "pending" ? "bg-[#FF6B00] hover:bg-[#E86000] text-white shadow-xs" : ""
+                    )}
+                  >
+                    На рассмотрении
+                    {pendingReportsCount > 0 && (
+                      <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white font-bold">
+                        {pendingReportsCount}
+                      </span>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={reportsFilter === "all" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setReportsFilter("all")}
+                    className={cn(
+                      "h-8 px-3 text-xs rounded-lg font-medium",
+                      reportsFilter === "all" ? "bg-[#FF6B00] hover:bg-[#E86000] text-white shadow-xs" : ""
+                    )}
+                  >
+                    Все ({reports.length})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={reportsFilter === "resolved" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setReportsFilter("resolved")}
+                    className={cn(
+                      "h-8 px-3 text-xs rounded-lg font-medium",
+                      reportsFilter === "resolved" ? "bg-[#FF6B00] hover:bg-[#E86000] text-white shadow-xs" : ""
+                    )}
+                  >
+                    Решенные
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={reportsFilter === "dismissed" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setReportsFilter("dismissed")}
+                    className={cn(
+                      "h-8 px-3 text-xs rounded-lg font-medium",
+                      reportsFilter === "dismissed" ? "bg-[#FF6B00] hover:bg-[#E86000] text-white shadow-xs" : ""
+                    )}
+                  >
+                    Отклоненные
+                  </Button>
+                </div>
+              </div>
+
+              {loadingReports ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : reports.filter((r) => reportsFilter === "all" || r.status === reportsFilter).length === 0 ? (
+                <Card className="border-dashed">
+                  <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-4">
+                      <Flag className="w-6 h-6" />
+                    </div>
+                    <h3 className="font-semibold text-lg">
+                      {reportsFilter === "pending" ? "Нет новых жалоб" : "В этом разделе пусто"}
+                    </h3>
+                    <p className="text-sm text-muted-foreground max-w-md mt-1.5">
+                      {reportsFilter === "pending"
+                        ? "На данный момент все поступившие жалобы рассмотрены."
+                        : "Здесь будут отображаться жалобы пользователей по выбранному фильтру."}
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {reports
+                    .filter((r) => reportsFilter === "all" || r.status === reportsFilter)
+                    .map((item) => (
+                      <Card
+                        key={item.id}
+                        className={cn(
+                          "transition-shadow hover:shadow-md border",
+                          item.status === "pending" ? "border-amber-200 dark:border-amber-900/40 bg-card" : "bg-card/70 opacity-90"
+                        )}
+                      >
+                        <CardContent className="p-5 space-y-3.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-xs text-muted-foreground block mb-0.5">
+                                {new Date(item.created_at).toLocaleDateString("ru-RU", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                              <h3 className="font-semibold text-base text-foreground line-clamp-2">
+                                {item.products?.title || `Продукт ${item.product_id.slice(0, 8)}`}
+                              </h3>
+                            </div>
+                            <div className="shrink-0">
+                              {item.status === "pending" && (
+                                <Badge className="bg-[#FF6B00] text-white border-none text-[11px]">
+                                  На рассмотрении
+                                </Badge>
+                              )}
+                              {item.status === "resolved" && (
+                                <Badge className="bg-emerald-600 text-white border-none text-[11px]">
+                                  Решено
+                                </Badge>
+                              )}
+                              {item.status === "dismissed" && (
+                                <Badge variant="outline" className="text-muted-foreground text-[11px]">
+                                  Отклонено
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                            <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 block mb-1">
+                              Причина: {item.reason}
+                            </span>
+                            {item.description ? (
+                              <p className="text-xs text-foreground/90 whitespace-pre-wrap">
+                                {item.description}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">
+                                Подробное описание не указано
+                              </p>
+                            )}
+                          </div>
+
+                          {(item.reporter_name || item.reporter_contact) && (
+                            <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                              {item.reporter_name && <span>От: {item.reporter_name}</span>}
+                              {item.reporter_contact && <span>Связь: {item.reporter_contact}</span>}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 pt-2 border-t">
+                            <a
+                              href={`/p/${item.product_id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted/60 transition-colors"
+                            >
+                              К продукту
+                              <ExternalLink className="w-3 h-3 ml-1" />
+                            </a>
+
+                            {item.status === "pending" && (
+                              <>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={actionBusyReportId === item.id}
+                                  onClick={() => handleUpdateReportStatus(item.id, "resolved")}
+                                  className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg ml-auto"
+                                >
+                                  <Check className="w-3.5 h-3.5 mr-1" />
+                                  Решено
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={actionBusyReportId === item.id}
+                                  onClick={() => handleUpdateReportStatus(item.id, "dismissed")}
+                                  className="h-8 text-xs text-muted-foreground hover:text-destructive hover:border-destructive/40 font-medium rounded-lg"
+                                >
+                                  <X className="w-3.5 h-3.5 mr-1" />
+                                  Отклонить
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1089,7 +1428,7 @@ const ModeratorDashboard = () => {
                         <div className="flex items-center justify-between gap-2">
                           <div className="font-medium truncate">{t.display_name}</div>
                           {t.unread_for_moderator > 0 && (
-                            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-xs bg-destructive text-destructive-foreground">
+                            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-xs font-bold bg-[#FF6B00] text-white shadow-xs">
                               {t.unread_for_moderator}
                             </span>
                           )}
@@ -1220,7 +1559,34 @@ const ModeratorDashboard = () => {
             <DialogDescription>Системные события и оповещения платформы</DialogDescription>
           </DialogHeader>
           <div className="py-2 space-y-2">
-            {pendingTopicsCount > 0 ? (
+            {!pushEnabled ? (
+              <div className="p-3 rounded-xl border border-[#FF6B00]/30 bg-[#FF6B00]/5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-[#FF6B00]/15 text-[#FF6B00] flex items-center justify-center font-medium shrink-0">
+                    <Bell className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-foreground">Push на телефон</div>
+                    <div className="text-[11px] text-muted-foreground">Оповещения при закрытом сайте</div>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  type="button"
+                  onClick={handleEnablePushNotifications}
+                  className="h-8 px-3 text-xs bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-medium rounded-lg shrink-0 shadow-xs"
+                >
+                  Включить
+                </Button>
+              </div>
+            ) : (
+              <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center gap-2 text-xs text-emerald-700 font-medium">
+                <Bell className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Push-уведомления на телефон активны</span>
+              </div>
+            )}
+
+            {pendingTopicsCount > 0 && (
               <button
                 type="button"
                 onClick={() => {
@@ -1231,22 +1597,95 @@ const ModeratorDashboard = () => {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-primary/15 text-primary flex items-center justify-center font-medium text-base shrink-0">
-                    🔔
+                    💡
                   </div>
                   <div>
                     <div className="font-semibold text-sm text-foreground">
                       {pendingTopicsCount === 1
-                        ? "1 новая тема"
-                        : `${pendingTopicsCount} новых тем`}
+                        ? "1 новая предложенная тема"
+                        : `${pendingTopicsCount} новых предложенных тем`}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
                       Нажмите, чтобы открыть предложения тем
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#FF6B00] text-white text-[11px] font-bold shadow-xs">
+                    {pendingTopicsCount}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
+                </div>
               </button>
-            ) : (
+            )}
+
+            {pendingReportsCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSection("reports");
+                  setNotificationsOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-3.5 rounded-xl border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 transition-colors text-left group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-destructive/15 text-destructive flex items-center justify-center font-medium text-base shrink-0">
+                    ⚠️
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm text-foreground">
+                      {pendingReportsCount === 1
+                        ? "1 новая жалоба на продукт"
+                        : `${pendingReportsCount} новых жалоб на продукты`}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Нажмите, чтобы открыть список жалоб
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#FF6B00] text-white text-[11px] font-bold shadow-xs">
+                    {pendingReportsCount}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </button>
+            )}
+
+            {unreadChatsCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSection("support");
+                  setNotificationsOpen(false);
+                }}
+                className="w-full flex items-center justify-between p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 transition-colors text-left group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-blue-500/15 text-blue-500 flex items-center justify-center font-medium text-base shrink-0">
+                    💬
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm text-foreground">
+                      {unreadChatsCount === 1
+                        ? "1 чат с новыми сообщениями"
+                        : `${unreadChatsCount} чатов с новыми сообщениями`}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Нажмите, чтобы открыть диалоги
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#FF6B00] text-white text-[11px] font-bold shadow-xs">
+                    {unreadChatsCount}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </button>
+            )}
+
+            {pendingTopicsCount === 0 && pendingReportsCount === 0 && unreadChatsCount === 0 && (
               <div className="py-8 text-center text-sm text-muted-foreground">
                 Новых системных уведомлений нет
               </div>

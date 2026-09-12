@@ -45,6 +45,9 @@ const CreatorAnnouncementsTab = ({ creatorName, onGoToProducts }: Props) => {
 
   return (
     <div className="space-y-4">
+      <h2 className="text-lg font-semibold text-foreground">
+        {language === "kk" ? "Хабарландырулар" : "Объявления"}
+      </h2>
       <ProductSwitcher
         products={products.map((p) => ({ id: p.id, title: p.title }))}
         selectedId={selectedId}

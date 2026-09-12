@@ -9,13 +9,80 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
+async function notifyModerators(title: string, bodyText: string, data?: Record<string, string>) {
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    if (!supabaseUrl || !serviceRoleKey) return
+    await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({
+        targetRole: 'moderator',
+        title,
+        body: bodyText,
+        data: data || {},
+      }),
+    })
+  } catch (err) {
+    console.error('Error sending moderator push notification:', err)
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     const body = await req.json().catch(() => ({}))
-    const { action, user_type, user_ref, display_name } = body as any
+    const { action } = body as any
 
+    // Handle product reporting
+    if (action === 'report_product') {
+      const { product_id, reason, description, reporter_name, reporter_contact, user_id } = body as any
+      if (!product_id || !reason) return json({ error: 'product_id and reason required' }, 400)
+
+      const { data: prod } = await supabase.from('products').select('id, title').eq('id', product_id).maybeSingle()
+
+      const { data: report, error } = await supabase.from('product_reports').insert({
+        product_id,
+        user_id: user_id || null,
+        reason: String(reason).trim(),
+        description: description ? String(description).trim() : null,
+        reporter_name: reporter_name ? String(reporter_name).trim() : null,
+        reporter_contact: reporter_contact ? String(reporter_contact).trim() : null,
+        status: 'pending',
+      }).select().single()
+
+      if (error) return json({ error: error.message }, 500)
+
+      const prodTitle = prod?.title ? ` «${prod.title}»` : ''
+      await notifyModerators(
+        'Новая жалоба на продукт',
+        `Причина: ${reason}${prodTitle}`,
+        { type: 'moderator_report', reportId: report.id, productId: product_id }
+      )
+
+      return json({ success: true, report_id: report.id })
+    }
+
+    // Handle new topic suggestion notification
+    if (action === 'notify_new_topic') {
+      const { topic_name, creator_name } = body as any
+      if (!topic_name) return json({ error: 'topic_name required' }, 400)
+      const who = creator_name ? ` от ${creator_name}` : ''
+      await notifyModerators(
+        'Предложена новая тема',
+        `Тема: «${topic_name}»${who}`,
+        { type: 'moderator_topic', title: topic_name }
+      )
+      return json({ success: true })
+    }
+
+    // Support chat handling
+    const { user_type, user_ref, display_name } = body as any
     if (!['creator', 'teacher', 'student'].includes(user_type)) return json({ error: 'Bad user_type' }, 400)
     if (typeof user_ref !== 'string' || !user_ref.trim()) return json({ error: 'Bad user_ref' }, 400)
 
@@ -48,6 +115,14 @@ serve(async (req) => {
         last_message_preview: text.trim().slice(0, 200),
         unread_for_moderator: (thread.unread_for_moderator ?? 0) + 1,
       }).eq('id', thread.id)
+
+      const senderName = display_name || thread.display_name || user_ref || 'Пользователь'
+      await notifyModerators(
+        `Новое сообщение: ${senderName}`,
+        text.trim().slice(0, 120),
+        { type: 'moderator_support', threadId: thread.id }
+      )
+
       return json({ success: true })
     }
 

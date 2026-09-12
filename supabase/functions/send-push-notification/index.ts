@@ -17,8 +17,11 @@ function getNotificationKey(identifier: string, title: string, data?: Record<str
   const bookingId = data?.bookingId || "";
   const purchaseId = data?.purchaseId || "";
   const productId = data?.productId || "";
+  const messageId = data?.messageId || "";
+  const topicId = data?.topicId || "";
+  const reportId = data?.reportId || "";
   const type = data?.type || "";
-  return `${identifier}:${type}:${bookingId}:${purchaseId}:${productId}`;
+  return `${identifier}:${type}:${bookingId}:${purchaseId}:${productId}:${messageId}:${topicId}:${reportId}:${title}`;
 }
 
 function isDuplicate(key: string): boolean {

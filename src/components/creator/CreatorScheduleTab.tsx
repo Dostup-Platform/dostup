@@ -681,6 +681,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
 
   return (
     <div className="space-y-6">
+      <h2 className="text-lg font-semibold text-foreground">{t("schedule")}</h2>
       {/* Product Switcher */}
       <div className="flex items-center">
         <ProductSwitcher

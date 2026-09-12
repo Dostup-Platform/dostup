@@ -384,6 +384,7 @@ const ScheduleTab = () => {
 
   return (
     <div className="space-y-6">
+      <h2 className="text-lg font-semibold text-foreground">{t("schedule")}</h2>
       {/* Мои записи */}
       {upcomingBookings.length > 0 && (
         <div className="space-y-3">

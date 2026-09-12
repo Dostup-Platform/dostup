@@ -20,22 +20,40 @@ async function consumeAccessToken(token: string): Promise<string | null> {
   return data.file_path as string
 }
 
-async function proxyPath(path: string, asAttachment = false): Promise<Response> {
+async function proxyPath(path: string, asAttachment = false, req?: Request): Promise<Response> {
   if (path.startsWith('s3://')) {
     const parsed = parseS3Path(path)
     if (!parsed) return json({ error: 'Not an S3 path' }, 400)
     const url = presignGet(parsed.bucket, parsed.key, asAttachment, 300)
-    const s3Response = await fetch(url)
-    if (!s3Response.ok) return json({ error: 'File not found' }, 404)
+    const fetchHeaders: Record<string, string> = {}
+    const range = req?.headers.get('range')
+    if (range) {
+      fetchHeaders['range'] = range
+    }
+    const s3Response = await fetch(url, { headers: fetchHeaders })
+    if (!s3Response.ok && s3Response.status !== 206) return json({ error: 'File not found' }, s3Response.status)
     const fileName = decodeURIComponent(parsed.key.split('/').pop() || 'download')
+    
+    const responseHeaders: Record<string, string> = {
+      ...corsHeaders,
+      'Content-Type': s3Response.headers.get('content-type') || mimeForKey(parsed.key),
+      'Accept-Ranges': 'bytes',
+      'Content-Disposition': asAttachment
+        ? `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
+        : 'inline',
+    }
+    const contentRange = s3Response.headers.get('content-range')
+    if (contentRange) {
+      responseHeaders['Content-Range'] = contentRange
+    }
+    const contentLength = s3Response.headers.get('content-length')
+    if (contentLength) {
+      responseHeaders['Content-Length'] = contentLength
+    }
+
     return new Response(s3Response.body, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': mimeForKey(parsed.key),
-        'Content-Disposition': asAttachment
-          ? `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
-          : 'inline',
-      },
+      status: s3Response.status,
+      headers: responseHeaders,
     })
   }
 
@@ -65,7 +83,8 @@ export async function handleTokenizedDownload(req: Request): Promise<Response> {
       const creatorToken = url.searchParams.get('creatorToken') || ''
       const creatorName = url.searchParams.get('creatorName') || ''
       const download = url.searchParams.get('download')
-      const ok = await authorizeDownload({ path, sessionToken, creatorToken, creatorName })
+      const isPublicMedia = path.includes('/product-media/') || path.includes('product-media')
+      const ok = isPublicMedia || (await authorizeDownload({ path, sessionToken, creatorToken, creatorName }))
       if (!ok) {
         const role = url.searchParams.get('role')
         const userId = url.searchParams.get('userId')
@@ -96,22 +115,34 @@ export async function handleTokenizedDownload(req: Request): Promise<Response> {
           return new Response('Access denied', { status: 403 })
         }
       }
+      if (isPublicMedia || url.searchParams.get('proxy') === '1') {
+        return proxyPath(path, false, req)
+      }
+
       const parsed = parseS3Path(path)
       if (!parsed) return new Response('Not an S3 path', { status: 400 })
-      const presigned = presignGet(parsed.bucket, parsed.key, !!download, 3600)
-      return new Response(null, { status: 302, headers: { Location: presigned } })
+      const presigned = presignGet(parsed.bucket, parsed.key, !!download, isPublicMedia ? 86400 : 3600)
+      return new Response(null, {
+        status: 302,
+        headers: {
+          ...corsHeaders,
+          Location: presigned,
+          'Cache-Control': isPublicMedia ? 'public, max-age=3600' : 'no-cache',
+        },
+      })
     }
 
     const body = await req.json().catch(() => ({}))
     const path = String(body.path || '')
     const defaultProxy = url.pathname.includes('s3-download-proxy')
     const mode = body.mode === 'proxy' || (body.mode !== 'url' && defaultProxy) ? 'proxy' : 'url'
-    const ok = await authorizeDownload({
+    const isPublicMedia = path.includes('/product-media/') || path.includes('product-media')
+    const ok = isPublicMedia || (await authorizeDownload({
       path,
       sessionToken: String(body.sessionToken || ''),
       creatorToken: String(body.creatorToken || ''),
       creatorName: String(body.creatorName || ''),
-    })
+    }))
     if (!ok) {
       if (body.role === 'student' && body.userId) {
         const parsed = parseS3Path(path)

@@ -93,7 +93,7 @@ export const getFCMToken = async (): Promise<string | null> => {
  */
 export const registerPushToken = async (
   userId: string,
-  userRole: "creator" | "student" | "teacher"
+  userRole: "creator" | "student" | "teacher" | "moderator"
 ): Promise<boolean> => {
   try {
     const fcmToken = await getFCMToken();
@@ -118,6 +118,8 @@ export const registerPushToken = async (
     if (userRole === "creator") {
       body.creatorToken = localStorage.getItem("creator_token");
       body.creatorName = localStorage.getItem("creator_name");
+    } else if (userRole === "moderator") {
+      body.creatorToken = localStorage.getItem("moderator_token");
     }
 
     // Call edge function to register token

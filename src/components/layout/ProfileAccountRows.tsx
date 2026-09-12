@@ -208,6 +208,11 @@ export function ProfileAccountRows({
           return res;
         }}
       />
+      {expanded && (
+        <div className="px-2.5 pb-1.5 pt-1 text-sm font-semibold text-foreground">
+          {t("navProfiles") || "Профили"}
+        </div>
+      )}
       {newProfileControl}
       <div className="flex max-h-[40vh] flex-col overflow-y-auto">
         {orderedProfiles.map((profile) => profileRow(profile))}

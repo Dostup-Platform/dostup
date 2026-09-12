@@ -7,6 +7,8 @@ export type CatalogProduct = {
   title: string;
   headline: string | null;
   image_url: string | null;
+  video_url?: string | null;
+  media?: Array<{ type: "image" | "video"; url: string }> | null;
   price: number;
   has_schedule: boolean;
   created_at: string;

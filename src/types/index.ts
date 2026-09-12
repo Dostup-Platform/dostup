@@ -6,6 +6,8 @@ export interface Product {
   price: number;
   currency: string;
   image_url: string;
+  video_url?: string | null;
+  media?: Array<{ type: "image" | "video"; url: string }> | null;
   has_schedule: boolean;
   creator_id: string;
   created_at: string;

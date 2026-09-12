@@ -49,6 +49,7 @@ export default defineConfig(({ mode }) => {
       ],
       registerType: "autoUpdate",
       workbox: {
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         skipWaiting: true,
         clientsClaim: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],

@@ -12,6 +12,7 @@ export interface Product {
   price: number;
   image_url: string | null;
   video_url: string | null;
+  media?: Array<{ type: "image" | "video"; url: string }> | null;
   has_schedule: boolean;
   is_active: boolean;
   slug: string | null;
