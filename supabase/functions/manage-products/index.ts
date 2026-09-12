@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
           is_active: product.is_active ?? true,
           image_url: product.image_url || null,
           video_url: product.video_url || null,
+          media: Array.isArray(product.media) ? product.media : [],
           slug: product.slug || null,
           faq: product.faq ?? [],
           creator_id: caller.login,

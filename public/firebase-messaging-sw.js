@@ -38,6 +38,14 @@ self.addEventListener('notificationclick', (event) => {
     targetUrl = '/creator';
   } else if (data.type === 'creator_cancellation' || data.type === 'reminder' || data.type === 'material_unlocked') {
     targetUrl = '/dashboard';
+  } else if (data.type === 'moderator_topic') {
+    targetUrl = '/moderator?section=topic_suggestions';
+  } else if (data.type === 'moderator_support') {
+    targetUrl = '/moderator?section=support';
+  } else if (data.type === 'moderator_report') {
+    targetUrl = '/moderator?section=reports';
+  } else if (data.type?.startsWith('moderator')) {
+    targetUrl = '/moderator';
   }
 
   event.waitUntil(

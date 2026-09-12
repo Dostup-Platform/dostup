@@ -40,13 +40,14 @@ serve(async (req) => {
     }
 
     if (action === 'stats') {
-      const [creators, purchases, products, users, teachers, pendingTopics] = await Promise.all([
+      const [creators, purchases, products, users, teachers, pendingTopics, pendingReports] = await Promise.all([
         supabase.from('creator_accounts').select('*').order('created_at', { ascending: false }),
         supabase.from('simple_purchases').select('product_id, simple_user_id, amount, status').eq('status', 'completed'),
         supabase.from('products').select('id, creator_id, title, is_active'),
         supabase.from('simple_users').select('id, name, role'),
         supabase.from('product_teachers').select('id, product_id, teacher_name'),
         supabase.from('topics').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('product_reports').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       ])
       const productById = new Map((products.data ?? []).map((p: any) => [p.id, p]))
       const perCreator: Record<string, { revenue: number; students: Set<string>; products: number; teachers: Set<string> }> = {}
@@ -96,6 +97,7 @@ serve(async (req) => {
         products: (products.data ?? []).length,
         teachers: (teachers.data ?? []).length,
         pending_topics: pendingTopics?.count ?? 0,
+        pending_reports: pendingReports?.count ?? 0,
         course_creators: {
           count: courseCreators.length,
           revenue: courseCreators.reduce((s, c) => s + c.revenue, 0),
@@ -296,6 +298,50 @@ serve(async (req) => {
           reviewed_by: 'moderator',
         })
         .eq('id', topic_id)
+      if (error) return json({ error: error.message }, 500)
+      return json({ success: true })
+    }
+
+    // PRODUCT REPORTS
+    if (action === 'list_reports') {
+      const { status } = body as any
+      let query = supabase
+        .from('product_reports')
+        .select(`
+          id,
+          product_id,
+          user_id,
+          reporter_name,
+          reporter_contact,
+          reason,
+          description,
+          status,
+          created_at,
+          reviewed_at,
+          reviewed_by,
+          products:product_id (id, title, creator_id)
+        `)
+        .order('created_at', { ascending: false })
+
+      if (status && status !== 'all') {
+        query = query.eq('status', status)
+      }
+      const { data, error } = await query
+      if (error) return json({ error: error.message }, 500)
+      return json({ success: true, reports: data ?? [] })
+    }
+
+    if (action === 'update_report_status') {
+      const { report_id, status } = body as any
+      if (!report_id || !status) return json({ error: 'report_id and status required' }, 400)
+      const { error } = await supabase
+        .from('product_reports')
+        .update({
+          status,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: 'moderator'
+        })
+        .eq('id', report_id)
       if (error) return json({ error: error.message }, 500)
       return json({ success: true })
     }

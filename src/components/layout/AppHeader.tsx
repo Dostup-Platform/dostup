@@ -18,7 +18,7 @@ const AppHeader = ({ children, className }: AppHeaderProps) => (
         <Link to="/" className="flex shrink-0 items-center focus-ring rounded-md" aria-label="Dostup">
           <AuthMark variant="brand" className="h-[28px] w-auto" />
         </Link>
-        {children ? <div className="flex shrink-0 items-center gap-4">{children}</div> : null}
+        {children ? <div className="flex shrink-0 items-center gap-2 md:gap-1">{children}</div> : null}
       </div>
     </header>
   </div>

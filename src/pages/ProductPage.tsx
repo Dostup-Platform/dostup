@@ -1,12 +1,14 @@
 import { Link, useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ShareProductButton from "@/components/share/ShareProductButton";
+import { ReportProductDialog } from "@/components/marketplace/ReportProductDialog";
 import { isUuid } from "@/lib/productShare";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
 import ProductCover from "@/components/marketplace/ProductCover";
 import PublicContainer from "@/components/marketplace/PublicContainer";
 import PublicFooter from "@/components/layout/PublicFooter";
+import ProductVideoPlayer, { preloadVideoBlob } from "@/components/media/ProductVideoPlayer";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
@@ -30,7 +32,7 @@ import { sellerInitial } from "@/lib/productCover";
 import { invokeApi } from "@/lib/sessionApi";
 import { rememberAuthNext } from "@/lib/creatorAuth";
 import { loginPath, loginState } from "@/lib/loginModal";
-import { ArrowLeft, FileText, Folder, Loader2, Play } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, FileText, Folder, Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import DOMPurify from "dompurify";
@@ -163,7 +165,6 @@ const ProductPage = () => {
   const { user, profileType, profiles, switchProfile } = useSimpleAuth();
   const { data: product, isLoading } = useProduct(productId);
   const { data: program = [] } = useProductProgram(product?.id);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [switchBuyerOpen, setSwitchBuyerOpen] = useState(false);
   const [switchingBuyer, setSwitchingBuyer] = useState(false);
 
@@ -319,6 +320,44 @@ const ProductPage = () => {
   }
 
   const videoUrl = product.video_url;
+  const productMedia: Array<{ type: "image" | "video"; url: string }> = useMemo(() => {
+    if (Array.isArray((product as any).media) && (product as any).media.length > 0) {
+      return (product as any).media;
+    }
+    const list: Array<{ type: "image" | "video"; url: string }> = [];
+    if (product.image_url) list.push({ type: "image", url: product.image_url });
+    if (product.video_url) list.push({ type: "video", url: product.video_url });
+    return list;
+  }, [product]);
+
+  const [activeMediaIdx, setActiveMediaIdx] = useState(0);
+  const touchStartXRef = useRef<number | null>(null);
+
+  // Фоновая предзагрузка всех видео продукта для мгновенного старта
+  useEffect(() => {
+    productMedia.forEach((m) => {
+      if (m.type === "video" && m.url) {
+        preloadVideoBlob(m.url);
+      }
+    });
+  }, [productMedia]);
+
+  const handleMediaTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+
+  const handleMediaTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null) return;
+    const diff = e.changedTouches[0].clientX - touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) {
+        setActiveMediaIdx((prev) => (prev > 0 ? prev - 1 : productMedia.length - 1));
+      } else {
+        setActiveMediaIdx((prev) => (prev < productMedia.length - 1 ? prev + 1 : 0));
+      }
+    }
+  };
   const faq = Array.isArray(product.faq)
     ? product.faq.filter((it) => it && (it.question || it.answer))
     : [];
@@ -461,38 +500,79 @@ const ProductPage = () => {
 
         <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-10">
           <div>
-            <div className="overflow-hidden rounded-2xl">
-              {videoUrl && isPlaying ? (
-                <video
-                  src={videoUrl}
-                  poster={product.image_url || undefined}
-                  controls
-                  autoPlay
-                  playsInline
-                  preload="metadata"
-                  className="aspect-[16/10] w-full bg-black object-contain"
-                />
-              ) : (
-                <ProductCover
-                  productId={product.id}
-                  title={product.title}
-                  imageUrl={product.image_url}
-                  decorative={false}
-                  className="rounded-2xl"
-                >
-                  {videoUrl && (
+            <div className="space-y-3">
+              <div
+                className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-black/5"
+                onTouchStart={productMedia.length > 1 ? handleMediaTouchStart : undefined}
+                onTouchEnd={productMedia.length > 1 ? handleMediaTouchEnd : undefined}
+              >
+                {productMedia.length === 0 ? (
+                  <ProductCover
+                    productId={product.id}
+                    title={product.title}
+                    imageUrl={product.image_url}
+                    decorative={false}
+                    className="rounded-2xl"
+                  />
+                ) : productMedia[activeMediaIdx]?.type === "video" ? (
+                  <ProductVideoPlayer
+                    key={productMedia[activeMediaIdx].url}
+                    src={productMedia[activeMediaIdx].url}
+                    controls
+                    playsInline
+                    objectFit="contain"
+                    className="w-full h-full"
+                  />
+                ) : (
+                  <img
+                    key={productMedia[activeMediaIdx]?.url}
+                    src={productMedia[activeMediaIdx]?.url}
+                    alt={product.title}
+                    className="w-full h-full object-cover"
+                  />
+                )}
+
+                {/* Стрелки переключения */}
+                {productMedia.length > 1 && (
+                  <>
                     <button
                       type="button"
-                      onClick={() => setIsPlaying(true)}
-                      aria-label={t("playVideo")}
-                      className="absolute inset-0 flex items-center justify-center focus-ring"
+                      onClick={() => setActiveMediaIdx((prev) => (prev > 0 ? prev - 1 : productMedia.length - 1))}
+                      className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-all z-10"
+                      title="Предыдущее"
                     >
-                      <span className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-background/80 shadow-lg motion-safe:transition-transform motion-safe:hover:scale-110">
-                        <Play className="ml-1 h-8 w-8 fill-foreground text-foreground" />
-                      </span>
+                      <ChevronLeft className="w-5 h-5" />
                     </button>
-                  )}
-                </ProductCover>
+                    <button
+                      type="button"
+                      onClick={() => setActiveMediaIdx((prev) => (prev < productMedia.length - 1 ? prev + 1 : 0))}
+                      className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-all z-10"
+                      title="Следующее"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Точки-индикаторы снизу (как карточки вопросов) */}
+              {productMedia.length > 1 && (
+                <div className="flex items-center justify-center gap-1.5 py-1">
+                  {productMedia.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setActiveMediaIdx(i)}
+                      className={cn(
+                        "h-1.5 rounded-full transition-all",
+                        i === activeMediaIdx
+                          ? "w-4 bg-primary"
+                          : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/60"
+                      )}
+                      title={`Медиа ${i + 1}`}
+                    />
+                  ))}
+                </div>
               )}
             </div>
 
@@ -500,15 +580,24 @@ const ProductPage = () => {
               <h1 className="public-display text-foreground text-balance min-w-0 flex-1 whitespace-pre-wrap break-words">
                 {renderSafeFormattedContent(product.title)}
               </h1>
-              <ShareProductButton
-                title={product.title}
-                id={product.id}
-                slug={product.slug}
-                sellerHandle={product.seller_handle}
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-              />
+              <div className="flex items-center gap-2 shrink-0">
+                <ShareProductButton
+                  title={product.title}
+                  id={product.id}
+                  slug={product.slug}
+                  sellerHandle={product.seller_handle}
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                />
+                <ReportProductDialog
+                  productId={product.id}
+                  productTitle={product.title}
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                />
+              </div>
             </div>
             {product.headline && (
               <div className="public-body mt-3 text-foreground whitespace-pre-wrap break-words">

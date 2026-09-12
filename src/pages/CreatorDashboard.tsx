@@ -15,12 +15,15 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import AppHeader from "@/components/layout/AppHeader";
 import AppShell from "@/components/layout/BuyerAppShell";
 import {
+  ActiveProfileAvatar,
   HeaderAccountControl,
   HeaderChatsButton,
   HeaderNotificationsButton,
 } from "@/components/layout/HeaderControls";
+import BuyerAccountSheet from "@/components/layout/BuyerAccountSheet";
 import DisplayNameSetupDialog from "@/components/account/DisplayNameSetupDialog";
 import { creatorTabFromPath, SELLER_NAV_ITEMS } from "@/lib/navigation";
+import { useCreatorMobileNavItems } from "@/lib/mobileNavPreferences";
 
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { useCreatorSimpleBookings } from "@/hooks/useSimplePurchases";
@@ -35,6 +38,7 @@ import { setAppBadge, clearAppBadge } from "@/lib/appBadge";
 import { useAppResume } from "@/hooks/useAppResume";
 import { readAuthEmail } from "@/lib/creatorAuth";
 import { needsDisplayNamePrompt } from "@/lib/displayName";
+import { cn } from "@/lib/utils";
 
 const CreatorDashboard = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -47,9 +51,11 @@ const CreatorDashboard = () => {
   const [needsDisplayName, setNeedsDisplayName] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [lastViewedAt, setLastViewedAt] = useState<Date | null>(null);
+  const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const { t } = useLanguage();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { activeItems: creatorNavActiveItems } = useCreatorMobileNavItems();
   useAppResume();
   const supportUnread = useSupportUnread("creator", creatorName ?? "");
   
@@ -316,26 +322,64 @@ const CreatorDashboard = () => {
 
       {/* Bottom Navigation - Mobile Only */}
       {isMobile && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
+        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-lg border-t border-border safe-area-inset">
           <div className="max-w-2xl mx-auto">
-            <div className="w-full h-16 bg-transparent rounded-none grid grid-cols-5 gap-0">
-              {SELLER_NAV_ITEMS.map((item) => {
+            <div
+              className="w-full h-16 bg-transparent rounded-none grid gap-0"
+              style={{ gridTemplateColumns: `repeat(${creatorNavActiveItems.length + 1}, minmax(0, 1fr))` }}
+            >
+              {creatorNavActiveItems.map((item) => {
                 const Icon = item.icon;
                 return (
-              <button 
-                key={item.key}
-                onClick={() => handleTabChange(item.key)}
-                className={`flex flex-col items-center justify-center h-full gap-1 rounded-none px-1 ${activeTab === item.key ? "bg-accent text-white" : "text-muted-foreground"}`}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">{t(item.labelKey)}</span>
-              </button>
+                  <button 
+                    key={item.key}
+                    type="button"
+                    onClick={() => handleTabChange(item.key)}
+                    aria-label={t(item.labelKey)}
+                    className="flex items-center justify-center h-full"
+                  >
+                    <span
+                      className={cn(
+                        "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
+                        activeTab === item.key
+                          ? "bg-accent text-white"
+                          : "text-muted-foreground hover:bg-accent/50",
+                      )}
+                    >
+                      <Icon className="h-6 w-6" strokeWidth={1.75} />
+                    </span>
+                  </button>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => setAccountSheetOpen(true)}
+                aria-label={t("navProfiles") || "Профиль"}
+                className="flex items-center justify-center h-full"
+              >
+                <span
+                  className={cn(
+                    "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
+                    activeTab === "users"
+                      ? "bg-accent text-white ring-2 ring-primary"
+                      : "text-muted-foreground hover:bg-accent/50",
+                  )}
+                >
+                  <ActiveProfileAvatar className="h-8 w-8" />
+                </span>
+              </button>
             </div>
           </div>
         </nav>
       )}
+
+      <BuyerAccountSheet
+        open={accountSheetOpen}
+        onOpenChange={setAccountSheetOpen}
+        onSelectSection={(secKey) => {
+          handleTabChange(secKey);
+        }}
+      />
     </div>
     </AppShell>
   );

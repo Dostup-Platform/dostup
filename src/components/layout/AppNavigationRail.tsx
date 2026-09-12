@@ -84,7 +84,7 @@ const AppNavigationRail = ({ activeSection, sellerTab }: AppNavigationRailProps)
       to={to}
       title={label}
       className={cn(
-        "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+        "group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[15px] font-medium transition-colors",
         active ? "bg-accent/10 text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
         !expanded && "justify-center px-0",
       )}
@@ -92,8 +92,10 @@ const AppNavigationRail = ({ activeSection, sellerTab }: AppNavigationRailProps)
       {active && (
         <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-[#FF6B00]" aria-hidden />
       )}
-      <Icon className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-      {expanded && <span className="truncate">{label}</span>}
+      <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+        <Icon className="h-6 w-6 shrink-0" strokeWidth={1.75} />
+      </div>
+      {expanded && <span className="truncate text-[15px] leading-tight">{label}</span>}
     </Link>
   );
 

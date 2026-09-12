@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import { useCatalogTaxonomy } from "@/hooks/useCatalogTaxonomy";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Minus, Package, Loader2, Edit, Trash2, ChevronDown, ChevronRight, ChevronLeft, ChevronUp, Globe, DollarSign, Eye, PauseCircle, PlayCircle, Sparkles, Wand2, ArrowRight } from "lucide-react";
 import { predictProductCategory, isTopicMatch, isExactTopicMatch, type CategoryPrediction, suggestCustomTopicWithEmoji } from "@/lib/aiCategory";
-import { PRESET_TOPICS_BY_CATEGORY, getPresetTopics, getPresetTopicsForCategory, TAXONOMY_DEFINITIONS } from "@/lib/taxonomyData";
+import { getPresetTopics, getPresetTopicsForCategory, TAXONOMY_DEFINITIONS } from "@/lib/taxonomyData";
 import { validateNewTopic, parseTopicsList, serializeTopicsList } from "@/utils/normalizeTopic";
 import ShareProductButton from "@/components/share/ShareProductButton";
 import {
@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import CreatorPendingPayments from "./CreatorPendingPayments";
 import { uploadProductMedia, getVideoDuration, MAX_VIDEO_DURATION_SECONDS } from "@/lib/productMediaUpload";
+import { compressVideoIfNeeded, COMPRESSION_THRESHOLD } from "@/lib/videoCompressor";
 import { ImageIcon, Video as VideoIcon, X as XIcon, HelpCircle, Play } from "lucide-react";
 import {
   Select,
@@ -53,6 +54,9 @@ import { creatorCreds, invokeApi } from "@/lib/sessionApi";
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { useCoverCrop, type CoverCropResult } from "@/hooks/useCoverCrop";
+import CoverCropEditor from "./CoverCropEditor";
+import ProductVideoPlayer, { videoBlobCache } from "@/components/media/ProductVideoPlayer";
 
 export interface PricingOptionFormItem {
   id: string;
@@ -113,6 +117,7 @@ interface Product {
   is_active: boolean;
   image_url?: string | null;
   video_url?: string | null;
+  media?: Array<{ type: "image" | "video"; url: string; objectPosition?: string }> | null;
   faq?: Array<{ question: string; answer: string }> | null;
   kaspi_phone?: string | null;
   access_duration_days?: number | null;
@@ -124,6 +129,22 @@ interface Product {
   has_free_trial?: boolean;
   trial_days?: number | null;
   pricing_options?: any[] | null;
+  category_id?: string | null;
+  subcategory_id?: string | null;
+  event_starts_at?: string | null;
+  lesson_format?: LessonFormat | string | null;
+  capacity?: number | string | null;
+  topic?: string | null;
+  slug?: string | null;
+}
+
+export interface ProductMediaItem {
+  id: string;
+  type: "image" | "video";
+  url: string;
+  file?: File;
+  previewUrl?: string;
+  objectPosition?: string;
 }
 
 interface FormData {
@@ -142,6 +163,7 @@ interface FormData {
   telegramLink: string;
   imageUrl: string;
   videoUrl: string;
+  media: ProductMediaItem[];
   faq: Array<{ question: string; answer: string }>;
   isPaid: boolean;
   kaspiMethod: "link" | "phone";
@@ -168,6 +190,7 @@ interface ProductFormProps {
   setPendingImageFile?: (f: File | null) => void;
   setPendingVideoFile?: (f: File | null) => void;
   taxonomyCategories?: CatalogCategory[];
+  onCroppingChange?: (isCropping: boolean) => void;
 }
 
 function categorySlugById(categories: CatalogCategory[], categoryId: string) {
@@ -224,6 +247,7 @@ const ProductForm = ({
   setPendingImageFile,
   setPendingVideoFile,
   taxonomyCategories = [],
+  onCroppingChange,
 }: ProductFormProps) => {
   const { language } = useLanguage();
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -586,144 +610,317 @@ const ProductForm = ({
     };
   }, [formData.categoryId]);
 
-  // Object URL previews for pending files (create mode)
-  const [pendingImagePreview, setPendingImagePreview] = useState<string>("");
-  const [pendingVideoPreview, setPendingVideoPreview] = useState<string>("");
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+  const activeMediaIndexRef = useRef(0);
+  const mediaDotRef = useRef<HTMLDivElement>(null);
+  const mediaRafRef = useRef<number | null>(null);
+  const mediaScrollRef = useRef<HTMLDivElement>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [isMediaDragging, setIsMediaDragging] = useState(false);
+  const uploadAbortControllerRef = useRef<AbortController | null>(null);
+  const uploadToastIdRef = useRef<string | number | null>(null);
+
+  const cancelCurrentUpload = useCallback(() => {
+    if (uploadAbortControllerRef.current) {
+      uploadAbortControllerRef.current.abort();
+      uploadAbortControllerRef.current = null;
+    }
+    if (uploadToastIdRef.current) {
+      toast.dismiss(uploadToastIdRef.current);
+      uploadToastIdRef.current = null;
+    }
+    setUploadingMedia(false);
+  }, []);
 
   useEffect(() => {
-    if (pendingImageFile) {
-      const url = URL.createObjectURL(pendingImageFile);
-      setPendingImagePreview(url);
-      return () => URL.revokeObjectURL(url);
-    }
-    setPendingImagePreview("");
-  }, [pendingImageFile]);
+    return () => {
+      cancelCurrentUpload();
+    };
+  }, [cancelCurrentUpload]);
 
-  useEffect(() => {
-    if (pendingVideoFile) {
-      const url = URL.createObjectURL(pendingVideoFile);
-      setPendingVideoPreview(url);
-      return () => URL.revokeObjectURL(url);
-    }
-    setPendingVideoPreview("");
-  }, [pendingVideoFile]);
-
-
-  const processImageFile = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error("Это не изображение");
-      return;
-    }
-    if (!isEdit) {
-      setPendingImageFile?.(file);
-      return;
-    }
-    if (!editingProductId) return;
-    setUploadingImage(true);
-    try {
-      const url = await uploadProductMedia(file, editingProductId, "image");
-      setFormData(prev => ({ ...prev, imageUrl: url }));
-      toast.success("Изображение загружено");
-    } catch (err: any) {
-      toast.error(err?.message || "Ошибка загрузки изображения");
-    } finally {
-      setUploadingImage(false);
-    }
+  const scrollToMediaIndex = (index: number, smooth: boolean = true) => {
+    const el = mediaScrollRef.current;
+    if (!el || !el.children[index]) return;
+    const child = el.children[index] as HTMLElement;
+    el.scrollTo({
+      left: child.offsetLeft,
+      behavior: smooth ? "smooth" : "auto",
+    });
   };
 
-  const processVideoFile = async (file: File) => {
-    if (!file.type.startsWith("video/")) {
-      toast.error("Это не видео");
-      return;
-    }
-    try {
-      const duration = await getVideoDuration(file);
-      if (duration > MAX_VIDEO_DURATION_SECONDS) {
-        toast.error(`Видео слишком длинное (${Math.round(duration)} сек). Максимум 3 минуты.`);
+  const handleMediaScroll = () => {
+    if (mediaRafRef.current) return;
+    mediaRafRef.current = requestAnimationFrame(() => {
+      mediaRafRef.current = null;
+      const el = mediaScrollRef.current;
+      if (!el) return;
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      const total = (formData.media || []).length;
+      if (maxScroll <= 0 || total <= 1) {
+        if (mediaDotRef.current) mediaDotRef.current.style.left = "0px";
+        if (activeMediaIndexRef.current !== 0) {
+          activeMediaIndexRef.current = 0;
+          setActiveMediaIndex(0);
+        }
         return;
       }
-    } catch {
-      toast.error("Не удалось прочитать видео");
-      return;
-    }
-    if (!isEdit) {
-      setPendingVideoFile?.(file);
-      return;
-    }
-    if (!editingProductId) return;
-    setUploadingVideo(true);
-    try {
-      const url = await uploadProductMedia(file, editingProductId, "video");
-      setFormData(prev => ({ ...prev, videoUrl: url }));
-      toast.success("Видео загружено");
-    } catch (err: any) {
-      toast.error(err?.message || "Ошибка загрузки видео");
-    } finally {
-      setUploadingVideo(false);
-    }
+      const progress = Math.max(0, Math.min(1, el.scrollLeft / maxScroll));
+      const offset = progress * (total - 1) * 12;
+      if (mediaDotRef.current) {
+        mediaDotRef.current.style.left = `${offset}px`;
+      }
+      const currentIdx = Math.round(progress * (total - 1));
+      if (activeMediaIndexRef.current !== currentIdx) {
+        activeMediaIndexRef.current = currentIdx;
+        setActiveMediaIndex(currentIdx);
+      }
+    });
   };
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    await processImageFile(file);
-  };
+  const coverCrop = useCoverCrop();
+  const [cropQueue, setCropQueue] = useState<File[]>([]);
+  const [cropSaving, setCropSaving] = useState(false);
 
-  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    await processVideoFile(file);
-  };
-
-  const displayedImageUrl = formData.imageUrl || pendingImagePreview;
-  const displayedVideoUrl = formData.videoUrl || pendingVideoPreview;
-
-  // Paste support: listen on window while at least one slot is empty.
   useEffect(() => {
-    const imageEmpty = !displayedImageUrl;
-    const videoEmpty = !displayedVideoUrl;
-    if (!imageEmpty && !videoEmpty) return;
+    onCroppingChange?.(Boolean(coverCrop.source));
+  }, [coverCrop.source, onCroppingChange]);
 
+  const startCoverCropProcess = async (files: File[]) => {
+    const imagesToCrop: File[] = [];
+    for (const file of files) {
+      const isImg = file.type.startsWith("image/");
+      const isVid = file.type.startsWith("video/");
+      if (!isImg && !isVid) {
+        toast.error(`Файл "${file.name}" не является фото или видео`);
+        continue;
+      }
+      if (isVid) {
+        try {
+          const duration = await getVideoDuration(file);
+          if (duration > MAX_VIDEO_DURATION_SECONDS) {
+            toast.error(`Видео "${file.name}" слишком длинное (${Math.round(duration)} сек). Максимум 3 минуты.`);
+            continue;
+          }
+        } catch {
+          // ignore
+        }
+
+        // Видео прикрепляется мгновенно без зависания браузера
+        const previewUrl = URL.createObjectURL(file);
+        await addCroppedMediaItem({
+          file,
+          type: "video",
+          objectPosition: "center",
+          previewUrl,
+        });
+      } else {
+        imagesToCrop.push(file);
+      }
+    }
+
+    if (imagesToCrop.length === 0) return;
+
+    const [first, ...rest] = imagesToCrop;
+    setCropQueue(rest);
+    coverCrop.loadFile(first);
+  };
+
+  const handleSaveCrop = async () => {
+    if (!coverCrop.source || cropSaving) return;
+    setCropSaving(true);
+    try {
+      const result = await coverCrop.cropResult();
+      await addCroppedMediaItem(result);
+      coverCrop.resetCrop();
+      if (cropQueue.length > 0) {
+        const [next, ...rest] = cropQueue;
+        setCropQueue(rest);
+        coverCrop.loadFile(next);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Ошибка обработки файла");
+    } finally {
+      setCropSaving(false);
+    }
+  };
+
+  const addCroppedMediaItem = async (result: CoverCropResult) => {
+    const kind = result.type;
+    if (!isEdit || !editingProductId) {
+      let fileToAttach = result.file;
+      let previewUrl = result.previewUrl;
+      if (kind === "video" && result.file && result.file.size > COMPRESSION_THRESHOLD) {
+        const toastId = toast.loading("Оптимизация видео...");
+        try {
+          fileToAttach = await compressVideoIfNeeded(result.file, (pct) => {
+            toast.loading(`Оптимизация видео (${pct}%)...`, { id: toastId });
+          });
+          previewUrl = URL.createObjectURL(fileToAttach);
+          toast.success("Видео добавлено", { id: toastId });
+        } catch {
+          toast.dismiss(toastId);
+          toast.success("Видео добавлено");
+        }
+      } else {
+        toast.success(kind === "video" ? "Видео добавлено" : "Фото добавлено");
+      }
+
+      const newItem: ProductMediaItem = {
+        id: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        type: kind,
+        url: previewUrl,
+        previewUrl,
+        file: fileToAttach,
+        objectPosition: result.objectPosition,
+      };
+      setFormData((prev) => {
+        const current = prev.media || [];
+        const updated = [...current, newItem];
+        const firstImg = updated.find((m) => m.type === "image");
+        const firstVid = updated.find((m) => m.type === "video");
+        return {
+          ...prev,
+          media: updated,
+          imageUrl: firstImg?.url || prev.imageUrl,
+          videoUrl: firstVid?.url || prev.videoUrl,
+        };
+      });
+      setTimeout(() => {
+        const total = (formData.media || []).length + 1;
+        activeMediaIndexRef.current = total - 1;
+        setActiveMediaIndex(total - 1);
+        scrollToMediaIndex(total - 1);
+      }, 50);
+    } else {
+      setUploadingMedia(true);
+      const controller = new AbortController();
+      uploadAbortControllerRef.current = controller;
+      const toastId = toast.loading(kind === "video" ? "Подготовка видео..." : "Загрузка фото...");
+      uploadToastIdRef.current = toastId;
+
+      try {
+        let fileToUpload = result.file;
+        if (kind === "video" && result.file.size > COMPRESSION_THRESHOLD) {
+          toast.loading("Оптимизация видео...", { id: toastId });
+          fileToUpload = await compressVideoIfNeeded(
+            result.file,
+            (pct) => {
+              if (!controller.signal.aborted) {
+                toast.loading(`Оптимизация видео (${pct}%)...`, { id: toastId });
+              }
+            },
+            controller.signal
+          );
+        }
+
+        if (controller.signal.aborted) return;
+
+        toast.loading(kind === "video" ? "Загрузка видео (0%)..." : "Загрузка фото...", { id: toastId });
+        const url = await uploadProductMedia(
+          fileToUpload,
+          editingProductId,
+          kind,
+          (pct) => {
+            if (kind === "video" && !controller.signal.aborted) {
+              toast.loading(`Загрузка видео (${pct}%)...`, { id: toastId });
+            }
+          },
+          1,
+          controller.signal
+        );
+
+        const localBlob = kind === "video" ? URL.createObjectURL(fileToUpload) : "";
+        if (localBlob) {
+          videoBlobCache.set(url, localBlob);
+        }
+
+        const newItem: ProductMediaItem = {
+          id: `uploaded-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          type: kind,
+          url,
+          previewUrl: localBlob || undefined,
+          file: fileToUpload,
+          objectPosition: result.objectPosition,
+        };
+        setFormData((prev) => {
+          const current = prev.media || [];
+          const updated = [...current, newItem];
+          const firstImg = updated.find((m) => m.type === "image");
+          const firstVid = updated.find((m) => m.type === "video");
+          return {
+            ...prev,
+            media: updated,
+            imageUrl: firstImg?.url || "",
+            videoUrl: firstVid?.url || "",
+          };
+        });
+        toast.success(kind === "video" ? "Видео добавлено" : "Фото добавлено", { id: toastId });
+        setTimeout(() => {
+          const total = (formData.media || []).length + 1;
+          activeMediaIndexRef.current = total - 1;
+          setActiveMediaIndex(total - 1);
+          scrollToMediaIndex(total - 1);
+        }, 50);
+      } catch (err: any) {
+        if (err?.message === "Загрузка отменена" || controller.signal.aborted) {
+          return;
+        }
+        toast.error(err?.message || "Ошибка загрузки файла", { id: toastId });
+      } finally {
+        uploadAbortControllerRef.current = null;
+        uploadToastIdRef.current = null;
+        setUploadingMedia(false);
+      }
+    }
+  };
+
+  const handleMediaChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (files.length === 0) return;
+    await startCoverCropProcess(files);
+  };
+
+  const handleDeleteMedia = (idx: number) => {
+    setFormData((prev) => {
+      const current = prev.media || [];
+      const updated = current.filter((_, i) => i !== idx);
+      const firstImg = updated.find((m) => m.type === "image");
+      const firstVid = updated.find((m) => m.type === "video");
+      return {
+        ...prev,
+        media: updated,
+        imageUrl: firstImg?.url || "",
+        videoUrl: firstVid?.url || "",
+      };
+    });
+    const nextIdx = Math.max(0, idx - 1);
+    activeMediaIndexRef.current = nextIdx;
+    setActiveMediaIndex(nextIdx);
+    scrollToMediaIndex(nextIdx);
+  };
+
+  // Paste support: listen on window for images or videos
+  useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const target = e.target as HTMLElement | null;
-      // Don't hijack paste in inputs/textareas/contenteditable
       if (target) {
         const tag = target.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) return;
       }
       const files = e.clipboardData?.files;
       if (!files || files.length === 0) return;
-      const filesArr = Array.from(files);
-      const imgFile = filesArr.find(f => f.type.startsWith("image/"));
-      const vidFile = filesArr.find(f => f.type.startsWith("video/"));
-      if (imageEmpty && imgFile) {
+      const mediaFiles = Array.from(files).filter(
+        (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
+      );
+      if (mediaFiles.length > 0) {
         e.preventDefault();
-        void processImageFile(imgFile);
-        return;
-      }
-      if (videoEmpty && vidFile) {
-        e.preventDefault();
-        void processVideoFile(vidFile);
+        void startCoverCropProcess(mediaFiles);
       }
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayedImageUrl, displayedVideoUrl, isEdit, editingProductId]);
-
-  const clearImage = () => {
-    setFormData(prev => ({ ...prev, imageUrl: "" }));
-    setPendingImageFile?.(null);
-    setRemoveImageOpen(false);
-  };
-  const clearVideo = () => {
-    setFormData(prev => ({ ...prev, videoUrl: "" }));
-    setPendingVideoFile?.(null);
-    setRemoveVideoOpen(false);
-    setVideoPlaying(false);
-  };
+  }, [formData.media, isEdit, editingProductId]);
 
   const [expandedOptionId, setExpandedOptionId] = useState<string | null>(
     formData.pricingOptions?.[0]?.id || null
@@ -959,152 +1156,214 @@ const ProductForm = ({
   ];
 
   return (
-      <form onSubmit={handleFormSubmit} noValidate className="space-y-4 mt-4">
-
-    {/* ============ ДЕТАЛИ ============ */}
+    <form onSubmit={handleFormSubmit} noValidate className="space-y-4 mt-4 w-full min-w-0 max-w-full overflow-x-hidden">
+      {Boolean(coverCrop.source) ? (
+        <div className="space-y-4 py-1 animate-in fade-in-50 duration-200">
+          <CoverCropEditor
+            source={coverCrop.source!}
+            mediaType={coverCrop.mediaType}
+            previewStyle={coverCrop.previewStyle}
+            zoom={coverCrop.zoom}
+            onZoom={coverCrop.setZoom}
+            onPointerDown={coverCrop.onPointerDown}
+            onPointerMove={coverCrop.onPointerMove}
+            onPointerUp={coverCrop.onPointerUp}
+            saving={cropSaving}
+            onCancel={() => {
+              coverCrop.resetCrop();
+              setCropQueue([]);
+            }}
+            onSave={() => void handleSaveCrop()}
+          />
+        </div>
+      ) : (
+        <div className="space-y-4 w-full min-w-0 max-w-full">
+          {/* ============ ДЕТАЛИ ============ */}
     <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
       <SectionHeader label="Детали" open={detailsOpen} />
-      <CollapsibleContent className="space-y-4 pt-4">
-        {/* Image upload */}
-        <div className="space-y-2">
-          <Label className="text-sm sm:text-base font-semibold text-foreground">Обложка (изображение)</Label>
-          {displayedImageUrl ? (
-            <div className="relative rounded-md overflow-hidden border border-border">
-              <img src={displayedImageUrl} alt="cover" className="w-full max-h-48 object-cover" />
-              <AlertDialog open={removeImageOpen} onOpenChange={setRemoveImageOpen}>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-2 right-2 h-7 w-7 p-0"
-                  >
-                    <XIcon className="w-4 h-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Удалить обложку?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Вы уверены, что хотите удалить изображение продукта? Это действие нельзя отменить.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setRemoveImageOpen(false)}>Отмена</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      onClick={clearImage}
-                    >
-                      Удалить
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          ) : (
-            <label
-              className={`flex items-center justify-center gap-2 h-24 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
-                isImageDragging ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
-              }`}
-              onDragOver={(e) => { e.preventDefault(); setIsImageDragging(true); }}
-              onDragLeave={() => setIsImageDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsImageDragging(false);
-                const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith("image/"));
-                if (file) void processImageFile(file);
-                else toast.error("Перетащите изображение");
-              }}
-            >
-              {uploadingImage ? (
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              ) : (
-                <>
-                  <ImageIcon className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Нажмите, перетащите или вставьте (Ctrl+V) изображение</span>
-                </>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                disabled={uploadingImage}
-                onChange={handleImageChange}
-              />
-            </label>
-          )}
-          <p className="text-xs text-muted-foreground">JPG, PNG, WebP. До 15 МБ.</p>
-        </div>
+      <CollapsibleContent className="space-y-4 pt-4 w-full min-w-0 max-w-full">
+        {/* Unified Cover (Image & Video) upload */}
+        <div className="space-y-2 w-full min-w-0 max-w-full">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm sm:text-base font-semibold text-foreground">Обложка</Label>
+            {formData.media && formData.media.length > 0 && (
+              <label className="cursor-pointer inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+                {uploadingMedia ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                <span>Добавить</span>
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  className="hidden"
+                  disabled={uploadingMedia}
+                  onChange={handleMediaChange}
+                />
+              </label>
+            )}
+          </div>
+          
+          <style>{`
+            .media-cards-scroll::-webkit-scrollbar {
+              display: none !important;
+              width: 0 !important;
+              height: 0 !important;
+            }
+          `}</style>
 
-        {/* Video upload */}
-        <div className="space-y-2">
-          <Label className="text-sm sm:text-base font-semibold text-foreground">Видео-презентация (до 3 минут)</Label>
-          {displayedVideoUrl ? (
-            <div className="relative rounded-md overflow-hidden border border-border">
-              <video src={displayedVideoUrl} controls playsInline preload="metadata" className="w-full max-h-56 bg-black" />
-              <AlertDialog open={removeVideoOpen} onOpenChange={setRemoveVideoOpen}>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-2 right-2 h-7 w-7 p-0"
-                  >
-                    <XIcon className="w-4 h-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Удалить видео?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Вы уверены, что хотите удалить видео продукта? Это действие нельзя отменить.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setRemoveVideoOpen(false)}>Отмена</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      onClick={clearVideo}
-                    >
-                      Удалить
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          ) : (
+          {(!formData.media || formData.media.length === 0) ? (
             <label
-              className={`flex items-center justify-center gap-2 h-24 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
-                isVideoDragging ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+              className={`flex flex-col items-center justify-center gap-3 h-44 sm:h-52 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+                isMediaDragging ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
               }`}
-              onDragOver={(e) => { e.preventDefault(); setIsVideoDragging(true); }}
-              onDragLeave={() => setIsVideoDragging(false)}
+              onDragOver={(e) => { e.preventDefault(); setIsMediaDragging(true); }}
+              onDragLeave={() => setIsMediaDragging(false)}
               onDrop={(e) => {
                 e.preventDefault();
-                setIsVideoDragging(false);
-                const file = Array.from(e.dataTransfer.files).find(f => f.type.startsWith("video/"));
-                if (file) void processVideoFile(file);
-                else toast.error("Перетащите видео");
+                setIsMediaDragging(false);
+                const files = Array.from(e.dataTransfer.files).filter(
+                  (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
+                );
+                if (files.length > 0) void startCoverCropProcess(files);
+                else toast.error("Перетащите фото или видео");
               }}
             >
-              {uploadingVideo ? (
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              {uploadingMedia ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">Загрузка...</span>
+                </div>
               ) : (
                 <>
-                  <VideoIcon className="w-5 h-5 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Нажмите, перетащите или вставьте (Ctrl+V) видео</span>
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center shadow-xs">
+                    <Plus className="w-7 h-7 sm:w-8 sm:h-8" />
+                  </div>
+                  <span className="text-sm sm:text-base font-medium text-foreground">
+                    Добавьте фото или видео
+                  </span>
                 </>
               )}
               <input
                 type="file"
-                accept="video/*"
+                accept="image/*,video/*"
+                multiple
                 className="hidden"
-                disabled={uploadingVideo}
-                onChange={handleVideoChange}
+                disabled={uploadingMedia}
+                onChange={handleMediaChange}
               />
             </label>
+          ) : (
+            <div className="space-y-2 w-full min-w-0 max-w-full">
+              <div className="media-scroll-wrapper w-full max-w-full min-w-0 overflow-hidden rounded-2xl border border-border bg-black/5 relative">
+                <div
+                  ref={mediaScrollRef}
+                  onScroll={handleMediaScroll}
+                  className="media-cards-scroll w-full max-w-full min-w-0 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory no-scrollbar"
+                  style={{
+                    scrollbarWidth: "none",
+                    msOverflowStyle: "none",
+                    WebkitOverflowScrolling: "touch",
+                  }}
+                >
+                  {formData.media.map((item, idx) => (
+                    <div
+                      key={item.id || idx}
+                      className="w-full min-w-full max-w-full shrink-0 snap-center relative aspect-[16/10] sm:h-72 flex items-center justify-center bg-black/10 overflow-hidden"
+                    >
+                      {item.type === "video" ? (
+                        <ProductVideoPlayer
+                          key={item.id || item.previewUrl || item.url || idx}
+                          src={item.previewUrl || item.url || ""}
+                          controls
+                          playsInline
+                          objectFit="cover"
+                          objectPosition={item.objectPosition || "center"}
+                          className="w-full h-full max-w-full"
+                        />
+                      ) : (
+                        <img
+                          src={item.url || item.previewUrl}
+                          alt={`cover-${idx + 1}`}
+                          className="w-full h-full object-cover max-w-full"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Строка управления: стрелки слева, точки по центру, корзина справа */}
+              <div className="relative flex items-center justify-between pt-0.5 px-0.5 w-full min-w-0">
+                {/* Стрелки влево/вправо слева (только когда файлов > 1) */}
+                <div className="flex items-center gap-1 z-10 min-w-[60px]">
+                  {formData.media.length > 1 && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={activeMediaIndex === 0}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-lg shrink-0 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                        onClick={() => scrollToMediaIndex(Math.max(0, activeMediaIndex - 1))}
+                        title="Предыдущее"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={activeMediaIndex === formData.media.length - 1}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-lg shrink-0 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                        onClick={() => scrollToMediaIndex(Math.min(formData.media.length - 1, activeMediaIndex + 1))}
+                        title="Следующее"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                {/* Точки-индикаторы СТРОГО по центру с плавным перетеканием (только когда файлов > 1) */}
+                {formData.media.length > 1 && (
+                  <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 py-0.5 pointer-events-auto">
+                    {formData.media.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => scrollToMediaIndex(i)}
+                        className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 hover:bg-muted-foreground/60 transition-colors shrink-0"
+                        title={`Медиа ${i + 1}`}
+                      />
+                    ))}
+                    <div
+                      ref={mediaDotRef}
+                      className="absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-primary shadow-xs pointer-events-none"
+                      style={{
+                        left: "0px",
+                        transition: "left 60ms ease-out",
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Корзина в правом углу */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors shrink-0 z-10 ml-auto"
+                  onClick={() => handleDeleteMedia(activeMediaIndex)}
+                  title="Удалить"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           )}
-          <p className="text-xs text-muted-foreground">MP4, WebM, MOV. Длительность до 3 минут, размер до 250 МБ.</p>
         </div>
 
         {/* Title */}
@@ -1210,7 +1469,7 @@ const ProductForm = ({
                     <AutoResizeTextarea
                       placeholder="Вопрос"
                       rows={1}
-                      minHeight="42px"
+                      style={{ minHeight: "42px" }}
                       value={item.question}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -1227,7 +1486,7 @@ const ProductForm = ({
                     <AutoResizeTextarea
                       placeholder="Ответ на вопрос..."
                       rows={2}
-                      minHeight="58px"
+                      style={{ minHeight: "58px" }}
                       value={item.answer}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -1632,6 +1891,24 @@ const ProductForm = ({
                           setNewTopicName("");
                           setIsAddingTopic(false);
                           toast.success("Тема отправлена на модерацию");
+
+                          // Отправка push-уведомления модераторам
+                          fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/support-api`, {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                            },
+                            body: JSON.stringify({
+                              action: "notify_new_topic",
+                              topic_name: check.formatted,
+                              creator_name:
+                                (typeof window !== "undefined" && localStorage.getItem("profile_display_name")) ||
+                                creatorCreds().creatorName ||
+                                null,
+                            }),
+                          }).catch((e) => console.warn("Failed to notify moderator:", e));
                         } catch (err) {
                           console.warn("Failed to suggest topic:", err);
                           toast.error("Ошибка при отправке темы");
@@ -2115,6 +2392,8 @@ const ProductForm = ({
         isEdit ? "Сохранить изменения" : "Создать продукт"
       )}
     </Button>
+        </div>
+      )}
   </form>
   );
 };
@@ -2171,6 +2450,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   const deleteProduct = useDeleteProduct();
   
   const [isCreating, setIsCreating] = useState(false);
+  const [isCroppingMedia, setIsCroppingMedia] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
@@ -2203,6 +2483,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     telegramLink: "",
     imageUrl: "",
     videoUrl: "",
+    media: [],
     faq: [{ question: "", answer: "" }],
     isPaid: true,
     kaspiMethod: "link",
@@ -2234,6 +2515,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       telegramLink: "",
       imageUrl: "",
       videoUrl: "",
+      media: [],
       faq: [{ question: "", answer: "" }],
       isPaid: true,
       kaspiMethod: "link",
@@ -2365,28 +2647,43 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       });
 
       // Upload pending media (if any)
-      let imageUrl: string | null = null;
-      let videoUrl: string | null = null;
-      if (pendingImageFile && created?.id) {
-        try {
-          imageUrl = await uploadProductMedia(pendingImageFile, created.id, "image");
-        } catch (err: any) {
-          toast.error(err?.message || "Ошибка загрузки изображения. Можно догрузить в редакторе.");
+      const finalMedia: Array<{ type: "image" | "video"; url: string; objectPosition?: string }> = [];
+      for (const item of (formData.media || [])) {
+        if (item.file && created?.id) {
+          const toastId = toast.loading(`Загрузка ${item.type === "video" ? "видео (0%)..." : "фото..."}`);
+          try {
+            let fileToUpload = item.file;
+            if (item.type === "video" && item.file.size > COMPRESSION_THRESHOLD) {
+              toast.loading("Оптимизация видео...", { id: toastId });
+              fileToUpload = await compressVideoIfNeeded(item.file, (pct) => {
+                toast.loading(`Оптимизация видео (${pct}%)...`, { id: toastId });
+              });
+            }
+            const uploadedUrl = await uploadProductMedia(fileToUpload, created.id, item.type, (pct) => {
+              if (item.type === "video") {
+                toast.loading(`Загрузка видео (${pct}%)...`, { id: toastId });
+              }
+            });
+            toast.dismiss(toastId);
+            finalMedia.push({ type: item.type, url: uploadedUrl, objectPosition: item.objectPosition });
+          } catch (err: any) {
+            toast.dismiss(toastId);
+            toast.error(err?.message || `Ошибка загрузки ${item.type === "video" ? "видео" : "фото"}`);
+          }
+        } else if (item.url && !item.url.startsWith("blob:")) {
+          finalMedia.push({ type: item.type, url: item.url, objectPosition: item.objectPosition });
         }
       }
-      if (pendingVideoFile && created?.id) {
-        try {
-          videoUrl = await uploadProductMedia(pendingVideoFile, created.id, "video");
-        } catch (err: any) {
-          toast.error(err?.message || "Ошибка загрузки видео. Можно догрузить в редакторе.");
-        }
-      }
-      if ((imageUrl || videoUrl) && created?.id) {
+
+      if (created?.id && finalMedia.length > 0) {
+        const firstImg = finalMedia.find((m) => m.type === "image");
+        const firstVid = finalMedia.find((m) => m.type === "video");
         try {
           await updateProduct.mutateAsync({
             id: created.id,
-            ...(imageUrl ? { image_url: imageUrl } : {}),
-            ...(videoUrl ? { video_url: videoUrl } : {}),
+            media: finalMedia,
+            image_url: firstImg?.url || null,
+            video_url: firstVid?.url || null,
           });
         } catch {
           // already toasted above
@@ -2465,6 +2762,23 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
     const firstOpt = loadedOptions[0];
 
+    let loadedMedia: ProductMediaItem[] = [];
+    if (Array.isArray(product.media) && product.media.length > 0) {
+      loadedMedia = product.media.map((m: any, idx: number) => ({
+        id: `media-${idx}-${m.url}`,
+        type: m.type || (m.url?.match(/\.(mp4|webm|mov|m4v)/i) ? "video" : "image"),
+        url: m.url,
+        objectPosition: m.objectPosition,
+      }));
+    } else {
+      if (product.image_url) {
+        loadedMedia.push({ id: "media-img", type: "image", url: product.image_url });
+      }
+      if (product.video_url) {
+        loadedMedia.push({ id: "media-vid", type: "video", url: product.video_url });
+      }
+    }
+
     setFormData({
       categoryId: product.category_id || "",
       subcategoryId: product.subcategory_id || "",
@@ -2481,6 +2795,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       telegramLink: product.telegram_link || "",
       imageUrl: product.image_url || "",
       videoUrl: product.video_url || "",
+      media: loadedMedia,
       faq: Array.isArray(product.faq) && product.faq.length > 0 ? product.faq : [{ question: "", answer: "" }],
       isPaid: Number(product.price) > 0,
       kaspiMethod: firstOpt.kaspiMethod,
@@ -2599,8 +2914,9 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         has_free_trial: formData.isPaid ? primaryOpt.hasFreeTrial : false,
         trial_days: primaryTrialDays,
         pricing_options: serializedOptions,
-        image_url: formData.imageUrl || null,
-        video_url: formData.videoUrl || null,
+        image_url: (formData.media || []).find((m) => m.type === "image")?.url || null,
+        video_url: (formData.media || []).find((m) => m.type === "video")?.url || null,
+        media: (formData.media || []).map((m) => ({ type: m.type, url: m.url, objectPosition: m.objectPosition })),
         faq: (formData.faq || [])
           .filter(it => (it?.question || "").trim() || (it?.answer || "").trim())
           .map(it => ({ question: (it?.question || "").trim(), answer: (it?.answer || "").trim() })),
@@ -2678,16 +2994,16 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">{t("products")}</h2>
-        <Dialog open={isCreating} onOpenChange={(open) => { setIsCreating(open); if (!open) resetForm(); }}>
+        <Dialog open={isCreating} onOpenChange={(open) => { setIsCreating(open); if (!open) { resetForm(); setIsCroppingMedia(false); } }}>
           <DialogTrigger asChild>
             <Button variant="default" size="sm">
               <Plus className="w-4 h-4 mr-2" />
               {t("create")}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[calc(100vw-2rem)] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden min-w-0">
             <DialogHeader>
-              <DialogTitle>Создать продукт</DialogTitle>
+              <DialogTitle>{isCroppingMedia ? "Настройка обложки" : "Создать продукт"}</DialogTitle>
             </DialogHeader>
             <ProductForm 
               onSubmit={handleCreate} 
@@ -2700,16 +3016,17 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
               pendingVideoFile={pendingVideoFile}
               setPendingImageFile={setPendingImageFile}
               setPendingVideoFile={setPendingVideoFile}
+              onCroppingChange={setIsCroppingMedia}
             />
           </DialogContent>
         </Dialog>
       </div>
 
       {/* Edit Dialog */}
-      <Dialog open={!!editingProduct} onOpenChange={(open) => { if (!open) { setEditingProduct(null); resetForm(); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <Dialog open={!!editingProduct} onOpenChange={(open) => { if (!open) { setEditingProduct(null); resetForm(); setIsCroppingMedia(false); } }}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden min-w-0">
           <DialogHeader>
-            <DialogTitle>{t("edit")} продукт</DialogTitle>
+            <DialogTitle>{isCroppingMedia ? "Настройка обложки" : `${t("edit")} продукт`}</DialogTitle>
           </DialogHeader>
           <ProductForm 
             onSubmit={handleUpdate} 
@@ -2720,6 +3037,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
             t={t}
             taxonomyCategories={taxonomyCategories}
             editingProductId={editingProduct?.id || null}
+            onCroppingChange={setIsCroppingMedia}
           />
         </DialogContent>
       </Dialog>
@@ -2751,39 +3069,66 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
       {/* Products List */}
       <div className="space-y-3">
-        {products.map((product) => (
+        {products.map((product) => {
+          const firstMedia = Array.isArray(product.media) && product.media.length > 0 ? product.media[0] : null;
+          const coverImg = (firstMedia && firstMedia.type === "image" ? firstMedia.url : null) || product.image_url;
+          const coverVid = (firstMedia && firstMedia.type === "video" ? firstMedia.url : null) || product.video_url;
+
+          return (
           <Card key={product.id} className="overflow-hidden">
             <CardContent className={isMobile ? "p-3" : "p-4"}>
-              {/* Header: title + price */}
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex-1 min-w-0">
-                  <h3 className={`font-semibold text-foreground ${isMobile ? "text-sm line-clamp-2" : "text-base"}`}>{product.title}</h3>
-                  {product.headline && (
-                    <p className={`text-muted-foreground mt-0.5 ${isMobile ? "text-xs line-clamp-1" : "text-sm"}`}>{product.headline}</p>
+              <div className="flex items-start gap-3 mb-2">
+                {/* Thumbnail */}
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden shrink-0 bg-muted border border-border/60 flex items-center justify-center relative shadow-xs">
+                  {coverImg ? (
+                    <img src={coverImg} alt="" className="w-full h-full object-cover" />
+                  ) : coverVid ? (
+                    <div className="w-full h-full relative flex items-center justify-center bg-black/5 isolate">
+                      <video src={coverVid} className="w-full h-full object-cover pointer-events-none" preload="auto" muted playsInline webkit-playsinline="true" />
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10" style={{ transform: "translate3d(0, 0, 10px)" }}>
+                        <div className="w-6 h-6 rounded-full bg-[#FF6B00] flex items-center justify-center shadow-xs">
+                          <Play className="w-3 h-3 text-white fill-white ml-0.5" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <ImageIcon className="w-6 h-6 text-muted-foreground/40" />
                   )}
                 </div>
-                <span className={`font-bold text-primary whitespace-nowrap ${isMobile ? "text-sm" : "text-base"}`}>
-                  {formatPriceTenge(Number(product.price))}
-                </span>
-              </div>
-              
-              {/* Badges */}
-              <div className="flex items-center gap-1.5 mb-3">
-                {product.billing_period && (
-                  <span className={`bg-primary/10 text-primary px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
-                    {t("activeSubscribers")}: {subscriberCounts[product.id] ?? 0}
-                  </span>
-                )}
-                {product.has_schedule && (
-                  <span className={`bg-primary/10 text-primary px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
-                    {language === "ru" ? "Расписание" : "Кесте"}
-                  </span>
-                )}
-                {product.kaspi_link && (
-                  <span className={`bg-success/10 text-success px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
-                    Kaspi
-                  </span>
-                )}
+
+                {/* Header: title + price */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-semibold text-foreground ${isMobile ? "text-sm line-clamp-2" : "text-base"}`}>{product.title}</h3>
+                      {product.headline && (
+                        <p className={`text-muted-foreground mt-0.5 ${isMobile ? "text-xs line-clamp-1" : "text-sm"}`}>{product.headline}</p>
+                      )}
+                    </div>
+                    <span className={`font-bold text-primary whitespace-nowrap ${isMobile ? "text-sm" : "text-base"}`}>
+                      {formatPriceTenge(Number(product.price))}
+                    </span>
+                  </div>
+
+                  {/* Badges */}
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    {product.billing_period && (
+                      <span className={`bg-primary/10 text-primary px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
+                        {t("activeSubscribers")}: {subscriberCounts[product.id] ?? 0}
+                      </span>
+                    )}
+                    {product.has_schedule && (
+                      <span className={`bg-primary/10 text-primary px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
+                        {language === "ru" ? "Расписание" : "Кесте"}
+                      </span>
+                    )}
+                    {product.kaspi_link && (
+                      <span className={`bg-success/10 text-success px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
+                        Kaspi
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
               
               {/* Actions */}
@@ -2855,7 +3200,8 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
               </div>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {products.length === 0 && (

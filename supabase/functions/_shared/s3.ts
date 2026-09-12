@@ -78,6 +78,68 @@ export async function presignPut(s3Key: string, expiresIn = 3600): Promise<{ upl
   }
 }
 
+export async function setBucketCors(): Promise<{ ok: boolean; status: number; text: string }> {
+  const cfg = awsConfig()
+  if (!cfg) return { ok: false, status: 500, text: 'AWS config missing' }
+
+  try {
+    const { default: md5 } = await import('https://esm.sh/js-md5@0.8.3')
+    const hostname = `${cfg.bucket}.s3.${cfg.region}.amazonaws.com`
+    const corsXml = `<?xml version="1.0" encoding="UTF-8"?>
+<CORSConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <CORSRule>
+    <AllowedOrigin>*</AllowedOrigin>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>POST</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedHeader>*</AllowedHeader>
+    <ExposeHeader>ETag</ExposeHeader>
+    <MaxAgeSeconds>3000</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>`
+
+    const contentMd5 = md5.base64(corsXml)
+    const presigner = new S3RequestPresigner({
+      region: cfg.region,
+      credentials: { accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey },
+      sha256: Sha256,
+    })
+
+    const signedRequest = await presigner.presign(
+      new HttpRequest({
+        protocol: 'https:',
+        method: 'PUT',
+        hostname,
+        path: '/',
+        query: { cors: '' },
+        headers: {
+          host: hostname,
+          'content-type': 'application/xml',
+          'content-md5': contentMd5,
+        },
+      }),
+      { expiresIn: 300 }
+    )
+
+    const url = buildPresignedUrl(signedRequest)
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/xml',
+        'Content-MD5': contentMd5,
+      },
+      body: corsXml,
+    })
+
+    const text = await res.text()
+    return { ok: res.ok, status: res.status, text: text || (res.ok ? 'CORS set successfully' : 'Put failed') }
+  } catch (err: any) {
+    console.error('setBucketCors error:', err)
+    return { ok: false, status: 500, text: err?.message || 'Unknown error' }
+  }
+}
+
 export function presignGet(bucket: string, s3Key: string, forceDownload = false, expiresIn = 3600): string {
   const cfg = awsConfig()!
   const signOptions: Record<string, unknown> = {
