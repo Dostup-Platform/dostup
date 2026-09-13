@@ -232,8 +232,8 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
         ...creatorCreds(),
         productId: activeProductId,
         title: scheduleForm.title.trim(),
-        eventType: scheduleType,
-        maxParticipants: scheduleType === "group" ? Number(scheduleForm.maxParticipants) : null,
+        eventType: "individual",
+        maxParticipants: null,
       });
       return data.schedule;
     },
@@ -1061,17 +1061,6 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
                 required
               />
             </div>
-            {scheduleType === "group" && (
-              <div className="space-y-2">
-                <Label>{language === "ru" ? "Макс. участников" : "Макс. қатысушылар"}</Label>
-                <Input
-                  type="number"
-                  min="2"
-                  value={scheduleForm.maxParticipants}
-                  onChange={(e) => setScheduleForm({ ...scheduleForm, maxParticipants: e.target.value })}
-                />
-              </div>
-            )}
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setIsAddingSchedule(false)}>
                 {t("cancel")}
