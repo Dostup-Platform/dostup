@@ -250,6 +250,14 @@ const ScheduleTab = () => {
     return authorSchedules;
   }, [schedules, selectedTeacherId, canChooseTeacher]);
 
+  useEffect(() => {
+    if (filteredSchedules.length > 0) {
+      if (!selectedScheduleId || !filteredSchedules.some(s => s.id === selectedScheduleId)) {
+        setSelectedScheduleId(filteredSchedules[0].id);
+      }
+    }
+  }, [filteredSchedules, selectedScheduleId]);
+
   // Показывать 7 дней начиная с сегодня (i начинается с 0)
   const days = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i));
 
@@ -270,14 +278,8 @@ const ScheduleTab = () => {
     const bookingsCount = getBookingsCountForSlot(slotId);
     if (bookingsCount === 0) return false;
     
-    if (!selectedSchedule) return bookingsCount > 0;
-    
-    if (selectedSchedule.event_type === "individual") {
-      return bookingsCount > 0;
-    }
-    
-    // Для групповых - проверяем достигнут ли max_participants
-    const maxParticipants = selectedSchedule.max_participants || 1;
+    const slot = timeSlots?.find(s => s.id === slotId);
+    const maxParticipants = slot?.max_participants ?? (selectedSchedule?.event_type === "group" ? (selectedSchedule.max_participants || 1) : 1);
     return bookingsCount >= maxParticipants;
   };
 
@@ -593,76 +595,29 @@ const ScheduleTab = () => {
         </div>
       ) : (
         <>
-          {/* Schedule Type Selection - разделяем на групповые и индивидуальные */}
-          {(() => {
-            const groupSchedules = filteredSchedules.filter(s => s.event_type === "group");
-            const individualSchedules = filteredSchedules.filter(s => s.event_type === "individual");
-            
-            return (
-              <div className="space-y-4">
-                {/* Групповые занятия */}
-                {groupSchedules.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Users className="w-4 h-4" />
-                      <span>{t("group")}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      {groupSchedules.map((schedule) => (
-                        <button
-                          key={schedule.id}
-                          onClick={() => setSelectedScheduleId(schedule.id)}
-                          className={`p-4 rounded-xl border-2 text-left transition-all ${
-                            selectedScheduleId === schedule.id
-                              ? "border-primary bg-primary/5"
-                              : "border-border hover:border-primary/50"
-                          }`}
-                        >
-                          <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {schedule.teacher_name || t("author")}
-                          </p>
-                          {schedule.max_participants && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {t("upToParticipants").replace("{count}", String(schedule.max_participants))}
-                            </p>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Индивидуальные занятия */}
-                {individualSchedules.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <User className="w-4 h-4" />
-                      <span>{t("individual")}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      {individualSchedules.map((schedule) => (
-                        <button
-                          key={schedule.id}
-                          onClick={() => setSelectedScheduleId(schedule.id)}
-                          className={`p-4 rounded-xl border-2 text-left transition-all ${
-                            selectedScheduleId === schedule.id
-                              ? "border-primary bg-primary/5"
-                              : "border-border hover:border-primary/50"
-                          }`}
-                        >
-                          <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {schedule.teacher_name || t("author")}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+          {/* Schedule Selection if more than 1 */}
+          {filteredSchedules.length > 1 && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                {filteredSchedules.map((schedule) => (
+                  <button
+                    key={schedule.id}
+                    onClick={() => setSelectedScheduleId(schedule.id)}
+                    className={`p-4 rounded-xl border-2 text-left transition-all ${
+                      selectedScheduleId === schedule.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <h3 className="font-medium text-foreground text-sm">{schedule.title}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {schedule.teacher_name || t("author")}
+                    </p>
+                  </button>
+                ))}
               </div>
-            );
-          })()}
+            </div>
+          )}
 
           {selectedScheduleId && (
             <>
@@ -720,13 +675,15 @@ const ScheduleTab = () => {
                     {filteredSlots.map((slot) => {
                       const bookedByMe = isSlotBookedByMe(slot.id);
                       const takenByOther = isSlotTakenByOther(slot.id);
-                      const isIndividual = selectedSchedule?.event_type === "individual";
+                      const maxParticipants = slot.max_participants ?? (selectedSchedule?.event_type === "group" ? (selectedSchedule.max_participants || 1) : 1);
+                      const isGroup = maxParticipants > 1;
+                      const isIndividual = !isGroup;
                       const slotStatus = getSlotStatus(slot.id);
                       
                       // Для индивидуальных сессий - слот недоступен если занят кем-то
                       const isTaken = isIndividual && takenByOther;
                       // Для групповых - слот недоступен только если полностью заполнен
-                      const isGroupFull = !isIndividual && slotStatus === "full" && !bookedByMe;
+                      const isGroupFull = isGroup && slotStatus === "full" && !bookedByMe;
                       const available = slot.is_available && !bookedByMe && !isTaken && !isGroupFull;
                       
                       // Цвета слота
@@ -735,14 +692,13 @@ const ScheduleTab = () => {
                         if (isTaken || isGroupFull) return "bg-red-500/10 border-red-300 text-red-500";
                         
                         // Для доступных групповых слотов показать оранжевый если частично заняты
-                        if (!isIndividual && slotStatus === "partial") {
+                        if (isGroup && slotStatus === "partial") {
                           return "border-orange-300 bg-orange-50 hover:border-orange-400";
                         }
                         
                         return "border-border hover:border-primary bg-card";
                       };
                       
-                      const maxParticipants = selectedSchedule?.max_participants || 1;
                       const bookingsCount = getBookingsCountForSlot(slot.id);
                       
                       return (
@@ -760,7 +716,7 @@ const ScheduleTab = () => {
                             {bookedByMe && <Check className="w-4 h-4 ml-auto" />}
                             {isTaken && <span className="text-xs ml-auto">{t("slotTaken")}</span>}
                             {isGroupFull && !bookedByMe && <span className="text-xs ml-auto">{t("slotTaken")}</span>}
-                            {!isIndividual && !bookedByMe && !isGroupFull && (
+                            {isGroup && !bookedByMe && !isGroupFull && (
                               <span className="text-xs ml-auto text-muted-foreground">
                                 {bookingsCount}/{maxParticipants}
                               </span>

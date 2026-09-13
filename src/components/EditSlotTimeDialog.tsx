@@ -15,8 +15,8 @@ import {
 interface EditSlotTimeDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (data: { newStartTime: string; newEndTime: string }) => void;
-  slot: { start_time: string; end_time: string } | null;
+  onConfirm: (data: { newStartTime: string; newEndTime: string; maxParticipants?: number }) => void;
+  slot: { start_time: string; end_time: string; max_participants?: number | null } | null;
   isPending?: boolean;
 }
 
@@ -30,6 +30,7 @@ const EditSlotTimeDialog = ({
   const { language } = useLanguage();
   const [newStartTime, setNewStartTime] = useState("");
   const [newEndTime, setNewEndTime] = useState("");
+  const [maxParticipants, setMaxParticipants] = useState("1");
 
   const addMinutes = (time: string, mins: number) => {
     const [h, m] = time.split(":").map(Number);
@@ -51,6 +52,7 @@ const EditSlotTimeDialog = ({
       const duration = getSlotDuration();
       setNewStartTime(addMinutes(slot.start_time.slice(0, 5), duration));
       setNewEndTime(addMinutes(slot.end_time.slice(0, 5), duration));
+      setMaxParticipants(String(slot.max_participants ?? 1));
     }
   }, [isOpen, slot]);
 
@@ -67,13 +69,16 @@ const EditSlotTimeDialog = ({
   const handleClose = () => {
     setNewStartTime("");
     setNewEndTime("");
+    setMaxParticipants("1");
     onClose();
   };
 
   const handleConfirm = () => {
+    const participants = Math.max(1, parseInt(maxParticipants, 10) || 1);
     onConfirm({
       newStartTime: newStartTime + ":00",
       newEndTime: newEndTime + ":00",
+      maxParticipants: participants,
     });
   };
 
@@ -84,7 +89,7 @@ const EditSlotTimeDialog = ({
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {language === "ru" ? "Изменить время" : "Уақытты өзгерту"}
+            {language === "ru" ? "Редактировать слот" : "Слотты өңдеу"}
           </DialogTitle>
           <DialogDescription>
             {language === "ru"
@@ -114,6 +119,22 @@ const EditSlotTimeDialog = ({
               onChange={(e) => setNewEndTime(e.target.value)}
             />
           </div>
+        </div>
+
+        <div className="space-y-2 py-2">
+          <Label>
+            {language === "ru" ? "Количество участников" : "Қатысушылар саны"}
+          </Label>
+          <Input
+            type="number"
+            min="1"
+            value={maxParticipants}
+            onChange={(e) => {
+              const val = e.target.value.replace(/^0+(?=\d)/, "");
+              setMaxParticipants(val);
+            }}
+            placeholder="1"
+          />
         </div>
 
         <div className="flex gap-2 justify-end pt-2">

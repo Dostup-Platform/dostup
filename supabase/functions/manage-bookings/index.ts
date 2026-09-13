@@ -48,6 +48,32 @@ Deno.serve(async (req) => {
       if (!productId) return json({ error: 'Schedule not found' }, 404)
       const hasAccess = await buyerHasProductAccess(supabase, caller.userId, productId)
       if (!hasAccess) return forbidden()
+
+      const { data: slot } = await supabase
+        .from('time_slots')
+        .select('id, max_participants, is_available')
+        .eq('id', timeSlotId)
+        .maybeSingle()
+      if (!slot || !slot.is_available) return json({ error: 'Slot not available' }, 400)
+
+      const { data: schedule } = await supabase
+        .from('schedules')
+        .select('id, event_type, max_participants')
+        .eq('id', scheduleId)
+        .maybeSingle()
+
+      const slotLimit = slot.max_participants ?? (schedule?.event_type === 'individual' ? 1 : (schedule?.max_participants ?? 1))
+
+      const { count } = await supabase
+        .from('simple_bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('time_slot_id', timeSlotId)
+        .eq('status', 'confirmed')
+
+      if ((count ?? 0) >= slotLimit) {
+        return json({ error: 'Slot is full' }, 400)
+      }
+
       const { data, error } = await supabase
         .from('simple_bookings')
         .insert({

@@ -82,7 +82,6 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
-  const [scheduleType, setScheduleType] = useState<EventType>("individual");
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [isAddingSchedule, setIsAddingSchedule] = useState(false);
@@ -126,6 +125,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     endTime: "10:00",
     slotDuration: "60",
     breakDuration: "0",
+    maxParticipants: "1",
   });
 
   // Fetch products
@@ -158,12 +158,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     enabled: productIds.length > 0,
   });
 
-  const filteredSchedules = useMemo(() => 
-    schedules.filter(s => s.event_type === scheduleType),
-    [schedules, scheduleType]
-  );
-
-  const scheduleIds = useMemo(() => filteredSchedules.map(s => s.id), [filteredSchedules]);
+  const scheduleIds = useMemo(() => schedules.map(s => s.id), [schedules]);
 
   // Fetch time slots for the current week
   const weekEnd = addDays(currentWeekStart, 6);
@@ -290,15 +285,32 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     onError: () => toast.error(language === "ru" ? "Ошибка при обновлении" : "Жаңарту кезінде қате"),
   });
 
+  const ensureScheduleId = async (): Promise<string> => {
+    if (schedules.length > 0) return schedules[0].id;
+    const activeProductId = selectedProductId || "";
+    if (!activeProductId) throw new Error(language === "ru" ? "Выберите продукт" : "Өнімді таңдаңыз");
+    const data = await invokeApi<{ schedule: Schedule }>("manage-schedules", {
+      action: "create_schedule",
+      ...creatorCreds(),
+      productId: activeProductId,
+      title: language === "ru" ? "Расписание" : "Кесте",
+      eventType: "individual",
+      maxParticipants: null,
+    });
+    queryClient.invalidateQueries({ queryKey: ["creator-own-schedules"] });
+    return data.schedule.id;
+  };
+
   // Create time slots mutation
   const createTimeSlots = useMutation({
     mutationFn: async () => {
-      if (!selectedScheduleForSlots) throw new Error("No schedule selected");
+      const scheduleId = selectedScheduleForSlots?.id || (await ensureScheduleId());
       
       const startDate = new Date(slotsForm.startDate);
       const endDate = new Date(slotsForm.endDate);
       const duration = Number(slotsForm.slotDuration);
       const breakTime = Number(slotsForm.breakDuration);
+      const participants = Math.max(1, parseInt(slotsForm.maxParticipants, 10) || 1);
       
       const slots: Omit<TimeSlot, "id">[] = [];
       
@@ -315,11 +327,12 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
           const slotEnd = format(currentTime, "HH:mm:ss");
           
           slots.push({
-            schedule_id: selectedScheduleForSlots.id,
+            schedule_id: scheduleId,
             date: dateStr,
             start_time: slotStart,
             end_time: slotEnd,
             is_available: true,
+            max_participants: participants,
           });
           
           if (breakTime > 0) {
@@ -336,12 +349,13 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
         action: "create_slots",
         ...creatorCreds(),
         slots,
-        scheduleId: selectedScheduleForSlots.id,
+        scheduleId: scheduleId,
       });
       return slots.length;
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      queryClient.invalidateQueries({ queryKey: ["creator-own-schedules"] });
       toast.success(language === "ru" ? `Создано ${count} слотов!` : `${count} слот жасалды!`);
       setIsAddingSlots(false);
       setSelectedScheduleForSlots(null);
@@ -415,16 +429,22 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       slotId,
       newStartTime,
       newEndTime,
+      maxParticipants,
     }: {
       slotId: string;
       newStartTime: string;
       newEndTime: string;
+      maxParticipants?: number;
     }) => {
       await invokeApi("manage-schedules", {
         action: "update_slot",
         ...creatorCreds(),
         slotId,
-        updates: { start_time: newStartTime, end_time: newEndTime },
+        updates: {
+          start_time: newStartTime,
+          end_time: newEndTime,
+          ...(maxParticipants !== undefined ? { max_participants: maxParticipants } : {}),
+        },
       });
     },
     onSuccess: () => {
@@ -611,13 +631,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     
     const slot = timeSlots.find(s => s.id === slotId);
     const schedule = getScheduleForSlot(slotId);
-    if (!schedule) return slotBookings.length > 0;
-    
-    if (schedule.event_type === "individual") {
-      return slotBookings.length > 0;
-    }
-    
-    const maxParticipants = slot?.max_participants ?? schedule.max_participants ?? 1;
+    const maxParticipants = slot?.max_participants ?? (schedule?.event_type === "group" ? (schedule.max_participants ?? 1) : 1);
     return slotBookings.length >= maxParticipants;
   };
 
@@ -693,149 +707,69 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
         />
       </div>
 
-      {/* Schedule Type Toggle + Create/Delete Buttons */}
+      {/* Actions toolbar */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex gap-2">
-          <Button
-            variant={scheduleType === "individual" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setScheduleType("individual")}
-            className="gap-2"
-          >
-            <User className="w-4 h-4" />
-            {t("individual")}
-          </Button>
-          <Button
-            variant={scheduleType === "group" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setScheduleType("group")}
-            className="gap-2"
-          >
-            <Users className="w-4 h-4" />
-            {t("group")}
-          </Button>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => {
-            setScheduleForm({ ...scheduleForm, productId: selectedProductId || "" });
-            setIsAddingSchedule(true);
-          }}>
-            <Plus className="w-4 h-4 mr-2" />
-            {language === "ru" ? "Расписание" : "Кесте"}
-          </Button>
+        <div className="flex items-center gap-2 flex-wrap">
           <Button 
-            variant="outline" 
-            size="sm" 
-            className="text-destructive border-destructive/50 hover:bg-destructive/10"
-            onClick={() => setIsDeletingSchedule(true)}
-            disabled={schedules.length === 0}
+            size="sm"
+            onClick={() => {
+              setSelectedScheduleForSlots(schedules[0] || null);
+              setSlotsForm((prev) => ({
+                ...prev,
+                startDate: format(new Date(), "yyyy-MM-dd"),
+                endDate: format(addDays(new Date(), 7), "yyyy-MM-dd"),
+                maxParticipants: "1",
+              }));
+              setIsAddingSlots(true);
+            }}
+            className="gap-2"
           >
-            <Trash2 className="w-4 h-4 mr-2" />
-            {language === "ru" ? "Выбрать" : "Таңдау"}
+            <Plus className="w-4 h-4" />
+            {language === "ru" ? "Слоты" : "Слоттар"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (schedules.length > 0) {
+                const targetSchedule = schedules[0];
+                setSelectedScheduleForLink(targetSchedule);
+                fetchAvailableDatesForLink(targetSchedule.id);
+                setSlotsForLinkDates([]);
+                setLessonLinkUrl("");
+                setIsAddingLink(true);
+              } else {
+                toast.error(language === "ru" ? "Сначала добавьте слоты" : "Алдымен слоттарды қосыңыз");
+              }
+            }}
+            disabled={timeSlots.length === 0}
+            className="gap-2"
+          >
+            <Link className="w-4 h-4" />
+            {language === "ru" ? "Ссылка на урок" : "Сабақ сілтемесі"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive border-destructive/50 hover:bg-destructive/10 gap-2"
+            onClick={() => {
+              if (schedules.length > 0) {
+                const targetSchedule = schedules[0];
+                setSelectedScheduleForDelete(targetSchedule);
+                fetchAvailableDates(targetSchedule.id);
+                setSlotsToDeleteDates([]);
+                setIsDeletingSlots(true);
+              } else {
+                toast.error(language === "ru" ? "Сначала добавьте слоты" : "Алдымен слоттарды қосыңыз");
+              }
+            }}
+            disabled={timeSlots.length === 0}
+          >
+            <Trash2 className="w-4 h-4" />
+            {language === "ru" ? "Удалить слоты" : "Слоттарды жою"}
           </Button>
         </div>
       </div>
-
-      {/* Schedules List */}
-      {filteredSchedules.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            <Calendar className="w-10 h-10 mx-auto mb-2 opacity-50" />
-            <p>{t("noSchedules")}</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {filteredSchedules.map((schedule) => (
-            <Card key={schedule.id}>
-              <CardContent className={`p-3 ${isMobile ? "space-y-2" : "flex items-center justify-between"}`}>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    {schedule.event_type === "group" ? (
-                      <Users className="w-4 h-4 text-primary" />
-                    ) : (
-                      <User className="w-4 h-4 text-primary" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <p className="text-sm font-medium truncate">{schedule.title}</p>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5 shrink-0"
-                        onClick={() => {
-                          setEditingSchedule(schedule);
-                          setEditScheduleTitle(schedule.title);
-                        }}
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      {schedule.product?.title}
-                      {schedule.event_type === "group" && schedule.max_participants && (
-                        <span className="ml-1">• {schedule.max_participants} {language === "ru" ? "чел." : "адам"}</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-                <div className={`flex flex-wrap gap-1 ${isMobile ? "justify-center mt-2" : ""}`}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={() => {
-                      setSelectedScheduleForSlots(schedule);
-                      setSlotsForm({
-                        ...slotsForm,
-                        startDate: format(new Date(), "yyyy-MM-dd"),
-                        endDate: format(addDays(new Date(), 7), "yyyy-MM-dd"),
-                      });
-                      setIsAddingSlots(true);
-                    }}
-                    title={language === "ru" ? "Добавить слоты" : "Слоттар қосу"}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span className="ml-1">{language === "ru" ? "Слоты" : "Слоттар"}</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={() => {
-                      setSelectedScheduleForLink(schedule);
-                      fetchAvailableDatesForLink(schedule.id);
-                      setSlotsForLinkDates([]);
-                      setLessonLinkUrl("");
-                      setIsAddingLink(true);
-                    }}
-                    title={language === "ru" ? "Добавить ссылку" : "Сілтеме қосу"}
-                  >
-                    <Link className="w-3.5 h-3.5" />
-                    <span className="ml-1">{language === "ru" ? "Ссылка" : "Сілтеме"}</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs text-destructive border-destructive/50 hover:bg-destructive/10"
-                    onClick={() => {
-                      setSelectedScheduleForDelete(schedule);
-                      fetchAvailableDates(schedule.id);
-                      setSlotsToDeleteDates([]);
-                      setIsDeletingSlots(true);
-                    }}
-                    title={language === "ru" ? "Удалить слоты" : "Слоттарды жою"}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span className="ml-1">{language === "ru" ? "Выбрать" : "Таңдау"}</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
 
       {/* Week Calendar */}
       <Card>
@@ -939,8 +873,8 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
                   const slotBookings = getBookingsForSlot(slot.id);
                   const slotStatus = getSlotStatus(slot.id);
                   const schedule = getScheduleForSlot(slot.id);
-                  const maxParticipants = slot.max_participants ?? schedule?.max_participants ?? 1;
-                  const isGroup = schedule?.event_type === "group";
+                  const maxParticipants = slot.max_participants ?? (schedule?.event_type === "group" ? (schedule.max_participants ?? 1) : 1);
+                  const isGroup = maxParticipants > 1;
                   
                   const getSlotStyles = () => {
                     switch (slotStatus) {
@@ -964,7 +898,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
                             <span className="text-sm font-medium">
                               {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
                             </span>
-                            {filteredSchedules.length > 1 && schedule && (
+                            {schedules.length > 1 && schedule && (
                               <span className="text-[10px] text-muted-foreground leading-tight">
                                 {schedule.title}
                               </span>
@@ -997,12 +931,12 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
                             <Link className="w-4 h-4" />
                           </Button>
                           {/* Add spot button for ALL group sessions */}
-                          {isGroup && schedule && (
+                          {isGroup && (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10"
-                              onClick={() => setExpandingSlot({ slot, schedule })}
+                              onClick={() => setExpandingSlot({ slot, schedule: schedule || (schedules[0] as Schedule) })}
                               title={language === "ru" ? "Добавить место" : "Орын қосу"}
                             >
                               <UserPlus className="w-4 h-4" />
@@ -1158,7 +1092,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       <Dialog open={isAddingSlots} onOpenChange={(open) => { if (!open) { setIsAddingSlots(false); setSelectedScheduleForSlots(null); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{language === "ru" ? "Добавить слоты" : "Слоттар қосу"}: {selectedScheduleForSlots?.title}</DialogTitle>
+            <DialogTitle>{language === "ru" ? "Добавить слоты" : "Слоттар қосу"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); createTimeSlots.mutate(); }} className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-4">
@@ -1262,6 +1196,24 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
                   ))}
                 </div>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{language === "ru" ? "Количество участников" : "Қатысушылар саны"}</Label>
+              <Input
+                type="number"
+                min="1"
+                value={slotsForm.maxParticipants}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/^0+(?=\d)/, "");
+                  setSlotsForm({ ...slotsForm, maxParticipants: val || "1" });
+                }}
+                placeholder="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                {language === "ru"
+                  ? "По умолчанию 1 (индивидуальное). Если больше 1 — групповое."
+                  : "Әдепкі бойынша 1 (жеке). 1-ден көп болса — топтық."}
+              </p>
             </div>
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => { setIsAddingSlots(false); setSelectedScheduleForSlots(null); }}>
@@ -1995,6 +1947,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
               slotId: editingSlotTime.id,
               newStartTime: data.newStartTime,
               newEndTime: data.newEndTime,
+              maxParticipants: data.maxParticipants,
             });
             toast.success(t("timeUpdated"));
             setEditingSlotTime(null);
