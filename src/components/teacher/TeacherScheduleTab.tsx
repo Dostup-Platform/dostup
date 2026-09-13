@@ -256,9 +256,9 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
       setIsAddingSchedule(false);
       setScheduleForm({ title: "", productId: "", maxParticipants: "10" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Schedule creation error:", error);
-      toast.error(language === "ru" ? "Ошибка при создании" : "Жасау кезінде қате");
+      toast.error(error?.message || (language === "ru" ? "Ошибка при создании" : "Жасау кезінде қате"));
     },
   });
 

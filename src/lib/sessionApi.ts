@@ -34,10 +34,11 @@ export async function invokeApi<T = Record<string, unknown>>(
 ): Promise<T> {
   const creatorToken = localStorage.getItem("creator_token") || localStorage.getItem("simple_session_token") || "";
 
-  // NOTE: supabase.functions.invoke overrides any custom Authorization header with anon key.
-  // We pass the creator token both in body and in x-creator-token header.
+  // Only pass x-creator-token header for functions that require it in headers (e.g. file uploads)
+  // to avoid triggering CORS preflight failures on functions that only accept standard headers.
+  // The token is already passed in body for all functions.
   const headers: Record<string, string> = {};
-  if (creatorToken) {
+  if (creatorToken && (fn === "manage-profile" || fn === "upload-product-media")) {
     headers["x-creator-token"] = creatorToken;
   }
 

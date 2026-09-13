@@ -230,11 +230,13 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   // Create schedule mutation
   const createSchedule = useMutation({
     mutationFn: async () => {
+      const activeProductId = scheduleForm.productId || selectedProductId || "";
+      if (!activeProductId) throw new Error(language === "ru" ? "Выберите продукт" : "Өнімді таңдаңыз");
       const data = await invokeApi<{ schedule: Schedule }>("manage-schedules", {
         action: "create_schedule",
         ...creatorCreds(),
-        productId: scheduleForm.productId,
-        title: scheduleForm.title,
+        productId: activeProductId,
+        title: scheduleForm.title.trim(),
         eventType: scheduleType,
         maxParticipants: scheduleType === "group" ? Number(scheduleForm.maxParticipants) : null,
       });
@@ -246,9 +248,9 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       setIsAddingSchedule(false);
       setScheduleForm({ title: "", productId: "", maxParticipants: "10" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Schedule creation error:", error);
-      toast.error(language === "ru" ? "Ошибка при создании" : "Жасау кезінде қате");
+      toast.error(error?.message || (language === "ru" ? "Ошибка при создании" : "Жасау кезінде қате"));
     },
   });
 
@@ -1096,7 +1098,15 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       )}
 
       {/* Create Schedule Dialog */}
-      <Dialog open={isAddingSchedule} onOpenChange={setIsAddingSchedule}>
+      <Dialog 
+        open={isAddingSchedule} 
+        onOpenChange={(open) => {
+          if (open) {
+            setScheduleForm((prev) => ({ ...prev, productId: selectedProductId || "" }));
+          }
+          setIsAddingSchedule(open);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{language === "ru" ? "Создать расписание" : "Кесте жасау"}</DialogTitle>
@@ -1132,7 +1142,11 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
               <Button type="button" variant="outline" className="flex-1" onClick={() => setIsAddingSchedule(false)}>
                 {t("cancel")}
               </Button>
-              <Button type="submit" className="flex-1" disabled={createSchedule.isPending || !scheduleForm.productId || !scheduleForm.title}>
+              <Button 
+                type="submit" 
+                className="flex-1" 
+                disabled={createSchedule.isPending || !(scheduleForm.productId || selectedProductId) || !scheduleForm.title.trim()}
+              >
                 {createSchedule.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("create")}
               </Button>
             </div>

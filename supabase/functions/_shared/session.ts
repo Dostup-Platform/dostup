@@ -74,13 +74,26 @@ export async function resolveUser(
     .select('id, type, display_name')
     .eq('id', session.profile_id)
     .maybeSingle()
-  if (!profile || profile.type !== 'buyer') return null
+  if (!profile) return null
+
+  const name = profile.display_name || 'User'
+  let role = profile.type === 'buyer' ? 'student' : profile.type
+
+  const { data: teacherRow } = await supabase
+    .from('product_teachers')
+    .select('id')
+    .ilike('teacher_name', name)
+    .limit(1)
+    .maybeSingle()
+  if (teacherRow) {
+    role = 'teacher'
+  }
 
   return {
     kind: 'user',
     userId: profile.id,
-    name: profile.display_name || 'Buyer',
-    role: 'student',
+    name,
+    role,
   }
 }
 
@@ -90,7 +103,8 @@ export async function resolveCaller(
 ): Promise<Caller | null> {
   const creator = await resolveCreator(supabase, str(body, 'creatorToken'), str(body, 'creatorName'))
   if (creator) return creator
-  return resolveUser(supabase, str(body, 'sessionToken'))
+  const token = str(body, 'sessionToken') || str(body, 'token') || str(body, 'creatorToken')
+  return resolveUser(supabase, token)
 }
 
 export function unauthorized(): Response {
@@ -106,13 +120,22 @@ export async function creatorOwnsProduct(
   accountId: string,
   productId: string,
 ): Promise<boolean> {
-  const { data } = await supabase
+  const { data: product } = await supabase
     .from('products')
-    .select('id')
+    .select('id, creator_account_id, creator_id')
     .eq('id', productId)
-    .eq('creator_account_id', accountId)
     .maybeSingle()
-  return !!data
+  if (!product) return false
+  if (product.creator_account_id === accountId) return true
+  const { data: account } = await supabase
+    .from('creator_accounts')
+    .select('login')
+    .eq('id', accountId)
+    .maybeSingle()
+  if (account && product.creator_id && product.creator_id.toLowerCase() === account.login.toLowerCase()) {
+    return true
+  }
+  return false
 }
 
 export async function teacherAssignedToProduct(
