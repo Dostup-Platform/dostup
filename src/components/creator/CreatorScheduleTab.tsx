@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, Pencil, UserPlus, Link, Copy, X } from "lucide-react";
+import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, Pencil, UserPlus, Link, Copy, X, Settings2 } from "lucide-react";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import RescheduleSlotDialog from "@/components/RescheduleSlotDialog";
 import EditSlotTimeDialog from "@/components/EditSlotTimeDialog";
@@ -16,8 +16,23 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { creatorCreds, invokeApi } from "@/lib/sessionApi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { format, addDays, startOfWeek, parse, parseISO } from "date-fns";
+import { 
+  format, 
+  addDays, 
+  startOfWeek, 
+  endOfWeek, 
+  startOfMonth, 
+  endOfMonth, 
+  eachDayOfInterval, 
+  addMonths, 
+  isSameMonth, 
+  isSameDay, 
+  isToday, 
+  parse, 
+  parseISO 
+} from "date-fns";
 import { ru } from "date-fns/locale";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -82,10 +97,15 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [currentMonth, setCurrentMonth] = useState<Date>(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [isAddingSchedule, setIsAddingSchedule] = useState(false);
   const [isAddingSlots, setIsAddingSlots] = useState(false);
+  const [isManagingSlots, setIsManagingSlots] = useState(false);
+  const [manageTab, setManageTab] = useState<"link" | "delete">("link");
+  const [quickAddSlotHour, setQuickAddSlotHour] = useState<number | null>(null);
+  const [quickAddParticipants, setQuickAddParticipants] = useState("1");
+  const [quickAddLessonLink, setQuickAddLessonLink] = useState("");
   const [selectedScheduleForSlots, setSelectedScheduleForSlots] = useState<Schedule | null>(null);
   const [deletingSchedule, setDeletingSchedule] = useState<Schedule | null>(null);
   const [cancelingBooking, setCancelingBooking] = useState<Booking | null>(null);
@@ -160,18 +180,24 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
 
   const scheduleIds = useMemo(() => schedules.map(s => s.id), [schedules]);
 
-  // Fetch time slots for the current week
-  const weekEnd = addDays(currentWeekStart, 6);
+  // Month bounds & calendar days
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const calendarDays = useMemo(() => eachDayOfInterval({ start: calendarStart, end: calendarEnd }), [calendarStart, calendarEnd]);
+
+  // Fetch time slots for visible calendar month
   const { data: timeSlots = [], isLoading: slotsLoading } = useQuery({
-    queryKey: ["creator-week-slots", scheduleIds, format(currentWeekStart, "yyyy-MM-dd")],
+    queryKey: ["creator-month-slots", scheduleIds, format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd")],
     queryFn: async () => {
       if (!scheduleIds.length) return [];
       const data = await invokeApi<{ slots: TimeSlot[] }>("manage-schedules", {
         action: "list_slots",
         ...creatorCreds(),
         scheduleIds,
-        fromDate: format(currentWeekStart, "yyyy-MM-dd"),
-        toDate: format(weekEnd, "yyyy-MM-dd"),
+        fromDate: format(calendarStart, "yyyy-MM-dd"),
+        toDate: format(calendarEnd, "yyyy-MM-dd"),
       });
       return data.slots ?? [];
     },
@@ -181,7 +207,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
   // Fetch bookings for time slots
   const slotIds = useMemo(() => timeSlots.map(s => s.id), [timeSlots]);
   const { data: bookings = [] } = useQuery({
-    queryKey: ["creator-week-bookings", slotIds],
+    queryKey: ["creator-month-bookings", slotIds],
     queryFn: async () => {
       if (!slotIds.length) return [];
       const data = await invokeApi<{ bookings: Booking[] }>("manage-schedules", {
@@ -193,6 +219,13 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     },
     enabled: slotIds.length > 0,
   });
+
+  const invalidateSlotsAndBookings = () => {
+    queryClient.invalidateQueries({ queryKey: ["creator-month-slots"] });
+    queryClient.invalidateQueries({ queryKey: ["creator-month-bookings"] });
+    queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+    queryClient.invalidateQueries({ queryKey: ["creator-week-bookings"] });
+  };
 
   // Fetch pending outgoing reschedule requests (creator -> student)
   const { data: outgoingReschedules = [] } = useQuery({
@@ -354,7 +387,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       return slots.length;
     },
     onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      invalidateSlotsAndBookings();
       queryClient.invalidateQueries({ queryKey: ["creator-own-schedules"] });
       toast.success(language === "ru" ? `Создано ${count} слотов!` : `${count} слот жасалды!`);
       setIsAddingSlots(false);
@@ -363,6 +396,53 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     onError: (error) => {
       console.error("Slot creation error:", error);
       toast.error(language === "ru" ? "Ошибка при создании слотов" : "Слоттарды жасау кезінде қате");
+    },
+  });
+
+  // Create single slot mutation for a specific hour
+  const createSingleSlot = useMutation({
+    mutationFn: async ({ hour, participants, link }: { hour: number; participants: number; link?: string }) => {
+      const scheduleId = schedules[0]?.id || (await ensureScheduleId());
+      if (!selectedDate) throw new Error("No date selected");
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const startTime = `${String(hour).padStart(2, "0")}:00:00`;
+      const endHour = (hour + 1) % 24;
+      const endTime = `${String(endHour).padStart(2, "0")}:00:00`;
+
+      await invokeApi("manage-schedules", {
+        action: "create_slots",
+        ...creatorCreds(),
+        slots: [{
+          schedule_id: scheduleId,
+          date: dateStr,
+          start_time: startTime,
+          end_time: endTime,
+          is_available: true,
+          max_participants: participants,
+        }],
+        scheduleId,
+      });
+
+      if (link?.trim()) {
+        await invokeApi("manage-schedules", {
+          action: "set_lesson_link",
+          ...creatorCreds(),
+          scheduleId,
+          dates: [dateStr],
+          link: link.trim(),
+        });
+      }
+    },
+    onSuccess: () => {
+      invalidateSlotsAndBookings();
+      queryClient.invalidateQueries({ queryKey: ["creator-own-schedules"] });
+      toast.success(language === "ru" ? "Слот создан!" : "Слот жасалды!");
+      setQuickAddSlotHour(null);
+      setQuickAddParticipants("1");
+      setQuickAddLessonLink("");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || (language === "ru" ? "Ошибка при создании слота" : "Слот жасау кезінде қате"));
     },
   });
 
@@ -384,8 +464,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-week-bookings"] });
-      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      invalidateSlotsAndBookings();
     },
   });
   const rescheduleRequestMutation = useMutation({
@@ -421,7 +500,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["creator-outgoing-reschedules"] });
-      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      invalidateSlotsAndBookings();
     },
   });
   const editSlotTimeMutation = useMutation({
@@ -448,7 +527,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      invalidateSlotsAndBookings();
     },
   });
 
@@ -478,7 +557,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      invalidateSlotsAndBookings();
       toast.success(language === "ru" ? "Слот удалён!" : "Слот жойылды!");
       setDeletingSlot(null);
     },
@@ -497,8 +576,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
-      queryClient.invalidateQueries({ queryKey: ["creator-week-bookings"] });
+      invalidateSlotsAndBookings();
       toast.success(language === "ru" ? "Слот и записи удалены!" : "Слот пен жазбалар жойылды!");
       setDeletingSlotWithBookings(null);
     },
@@ -519,7 +597,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       return newMax;
     },
     onSuccess: (newMax) => {
-      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      invalidateSlotsAndBookings();
       toast.success(language === "ru" ? `Слот расширен до ${newMax} мест!` : `Слот ${newMax} орынға дейін кеңейтілді!`);
       setExpandingSlot(null);
     },
@@ -537,7 +615,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      invalidateSlotsAndBookings();
       toast.success(language === "ru" ? "Слоты удалены!" : "Слоттар жойылды!");
       setIsDeletingSlots(false);
       setSelectedScheduleForDelete(null);
@@ -578,7 +656,7 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      invalidateSlotsAndBookings();
       toast.success(language === "ru" ? "Ссылка добавлена!" : "Сілтеме қосылды!");
       setIsAddingLink(false);
       setSelectedScheduleForLink(null);
@@ -599,16 +677,24 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["creator-week-slots"] });
+      invalidateSlotsAndBookings();
       toast.success(language === "ru" ? "Ссылка обновлена!" : "Сілтеме жаңартылды!");
     },
     onError: () => toast.error(language === "ru" ? "Ошибка при обновлении ссылки" : "Сілтемені жаңарту кезінде қате"),
   });
 
-  // Week navigation
-  const weekDays = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
-  }, [currentWeekStart]);
+  const displayHours = useMemo(() => {
+    const hours: number[] = [];
+    const hasEarlySlot = timeSlots.some((s) => {
+      const h = parseInt(s.start_time.split(":")[0], 10);
+      return h < 5;
+    });
+    const startHour = hasEarlySlot ? 0 : 5;
+    for (let h = startHour; h < 24; h++) {
+      hours.push(h);
+    }
+    return hours;
+  }, [timeSlots]);
 
   const getSlotsForDay = (date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd");
@@ -697,32 +783,27 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-foreground">{t("schedule")}</h2>
-      {/* Product Switcher */}
-      <div className="flex items-center">
+      {/* Top Bar: Product Switcher & Actions */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <ProductSwitcher
           products={products.map((p) => ({ id: p.id, title: p.title }))}
           selectedId={selectedProductId}
           onChange={setSelectedProductId}
         />
-      </div>
-
-      {/* Actions toolbar */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <Button 
             size="sm"
             onClick={() => {
               setSelectedScheduleForSlots(schedules[0] || null);
               setSlotsForm((prev) => ({
                 ...prev,
-                startDate: format(new Date(), "yyyy-MM-dd"),
-                endDate: format(addDays(new Date(), 7), "yyyy-MM-dd"),
+                startDate: format(selectedDate || new Date(), "yyyy-MM-dd"),
+                endDate: format(addDays(selectedDate || new Date(), 7), "yyyy-MM-dd"),
                 maxParticipants: "1",
               }));
               setIsAddingSlots(true);
             }}
-            className="gap-2"
+            className="gap-1.5"
           >
             <Plus className="w-4 h-4" />
             {language === "ru" ? "Слоты" : "Слоттар"}
@@ -731,120 +812,131 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
             variant="outline"
             size="sm"
             onClick={() => {
-              if (schedules.length > 0) {
-                const targetSchedule = schedules[0];
-                setSelectedScheduleForLink(targetSchedule);
-                fetchAvailableDatesForLink(targetSchedule.id);
-                setSlotsForLinkDates([]);
-                setLessonLinkUrl("");
-                setIsAddingLink(true);
-              } else {
-                toast.error(language === "ru" ? "Сначала добавьте слоты" : "Алдымен слоттарды қосыңыз");
-              }
-            }}
-            disabled={timeSlots.length === 0}
-            className="gap-2"
-          >
-            <Link className="w-4 h-4" />
-            {language === "ru" ? "Ссылка на урок" : "Сабақ сілтемесі"}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-destructive border-destructive/50 hover:bg-destructive/10 gap-2"
-            onClick={() => {
-              if (schedules.length > 0) {
-                const targetSchedule = schedules[0];
+              const targetSchedule = schedules[0];
+              if (targetSchedule) {
                 setSelectedScheduleForDelete(targetSchedule);
                 fetchAvailableDates(targetSchedule.id);
-                setSlotsToDeleteDates([]);
-                setIsDeletingSlots(true);
-              } else {
-                toast.error(language === "ru" ? "Сначала добавьте слоты" : "Алдымен слоттарды қосыңыз");
+                setSelectedScheduleForLink(targetSchedule);
+                fetchAvailableDatesForLink(targetSchedule.id);
               }
+              setIsManagingSlots(true);
             }}
-            disabled={timeSlots.length === 0}
+            className="gap-1.5"
           >
-            <Trash2 className="w-4 h-4" />
-            {language === "ru" ? "Удалить слоты" : "Слоттарды жою"}
+            <Settings2 className="w-4 h-4" />
+            {language === "ru" ? "Управлять" : "Басқару"}
           </Button>
         </div>
       </div>
 
-      {/* Week Calendar */}
+      {/* Month Calendar */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">{t("weeklySchedule")}</CardTitle>
-            <div className="flex items-center gap-2">
+            <CardTitle className="text-base font-semibold capitalize">
+              {(() => {
+                const monthName = format(currentMonth, "LLLL yyyy", { locale: ru });
+                return monthName.charAt(0).toUpperCase() + monthName.slice(1);
+              })()}
+            </CardTitle>
+            <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setCurrentWeekStart(addDays(currentWeekStart, -7))}
+                className="h-8 w-8"
+                onClick={() => setCurrentMonth((prev) => addMonths(prev, -1))}
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <span className="text-sm text-muted-foreground min-w-[140px] text-center">
-                {format(currentWeekStart, "d MMM", { locale: ru })} -{" "}
-                {format(weekEnd, "d MMM", { locale: ru })}
-              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                onClick={() => {
+                  const today = new Date();
+                  setCurrentMonth(startOfMonth(today));
+                  setSelectedDate(today);
+                }}
+              >
+                {language === "ru" ? "Сегодня" : "Бүгін"}
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setCurrentWeekStart(addDays(currentWeekStart, 7))}
+                className="h-8 w-8"
+                onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-7 gap-2">
-            {weekDays.map((day) => {
+        <CardContent className="pt-0">
+          {/* Weekday headers */}
+          <div className="grid grid-cols-7 gap-1 mb-2 text-center">
+            {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((wd, i) => (
+              <div key={wd} className={`text-xs font-semibold py-1 ${i >= 5 ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
+                {wd}
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar grid */}
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
+            {calendarDays.map((day) => {
+              const dayKey = format(day, "yyyy-MM-dd");
               const daySlots = getSlotsForDay(day);
-              const bookedSessionsCount = daySlots.filter(slot => 
-                bookings.some(b => b.time_slot_id === slot.id)
+              const bookedSessionsCount = daySlots.filter((slot) =>
+                bookings.some((b) => b.time_slot_id === slot.id)
               ).length;
-              const isSelected = selectedDate && format(selectedDate, "yyyy-MM-dd") === format(day, "yyyy-MM-dd");
-              const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+              const isSelected = selectedDate && isSameDay(selectedDate, day);
+              const isTodayDate = isToday(day);
+              const inMonth = isSameMonth(day, currentMonth);
               const hasSlots = daySlots.length > 0;
               const dayStatus = getDayStatus(day);
-              
-              const getDotColor = () => {
-                if (isSelected) return "bg-primary-foreground";
-                switch (dayStatus) {
-                  case "full": return "bg-green-500";
-                  case "partial": return "bg-orange-500";
-                  case "free": return "bg-red-500";
-                }
-              };
 
               return (
                 <button
-                  key={day.toISOString()}
+                  key={dayKey}
+                  type="button"
                   onClick={() => setSelectedDate(day)}
-                  className={`p-2 rounded-lg text-center transition-colors relative ${
-                    isSelected 
-                      ? "bg-primary text-primary-foreground" 
-                      : isToday
-                        ? "bg-primary/10 hover:bg-primary/20"
-                        : "hover:bg-muted"
+                  className={`min-h-[56px] sm:min-h-[68px] p-1.5 rounded-xl flex flex-col justify-between items-center transition-all relative border text-center ${
+                    isSelected
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : isTodayDate
+                        ? "bg-primary/5 border-primary/40 text-foreground font-semibold hover:bg-primary/10"
+                        : inMonth
+                          ? "bg-card border-border/40 text-foreground hover:bg-muted/60"
+                          : "bg-muted/10 border-transparent text-muted-foreground/40 hover:bg-muted/30"
                   }`}
                 >
-                  {hasSlots && (
-                    <span className={`absolute top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full ${getDotColor()}`} />
-                  )}
-                  <div className="text-xs font-medium mt-2">
-                    {format(day, "EEE", { locale: ru })}
+                  <span className={`text-sm sm:text-base font-semibold ${isSelected ? "text-primary-foreground" : ""}`}>
+                    {format(day, "d")}
+                  </span>
+                  
+                  {/* Indicators */}
+                  <div className="flex flex-col items-center gap-0.5 w-full">
+                    {hasSlots && (
+                      <div className="flex items-center justify-center gap-1">
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            isSelected
+                              ? "bg-primary-foreground"
+                              : dayStatus === "full"
+                                ? "bg-green-500"
+                                : dayStatus === "partial"
+                                  ? "bg-orange-500"
+                                  : "bg-red-500"
+                          }`}
+                        />
+                        {bookedSessionsCount > 0 && (
+                          <span className={`text-[10px] font-bold ${isSelected ? "text-primary-foreground" : "text-green-600 dark:text-green-400"}`}>
+                            {bookedSessionsCount}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-lg font-bold">{format(day, "d")}</div>
-                  {bookedSessionsCount > 0 && (
-                    <div className="flex justify-center mt-1">
-                      <span className={`text-xs font-medium ${isSelected ? "text-primary-foreground/80" : "text-green-600"}`}>
-                        {bookedSessionsCount}
-                      </span>
-                    </div>
-                  )}
                 </button>
               );
             })}
@@ -852,181 +944,265 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
         </CardContent>
       </Card>
 
-      {/* Selected Day Slots */}
+      {/* Hourly Schedule for Selected Day */}
       {selectedDate && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="w-4 h-4" />
-              {format(selectedDate, "d MMMM", { locale: ru })}
-              <Badge variant="secondary">{selectedDateSlots.length} {language === "ru" ? "слотов" : "слот"}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {selectedDateSlots.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                {t("noSlotsAvailable")}
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {selectedDateSlots.map((slot) => {
-                  const slotBookings = getBookingsForSlot(slot.id);
-                  const slotStatus = getSlotStatus(slot.id);
-                  const schedule = getScheduleForSlot(slot.id);
-                  const maxParticipants = slot.max_participants ?? (schedule?.event_type === "group" ? (schedule.max_participants ?? 1) : 1);
-                  const isGroup = maxParticipants > 1;
-                  
-                  const getSlotStyles = () => {
-                    switch (slotStatus) {
-                      case "full": return { bg: "bg-green-50 border border-green-200", dot: "bg-green-500", text: "text-green-700" };
-                      case "partial": return { bg: "bg-orange-50 border border-orange-200", dot: "bg-orange-500", text: "text-orange-700" };
-                      case "free": return { bg: "bg-red-50 border border-red-200", dot: "bg-red-500", text: "text-red-700" };
-                    }
-                  };
-                  
-                  const styles = getSlotStyles();
-                  
-                  return (
-                    <div
-                      key={slot.id}
-                      className={`p-2 rounded-lg ${styles.bg}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-1.5 h-1.5 rounded-full ${styles.dot}`} />
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium">
-                              {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
-                            </span>
-                            {schedules.length > 1 && schedule && (
-                              <span className="text-[10px] text-muted-foreground leading-tight">
-                                {schedule.title}
-                              </span>
-                            )}
-                          </div>
-                          {isGroup && (
-                            <span className="text-[10px] text-muted-foreground">
-                              ({slotBookings.length}/{maxParticipants})
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {/* Lesson link button */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`h-7 w-7 ${slot.lesson_link ? "text-blue-600 hover:text-blue-600 hover:bg-blue-50" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
-                            onClick={() => {
-                              if (slot.lesson_link) {
-                                setViewingLinkSlot(slot);
-                              } else {
-                                const newLink = prompt(language === "ru" ? "Введите ссылку на урок:" : "Сабаққа сілтемені енгізіңіз:");
-                                if (newLink) {
-                                  updateSlotLink.mutate({ slotId: slot.id, link: newLink });
-                                }
-                              }
-                            }}
-                            title={slot.lesson_link ? (language === "ru" ? "Просмотреть ссылку" : "Сілтемені көру") : (language === "ru" ? "Добавить ссылку" : "Сілтеме қосу")}
-                          >
-                            <Link className="w-4 h-4" />
-                          </Button>
-                          {/* Add spot button for ALL group sessions */}
-                          {isGroup && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10"
-                              onClick={() => setExpandingSlot({ slot, schedule: schedule || (schedules[0] as Schedule) })}
-                              title={language === "ru" ? "Добавить место" : "Орын қосу"}
-                            >
-                              <UserPlus className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {/* Delete slot button - always visible */}
-                          {slotBookings.length === 0 ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                                onClick={() => setEditingSlotTime(slot)}
-                                title={t("editTime")}
-                              >
-                                <Clock className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => setDeletingSlot(slot)}
-                                title={language === "ru" ? "Удалить слот" : "Слотты жою"}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                                onClick={() => setReschedulingSlot({ slot, schedule })}
-                                title={language === "ru" ? "Перенести" : "Ауыстыру"}
-                              >
-                                <Clock className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => setDeletingSlotWithBookings(slot)}
-                                title={language === "ru" ? "Удалить слот" : "Слотты жою"}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* List of bookings with individual delete buttons */}
-                      {slotBookings.length > 0 && (
-                        <div className="mt-2 space-y-1 pl-5">
-                          {slotBookings.map((booking) => (
-                            <div key={booking.id}>
-                              <div className="flex items-center justify-between py-1 px-2 bg-background/50 rounded">
-                                <span className={`text-sm ${styles.text}`}>
-                                  {booking.user?.name || "—"}
-                                </span>
-                              </div>
-                              {(() => {
-                                const pendingReq = outgoingReschedules.find(r => r.booking_id === booking.id);
-                                if (!pendingReq) return null;
-                                return (
-                                  <div className="mt-1 flex items-center gap-2 px-2">
-                                    <span className="text-orange-500 text-sm font-medium">
-                                      {language === "ru" 
-                                        ? `Ожидание подтверждения переноса на ${format(parseISO(pendingReq.new_date), "d MMM", { locale: ru })} ${pendingReq.new_time?.slice(0, 5)}`
-                                        : `Ауыстыруды растау күтілуде ${format(parseISO(pendingReq.new_date), "d MMM", { locale: ru })} ${pendingReq.new_time?.slice(0, 5)}`}
-                                    </span>
-                                    <button
-                                      className="text-orange-500 hover:text-destructive p-0.5 rounded"
-                                      onClick={() => cancelOutgoingReschedule.mutate(pendingReq.id)}
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2 capitalize">
+                <Clock className="w-4 h-4 text-primary" />
+                {(() => {
+                  const dayTitle = format(selectedDate, "EEEE, d MMMM", { locale: ru });
+                  return dayTitle.charAt(0).toUpperCase() + dayTitle.slice(1);
+                })()}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">
+                  {selectedDateSlots.length} {language === "ru" ? "слотов" : "слот"}
+                </Badge>
               </div>
-            )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            {displayHours.map((h) => {
+              const hourSlots = selectedDateSlots.filter((s) => {
+                const startH = parseInt(s.start_time.split(":")[0], 10);
+                return startH === h;
+              });
+
+              const hourLabel = `${h}:00 – ${h + 1 === 24 ? "00:00" : `${h + 1}:00`}`;
+              const shortLabel = `${h}–${h + 1 === 24 ? "0" : h + 1}`;
+
+              if (hourSlots.length === 0) {
+                return (
+                  <div
+                    key={h}
+                    className="flex items-center justify-between p-2.5 sm:p-3 rounded-lg border border-dashed border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="font-semibold text-sm w-28 text-foreground">
+                        {hourLabel}
+                      </div>
+                      <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground border-muted-foreground/30">
+                        {shortLabel}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground hidden sm:inline">
+                        {language === "ru" ? "Свободное время" : "Бос уақыт"}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                      onClick={() => {
+                        setQuickAddSlotHour(h);
+                        setQuickAddParticipants("1");
+                        setQuickAddLessonLink("");
+                      }}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="text-xs font-medium">{language === "ru" ? "Слот" : "Слот"}</span>
+                    </Button>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={h} className="p-3 rounded-xl border border-border bg-card space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="font-semibold text-sm w-28 text-foreground">
+                        {hourLabel}
+                      </div>
+                      <Badge variant="secondary" className="text-[11px] font-medium">
+                        {shortLabel}
+                      </Badge>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-primary hover:bg-primary/10"
+                      onClick={() => {
+                        setQuickAddSlotHour(h);
+                        setQuickAddParticipants("1");
+                        setQuickAddLessonLink("");
+                      }}
+                      title={language === "ru" ? "Добавить еще слот" : "Тағы слот қосу"}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    {hourSlots.map((slot) => {
+                      const slotBookings = getBookingsForSlot(slot.id);
+                      const slotStatus = getSlotStatus(slot.id);
+                      const schedule = getScheduleForSlot(slot.id);
+                      const maxParticipants = slot.max_participants ?? (schedule?.event_type === "group" ? (schedule.max_participants ?? 1) : 1);
+                      const isGroup = maxParticipants > 1;
+
+                      const getSlotStyles = () => {
+                        switch (slotStatus) {
+                          case "full": return { bg: "bg-green-50/80 dark:bg-green-950/20 border border-green-200 dark:border-green-900/50", dot: "bg-green-500", text: "text-green-700 dark:text-green-300" };
+                          case "partial": return { bg: "bg-orange-50/80 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/50", dot: "bg-orange-500", text: "text-orange-700 dark:text-orange-300" };
+                          case "free": return { bg: "bg-red-50/60 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50", dot: "bg-red-500", text: "text-red-700 dark:text-red-300" };
+                        }
+                      };
+
+                      const styles = getSlotStyles();
+
+                      return (
+                        <div
+                          key={slot.id}
+                          className={`p-2.5 rounded-lg ${styles.bg}`}
+                        >
+                          <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${styles.dot}`} />
+                              <div className="flex flex-col">
+                                <span className="text-sm font-semibold">
+                                  {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
+                                </span>
+                                {schedules.length > 1 && schedule && (
+                                  <span className="text-[10px] text-muted-foreground leading-tight">
+                                    {schedule.title}
+                                  </span>
+                                )}
+                              </div>
+                              {isGroup ? (
+                                <Badge variant="outline" className="text-[11px] font-medium ml-1">
+                                  {slotBookings.length}/{maxParticipants} {language === "ru" ? "мест" : "орын"}
+                                </Badge>
+                              ) : (
+                                <span className={`text-xs ${styles.text}`}>
+                                  {slotBookings.length > 0
+                                    ? (language === "ru" ? "Занято" : "Жазылған")
+                                    : (language === "ru" ? "Свободно" : "Бос")}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              {/* Lesson link button */}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-7 w-7 ${slot.lesson_link ? "text-blue-600 hover:text-blue-600 hover:bg-blue-50" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
+                                onClick={() => {
+                                  if (slot.lesson_link) {
+                                    setViewingLinkSlot(slot);
+                                  } else {
+                                    const newLink = prompt(language === "ru" ? "Введите ссылку на урок:" : "Сабаққа сілтемені енгізіңіз:");
+                                    if (newLink) {
+                                      updateSlotLink.mutate({ slotId: slot.id, link: newLink });
+                                    }
+                                  }
+                                }}
+                                title={slot.lesson_link ? (language === "ru" ? "Просмотреть ссылку" : "Сілтемені көру") : (language === "ru" ? "Добавить ссылку" : "Сілтеме қосу")}
+                              >
+                                <Link className="w-4 h-4" />
+                              </Button>
+
+                              {/* Add spot button for ALL group sessions */}
+                              {isGroup && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10"
+                                  onClick={() => setExpandingSlot({ slot, schedule: schedule || (schedules[0] as Schedule) })}
+                                  title={language === "ru" ? "Добавить место" : "Орын қосу"}
+                                >
+                                  <UserPlus className="w-4 h-4" />
+                                </Button>
+                              )}
+
+                              {/* Delete slot button */}
+                              {slotBookings.length === 0 ? (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                    onClick={() => setEditingSlotTime(slot)}
+                                    title={t("editTime")}
+                                  >
+                                    <Clock className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => setDeletingSlot(slot)}
+                                    title={language === "ru" ? "Удалить слот" : "Слотты жою"}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                    onClick={() => setReschedulingSlot({ slot, schedule })}
+                                    title={language === "ru" ? "Перенести" : "Ауыстыру"}
+                                  >
+                                    <Clock className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => setDeletingSlotWithBookings(slot)}
+                                    title={language === "ru" ? "Удалить слот" : "Слотты жою"}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* List of bookings */}
+                          {slotBookings.length > 0 && (
+                            <div className="mt-2 space-y-1 pl-4 border-l-2 border-primary/20">
+                              {slotBookings.map((booking) => (
+                                <div key={booking.id}>
+                                  <div className="flex items-center justify-between py-1 px-2 bg-background/50 rounded">
+                                    <span className={`text-sm ${styles.text}`}>
+                                      {booking.user?.name || "—"}
+                                    </span>
+                                  </div>
+                                  {(() => {
+                                    const pendingReq = outgoingReschedules.find(r => r.booking_id === booking.id);
+                                    if (!pendingReq) return null;
+                                    return (
+                                      <div className="mt-1 flex items-center gap-2 px-2">
+                                        <span className="text-orange-500 text-sm font-medium">
+                                          {language === "ru" 
+                                            ? `Ожидание подтверждения переноса на ${format(parseISO(pendingReq.new_date), "d MMM", { locale: ru })} ${pendingReq.new_time?.slice(0, 5)}`
+                                            : `Ауыстыруды растау күтілуде ${format(parseISO(pendingReq.new_date), "d MMM", { locale: ru })} ${pendingReq.new_time?.slice(0, 5)}`}
+                                        </span>
+                                        <button
+                                          className="text-orange-500 hover:text-destructive p-0.5 rounded"
+                                          onClick={() => cancelOutgoingReschedule.mutate(pendingReq.id)}
+                                        >
+                                          <X className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -1216,6 +1392,310 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
         </DialogContent>
       </Dialog>
 
+      {/* Quick Add Slot for Hour Dialog */}
+      <Dialog open={quickAddSlotHour !== null} onOpenChange={(open) => { if (!open) setQuickAddSlotHour(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{language === "ru" ? "Добавить слот" : "Слот қосу"}</DialogTitle>
+          </DialogHeader>
+          {quickAddSlotHour !== null && selectedDate && (
+            <div className="space-y-4 pt-2">
+              <div className="p-3 bg-muted rounded-lg flex items-center justify-between text-sm">
+                <span className="font-medium text-foreground">
+                  {format(selectedDate, "d MMMM yyyy", { locale: ru })}
+                </span>
+                <Badge variant="default" className="text-xs">
+                  {quickAddSlotHour}:00 – {quickAddSlotHour + 1 === 24 ? "00:00" : `${quickAddSlotHour + 1}:00`} ({quickAddSlotHour}–{quickAddSlotHour + 1 === 24 ? "0" : quickAddSlotHour + 1})
+                </Badge>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{language === "ru" ? "Количество участников" : "Қатысушылар саны"}</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={quickAddParticipants === "1" ? "default" : "outline"}
+                    className="flex-1 text-xs"
+                    onClick={() => setQuickAddParticipants("1")}
+                  >
+                    1 ({language === "ru" ? "Индивидуально" : "Жеке"})
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={quickAddParticipants === "5" ? "default" : "outline"}
+                    className="flex-1 text-xs"
+                    onClick={() => setQuickAddParticipants("5")}
+                  >
+                    5 ({language === "ru" ? "Группа" : "Топ"})
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={quickAddParticipants === "10" ? "default" : "outline"}
+                    className="flex-1 text-xs"
+                    onClick={() => setQuickAddParticipants("10")}
+                  >
+                    10 ({language === "ru" ? "Группа" : "Топ"})
+                  </Button>
+                </div>
+                <Input
+                  type="number"
+                  min="1"
+                  value={quickAddParticipants}
+                  onChange={(e) => setQuickAddParticipants(e.target.value)}
+                  placeholder="1"
+                  className="mt-2"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {language === "ru"
+                    ? "По умолчанию 1 (индивидуальное занятие). Если больше 1 — групповое."
+                    : "Әдепкі бойынша 1 (жеке сабақ). 1-ден көп болса — топтық."}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{language === "ru" ? "Ссылка на урок (необязательно)" : "Сабаққа сілтеме (міндетті емес)"}</Label>
+                <Input
+                  placeholder="https://zoom.us/j/..."
+                  value={quickAddLessonLink}
+                  onChange={(e) => setQuickAddLessonLink(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t">
+                <Button variant="outline" className="flex-1" onClick={() => setQuickAddSlotHour(null)}>
+                  {t("cancel")}
+                </Button>
+                <Button
+                  className="flex-1"
+                  disabled={createSingleSlot.isPending}
+                  onClick={() => {
+                    const participants = Math.max(1, parseInt(quickAddParticipants, 10) || 1);
+                    createSingleSlot.mutate({
+                      hour: quickAddSlotHour,
+                      participants,
+                      link: quickAddLessonLink,
+                    });
+                  }}
+                >
+                  {createSingleSlot.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === "ru" ? "Создать слот" : "Слот жасау")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Slots Dialog (Add Link / Delete Slots) */}
+      <Dialog open={isManagingSlots} onOpenChange={setIsManagingSlots}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="w-5 h-5 text-primary" />
+              {language === "ru" ? "Управление слотами" : "Слоттарды басқару"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <Tabs value={manageTab} onValueChange={(v) => setManageTab(v as "link" | "delete")} className="w-full">
+            <TabsList className="grid grid-cols-2 w-full">
+              <TabsTrigger value="link" className="gap-2 text-xs sm:text-sm">
+                <Link className="w-4 h-4" />
+                {language === "ru" ? "Ссылка на урок" : "Сабақ сілтемесі"}
+              </TabsTrigger>
+              <TabsTrigger value="delete" className="gap-2 text-xs sm:text-sm text-destructive data-[state=active]:text-destructive">
+                <Trash2 className="w-4 h-4" />
+                {language === "ru" ? "Удалить слоты" : "Слоттарды жою"}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="link" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>{language === "ru" ? "Ссылка на урок" : "Сабаққа сілтеме"}</Label>
+                <Input
+                  placeholder="https://zoom.us/j/..."
+                  value={lessonLinkUrl}
+                  onChange={(e) => setLessonLinkUrl(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>{language === "ru" ? "Выберите даты со слотами" : "Слоттары бар күндерді таңдаңыз"}</Label>
+                  {availableDatesForLink.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        if (slotsForLinkDates.length === availableDatesForLink.length) {
+                          setSlotsForLinkDates([]);
+                        } else {
+                          setSlotsForLinkDates([...availableDatesForLink]);
+                        }
+                      }}
+                    >
+                      {slotsForLinkDates.length === availableDatesForLink.length
+                        ? (language === "ru" ? "Снять всё" : "Барлығын алу")
+                        : (language === "ru" ? "Выбрать все даты" : "Барлық күндерді таңдау")}
+                    </Button>
+                  )}
+                </div>
+                {availableDatesForLink.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    {language === "ru" ? "Нет слотов для добавления ссылки" : "Сілтеме қосу үшін слоттар жоқ"}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-2 border rounded-md">
+                    {availableDatesForLink.map((date) => {
+                      const isSelected = slotsForLinkDates.includes(date);
+                      return (
+                        <Button
+                          key={date}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSlotsForLinkDates((prev) => prev.filter((d) => d !== date));
+                            } else {
+                              setSlotsForLinkDates((prev) => [...prev, date]);
+                            }
+                          }}
+                        >
+                          {format(new Date(date), "d MMM", { locale: ru })}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+                {availableDatesForLink.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {language === "ru"
+                      ? `Выбрано дат: ${slotsForLinkDates.length} из ${availableDatesForLink.length}`
+                      : `Таңдалған күндер: ${slotsForLinkDates.length} / ${availableDatesForLink.length}`}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t">
+                <Button variant="outline" className="flex-1" onClick={() => setIsManagingSlots(false)}>
+                  {t("cancel")}
+                </Button>
+                <Button
+                  className="flex-1"
+                  disabled={!lessonLinkUrl.trim() || slotsForLinkDates.length === 0 || addLessonLink.isPending}
+                  onClick={() => {
+                    const targetSchedule = schedules[0];
+                    if (targetSchedule && lessonLinkUrl.trim()) {
+                      const isAll = slotsForLinkDates.length === availableDatesForLink.length;
+                      addLessonLink.mutate({
+                        scheduleId: targetSchedule.id,
+                        dates: isAll ? "all" : slotsForLinkDates,
+                        link: lessonLinkUrl.trim(),
+                      });
+                      setIsManagingSlots(false);
+                    }
+                  }}
+                >
+                  {addLessonLink.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === "ru" ? "Сохранить ссылку" : "Сілтемені сақтау")}
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="delete" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>{language === "ru" ? "Выберите даты для удаления" : "Жою үшін күндерді таңдаңыз"}</Label>
+                  {availableDatesForDelete.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        if (slotsToDeleteDates.length === availableDatesForDelete.length) {
+                          setSlotsToDeleteDates([]);
+                        } else {
+                          setSlotsToDeleteDates([...availableDatesForDelete]);
+                        }
+                      }}
+                    >
+                      {slotsToDeleteDates.length === availableDatesForDelete.length
+                        ? (language === "ru" ? "Снять всё" : "Барлығын алу")
+                        : (language === "ru" ? "Выбрать все даты" : "Барлық күндерді таңдау")}
+                    </Button>
+                  )}
+                </div>
+                {availableDatesForDelete.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    {language === "ru" ? "Нет слотов для удаления" : "Жоюға болатын слоттар жоқ"}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-2 border rounded-md">
+                    {availableDatesForDelete.map((date) => {
+                      const isSelected = slotsToDeleteDates.includes(date);
+                      return (
+                        <Button
+                          key={date}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSlotsToDeleteDates((prev) => prev.filter((d) => d !== date));
+                            } else {
+                              setSlotsToDeleteDates((prev) => [...prev, date]);
+                            }
+                          }}
+                        >
+                          {format(new Date(date), "d MMM", { locale: ru })}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+                {availableDatesForDelete.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {language === "ru"
+                      ? `Выбрано дат: ${slotsToDeleteDates.length} из ${availableDatesForDelete.length}`
+                      : `Таңдалған күндер: ${slotsToDeleteDates.length} / ${availableDatesForDelete.length}`}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t">
+                <Button variant="outline" className="flex-1" onClick={() => setIsManagingSlots(false)}>
+                  {t("cancel")}
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={slotsToDeleteDates.length === 0 || deleteMultipleSlots.isPending}
+                  onClick={() => {
+                    const targetSchedule = schedules[0];
+                    if (targetSchedule) {
+                      const isAll = slotsToDeleteDates.length === availableDatesForDelete.length;
+                      deleteMultipleSlots.mutate({
+                        scheduleId: targetSchedule.id,
+                        dates: isAll ? "all" : slotsToDeleteDates,
+                      });
+                      setIsManagingSlots(false);
+                    }
+                  }}
+                >
+                  {deleteMultipleSlots.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === "ru" ? "Удалить слоты" : "Слоттарды жою")}
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Schedule Confirmation */}
       <AlertDialog open={!!deletingSchedule} onOpenChange={(open) => { if (!open) setDeletingSchedule(null); }}>
         <AlertDialogContent>
@@ -1318,157 +1798,6 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Multiple Slots Dialog */}
-      <Dialog open={isDeletingSlots} onOpenChange={(open) => { if (!open) { setIsDeletingSlots(false); setSelectedScheduleForDelete(null); setSlotsToDeleteDates([]); setAvailableDatesForDelete([]); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{language === "ru" ? "Удалить слоты" : "Слоттарды жою"}</DialogTitle>
-          </DialogHeader>
-          
-          {selectedScheduleForDelete && (
-            <>
-              <div className="flex items-center gap-2 mt-2 mb-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedScheduleForDelete(null);
-                    setSlotsToDeleteDates([]);
-                    setAvailableDatesForDelete([]);
-                  }}
-                >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  {language === "ru" ? "Назад" : "Артқа"}
-                </Button>
-                <div className="flex items-center gap-2">
-                  {selectedScheduleForDelete.event_type === "group" ? (
-                    <Users className="w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <User className="w-4 h-4 text-muted-foreground" />
-                  )}
-                  <span className="font-medium">{selectedScheduleForDelete.title}</span>
-                </div>
-              </div>
-              <div className="space-y-4">
-                {availableDatesForDelete.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">
-                    {language === "ru" ? "Нет слотов для удаления" : "Жоюға слоттар жоқ"}
-                  </p>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <Label>{language === "ru" ? "Выберите даты для удаления" : "Жою үшін күндерді таңдаңыз"}</Label>
-                      <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-2 border rounded-md">
-                        {availableDatesForDelete.map((date) => {
-                          const isSelected = slotsToDeleteDates.includes(date);
-                          return (
-                            <Button
-                              key={date}
-                              type="button"
-                              variant={isSelected ? "default" : "outline"}
-                              size="sm"
-                              className={!isSelected ? "hover:bg-background hover:text-foreground" : ""}
-                              onClick={() => {
-                                if (isSelected) {
-                                  setSlotsToDeleteDates(prev => prev.filter(d => d !== date));
-                                } else {
-                                  setSlotsToDeleteDates(prev => [...prev, date]);
-                                }
-                              }}
-                            >
-                              {format(new Date(date), "d MMM", { locale: ru })}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {language === "ru" 
-                          ? `Выбрано: ${slotsToDeleteDates.length} из ${availableDatesForDelete.length}` 
-                          : `Таңдалды: ${slotsToDeleteDates.length} / ${availableDatesForDelete.length}`}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => {
-                          if (slotsToDeleteDates.length === availableDatesForDelete.length) {
-                            setSlotsToDeleteDates([]);
-                          } else {
-                            setSlotsToDeleteDates([...availableDatesForDelete]);
-                          }
-                        }}
-                      >
-                        {slotsToDeleteDates.length === availableDatesForDelete.length 
-                          ? (language === "ru" ? "Снять всё" : "Барлығын алу") 
-                          : (language === "ru" ? "Выбрать все" : "Барлығын таңдау")}
-                      </Button>
-                    </div>
-                  </>
-                )}
-                <div className="flex gap-2 pt-2 border-t">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="flex-1" 
-                    onClick={() => { setIsDeletingSlots(false); setSelectedScheduleForDelete(null); setSlotsToDeleteDates([]); }}
-                  >
-                    {t("cancel")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    className="flex-1"
-                    disabled={slotsToDeleteDates.length === 0}
-                    onClick={() => setConfirmDeleteSlots(true)}
-                  >
-                    {t("delete")}
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Confirm Delete Multiple Slots */}
-      <AlertDialog open={confirmDeleteSlots} onOpenChange={setConfirmDeleteSlots}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {language === "ru" ? "Удалить выбранные слоты?" : "Таңдалған слоттарды жою керек пе?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {slotsToDeleteDates.length === availableDatesForDelete.length
-                ? (language === "ru" 
-                    ? `Вы уверены, что хотите удалить ВСЕ слоты (${availableDatesForDelete.length} дней) в расписании "${selectedScheduleForDelete?.title}"? Это действие нельзя отменить.`
-                    : `"${selectedScheduleForDelete?.title}" кестесіндегі БАРЛЫҚ слоттарды (${availableDatesForDelete.length} күн) жойғыңыз келетініне сенімдісіз бе? Бұл әрекетті болдырмау мүмкін емес.`)
-                : (language === "ru"
-                    ? `Вы уверены, что хотите удалить слоты за ${slotsToDeleteDates.length} дней? Это действие нельзя отменить.`
-                    : `${slotsToDeleteDates.length} күн үшін слоттарды жойғыңыз келетініне сенімдісіз бе? Бұл әрекетті болдырмау мүмкін емес.`)}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (selectedScheduleForDelete) {
-                  const isAll = slotsToDeleteDates.length === availableDatesForDelete.length;
-                  deleteMultipleSlots.mutate({
-                    scheduleId: selectedScheduleForDelete.id,
-                    dates: isAll ? "all" : slotsToDeleteDates,
-                  });
-                  setConfirmDeleteSlots(false);
-                }
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteMultipleSlots.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Delete Schedule Dialog */}
       <Dialog open={isDeletingSchedule} onOpenChange={(open) => { if (!open) { setIsDeletingSchedule(false); setSelectedScheduleForDelete(null); } }}>
@@ -1633,206 +1962,6 @@ const CreatorScheduleTab = ({ creatorName, onGoToProducts }: CreatorScheduleTabP
         </DialogContent>
       </Dialog>
 
-      {/* Add Lesson Link Dialog (by dates) */}
-      <Dialog open={isAddingLink} onOpenChange={(open) => { if (!open) { setIsAddingLink(false); setSelectedScheduleForLink(null); setSlotsForLinkDates([]); setAvailableDatesForLink([]); setLessonLinkUrl(""); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{language === "ru" ? "Добавить ссылку на урок" : "Сабаққа сілтеме қосу"}</DialogTitle>
-          </DialogHeader>
-          
-          {!selectedScheduleForLink ? (
-            <div className="space-y-4 mt-4">
-              <Label>{language === "ru" ? "Выберите расписание" : "Кестені таңдаңыз"}</Label>
-              {schedules.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">
-                  {language === "ru" ? "Нет расписаний" : "Кестелер жоқ"}
-                </p>
-              ) : (
-                <div className="space-y-4 max-h-80 overflow-y-auto">
-                  {/* Individual schedules */}
-                  {schedules.filter(s => s.event_type === "individual").length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                        <User className="w-4 h-4" />
-                        {language === "ru" ? "Индивидуальные" : "Жеке сабақтар"}
-                      </div>
-                      {schedules.filter(s => s.event_type === "individual").map((schedule) => (
-                        <Button
-                          key={schedule.id}
-                          variant="outline"
-                          className="w-full justify-start gap-3 h-auto py-3"
-                          onClick={() => {
-                            setSelectedScheduleForLink(schedule);
-                            fetchAvailableDatesForLink(schedule.id);
-                            setSlotsForLinkDates([]);
-                          }}
-                        >
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <User className="w-4 h-4 text-primary" />
-                          </div>
-                          <div className="text-left">
-                            <p className="font-medium">{schedule.title}</p>
-                            <p className="text-xs text-muted-foreground">{schedule.product?.title}</p>
-                          </div>
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Group schedules */}
-                  {schedules.filter(s => s.event_type === "group").length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                        <Users className="w-4 h-4" />
-                        {language === "ru" ? "Групповые" : "Топтық сабақтар"}
-                      </div>
-                      {schedules.filter(s => s.event_type === "group").map((schedule) => (
-                        <Button
-                          key={schedule.id}
-                          variant="outline"
-                          className="w-full justify-start gap-3 h-auto py-3"
-                          onClick={() => {
-                            setSelectedScheduleForLink(schedule);
-                            fetchAvailableDatesForLink(schedule.id);
-                            setSlotsForLinkDates([]);
-                          }}
-                        >
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <Users className="w-4 h-4 text-primary" />
-                          </div>
-                          <div className="text-left">
-                            <p className="font-medium">{schedule.title}</p>
-                            <p className="text-xs text-muted-foreground">{schedule.product?.title}</p>
-                          </div>
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center gap-2 mt-2 mb-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedScheduleForLink(null);
-                    setSlotsForLinkDates([]);
-                    setAvailableDatesForLink([]);
-                    setLessonLinkUrl("");
-                  }}
-                >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  {language === "ru" ? "Назад" : "Артқа"}
-                </Button>
-                <div className="flex items-center gap-2">
-                  {selectedScheduleForLink.event_type === "group" ? (
-                    <Users className="w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <User className="w-4 h-4 text-muted-foreground" />
-                  )}
-                  <span className="font-medium">{selectedScheduleForLink.title}</span>
-                </div>
-              </div>
-              <div className="space-y-4">
-                {availableDatesForLink.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">
-                    {language === "ru" ? "Нет слотов для добавления ссылки" : "Сілтеме қосуға слоттар жоқ"}
-                  </p>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <Label>{language === "ru" ? "Ссылка на урок" : "Сабаққа сілтеме"}</Label>
-                      <Input
-                        placeholder="https://zoom.us/j/..."
-                        value={lessonLinkUrl}
-                        onChange={(e) => setLessonLinkUrl(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{language === "ru" ? "Выберите даты" : "Күндерді таңдаңыз"}</Label>
-                      <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-2 border rounded-md">
-                        {availableDatesForLink.map((date) => {
-                          const isSelected = slotsForLinkDates.includes(date);
-                          return (
-                            <Button
-                              key={date}
-                              type="button"
-                              variant={isSelected ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => {
-                                if (isSelected) {
-                                  setSlotsForLinkDates(slotsForLinkDates.filter(d => d !== date));
-                                } else {
-                                  setSlotsForLinkDates([...slotsForLinkDates, date]);
-                                }
-                              }}
-                            >
-                              {format(new Date(date), "d MMM", { locale: ru })}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {language === "ru" 
-                          ? `Выбрано: ${slotsForLinkDates.length} из ${availableDatesForLink.length}` 
-                          : `Таңдалды: ${slotsForLinkDates.length} / ${availableDatesForLink.length}`}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => {
-                          if (slotsForLinkDates.length === availableDatesForLink.length) {
-                            setSlotsForLinkDates([]);
-                          } else {
-                            setSlotsForLinkDates([...availableDatesForLink]);
-                          }
-                        }}
-                      >
-                        {slotsForLinkDates.length === availableDatesForLink.length 
-                          ? (language === "ru" ? "Снять всё" : "Барлығын алу") 
-                          : (language === "ru" ? "Выбрать все" : "Барлығын таңдау")}
-                      </Button>
-                    </div>
-                  </>
-                )}
-                <div className="flex gap-2 pt-2 border-t">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="flex-1" 
-                    onClick={() => { setIsAddingLink(false); setSelectedScheduleForLink(null); setSlotsForLinkDates([]); setLessonLinkUrl(""); }}
-                  >
-                    {t("cancel")}
-                  </Button>
-                  <Button
-                    type="button"
-                    className="flex-1"
-                    disabled={slotsForLinkDates.length === 0 || !lessonLinkUrl.trim() || addLessonLink.isPending}
-                    onClick={() => {
-                      if (selectedScheduleForLink && lessonLinkUrl.trim()) {
-                        const isAll = slotsForLinkDates.length === availableDatesForLink.length;
-                        addLessonLink.mutate({
-                          scheduleId: selectedScheduleForLink.id,
-                          dates: isAll ? "all" : slotsForLinkDates,
-                          link: lessonLinkUrl.trim(),
-                        });
-                      }
-                    }}
-                  >
-                    {addLessonLink.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === "ru" ? "Добавить" : "Қосу")}
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* View/Edit Lesson Link Dialog */}
       <Dialog open={!!viewingLinkSlot} onOpenChange={(open) => { if (!open) setViewingLinkSlot(null); }}>
