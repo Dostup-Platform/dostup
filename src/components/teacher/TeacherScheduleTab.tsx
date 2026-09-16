@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, Pencil, UserPlus, Link, Copy, X, Settings2, Sun, Moon } from "lucide-react";
+import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, Pencil, UserPlus, Link, Copy, X, Settings2, Sun, Moon, Video } from "lucide-react";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import RescheduleSlotDialog from "@/components/RescheduleSlotDialog";
 import EditSlotTimeDialog from "@/components/EditSlotTimeDialog";
 import ProductSwitcher from "../creator/ProductSwitcher";
+import SlotCreationWizard from "@/components/schedule/SlotCreationWizard";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { studentCreds, invokeApi } from "@/lib/sessionApi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -81,6 +82,10 @@ interface TimeSlot {
   is_available: boolean;
   max_participants?: number | null;
   lesson_link?: string | null;
+  title?: string | null;
+  description?: string | null;
+  image_url?: string | null;
+  slot_group_id?: string | null;
 }
 
 interface Booking {
@@ -103,6 +108,8 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [isAddingSchedule, setIsAddingSchedule] = useState(false);
   const [isAddingSlots, setIsAddingSlots] = useState(false);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [expandedSlotId, setExpandedSlotId] = useState<string | null>(null);
   const [isManagingSlots, setIsManagingSlots] = useState(false);
   const [manageTab, setManageTab] = useState<"link" | "delete">("link");
   const [quickAddSlotHour, setQuickAddSlotHour] = useState<number | null>(null);
@@ -749,6 +756,92 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
     onError: () => toast.error(language === "ru" ? "Ошибка при обновлении ссылки" : "Сілтемені жаңарту кезінде қате"),
   });
 
+  const updateSlotMeta = useMutation({
+    mutationFn: async ({ slotId, updates }: { slotId: string; updates: { title?: string; description?: string; image_url?: string } }) => {
+      await invokeApi("manage-schedules", {
+        action: "update_slot",
+        ...studentCreds(),
+        slotId,
+        updates,
+      });
+    },
+    onSuccess: () => {
+      invalidateSlotsAndBookings();
+    },
+    onError: () => toast.error(language === "ru" ? "Ошибка при обновлении" : "Жаңарту кезінде қате"),
+  });
+
+  const createWizardSlots = useMutation({
+    mutationFn: async (params: {
+      timeIntervals: { start: string; end: string }[];
+      repeatDays: number[];
+      repeatWeekly: boolean;
+      repeatPeriod: "2weeks" | "1month" | "2months" | "custom" | null;
+      repeatUntil: string | null;
+      slotDuration: number;
+      maxParticipants: number;
+      title?: string;
+      description?: string;
+      imageUrl?: string;
+    }) => {
+      const scheduleId = schedules[0]?.id || (await ensureScheduleId());
+      const today = new Date();
+      let endDate = today;
+      if (params.repeatWeekly && params.repeatPeriod) {
+        if (params.repeatPeriod === "2weeks") endDate = addDays(today, 14);
+        else if (params.repeatPeriod === "1month") endDate = addMonths(today, 1);
+        else if (params.repeatPeriod === "2months") endDate = addMonths(today, 2);
+        else if (params.repeatPeriod === "custom" && params.repeatUntil) endDate = new Date(params.repeatUntil);
+      }
+      const jsDays = params.repeatDays.map(d => (d + 1) % 7);
+      const slots: any[] = [];
+      let currentDate = new Date(today);
+      while (currentDate <= endDate) {
+        const dayOfWeek = currentDate.getDay();
+        if (jsDays.includes(dayOfWeek)) {
+          const dateStr = format(currentDate, "yyyy-MM-dd");
+          for (const interval of params.timeIntervals) {
+            let [startH, startM] = interval.start.split(":").map(Number);
+            const [endH, endM] = interval.end.split(":").map(Number);
+            const endMinutes = endH * 60 + endM;
+            while (true) {
+              const currentMinutes = startH * 60 + startM;
+              const slotEndMinutes = currentMinutes + params.slotDuration;
+              if (slotEndMinutes > endMinutes) break;
+              const slotStart = `${String(startH).padStart(2, "0")}:${String(startM).padStart(2, "0")}:00`;
+              const slotEndH = Math.floor(slotEndMinutes / 60) % 24;
+              const slotEndM = slotEndMinutes % 60;
+              const slotEnd = `${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}:00`;
+              const exists = timeSlots.some((s) => s.date === dateStr && s.start_time.slice(0, 5) === slotStart.slice(0, 5));
+              if (!exists) {
+                slots.push({
+                  schedule_id: scheduleId, date: dateStr, start_time: slotStart, end_time: slotEnd,
+                  is_available: true, max_participants: params.maxParticipants,
+                  title: params.title || null, description: params.description || null, image_url: params.imageUrl || null,
+                });
+              }
+              startH = Math.floor(slotEndMinutes / 60);
+              startM = slotEndMinutes % 60;
+            }
+          }
+        }
+        currentDate = addDays(currentDate, 1);
+      }
+      if (slots.length === 0) throw new Error(language === "ru" ? "Нет новых слотов для создания" : "Жаңа слоттар жоқ");
+      await invokeApi("manage-schedules", { action: "create_slots", ...studentCreds(), slots, scheduleId });
+      return slots.length;
+    },
+    onSuccess: (count) => {
+      invalidateSlotsAndBookings();
+      queryClient.invalidateQueries({ queryKey: ["teacher-schedules"] });
+      toast.success(language === "ru" ? `Создано ${count} слотов!` : `${count} слот жасалды!`);
+      setIsWizardOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || (language === "ru" ? "Ошибка при создании слотов" : "Слоттарды жасау кезінде қате"));
+    },
+  });
+
   const leftColumnHours = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
   const rightColumnHours = [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
 
@@ -818,6 +911,215 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
         return a.start_time.localeCompare(b.start_time);
       });
   }, [timeSlots, bookings, currentMonth]);
+
+  const bookedSlotsForDay = useMemo(() => {
+    if (!selectedDate) return [];
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    return timeSlots.filter((slot) => {
+      if (slot.date !== dateStr) return false;
+      return getBookingsForSlot(slot.id).length > 0;
+    }).sort((a, b) => a.start_time.localeCompare(b.start_time));
+  }, [timeSlots, bookings, selectedDate]);
+
+  const allSlotsForDay = useMemo(() => {
+    if (!selectedDate) return [];
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    return timeSlots.filter((slot) => slot.date === dateStr).sort((a, b) => a.start_time.localeCompare(b.start_time));
+  }, [timeSlots, selectedDate]);
+
+  const renderDayBookings = () => {
+    if (!selectedDate) return null;
+    const daySlots = allSlotsForDay;
+
+    if (daySlots.length === 0) {
+      return (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          {language === "ru" ? "На этот день слотов нет" : "Бұл күні слоттар жоқ"}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2.5">
+        {daySlots.map((slot) => {
+          const slotBookings = getBookingsForSlot(slot.id);
+          const schedule = getScheduleForSlot(slot.id);
+          const maxParticipants = slot.max_participants ?? (schedule?.event_type === "group" ? (schedule.max_participants ?? 1) : 1);
+          const isGroup = maxParticipants > 1;
+          const timeLabel = `${slot.start_time.slice(0, 5)} – ${slot.end_time.slice(0, 5)}`;
+          const status = getSlotStatus(slot.id);
+          const isExpanded = expandedSlotId === slot.id;
+          const hasBookings = slotBookings.length > 0;
+
+          const statusColor = status === "full" ? "bg-green-500" : status === "partial" ? "bg-orange-500" : "bg-red-400";
+          const statusBorder = status === "full" ? "border-green-200" : status === "partial" ? "border-orange-200" : "border-red-200";
+
+          return (
+            <div
+              key={slot.id}
+              className={`rounded-xl border ${statusBorder} bg-card transition-colors space-y-0`}
+            >
+              {/* Main slot row - clickable to expand */}
+              <div
+                className="p-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-xl"
+                onClick={() => setExpandedSlotId(isExpanded ? null : slot.id)}
+              >
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${statusColor}`} />
+                    <Badge variant="outline" className="text-xs">
+                      {timeLabel}
+                    </Badge>
+                    {slot.title && (
+                      <span className="font-medium text-sm">{slot.title}</span>
+                    )}
+                    {isGroup ? (
+                      <Badge variant="secondary" className="text-[11px]">
+                        {slotBookings.length}/{maxParticipants} {language === "ru" ? "группа" : "топ"}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[11px]">
+                        {hasBookings 
+                          ? (language === "ru" ? "Занято" : "Бос емес")
+                          : (language === "ru" ? "Свободно" : "Бос")
+                        }
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Action buttons - outside the slot card */}
+                  <div className="flex items-center gap-1">
+                    {/* Video call button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      onClick={(e) => { e.stopPropagation(); }}
+                      title={language === "ru" ? "Видеозвонок" : "Бейне қоңырау"}
+                    >
+                      <Video className="w-4 h-4" />
+                    </Button>
+                    {/* Reschedule button */}
+                    {hasBookings && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        onClick={(e) => { e.stopPropagation(); setReschedulingSlot({ slot, schedule: schedule! }); }}
+                        title={language === "ru" ? "Перенести" : "Ауыстыру"}
+                      >
+                        <Clock className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {/* Delete button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (hasBookings) {
+                          setDeletingSlotWithBookings(slot);
+                        } else {
+                          setDeletingSlot(slot);
+                        }
+                      }}
+                      title={language === "ru" ? "Удалить" : "Жою"}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expanded content: description, image, editable fields for seller */}
+              {isExpanded && (
+                <div className="px-3 pb-3 space-y-3 border-t border-border/50 pt-3 animate-in fade-in slide-in-from-top-2">
+                  {/* Image */}
+                  {slot.image_url && (
+                    <div className="rounded-lg overflow-hidden">
+                      <img src={slot.image_url} alt={slot.title || ""} className="w-full h-40 object-cover" />
+                    </div>
+                  )}
+                  {/* Description */}
+                  {slot.description && (
+                    <p className="text-sm text-muted-foreground">{slot.description}</p>
+                  )}
+                  {/* Editable fields for seller */}
+                  <div className="space-y-2 pt-2 border-t border-border/30">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{language === "ru" ? "Название" : "Атауы"}</Label>
+                      <Input
+                        value={slot.title || ""}
+                        placeholder={language === "ru" ? "Название урока" : "Сабақ атауы"}
+                        className="h-8 text-sm"
+                        onChange={(e) => {
+                          updateSlotMeta.mutate({ slotId: slot.id, updates: { title: e.target.value } });
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{language === "ru" ? "Описание" : "Сипаттамасы"}</Label>
+                      <Input
+                        value={slot.description || ""}
+                        placeholder={language === "ru" ? "Описание урока" : "Сабақ сипаттамасы"}
+                        className="h-8 text-sm"
+                        onChange={(e) => {
+                          updateSlotMeta.mutate({ slotId: slot.id, updates: { description: e.target.value } });
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{language === "ru" ? "Обложка (URL)" : "Мұқаба (URL)"}</Label>
+                      <Input
+                        value={slot.image_url || ""}
+                        placeholder="https://..."
+                        className="h-8 text-sm"
+                        onChange={(e) => {
+                          updateSlotMeta.mutate({ slotId: slot.id, updates: { image_url: e.target.value } });
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Student list */}
+                  {hasBookings && (
+                    <div className="space-y-1 pt-2 border-t border-border/50">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {language === "ru" ? "Записи:" : "Жазбалар:"}
+                      </span>
+                      {slotBookings.map((b) => (
+                        <div key={b.id} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-muted/40">
+                          <span className="font-medium text-foreground">{b.user?.name || "—"}</span>
+                          {b.user?.phone && (
+                            <span className="text-muted-foreground text-[11px]">{b.user.phone}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Non-expanded: show student list for booked slots */}
+              {!isExpanded && hasBookings && (
+                <div className="space-y-1 px-3 pb-2 pt-1 border-t border-border/50">
+                  {slotBookings.map((b) => (
+                    <div key={b.id} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-muted/40">
+                      <span className="font-medium text-foreground">{b.user?.name || "—"}</span>
+                      {b.user?.phone && (
+                        <span className="text-muted-foreground text-[11px]">{b.user.phone}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderHourRow = (h: number) => {
     const hourSlots = selectedDateSlots.filter((s) => {
@@ -1085,19 +1387,12 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
           <Button 
             size="sm"
             onClick={() => {
-              setSelectedScheduleForSlots(schedules[0] || null);
-              setSlotsForm((prev) => ({
-                ...prev,
-                startDate: format(selectedDate || new Date(), "yyyy-MM-dd"),
-                endDate: format(addDays(selectedDate || new Date(), 7), "yyyy-MM-dd"),
-                maxParticipants: "1",
-              }));
-              setIsAddingSlots(true);
+              setIsWizardOpen(true);
             }}
             className="gap-1.5"
           >
             <Plus className="w-4 h-4" />
-            {language === "ru" ? "Слоты" : "Слоттар"}
+            {language === "ru" ? "Добавить слоты" : "Слоттар қосу"}
           </Button>
           <Button
             variant="outline"
@@ -1115,7 +1410,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
             className="gap-1.5"
           >
             <Settings2 className="w-4 h-4" />
-            {language === "ru" ? "Управлять" : "Басқару"}
+            {language === "ru" ? "Управлять расписанием" : "Кестені басқару"}
           </Button>
         </div>
       </div>
@@ -1241,25 +1536,25 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
         </Card>
       )}
 
-      {/* Week Calendar: Hourly Schedule Directly Underneath */}
+      {/* Week Calendar: Day Bookings Underneath */}
       {viewMode === "week" && selectedDate && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-base flex items-center gap-2 capitalize">
-                <Clock className="w-4 h-4 text-primary" />
-                {(() => {
-                  const dayTitle = format(selectedDate, "EEEE, d MMMM", { locale: ru });
+                <Users className="w-4 h-4 text-primary" />
+                {language === "ru" ? "Записи на " : ""}{(() => {
+                  const dayTitle = format(selectedDate, "d MMMM, EEEE", { locale: ru });
                   return dayTitle.charAt(0).toUpperCase() + dayTitle.slice(1);
                 })()}
               </CardTitle>
               <Badge variant="secondary">
-                {selectedDateSlots.length} {language === "ru" ? "слотов" : "слот"}
+                {allSlotsForDay.length}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {renderHourlySchedule()}
+            {renderDayBookings()}
           </CardContent>
         </Card>
       )}
@@ -1395,132 +1690,50 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
       )}
 
       {/* Month Calendar: Booked Sessions Card */}
-      {viewMode === "month" && (
+      {viewMode === "month" && selectedDate && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="text-base flex items-center gap-2">
+              <CardTitle className="text-base flex items-center gap-2 capitalize">
                 <Users className="w-4 h-4 text-primary" />
-                {language === "ru" ? "Записи на этот месяц" : "Бұл айдағы жазбалар"}
+                {language === "ru" ? "Записи на " : ""}{(() => {
+                  const dayTitle = format(selectedDate, "d MMMM, EEEE", { locale: ru });
+                  return dayTitle.charAt(0).toUpperCase() + dayTitle.slice(1);
+                })()}
               </CardTitle>
               <Badge variant="secondary">
-                {bookedSlotsInMonth.length} {language === "ru" ? "занятий" : "сабақ"}
+                {allSlotsForDay.length}
               </Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            {bookedSlotsInMonth.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground text-sm">
-                {language === "ru" ? "В этом месяце пока нет записей" : "Бұл айда әзірге жазбалар жоқ"}
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {bookedSlotsInMonth.map((slot) => {
-                  const slotBookings = getBookingsForSlot(slot.id);
-                  const schedule = getScheduleForSlot(slot.id);
-                  const maxParticipants = slot.max_participants ?? (schedule?.event_type === "group" ? (schedule.max_participants ?? 1) : 1);
-                  const isGroup = maxParticipants > 1;
-                  const slotDateObj = parseISO(slot.date);
-                  const formattedDate = format(slotDateObj, "d MMMM, EEEE", { locale: ru });
-                  const timeLabel = `${slot.start_time.slice(0, 5)} – ${slot.end_time.slice(0, 5)}`;
-
-                  return (
-                    <div
-                      key={slot.id}
-                      className="p-3 rounded-xl border border-border bg-card hover:border-primary/30 transition-colors space-y-2"
-                    >
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-green-500" />
-                          <span className="font-semibold text-sm capitalize">{formattedDate}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {timeLabel}
-                          </Badge>
-                          {isGroup ? (
-                            <Badge variant="secondary" className="text-[11px]">
-                              {slotBookings.length}/{maxParticipants} {language === "ru" ? "группа" : "топ"}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[11px]">
-                              {language === "ru" ? "Индивидуально" : "Жеке"}
-                            </Badge>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`h-7 w-7 ${slot.lesson_link ? "text-blue-600 hover:text-blue-600 hover:bg-blue-50" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
-                            onClick={() => {
-                              if (slot.lesson_link) {
-                                setViewingLinkSlot(slot);
-                              } else {
-                                const newLink = prompt(language === "ru" ? "Введите ссылку на урок:" : "Сабаққа сілтемені енгізіңіз:");
-                                if (newLink) {
-                                  updateSlotLink.mutate({ slotId: slot.id, link: newLink });
-                                }
-                              }
-                            }}
-                            title={slot.lesson_link ? (language === "ru" ? "Ссылка на урок" : "Сабаққа сілтеме") : (language === "ru" ? "Добавить ссылку" : "Сілтеме қосу")}
-                          >
-                            <Link className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                            onClick={() => setReschedulingSlot({ slot, schedule })}
-                            title={language === "ru" ? "Перенести" : "Ауыстыру"}
-                          >
-                            <Clock className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setDeletingSlotWithBookings(slot)}
-                            title={language === "ru" ? "Удалить слот" : "Слотты жою"}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Student list */}
-                      <div className="space-y-1 pl-4 pt-1 border-t border-border/50">
-                        {slotBookings.map((b) => (
-                          <div key={b.id} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-muted/40">
-                            <span className="font-medium text-foreground">{b.user?.name || "—"}</span>
-                            {b.user?.phone && (
-                              <span className="text-muted-foreground text-[11px]">{b.user.phone}</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          <CardContent className="space-y-2.5">
+            {renderDayBookings()}
           </CardContent>
         </Card>
       )}
 
       {/* Day Schedule Dialog for Month View */}
       <Dialog open={isDayScheduleDialogOpen} onOpenChange={setIsDayScheduleDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base flex items-center gap-2 capitalize">
-              <Clock className="w-4 h-4 text-primary" />
-              {selectedDate && format(selectedDate, "EEEE, d MMMM yyyy", { locale: ru })}
+              <Users className="w-4 h-4 text-primary" />
+              {language === "ru" ? "Записи на " : ""}{selectedDate && format(selectedDate, "d MMMM, EEEE", { locale: ru })}
             </DialogTitle>
           </DialogHeader>
           <div className="pt-2">
-            {renderHourlySchedule()}
+            {renderDayBookings()}
           </div>
         </DialogContent>
       </Dialog>
+
+      <SlotCreationWizard
+        open={isWizardOpen}
+        onOpenChange={setIsWizardOpen}
+        language={language as "ru" | "kk"}
+        onCreateSlots={(params) => createWizardSlots.mutate(params)}
+        isPending={createWizardSlots.isPending}
+      />
 
       {/* Create Schedule Dialog */}
       <Dialog open={isAddingSchedule} onOpenChange={setIsAddingSchedule}>
@@ -1811,7 +2024,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings2 className="w-5 h-5 text-primary" />
-              {language === "ru" ? "Управление слотами" : "Слоттарды басқару"}
+              {language === "ru" ? "Управлять расписанием" : "Слоттарды басқару"}
             </DialogTitle>
           </DialogHeader>
 
