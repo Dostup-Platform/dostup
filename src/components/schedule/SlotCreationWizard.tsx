@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Clock, ChevronDown, X, Sparkles, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, ChevronDown, X, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { format, addDays, startOfWeek, isSameDay } from "date-fns";
@@ -91,6 +91,7 @@ export default function SlotCreationWizard({
       showOtherHours: "Показать ранние/ночные часы (00:00 – 08:00)",
       hideOtherHours: "Скрыть ночные часы",
       timeRange: "Диапазон часов",
+      timezone: "Часовой пояс",
       start: "С",
       end: "По",
       weekDays: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
@@ -113,9 +114,7 @@ export default function SlotCreationWizard({
       time: "Время",
       repeat: "Повтор",
       settings: "Настройки",
-      selectedSlots: "Выбрано 30-мин ячеек",
-      presetWorkDays: "Пн-Пт 09:00-18:00",
-      clearAll: "Очистить",
+      clearAll: "Очистить всё",
       noSlotsWarning: "Выберите хотя бы одну клетку на сетке времени",
       repeatSummary: "Слоты будут созданы на следующие дни:",
     },
@@ -126,6 +125,7 @@ export default function SlotCreationWizard({
       showOtherHours: "Түнгі сағаттарды көрсету (00:00 – 08:00)",
       hideOtherHours: "Түнгі сағаттарды жасыру",
       timeRange: "Сағат аралығы",
+      timezone: "Уақыт белдеуі",
       start: "Басталуы",
       end: "Аяқталуы",
       weekDays: ["Дс", "Сс", "Ср", "Бс", "Жм", "Сн", "Жс"],
@@ -148,8 +148,6 @@ export default function SlotCreationWizard({
       time: "Уақыт",
       repeat: "Қайталау",
       settings: "Баптаулар",
-      selectedSlots: "Таңдалған 30-мин ұяшықтар",
-      presetWorkDays: "Дс-Жм 09:00-18:00",
       clearAll: "Тазарту",
       noSlotsWarning: "Кем дегенде бір ұяшықты таңдаңыз",
       repeatSummary: "Слоттар келесі күндерге жасалады:",
@@ -191,19 +189,6 @@ export default function SlotCreationWizard({
       }
       return next;
     });
-  };
-
-  // Quick preset: Mon-Fri 09:00-18:00
-  const applyPresetWorkDays = () => {
-    const next = new Set(selectedCells);
-    for (let day = 0; day < 5; day++) {
-      for (let h = 9; h < 18; h++) {
-        const hh = h.toString().padStart(2, "0");
-        next.add(`${day}_${hh}:00`);
-        next.add(`${day}_${hh}:30`);
-      }
-    }
-    setSelectedCells(next);
   };
 
   // Group selected 30-min cells into contiguous intervals per day
@@ -285,77 +270,74 @@ export default function SlotCreationWizard({
 
         {/* Top Header */}
         <header className="flex-none flex items-center justify-between p-3 sm:p-4 border-b bg-card">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange(false)}>
-              <X className="w-5 h-5" />
-            </Button>
-            <div>
-              <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
-                <span>{step === 1 ? t.step1 : step === 2 ? t.step2 : t.step3}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {step}/3
-                </Badge>
-              </h2>
-            </div>
+          {/* Step Title (left) - without 1/3 badge and without left cross */}
+          <div>
+            <h2 className="text-base sm:text-lg font-semibold text-foreground">
+              {step === 1 ? t.step1 : step === 2 ? t.step2 : t.step3}
+            </h2>
           </div>
 
-          {step === 1 && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={applyPresetWorkDays}
-                className="hidden md:inline-flex text-xs h-8 gap-1"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
-                {t.presetWorkDays}
-              </Button>
-              {selectedCells.size > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedCells(new Set())}
-                  className="text-xs h-8 text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  {t.clearAll}
-                </Button>
-              )}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">{t.timeRange}</span>
+          {/* Right Controls: Time Range left of Close button */}
+          <div className="flex items-center gap-2">
+            {step === 1 && (
+              <>
+                {selectedCells.size > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedCells(new Set())}
+                    className="text-xs h-8 text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {t.clearAll}
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-3" align="end">
-                  <div className="space-y-3">
-                    <h4 className="text-xs font-semibold">{t.timeRange}</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">{t.start}</Label>
-                        <Input
-                          type="time"
-                          value={workingHours.start}
-                          onChange={(e) => setWorkingHours({ ...workingHours, start: e.target.value })}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">{t.end}</Label>
-                        <Input
-                          type="time"
-                          value={workingHours.end}
-                          onChange={(e) => setWorkingHours({ ...workingHours, end: e.target.value })}
-                          className="h-8 text-xs"
-                        />
+                )}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{t.timeRange}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-3" align="end">
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-semibold">{t.timeRange}</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">{t.start}</Label>
+                          <Input
+                            type="time"
+                            value={workingHours.start}
+                            onChange={(e) => setWorkingHours({ ...workingHours, start: e.target.value })}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">{t.end}</Label>
+                          <Input
+                            type="time"
+                            value={workingHours.end}
+                            onChange={(e) => setWorkingHours({ ...workingHours, end: e.target.value })}
+                            className="h-8 text-xs"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          )}
+                  </PopoverContent>
+                </Popover>
+              </>
+            )}
+
+            {/* Close cross separated on far right */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 ml-2 text-muted-foreground hover:text-foreground"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
         </header>
 
         {/* Scrollable Content Area */}
@@ -363,16 +345,13 @@ export default function SlotCreationWizard({
           {/* STEP 1: Google Calendar Week Grid */}
           {step === 1 && (
             <div className="min-w-[650px] max-w-5xl mx-auto p-2 sm:p-4">
-              {/* Summary Bar */}
-              <div className="flex items-center justify-between px-2 py-1.5 mb-2 bg-muted/40 rounded-lg text-xs">
-                <span className="text-muted-foreground font-medium">
-                  {t.selectedSlots}: <span className="text-primary font-bold">{selectedCells.size}</span>
-                </span>
+              {/* Early hours toggle */}
+              <div className="flex justify-end mb-2">
                 <Button
-                  variant="link"
+                  variant="ghost"
                   size="sm"
                   onClick={() => setShowAllHours(!showAllHours)}
-                  className="h-auto p-0 text-xs text-primary font-normal"
+                  className="h-7 text-xs text-muted-foreground hover:text-primary font-normal"
                 >
                   {showAllHours ? t.hideOtherHours : t.showOtherHours}
                 </Button>
@@ -381,9 +360,9 @@ export default function SlotCreationWizard({
               {/* Weekly Calendar Table */}
               <div className="border border-border/80 rounded-xl overflow-hidden shadow-sm bg-card">
                 {/* Header Row: Days of the week */}
-                <div className="grid grid-cols-[60px_repeat(7,1fr)] bg-muted/50 border-b border-border">
+                <div className="grid grid-cols-[85px_repeat(7,1fr)] bg-muted/50 border-b border-border">
                   <div className="py-2.5 px-1 text-center text-[11px] font-semibold text-muted-foreground border-r border-border/60 flex items-center justify-center">
-                    GMT+05
+                    {t.timezone}
                   </div>
                   {t.weekDays.map((dayName, idx) => {
                     const date = weekDates[idx];
@@ -425,7 +404,7 @@ export default function SlotCreationWizard({
                       <div
                         key={time}
                         className={cn(
-                          "grid grid-cols-[60px_repeat(7,1fr)] items-stretch",
+                          "grid grid-cols-[85px_repeat(7,1fr)] items-stretch",
                           isFullHour ? "bg-background" : "bg-muted/10"
                         )}
                       >
@@ -705,33 +684,23 @@ export default function SlotCreationWizard({
           )}
         </div>
 
-        {/* Stretched Bottom Navigation Bar */}
+        {/* Bottom Navigation Bar */}
         <div className="fixed bottom-0 left-0 right-0 p-3 sm:p-4 bg-card/95 backdrop-blur-sm border-t border-border shadow-[0_-4px_16px_rgba(0,0,0,0.06)] z-20">
-          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+          <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
             {/* Left: Back button */}
-            <div className="w-9 flex-none">
-              {step > 1 ? (
+            <div className="w-16 flex-none flex items-center">
+              {step > 1 && (
                 <Button variant="outline" size="icon" className="h-8 w-8 rounded-full" onClick={() => setStep(step - 1)}>
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-              ) : (
-                <div className="w-8 h-8" />
               )}
             </div>
 
-            {/* Center: Stretched progress line from arrow to arrow */}
-            <div className="flex-1 max-w-md mx-auto px-2">
-              <div className="relative flex items-center justify-between">
-                {/* Connecting background line */}
-                <div className="absolute top-3 left-3 right-3 h-[2px] bg-muted -z-0">
-                  <div
-                    className="h-full bg-primary transition-all duration-300"
-                    style={{ width: step === 1 ? "0%" : step === 2 ? "50%" : "100%" }}
-                  />
-                </div>
-
+            {/* Center: Stepper (strictly ends at step 3) + Next button */}
+            <div className="flex-1 flex items-center justify-center gap-3">
+              <div className="flex items-center justify-center w-full max-w-xs">
                 {/* Step 1 */}
-                <div className="flex flex-col items-center gap-1 z-10">
+                <div className="flex flex-col items-center gap-1 flex-none">
                   <button
                     type="button"
                     onClick={() => setStep(1)}
@@ -754,8 +723,13 @@ export default function SlotCreationWizard({
                   </span>
                 </div>
 
+                {/* Segment 1 -> 2 (strictly stops at step 2) */}
+                <div className="flex-1 h-[2px] mx-2 -mt-4 bg-muted overflow-hidden">
+                  <div className={cn("h-full bg-primary transition-all duration-300", step >= 2 ? "w-full" : "w-0")} />
+                </div>
+
                 {/* Step 2 */}
-                <div className="flex flex-col items-center gap-1 z-10">
+                <div className="flex flex-col items-center gap-1 flex-none">
                   <button
                     type="button"
                     onClick={() => {
@@ -780,8 +754,13 @@ export default function SlotCreationWizard({
                   </span>
                 </div>
 
-                {/* Step 3 */}
-                <div className="flex flex-col items-center gap-1 z-10">
+                {/* Segment 2 -> 3 (strictly stops at step 3) */}
+                <div className="flex-1 h-[2px] mx-2 -mt-4 bg-muted overflow-hidden">
+                  <div className={cn("h-full bg-primary transition-all duration-300", step >= 3 ? "w-full" : "w-0")} />
+                </div>
+
+                {/* Step 3 (END OF LINE) */}
+                <div className="flex flex-col items-center gap-1 flex-none">
                   <button
                     type="button"
                     onClick={() => {
@@ -806,21 +785,25 @@ export default function SlotCreationWizard({
                   </span>
                 </div>
               </div>
-            </div>
 
-            {/* Right: Next button + Small Ready button */}
-            <div className="flex items-center gap-1.5 flex-none">
-              {step < 3 && (
+              {/* Next arrow right after Step 3 */}
+              {step < 3 ? (
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8 rounded-full"
+                  className="h-8 w-8 rounded-full ml-1 flex-none"
                   onClick={() => setStep(step + 1)}
                   disabled={step === 1 && selectedCells.size === 0}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
+              ) : (
+                <div className="w-8 h-8 ml-1 flex-none" />
               )}
+            </div>
+
+            {/* Far Right bottom corner: Small Ready button */}
+            <div className="w-16 flex-none flex justify-end">
               <Button
                 size="sm"
                 className="h-8 px-3 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"

@@ -1456,7 +1456,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
             onClick={() => {
               setIsWizardOpen(true);
             }}
-            className="gap-1.5 bg-gradient-to-r from-orange-500/15 to-amber-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/40 shadow-[0_0_14px_rgba(249,115,22,0.3)] hover:bg-primary hover:text-white hover:border-primary hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] transition-all font-medium"
+            className="gap-1.5 bg-primary text-primary-foreground font-semibold shadow-sm hover:bg-primary/90 transition-all"
           >
             <Plus className="w-4 h-4" />
             {language === "ru" ? "Добавить слоты" : "Слоттар қосу"}
@@ -1474,7 +1474,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
               }
               setIsManagingSlots(true);
             }}
-            className="gap-1.5 border border-input bg-background hover:bg-primary hover:text-white hover:border-primary transition-all"
+            className="gap-1.5 border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-all"
           >
             <Settings2 className="w-4 h-4" />
             {language === "ru" ? "Управлять" : "Басқару"}
@@ -1522,7 +1522,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   onClick={() => {
                     const newStart = addDays(currentWeekStart, -7);
                     setCurrentWeekStart(newStart);
-                    setSelectedDate(newStart);
+                    setSelectedDate(null);
                   }}
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -1537,7 +1537,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   onClick={() => {
                     const newStart = addDays(currentWeekStart, 7);
                     setCurrentWeekStart(newStart);
-                    setSelectedDate(newStart);
+                    setSelectedDate(null);
                   }}
                 >
                   <ChevronRight className="w-4 h-4" />
