@@ -1474,7 +1474,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
               }
               setIsManagingSlots(true);
             }}
-            className="gap-1.5 border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-all"
+            className="gap-1.5 border border-input bg-background hover:bg-primary/15 hover:text-primary hover:border-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
           >
             <Settings2 className="w-4 h-4" />
             {language === "ru" ? "Управлять" : "Басқару"}
