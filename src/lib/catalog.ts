@@ -34,6 +34,8 @@ export type CatalogProduct = {
   seller_display_name: string | null;
   seller_avatar_url: string | null;
   seller_type: string | null;
+  avg_rating?: number;
+  review_count?: number;
 };
 
 export type CatalogSubcategory = {
@@ -85,6 +87,15 @@ export function isLessonFormat(value: string | null | undefined): value is Lesso
 
 export function isBillingPeriod(value: string | null | undefined): value is BillingPeriod {
   return value === "month" || value === "quarter" || value === "year";
+}
+
+const NEW_PRODUCT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function isNewProduct(createdAt: string | null | undefined): boolean {
+  if (!createdAt) return false;
+  const created = new Date(createdAt).getTime();
+  if (Number.isNaN(created)) return false;
+  return Date.now() - created < NEW_PRODUCT_WINDOW_MS;
 }
 
 export function categoryLabel(category: Pick<CatalogCategory, "name_ru" | "name_kk">, language: "ru" | "kk") {

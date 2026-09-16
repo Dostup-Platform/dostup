@@ -10,7 +10,7 @@ import {
   type LessonFormat,
 } from "@/lib/catalog";
 
-export type CatalogSort = "newest" | "price_asc" | "price_desc";
+export type CatalogSort = "newest" | "price_asc" | "price_desc" | "rating";
 
 export type CatalogFilters = {
   q?: string;
@@ -21,6 +21,7 @@ export type CatalogFilters = {
   minPrice?: number | null;
   maxPrice?: number | null;
   sort?: CatalogSort;
+  onlyNew?: boolean;
 };
 
 function asCatalogRows(data: unknown): CatalogProduct[] {
@@ -35,6 +36,8 @@ function asCatalogRows(data: unknown): CatalogProduct[] {
       lesson_format: isLessonFormat(item.lesson_format) ? item.lesson_format : null,
       billing_period: isBillingPeriod(item.billing_period) ? item.billing_period : null,
       capacity: item.capacity == null ? null : Number(item.capacity),
+      avg_rating: item.avg_rating != null ? Number(item.avg_rating) : 0,
+      review_count: item.review_count != null ? Number(item.review_count) : 0,
     };
   });
 }
@@ -51,6 +54,7 @@ async function searchCatalog(filters: CatalogFilters, limit = 48, offset = 0) {
     p_sort: filters.sort || "newest",
     p_limit: limit,
     p_offset: offset,
+    p_only_new: filters.onlyNew ?? false,
   });
   if (error) throw error;
   return asCatalogRows(data);
@@ -64,12 +68,22 @@ export function useCatalogPreview(enabled = true, limit = CATALOG_FILTER_THRESHO
   });
 }
 
-export function useCatalogSearch(filters: CatalogFilters, enabled = true) {
+export function useCatalogSearch(filters: CatalogFilters, enabled = true, limit = 48) {
   return useQuery({
-    queryKey: ["catalog-search", filters],
-    queryFn: () => searchCatalog(filters, 48, 0),
+    queryKey: ["catalog-search", filters, limit],
+    queryFn: () => searchCatalog(filters, limit, 0),
     enabled,
   });
+}
+
+const HOME_RAIL_LIMIT = 8;
+
+export function useNewProducts(enabled = true) {
+  return useCatalogSearch({ sort: "newest", onlyNew: true }, enabled, HOME_RAIL_LIMIT);
+}
+
+export function useTopRatedProducts(enabled = true) {
+  return useCatalogSearch({ sort: "rating" }, enabled, HOME_RAIL_LIMIT);
 }
 
 export function useCatalogTaxonomy(enabled = true) {
