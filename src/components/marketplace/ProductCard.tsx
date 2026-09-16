@@ -3,15 +3,23 @@ import { Link } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ProductCover from "@/components/marketplace/ProductCover";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { formatCatalogPrice, formatEventDate, productHref, type CatalogProduct } from "@/lib/catalog";
+import {
+  formatCatalogPrice,
+  formatEventDate,
+  isNewProduct,
+  productHref,
+  type CatalogProduct,
+} from "@/lib/catalog";
 import { sellerInitial } from "@/lib/productCover";
-import { ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ProductCard = ({ product }: { product: CatalogProduct }) => {
   const { t, language } = useLanguage();
   const sellerName = product.seller_display_name || t("author");
   const initial = sellerInitial(sellerName);
+  const isNew = isNewProduct(product.created_at);
+  const reviewCount = product.review_count ?? 0;
 
   const mediaList: Array<{ type: "image" | "video"; url: string }> =
     Array.isArray(product.media) && product.media.length > 0
@@ -47,8 +55,13 @@ const ProductCard = ({ product }: { product: CatalogProduct }) => {
   return (
     <Link
       to={productHref(product)}
-      className="group flex min-w-0 flex-col overflow-hidden rounded-2xl bg-card focus-ring motion-safe:transition-shadow motion-safe:hover:shadow-md"
+      className="group relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-card focus-ring motion-safe:transition-shadow motion-safe:hover:shadow-md"
     >
+      {isNew && (
+        <span className="absolute left-3 top-3 z-10 rounded-full bg-[#FF6B00] px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">
+          {t("newProductBadge")}
+        </span>
+      )}
       {mediaList.length > 0 ? (
         <div
           className="relative aspect-[16/10] w-full overflow-hidden bg-muted"
@@ -152,6 +165,13 @@ const ProductCard = ({ product }: { product: CatalogProduct }) => {
         <h3 className="line-clamp-2 w-full min-w-0 text-base font-semibold leading-snug text-foreground">
           {product.title}
         </h3>
+        {reviewCount > 0 && (
+          <div className="mt-1 flex items-center gap-1 text-sm text-[#6B7280]">
+            <Star className="h-3.5 w-3.5 fill-[#FFB020] text-[#FFB020]" />
+            <span className="font-medium text-foreground">{(product.avg_rating ?? 0).toFixed(1)}</span>
+            <span>({reviewCount})</span>
+          </div>
+        )}
         {product.category_slug === "events" && product.event_starts_at && (
           <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-[#6B7280]">
             {formatEventDate(product.event_starts_at, language)}

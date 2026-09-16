@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
-import { Loader2, Search } from "lucide-react";
+import { Link, Navigate } from "react-router-dom";
+import { ArrowRight, Loader2, Search } from "lucide-react";
 import CatalogFilterRow from "@/components/marketplace/CatalogFilterRow";
 import CategoryMenu from "@/components/marketplace/CategoryMenu";
 import CatalogGrid from "@/components/marketplace/CatalogGrid";
@@ -11,7 +11,13 @@ import BuyerMobileNav from "@/components/layout/BuyerMobileNav";
 import PublicFooter from "@/components/layout/PublicFooter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
-import { useCatalogSearch, useCatalogTaxonomy, type CatalogSort } from "@/hooks/useCatalogSearch";
+import {
+  useCatalogSearch,
+  useCatalogTaxonomy,
+  useNewProducts,
+  useTopRatedProducts,
+  type CatalogSort,
+} from "@/hooks/useCatalogSearch";
 import { categoryLabel, visibleTaxonomy, type LessonFormat } from "@/lib/catalog";
 import { profileHomePath } from "@/lib/creatorAuth";
 import { cn } from "@/lib/utils";
@@ -39,16 +45,25 @@ const MarketplacePage = () => {
   const taxonomy = useCatalogTaxonomy();
   const categories = visibleTaxonomy(taxonomy.data ?? []);
 
-  const search = useCatalogSearch({
-    q: debouncedQuery,
-    categorySlug,
-    subcategorySlug,
-    lessonFormat,
-    sort,
-  });
+  const isDefaultView = !categorySlug && !debouncedQuery;
+
+  const search = useCatalogSearch(
+    {
+      q: debouncedQuery,
+      categorySlug,
+      subcategorySlug,
+      lessonFormat,
+      sort,
+    },
+    !isDefaultView,
+  );
+  const newProducts = useNewProducts(isDefaultView);
+  const topRatedProducts = useTopRatedProducts(isDefaultView);
 
   const products = search.data ?? [];
-  const loading = search.isLoading || taxonomy.isLoading;
+  const loading = isDefaultView
+    ? newProducts.isLoading || topRatedProducts.isLoading || taxonomy.isLoading
+    : search.isLoading || taxonomy.isLoading;
 
   const selectCategory = (slug: string) => {
     setCategorySlug((current) => (current === slug ? "" : slug));
@@ -115,35 +130,81 @@ const MarketplacePage = () => {
         </section>
         </PublicContainer>
 
-        <section className="mt-[140px] w-full px-6 pb-16">
-          <h2 className="mb-6 text-[26px] font-bold tracking-tight text-[#1F2328]">
-            {t("allCatalogProducts")}
-          </h2>
+        {isDefaultView ? (
+          <section className="mt-[140px] w-full px-6 pb-16 space-y-14">
+            {taxonomy.isLoading ? (
+              <div className="flex justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <>
+                {(newProducts.data?.length ?? 0) > 0 && (
+                  <div>
+                    <div className="mb-6 flex items-center justify-between gap-4">
+                      <h2 className="text-[26px] font-bold tracking-tight text-[#1F2328]">
+                        🆕 {t("newProductsHeading")}
+                      </h2>
+                      <Link
+                        to="/new"
+                        className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline focus-ring rounded-md"
+                      >
+                        {t("newProductsSeeAll")}
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    </div>
+                    <CatalogGrid products={newProducts.data ?? []} />
+                  </div>
+                )}
 
-          {categorySlug && (
-            <CatalogFilterRow
-              categories={categories}
-              categorySlug={categorySlug}
-              subcategorySlug={subcategorySlug}
-              lessonFormat={lessonFormat}
-              onSubcategoryChange={setSubcategorySlug}
-              onLessonFormatChange={setLessonFormat}
-            />
-          )}
+                {(topRatedProducts.data?.length ?? 0) > 0 && (
+                  <div>
+                    <h2 className="mb-6 text-[26px] font-bold tracking-tight text-[#1F2328]">
+                      ⭐ {t("topRatedHeading")}
+                    </h2>
+                    <CatalogGrid products={topRatedProducts.data ?? []} />
+                  </div>
+                )}
 
-          {loading ? (
-            <div className="flex justify-center py-16">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : products.length === 0 ? (
-            <div className="rounded-2xl border border-border px-6 py-16 text-center">
-              <p className="text-lg font-medium text-foreground">{t("catalogEmpty")}</p>
-              <p className="public-meta mt-2">{t("catalogEmptyHint")}</p>
-            </div>
-          ) : (
-            <CatalogGrid products={products} />
-          )}
-        </section>
+                {(newProducts.data?.length ?? 0) === 0 && (topRatedProducts.data?.length ?? 0) === 0 && (
+                  <div className="rounded-2xl border border-border px-6 py-16 text-center">
+                    <p className="text-lg font-medium text-foreground">{t("catalogEmpty")}</p>
+                    <p className="public-meta mt-2">{t("catalogEmptyHint")}</p>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        ) : (
+          <section className="mt-[140px] w-full px-6 pb-16">
+            <h2 className="mb-6 text-[26px] font-bold tracking-tight text-[#1F2328]">
+              {t("allCatalogProducts")}
+            </h2>
+
+            {categorySlug && (
+              <CatalogFilterRow
+                categories={categories}
+                categorySlug={categorySlug}
+                subcategorySlug={subcategorySlug}
+                lessonFormat={lessonFormat}
+                onSubcategoryChange={setSubcategorySlug}
+                onLessonFormatChange={setLessonFormat}
+              />
+            )}
+
+            {loading ? (
+              <div className="flex justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : products.length === 0 ? (
+              <div className="rounded-2xl border border-border px-6 py-16 text-center">
+                <p className="text-lg font-medium text-foreground">{t("catalogEmpty")}</p>
+                <p className="public-meta mt-2">{t("catalogEmptyHint")}</p>
+              </div>
+            ) : (
+              <CatalogGrid products={products} />
+            )}
+          </section>
+        )}
       </main>
 
       <PublicFooter />
