@@ -67,6 +67,7 @@ export default function SlotCreationWizard({
     if (open) {
       setStep(1);
       setSelectedCells(new Set());
+      setIsMouseDown(false);
       setShowLateHours(false);
       setWorkingHours({ start: "09:00", end: "22:00" });
       setRepeatWeekly(false);
@@ -193,6 +194,16 @@ export default function SlotCreationWizard({
     return `${String(nextH).padStart(2, "0")}:00`;
   }, [displayHours]);
 
+  // Drag selection state
+  const [isMouseDown, setIsMouseDown] = useState(false);
+  const [dragMode, setDragMode] = useState<"select" | "deselect">("select");
+
+  useEffect(() => {
+    const handleGlobalMouseUp = () => setIsMouseDown(false);
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => window.removeEventListener("mouseup", handleGlobalMouseUp);
+  }, []);
+
   const toggleCell = (cellId: string) => {
     setSelectedCells((prev) => {
       const next = new Set(prev);
@@ -201,6 +212,30 @@ export default function SlotCreationWizard({
       } else {
         next.add(cellId);
       }
+      return next;
+    });
+  };
+
+  const handleCellMouseDown = (cellId: string, e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only primary button
+    e.preventDefault();
+    setIsMouseDown(true);
+    const willSelect = !selectedCells.has(cellId);
+    setDragMode(willSelect ? "select" : "deselect");
+    setSelectedCells((prev) => {
+      const next = new Set(prev);
+      if (willSelect) next.add(cellId);
+      else next.delete(cellId);
+      return next;
+    });
+  };
+
+  const handleCellMouseEnter = (cellId: string) => {
+    if (!isMouseDown) return;
+    setSelectedCells((prev) => {
+      const next = new Set(prev);
+      if (dragMode === "select") next.add(cellId);
+      else next.delete(cellId);
       return next;
     });
   };
@@ -277,7 +312,7 @@ export default function SlotCreationWizard({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-full h-full max-h-full m-0 p-0 rounded-none sm:rounded-none flex flex-col bg-background overflow-hidden border-0 gap-0 z-50">
+      <DialogContent hideCloseButton className="max-w-full h-full max-h-full m-0 p-0 rounded-none sm:rounded-none flex flex-col bg-background overflow-hidden border-0 gap-0 z-50">
         <VisuallyHidden>
           <DialogTitle>Slot Creation Wizard</DialogTitle>
         </VisuallyHidden>
@@ -291,8 +326,8 @@ export default function SlotCreationWizard({
             </h2>
           </div>
 
-          {/* Right Controls: positioned with right margin so DialogPrimitive.Close stands alone */}
-          <div className="flex items-center gap-2 mr-8 sm:mr-10">
+          {/* Right Controls: settings-style round close button */}
+          <div className="flex items-center gap-2">
             {step === 1 && (
               <>
                 {selectedCells.size > 0 && (
@@ -341,6 +376,18 @@ export default function SlotCreationWizard({
                 </Popover>
               </>
             )}
+
+            {/* Round close button like in Settings */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => onOpenChange(false)}
+              className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              aria-label="Закрыть"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
         </header>
 
@@ -350,7 +397,7 @@ export default function SlotCreationWizard({
           {step === 1 && (
             <div className="min-w-[650px] max-w-5xl mx-auto p-2 sm:p-4">
               {/* Weekly Calendar Table */}
-              <div className="border border-border/80 rounded-xl overflow-hidden shadow-sm bg-card">
+              <div className="border border-border/80 rounded-xl overflow-hidden shadow-sm bg-card select-none">
                 {/* Header Row: Days of the week (sticky) */}
                 <div className="grid grid-cols-[70px_repeat(7,1fr)] bg-muted/50 border-b border-border sticky top-0 z-10">
                   <div className="py-2.5 px-1 text-center text-[10px] sm:text-[11px] font-semibold text-muted-foreground border-r border-border/60 flex items-center justify-center">
@@ -387,6 +434,14 @@ export default function SlotCreationWizard({
                   })}
                 </div>
 
+                {/* 15-min top spacer row so 09:00 sits on its own line below the dates header */}
+                <div className="grid grid-cols-[70px_repeat(7,1fr)] bg-muted/10">
+                  <div className="border-r border-border/60 h-4 sm:h-5" />
+                  {Array.from({ length: 7 }).map((_, idx) => (
+                    <div key={idx} className="border-r last:border-r-0 border-border/60 h-4 sm:h-5" />
+                  ))}
+                </div>
+
                 {/* 15-min Time Grid Rows */}
                 <div className="bg-card">
                   {displayHours.map((h) => {
@@ -414,7 +469,9 @@ export default function SlotCreationWizard({
                                 <button
                                   key={m}
                                   type="button"
-                                  onClick={() => toggleCell(cellId)}
+                                  onMouseDown={(e) => handleCellMouseDown(cellId, e)}
+                                  onMouseEnter={() => handleCellMouseEnter(cellId)}
+                                  onTouchStart={() => toggleCell(cellId)}
                                   className={cn(
                                     "h-5 sm:h-6 w-full transition-colors cursor-pointer select-none",
                                     m === 0 && "border-t border-border/70",
