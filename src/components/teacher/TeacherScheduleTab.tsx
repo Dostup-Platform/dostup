@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, Pencil, UserPlus, Link, Copy, X, Settings2, Sun, Moon, Video } from "lucide-react";
+import { Loader2, Calendar, ChevronLeft, ChevronRight, Plus, Trash2, Users, User, Clock, Pencil, UserPlus, Link, Copy, X, Settings2, Sun, Moon, Video, Sparkles } from "lucide-react";
 import CancellationReasonDialog from "@/components/CancellationReasonDialog";
 import RescheduleSlotDialog from "@/components/RescheduleSlotDialog";
 import EditSlotTimeDialog from "@/components/EditSlotTimeDialog";
@@ -111,7 +111,9 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [expandedSlotId, setExpandedSlotId] = useState<string | null>(null);
   const [isManagingSlots, setIsManagingSlots] = useState(false);
-  const [manageTab, setManageTab] = useState<"link" | "delete">("link");
+  const [manageTab, setManageTab] = useState<"edit" | "reschedule" | "delete">("edit");
+  const [manageRescheduleFromDate, setManageRescheduleFromDate] = useState("");
+  const [manageRescheduleToDate, setManageRescheduleToDate] = useState("");
   const [quickAddSlotHour, setQuickAddSlotHour] = useState<number | null>(null);
   const [quickAddParticipants, setQuickAddParticipants] = useState("1");
   const [quickAddLessonLink, setQuickAddLessonLink] = useState("");
@@ -739,6 +741,38 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
     onError: () => toast.error(language === "ru" ? "Ошибка при добавлении ссылки" : "Сілтемені қосу кезінде қате"),
   });
 
+  // Reschedule all slots of a date to another date
+  const rescheduleDateSlots = useMutation({
+    mutationFn: async () => {
+      if (!manageRescheduleFromDate || !manageRescheduleToDate) {
+        throw new Error(language === "ru" ? "Выберите исходную и новую дату" : "Бастапқы және жаңа күнді таңдаңыз");
+      }
+      const slotsToMove = timeSlots.filter(s => s.date === manageRescheduleFromDate);
+      if (slotsToMove.length === 0) {
+        throw new Error(language === "ru" ? "На выбранную дату нет слотов" : "Таңдалған күнге слоттар жоқ");
+      }
+      for (const slot of slotsToMove) {
+        await invokeApi("manage-schedules", {
+          action: "update_slot",
+          ...studentCreds(),
+          slotId: slot.id,
+          updates: { date: manageRescheduleToDate },
+        });
+      }
+      return slotsToMove.length;
+    },
+    onSuccess: (count) => {
+      invalidateSlotsAndBookings();
+      toast.success(language === "ru" ? `Перенесено ${count} слотов на ${manageRescheduleToDate}` : `${count} слот ауыстырылды`);
+      setIsManagingSlots(false);
+      setManageRescheduleFromDate("");
+      setManageRescheduleToDate("");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || (language === "ru" ? "Ошибка при переносе" : "Ауыстыру кезінде қате"));
+    },
+  });
+
   // Update single slot lesson link
   const updateSlotLink = useMutation({
     mutationFn: async ({ slotId, link }: { slotId: string; link: string | null }) => {
@@ -773,6 +807,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
 
   const createWizardSlots = useMutation({
     mutationFn: async (params: {
+      daySlots?: Record<number, { start: string; end: string }[]>;
       timeIntervals: { start: string; end: string }[];
       repeatDays: number[];
       repeatWeekly: boolean;
@@ -786,47 +821,74 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
     }) => {
       const scheduleId = schedules[0]?.id || (await ensureScheduleId());
       const today = new Date();
-      let endDate = today;
+      const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+
+      const startDate = currentWeekStart;
+      let endDate = addDays(currentWeekStart, 6);
+
       if (params.repeatWeekly && params.repeatPeriod) {
-        if (params.repeatPeriod === "2weeks") endDate = addDays(today, 14);
-        else if (params.repeatPeriod === "1month") endDate = addMonths(today, 1);
-        else if (params.repeatPeriod === "2months") endDate = addMonths(today, 2);
+        if (params.repeatPeriod === "2weeks") endDate = addDays(currentWeekStart, 13);
+        else if (params.repeatPeriod === "1month") endDate = addMonths(currentWeekStart, 1);
+        else if (params.repeatPeriod === "2months") endDate = addMonths(currentWeekStart, 2);
         else if (params.repeatPeriod === "custom" && params.repeatUntil) endDate = new Date(params.repeatUntil);
       }
-      const jsDays = params.repeatDays.map(d => (d + 1) % 7);
+
+      const todayStr = format(today, "yyyy-MM-dd");
       const slots: any[] = [];
-      let currentDate = new Date(today);
+      let currentDate = new Date(startDate);
+
       while (currentDate <= endDate) {
-        const dayOfWeek = currentDate.getDay();
-        if (jsDays.includes(dayOfWeek)) {
-          const dateStr = format(currentDate, "yyyy-MM-dd");
-          for (const interval of params.timeIntervals) {
-            let [startH, startM] = interval.start.split(":").map(Number);
-            const [endH, endM] = interval.end.split(":").map(Number);
-            const endMinutes = endH * 60 + endM;
-            while (true) {
-              const currentMinutes = startH * 60 + startM;
-              const slotEndMinutes = currentMinutes + params.slotDuration;
-              if (slotEndMinutes > endMinutes) break;
-              const slotStart = `${String(startH).padStart(2, "0")}:${String(startM).padStart(2, "0")}:00`;
-              const slotEndH = Math.floor(slotEndMinutes / 60) % 24;
-              const slotEndM = slotEndMinutes % 60;
-              const slotEnd = `${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}:00`;
-              const exists = timeSlots.some((s) => s.date === dateStr && s.start_time.slice(0, 5) === slotStart.slice(0, 5));
-              if (!exists) {
-                slots.push({
-                  schedule_id: scheduleId, date: dateStr, start_time: slotStart, end_time: slotEnd,
-                  is_available: true, max_participants: params.maxParticipants,
-                  title: params.title || null, description: params.description || null, image_url: params.imageUrl || null,
-                });
-              }
-              startH = Math.floor(slotEndMinutes / 60);
-              startM = slotEndMinutes % 60;
+        const dateStr = format(currentDate, "yyyy-MM-dd");
+        if (dateStr < todayStr) {
+          currentDate = addDays(currentDate, 1);
+          continue;
+        }
+
+        const monFirstDay = (currentDate.getDay() + 6) % 7;
+        const intervalsForDay = params.daySlots
+          ? params.daySlots[monFirstDay] || []
+          : params.repeatDays.includes(monFirstDay)
+          ? params.timeIntervals
+          : [];
+
+        for (const interval of intervalsForDay) {
+          let [startH, startM] = interval.start.split(":").map(Number);
+          const [endH, endM] = interval.end.split(":").map(Number);
+          const endMinutes = endH * 60 + endM;
+
+          while (true) {
+            const currentMinutes = startH * 60 + startM;
+            const slotEndMinutes = currentMinutes + params.slotDuration;
+            if (slotEndMinutes > endMinutes) break;
+
+            const slotStart = `${String(startH).padStart(2, "0")}:${String(startM).padStart(2, "0")}:00`;
+            const slotEndH = Math.floor(slotEndMinutes / 60) % 24;
+            const slotEndM = slotEndMinutes % 60;
+            const slotEnd = `${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}:00`;
+
+            const exists = timeSlots.some((s) => s.date === dateStr && s.start_time.slice(0, 5) === slotStart.slice(0, 5));
+            if (!exists) {
+              slots.push({
+                schedule_id: scheduleId,
+                date: dateStr,
+                start_time: slotStart,
+                end_time: slotEnd,
+                is_available: true,
+                max_participants: params.maxParticipants,
+                title: params.title || null,
+                description: params.description || null,
+                image_url: params.imageUrl || null,
+              });
             }
+
+            startH = Math.floor(slotEndMinutes / 60);
+            startM = slotEndMinutes % 60;
           }
         }
+
         currentDate = addDays(currentDate, 1);
       }
+
       if (slots.length === 0) throw new Error(language === "ru" ? "Нет новых слотов для создания" : "Жаңа слоттар жоқ");
       await invokeApi("manage-schedules", { action: "create_slots", ...studentCreds(), slots, scheduleId });
       return slots.length;
@@ -999,18 +1061,23 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                     >
                       <Video className="w-4 h-4" />
                     </Button>
-                    {/* Reschedule button */}
-                    {hasBookings && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                        onClick={(e) => { e.stopPropagation(); setReschedulingSlot({ slot, schedule: schedule! }); }}
-                        title={language === "ru" ? "Перенести" : "Ауыстыру"}
-                      >
-                        <Clock className="w-4 h-4" />
-                      </Button>
-                    )}
+                    {/* Reschedule button - always visible between video and delete */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (hasBookings) {
+                          setReschedulingSlot({ slot, schedule: schedule! });
+                        } else {
+                          setEditingSlotTime(slot);
+                        }
+                      }}
+                      title={language === "ru" ? "Перенести" : "Ауыстыру"}
+                    >
+                      <Clock className="w-4 h-4" />
+                    </Button>
                     {/* Delete button */}
                     <Button
                       variant="ghost"
@@ -1389,7 +1456,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
             onClick={() => {
               setIsWizardOpen(true);
             }}
-            className="gap-1.5"
+            className="gap-1.5 bg-gradient-to-r from-orange-500/15 to-amber-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/40 shadow-[0_0_14px_rgba(249,115,22,0.3)] hover:bg-primary hover:text-white hover:border-primary hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] transition-all font-medium"
           >
             <Plus className="w-4 h-4" />
             {language === "ru" ? "Добавить слоты" : "Слоттар қосу"}
@@ -1407,10 +1474,10 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
               }
               setIsManagingSlots(true);
             }}
-            className="gap-1.5"
+            className="gap-1.5 border border-input bg-background hover:bg-primary hover:text-white hover:border-primary transition-all"
           >
             <Settings2 className="w-4 h-4" />
-            {language === "ru" ? "Управлять расписанием" : "Кестені басқару"}
+            {language === "ru" ? "Управлять" : "Басқару"}
           </Button>
         </div>
       </div>
@@ -1689,28 +1756,6 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
         </Card>
       )}
 
-      {/* Month Calendar: Booked Sessions Card */}
-      {viewMode === "month" && selectedDate && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="text-base flex items-center gap-2 capitalize">
-                <Users className="w-4 h-4 text-primary" />
-                {language === "ru" ? "Записи на " : ""}{(() => {
-                  const dayTitle = format(selectedDate, "d MMMM, EEEE", { locale: ru });
-                  return dayTitle.charAt(0).toUpperCase() + dayTitle.slice(1);
-                })()}
-              </CardTitle>
-              <Badge variant="secondary">
-                {allSlotsForDay.length}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
-            {renderDayBookings()}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Day Schedule Dialog for Month View */}
       <Dialog open={isDayScheduleDialogOpen} onOpenChange={setIsDayScheduleDialogOpen}>
@@ -2028,37 +2073,67 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
             </DialogTitle>
           </DialogHeader>
 
-          <Tabs value={manageTab} onValueChange={(v) => setManageTab(v as "link" | "delete")} className="w-full">
-            <TabsList className="grid grid-cols-2 w-full">
-              <TabsTrigger value="link" className="gap-2 text-xs sm:text-sm">
-                <Link className="w-4 h-4" />
-                {language === "ru" ? "Ссылка на урок" : "Сабақ сілтемесі"}
+          <Tabs value={manageTab} onValueChange={(v) => setManageTab(v as "edit" | "reschedule" | "delete")} className="w-full">
+            <TabsList className="grid grid-cols-3 w-full">
+              <TabsTrigger value="edit" className="gap-1.5 text-xs sm:text-sm">
+                <Pencil className="w-3.5 h-3.5" />
+                {language === "ru" ? "Изменить" : "Өзгерту"}
               </TabsTrigger>
-              <TabsTrigger value="delete" className="gap-2 text-xs sm:text-sm text-destructive data-[state=active]:text-destructive">
-                <Trash2 className="w-4 h-4" />
-                {language === "ru" ? "Удалить слоты" : "Слоттарды жою"}
+              <TabsTrigger value="reschedule" className="gap-1.5 text-xs sm:text-sm">
+                <Clock className="w-3.5 h-3.5" />
+                {language === "ru" ? "Перенести" : "Ауыстыру"}
+              </TabsTrigger>
+              <TabsTrigger value="delete" className="gap-1.5 text-xs sm:text-sm text-destructive data-[state=active]:text-destructive">
+                <Trash2 className="w-3.5 h-3.5" />
+                {language === "ru" ? "Удалить" : "Жою"}
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="link" className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>{language === "ru" ? "Ссылка на урок" : "Сабаққа сілтеме"}</Label>
+            {/* TAB 1: EDIT (Продлить / Ссылка на урок) */}
+            <TabsContent value="edit" className="space-y-4 pt-4">
+              <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    {language === "ru" ? "Продлить расписание" : "Кестені ұзарту"}
+                  </span>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => {
+                      setIsManagingSlots(false);
+                      setIsWizardOpen(true);
+                    }}
+                  >
+                    {language === "ru" ? "Добавить / Продлить" : "Қосу / Ұзарту"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {language === "ru"
+                    ? "Откройте мастер для добавления слотов на следующие недели или месяцы."
+                    : "Келесі апталарға немесе айларға слоттар қосу үшін шеберді ашыңыз."}
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-xs font-semibold">{language === "ru" ? "Ссылка на урок (Zoom, Google Meet и др.)" : "Сабаққа сілтеме"}</Label>
                 <Input
                   placeholder="https://zoom.us/j/..."
                   value={lessonLinkUrl}
                   onChange={(e) => setLessonLinkUrl(e.target.value)}
+                  className="h-9 text-sm"
                 />
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>{language === "ru" ? "Выберите даты со слотами" : "Слоттары бар күндерді таңдаңыз"}</Label>
+                  <Label className="text-xs">{language === "ru" ? "Даты для установки ссылки" : "Сілтеме орнататын күндер"}</Label>
                   {availableDatesForLink.length > 0 && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs"
+                      className="h-6 text-[11px]"
                       onClick={() => {
                         if (slotsForLinkDates.length === availableDatesForLink.length) {
                           setSlotsForLinkDates([]);
@@ -2074,11 +2149,11 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   )}
                 </div>
                 {availableDatesForLink.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">
+                  <p className="text-xs text-muted-foreground py-2 text-center">
                     {language === "ru" ? "Нет слотов для добавления ссылки" : "Сілтеме қосу үшін слоттар жоқ"}
                   </p>
                 ) : (
-                  <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-2 border rounded-md">
+                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 border rounded-md">
                     {availableDatesForLink.map((date) => {
                       const isSelected = slotsForLinkDates.includes(date);
                       return (
@@ -2087,7 +2162,7 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                           type="button"
                           variant={isSelected ? "default" : "outline"}
                           size="sm"
-                          className="h-7 text-xs"
+                          className="h-6 text-[11px]"
                           onClick={() => {
                             if (isSelected) {
                               setSlotsForLinkDates((prev) => prev.filter((d) => d !== date));
@@ -2102,20 +2177,14 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                     })}
                   </div>
                 )}
-                {availableDatesForLink.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {language === "ru"
-                      ? `Выбрано дат: ${slotsForLinkDates.length} из ${availableDatesForLink.length}`
-                      : `Таңдалған күндер: ${slotsForLinkDates.length} / ${availableDatesForLink.length}`}
-                  </p>
-                )}
               </div>
 
               <div className="flex gap-2 pt-2 border-t">
-                <Button variant="outline" className="flex-1" onClick={() => setIsManagingSlots(false)}>
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => setIsManagingSlots(false)}>
                   {t("cancel")}
                 </Button>
                 <Button
+                  size="sm"
                   className="flex-1"
                   disabled={!lessonLinkUrl.trim() || slotsForLinkDates.length === 0 || addLessonLink.isPending}
                   onClick={() => {
@@ -2132,6 +2201,51 @@ const TeacherScheduleTab = ({ teacherName, productIds }: TeacherScheduleTabProps
                   }}
                 >
                   {addLessonLink.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === "ru" ? "Сохранить ссылку" : "Сілтемені сақтау")}
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* TAB 2: RESCHEDULE */}
+            <TabsContent value="reschedule" className="space-y-4 pt-4">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">{language === "ru" ? "1. Исходная дата (откуда перенести):" : "1. Бастапқы күн:"}</Label>
+                  <Select value={manageRescheduleFromDate} onValueChange={setManageRescheduleFromDate}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder={language === "ru" ? "Выберите дату со слотами" : "Күнді таңдаңыз"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableDatesForDelete.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {format(new Date(d), "d MMMM yyyy, EEEE", { locale: ru })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">{language === "ru" ? "2. Новая дата (куда перенести):" : "2. Жаңа күн:"}</Label>
+                  <Input
+                    type="date"
+                    value={manageRescheduleToDate}
+                    onChange={(e) => setManageRescheduleToDate(e.target.value)}
+                    className="h-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => setIsManagingSlots(false)}>
+                  {t("cancel")}
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  disabled={!manageRescheduleFromDate || !manageRescheduleToDate || rescheduleDateSlots.isPending}
+                  onClick={() => rescheduleDateSlots.mutate()}
+                >
+                  {rescheduleDateSlots.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : (language === "ru" ? "Перенести слоты" : "Слоттарды ауыстыру")}
                 </Button>
               </div>
             </TabsContent>

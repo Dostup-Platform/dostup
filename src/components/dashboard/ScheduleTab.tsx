@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSimplePurchases, useSimpleSchedules, useSimpleTimeSlots, useSimpleBookings, useCreateSimpleBooking, useCancelSimpleBooking, useAllBookingsForSchedule } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck, GraduationCap, Link as LinkIcon, Copy, Timer } from "lucide-react";
+import { Calendar, Clock, Users, User, Check, Loader2, X, CalendarCheck, GraduationCap, Link as LinkIcon, Copy, Timer, Video } from "lucide-react";
 import { format, addDays, isSameDay, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { toast } from "sonner";
@@ -429,6 +429,20 @@ const ScheduleTab = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (booking.time_slot?.lesson_link) {
+                          window.open(booking.time_slot.lesson_link, "_blank");
+                        }
+                      }}
+                      className="text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      title={language === "ru" ? "Видеозвонок" : "Бейне қоңырау"}
+                    >
+                      <Video className="w-4 h-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
