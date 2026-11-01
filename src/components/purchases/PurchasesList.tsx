@@ -24,9 +24,21 @@ const PERIOD_KEYS: Record<string, TranslationKey> = {
   "1y": "accessYear",
 };
 
-/** White by default, light orange on hover, whatever the label says. */
-const pillButton =
-  "whitespace-nowrap rounded-full border border-[#E3E5E8] bg-white px-4 py-1.5 text-sm font-medium text-[#1F2328] transition-colors hover:border-[#FF6B00]/30 hover:bg-[#FF6B00]/10 hover:text-[#FF6B00] focus-ring";
+const pillBase =
+  "inline-flex h-7 items-center whitespace-nowrap rounded-full border px-3 text-[13px] font-medium transition-colors focus-ring";
+
+/** «Оставить отзыв» and «Оплатить»: white, light orange on hover. */
+const pillButton = cn(
+  pillBase,
+  "border-[#E3E5E8] bg-white text-[#1F2328] hover:border-[#FF6B00]/30 hover:bg-[#FF6B00]/10 hover:text-[#FF6B00]",
+);
+
+/** The payment button takes the colour of how close the end of access is. */
+const URGENCY_BUTTON = {
+  far: cn(pillBase, "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"),
+  soon: cn(pillBase, "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"),
+  expired: cn(pillBase, "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"),
+};
 
 interface PurchasesListProps {
   rows: Array<{ data: PurchaseRowData; product: CatalogProduct }>;
@@ -129,10 +141,12 @@ const PurchaseRow = ({ data, product }: { data: PurchaseRowData; product: Catalo
   );
 };
 
+// Phone: every value sits in a box as tall as a button, so the fields line up in height.
+// Computer: the value stands in the middle of its column, under the centred title.
 const Cell = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="flex min-w-0 flex-col items-start">
+  <div className="flex min-w-0 flex-col items-start md:items-center md:text-center">
     <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground md:hidden">{label}</p>
-    {children}
+    <div className="flex min-h-7 items-center">{children}</div>
   </div>
 );
 
@@ -168,11 +182,11 @@ const PaymentCell = ({
   const { payment } = data;
 
   if (payment.kind === "paid") {
-    return <p className="whitespace-nowrap text-sm text-muted-foreground">{t("paymentPaid")}</p>;
+    return <p className="whitespace-nowrap text-sm text-foreground">{t("paymentPaid")}</p>;
   }
 
   if (payment.kind === "trial") {
-    if (!isSubscription) return <p className="whitespace-nowrap text-sm text-muted-foreground">{t("paymentFree")}</p>;
+    if (!isSubscription) return <p className="whitespace-nowrap text-sm text-foreground">{t("paymentFree")}</p>;
     return (
       <button type="button" onClick={onPay} className={pillButton}>
         {t("paymentPayNow")}
@@ -183,7 +197,7 @@ const PaymentCell = ({
   // The next period can be paid at any time; the label says how close the end is.
   const key = { far: "paymentFar", soon: "paymentSoon", expired: "paymentOverdue" }[payment.urgency] as TranslationKey;
   return (
-    <button type="button" onClick={onPay} className={pillButton}>
+    <button type="button" onClick={onPay} className={URGENCY_BUTTON[payment.urgency]}>
       {t(key)}
     </button>
   );
@@ -206,7 +220,7 @@ const ReviewCell = ({ productId, productTitle }: { productId: string; productTit
           type="button"
           aria-label={t("reviewsUpdate")}
           onClick={() => setOpen(true)}
-          className="inline-flex rounded-full px-1 py-1 transition-colors hover:bg-[#FF6B00]/10 focus-ring"
+          className="inline-flex h-7 items-center rounded-full px-1 transition-colors hover:bg-[#FF6B00]/10 focus-ring"
         >
           <Stars rating={data.myReview.rating} />
         </button>

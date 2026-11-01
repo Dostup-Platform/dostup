@@ -69,8 +69,8 @@ export default function ProductReviewsSection({ productId }: { productId: string
                   >
                     <span className="w-3 text-sm tabular-nums text-muted-foreground">{star}</span>
                     <Star className="h-3.5 w-3.5 shrink-0 fill-[#FFB020] text-[#FFB020]" />
-                    {/* On hover the row turns the track's grey, so the track goes lighter to stay visible. */}
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted transition-colors group-hover:bg-background">
+                    {/* On hover the row turns the track's grey, so the track goes a shade darker to stay visible. */}
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted transition-colors group-hover:bg-[#DCDFE4]">
                       <div className="h-full rounded-full bg-[#FFB020]" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="w-20 whitespace-nowrap text-right text-sm tabular-nums text-muted-foreground">

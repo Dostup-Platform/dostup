@@ -111,6 +111,30 @@ export async function buyerHasProductAccess(
   )
 }
 
+/**
+ * The buyer may review a product they can open now or once paid for, even if that paid time
+ * has run out (an overdue subscription or period product). Access the seller closed
+ * (status 'revoked') does not count.
+ */
+export async function buyerCanReviewProduct(
+  supabase: SupabaseClient,
+  buyerProfileId: string,
+  productId: string,
+): Promise<boolean> {
+  if (await buyerHasProductAccess(supabase, buyerProfileId, productId)) return true
+
+  const { count: paid } = await supabase
+    .from('simple_purchases')
+    .select('id', { count: 'exact', head: true })
+    .eq('buyer_profile_id', buyerProfileId)
+    .eq('product_id', productId)
+    .eq('status', 'completed')
+  if ((paid ?? 0) > 0) return true
+
+  const sub = await getSubscription(supabase, buyerProfileId, productId)
+  return Boolean(sub)
+}
+
 /** A seller-set end date closes a one-time purchase; NULL keeps it open for good. */
 export function purchaseAccessOpen(row: { access_expires_at?: string | null }, now = new Date()): boolean {
   return !row.access_expires_at || new Date(row.access_expires_at) > now

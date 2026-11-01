@@ -49,7 +49,7 @@ export default function AllReviewsDialog({
       <DialogContent
         hideCloseButton
         overlayClassName="bg-black/40 backdrop-blur-sm"
-        className="max-w-lg max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0"
+        className="max-w-lg max-h-[57vh] overflow-hidden flex flex-col p-0 gap-0 md:max-h-[85vh]"
       >
         <div className="border-b border-border p-6">
           <div className="flex flex-col items-center text-center">
