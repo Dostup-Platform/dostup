@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ interface Props {
   align?: "center" | "left";
   /** White window instead of the dark one — for documents such as payment receipts. */
   light?: boolean;
-  /** Specialized mode for receipt viewer: compact on PC without Done button, full-screen with top-right X on phone */
+  /** Specialized mode for receipt viewer: compact modal with semi-transparent overlay */
   isReceipt?: boolean;
 }
 
@@ -53,14 +53,19 @@ const MediaViewer = ({ items, index, onIndexChange, actions, align = "center", l
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onIndexChange(null)}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/55 backdrop-blur-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Overlay
+          className={cn(
+            "fixed inset-0 z-[70] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+            isReceipt ? "bg-black/80" : "bg-black/55 backdrop-blur-md",
+          )}
+        />
         <DialogPrimitive.Content
           aria-describedby={undefined}
           className={cn(
             "fixed z-[70] flex flex-col overflow-hidden shadow-2xl outline-none",
             light ? "bg-white" : "bg-neutral-950",
             isReceipt
-              ? "inset-0 rounded-none w-full h-full sm:inset-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[500px] sm:max-w-[92vw] sm:max-h-[88vh] sm:rounded-2xl"
+              ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-[440px] max-h-[82vh] rounded-2xl"
               : align === "left"
                 ? "left-0 top-0 bottom-0 w-[calc(100%-2.5rem)] sm:w-[480px] sm:max-w-[45vw] rounded-r-2xl rounded-l-none"
                 : "left-3 right-3 top-[max(0.75rem,env(safe-area-inset-top))] bottom-[max(0.75rem,env(safe-area-inset-bottom))] sm:left-8 sm:right-8 sm:top-8 sm:bottom-8 lg:left-16 lg:right-16 rounded-2xl",
@@ -71,20 +76,6 @@ const MediaViewer = ({ items, index, onIndexChange, actions, align = "center", l
           )}
         >
           <DialogPrimitive.Title className="sr-only">{item?.name || t("mediaViewerTitle")}</DialogPrimitive.Title>
-
-          {/* Close cross on mobile for receipts (and can also appear on phone) */}
-          {isReceipt && (
-            <DialogPrimitive.Close asChild>
-              <button
-                type="button"
-                onClick={() => onIndexChange(null)}
-                aria-label={t("close")}
-                className="sm:hidden absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-20 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus-ring"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </DialogPrimitive.Close>
-          )}
 
           <div
             className={cn(
@@ -141,7 +132,8 @@ const MediaViewer = ({ items, index, onIndexChange, actions, align = "center", l
           {(actions || (!isReceipt) || (many && index !== null)) && (
             <div
               className={cn(
-                "flex shrink-0 items-center justify-end gap-2 border-t px-3 py-3",
+                "flex shrink-0 items-center justify-end gap-2 border-t px-3",
+                isReceipt ? "py-2 sm:py-2.5" : "py-3",
                 light ? "border-neutral-200 bg-white" : "border-white/10 bg-neutral-950",
               )}
             >

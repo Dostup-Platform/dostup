@@ -62,7 +62,7 @@ export const URGENCY_CLASSES: Record<AccessUrgency, string> = {
   soon: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
   very_soon: "bg-red-500/15 text-red-600 dark:text-red-400",
   expired: "bg-red-500/10 text-red-600/80 dark:text-red-400/80",
-  closed: "bg-muted text-muted-foreground",
+  closed: "bg-red-500/10 text-destructive",
 };
 
 export function formatAccessDuration(days: number, language: string = "ru"): string {
@@ -90,8 +90,11 @@ export function getGrantedAccessPeriod(purchase: AccessSource, language: string 
     return language === "ru" ? "Закрыт" : "Жабық";
   }
   const { urgency } = accessUrgency(purchase);
-  if (urgency === "closed" || urgency === "expired") {
+  if (urgency === "closed") {
     return language === "ru" ? "Закрыт" : "Жабық";
+  }
+  if (urgency === "expired") {
+    return language === "ru" ? "Не оплачено" : "Төленбеген";
   }
   if (urgency === "forever" || !accessEnd(purchase)) {
     return language === "ru" ? "Навсегда" : "Мерзімсіз";

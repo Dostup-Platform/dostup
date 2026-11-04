@@ -95,6 +95,11 @@ const BuyerDetailsDialog = ({ purchase, onOpenChange, onSetAccess, teachers, tea
   const { urgency } = accessUrgency(purchase);
   const fmt = (d: Date) => format(d, "d MMMM yyyy", { locale });
 
+  const isForever = urgency === "forever" || !end;
+  const isClosed = purchase.status === "revoked" || urgency === "closed";
+  const isExpired = urgency === "expired" || purchase.status === "expired";
+  const accessLabel = isForever || isClosed || isExpired ? t("buyerAccessLabel") : t("buyerAccessDuration");
+
   const setAccess = async (mode: "revoke" | "forever") => {
     setSaving(true);
     try {
@@ -134,7 +139,7 @@ const BuyerDetailsDialog = ({ purchase, onOpenChange, onSetAccess, teachers, tea
 
   return (
     <>
-      <Dialog open={!!purchase} onOpenChange={onOpenChange}>
+      <Dialog open={!!purchase && !receiptView} onOpenChange={onOpenChange}>
         <DialogContent
           hideCloseButton
           className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl sm:rounded-2xl"
@@ -152,7 +157,6 @@ const BuyerDetailsDialog = ({ purchase, onOpenChange, onSetAccess, teachers, tea
             <Row icon={Package} label={t("buyerProduct")}>
               {purchase.product.title}
             </Row>
-
             {/* Receipts open right under the payment they belong to. */}
             <Row
               icon={Wallet}
@@ -214,29 +218,31 @@ const BuyerDetailsDialog = ({ purchase, onOpenChange, onSetAccess, teachers, tea
               <span className="font-semibold text-foreground">{formatPriceTenge(Number(purchase.amount))}</span>
             </Row>
 
-            {/* Row "Доступ на:" */}
-            <Row icon={Timer} label={t("buyerAccessDuration")}>
-              <span className="font-semibold text-foreground">{getGrantedAccessPeriod(purchase, language)}</span>
+            {/* Row "Доступ:" / "Доступ на:" */}
+            <Row icon={Timer} label={accessLabel}>
+              <span className={cn("font-semibold", (isClosed || urgency === "expired") ? "text-destructive" : "text-foreground")}>
+                {getGrantedAccessPeriod(purchase, language)}
+              </span>
             </Row>
 
-            {/* Row "Следующая оплата" */}
-            <Row
-              icon={CalendarClock}
-              label={t("buyerNextPayment")}
-              aside={
-                urgency === "forever" || (!end && urgency !== "closed") ? null : (
-                  <UrgencyBadge purchase={purchase} />
-                )
-              }
-            >
-              {urgency === "closed" ? (
-                t("buyerAccessClosed")
-              ) : urgency === "forever" || !end ? (
-                t("buyerAccessForever")
-              ) : (
-                <span>{fmt(end)}</span>
-              )}
-            </Row>
+            {/* Row "Следующая оплата" — only for non-forever and non-closed */}
+            {!isForever && !isClosed && (
+              <Row
+                icon={CalendarClock}
+                label={t("buyerNextPayment")}
+                aside={
+                  urgency === "forever" || (!end && urgency !== "closed") ? null : (
+                    <UrgencyBadge purchase={purchase} />
+                  )
+                }
+              >
+                {end ? (
+                  <span>{fmt(end)}</span>
+                ) : (
+                  t("buyerAccessForever")
+                )}
+              </Row>
+            )}
           </dl>
 
           {urgency === "closed" || urgency === "expired" ? (

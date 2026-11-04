@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, ChevronRight, Layers, Loader2, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Layers, Loader2, Search, X } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { formatPriceTenge } from "@/lib/catalog";
 import { creatorCreds, invokeApi } from "@/lib/sessionApi";
@@ -255,6 +255,12 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
 
   const renderBuyerCard = (purchase: PurchaseWithUser, index: number) => {
     const grantedPeriod = getGrantedAccessPeriod(purchase, language);
+    const isClosedOrExpired =
+      grantedPeriod === "Закрыт" ||
+      grantedPeriod === "Жабық" ||
+      grantedPeriod === "Не оплачено" ||
+      grantedPeriod === "Төленбеген";
+
     return (
       <Card
         key={purchase.id}
@@ -291,7 +297,12 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
             </div>
             {/* Granted access period shown next to the arrow */}
             <div className="flex shrink-0 items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  isClosedOrExpired ? "text-destructive font-semibold" : "text-muted-foreground"
+                )}
+              >
                 {grantedPeriod}
               </span>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -328,7 +339,7 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
                 onClick={() => setAllProducts((v) => !v)}
                 aria-pressed={showAll}
                 className={cn(
-                  "group shrink-0 inline-flex items-center justify-center gap-2 rounded-lg border px-3 text-xs sm:text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] h-9 min-h-0 md:h-10 md:min-h-10",
+                  "group shrink-0 inline-flex items-center justify-center gap-2 rounded-lg border px-3 text-xs sm:text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B00] h-9 min-h-0 md:h-10 md:min-h-10 cursor-pointer",
                   showAll
                     ? "border-primary/30 bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary font-semibold"
                     : "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -350,7 +361,7 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
                 aria-selected={period === key}
                 onClick={() => setPeriod(key)}
                 className={cn(
-                  "shrink-0 rounded-full border px-3 py-1.5 text-[13px] font-medium transition-colors",
+                  "shrink-0 rounded-full border px-3 py-1.5 text-[13px] font-medium transition-colors cursor-pointer",
                   period === key
                     ? "border-primary/30 bg-primary/15 text-primary font-semibold"
                     : "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -364,7 +375,7 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
       )}
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
         <Input
           placeholder={t("searchUsers")}
           value={searchQuery}
@@ -373,16 +384,22 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
         />
       </div>
 
-      <CreatorPendingPayments creatorName={creatorName} />
+      <CreatorPendingPayments
+        creatorName={creatorName}
+        selectedProductId={showAll ? undefined : selectedProductId}
+      />
 
       {/* List "Активные" */}
       <div className="space-y-3">
         <button
           type="button"
           onClick={() => setActiveOpen((v) => !v)}
-          className="flex items-center justify-between w-full py-1 text-left transition-colors"
+          className="flex items-center justify-between w-full py-1 text-left transition-colors cursor-pointer"
         >
-          <h3 className="text-base font-semibold text-foreground">{t("paidUsers")}</h3>
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-500 shrink-0" strokeWidth={2.5} />
+            <h3 className="text-base font-semibold text-foreground">{t("paidUsers")}</h3>
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">{activePurchases.length} {t("total")}</span>
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", !activeOpen && "-rotate-90")} />
@@ -392,12 +409,8 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
         {activeOpen && (
           <>
             {activePurchases.length === 0 ? (
-              <div className="text-center py-10">
-                <Search className="w-10 h-10 text-muted-foreground/50 mx-auto mb-2" />
-                <p className="text-muted-foreground">{t("noPaidUsers")}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {period === "all" ? t("usersWillAppear") : t("buyersTryLongerPeriod")}
-                </p>
+              <div className="text-center py-6">
+                <p className="text-sm text-muted-foreground">{t("noPaidUsers")}</p>
               </div>
             ) : (
               activePurchases.map((purchase, index) => renderBuyerCard(purchase, index))
@@ -411,9 +424,12 @@ const CreatorUsersTab = ({ creatorName }: CreatorUsersTabProps) => {
         <button
           type="button"
           onClick={() => setInactiveOpen((v) => !v)}
-          className="flex items-center justify-between w-full py-1 text-left transition-colors"
+          className="flex items-center justify-between w-full py-1 text-left transition-colors cursor-pointer"
         >
-          <h3 className="text-base font-semibold text-foreground">{t("inactiveUsers")}</h3>
+          <div className="flex items-center gap-2">
+            <X className="w-4 h-4 text-destructive shrink-0" strokeWidth={2.5} />
+            <h3 className="text-base font-semibold text-foreground">{t("inactiveUsers")}</h3>
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">{inactivePurchases.length} {t("total")}</span>
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", !inactiveOpen && "-rotate-90")} />

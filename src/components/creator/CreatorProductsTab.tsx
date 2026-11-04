@@ -2558,21 +2558,23 @@ const ProductForm = ({
     </FormSection>
           </div>
 
-    <Button
-      type="submit" 
-      variant="cta" 
-      className="w-full"
-      disabled={isPending}
-    >
-      {isPending ? (
-        <span className="flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          {isEdit ? "Сохранение..." : "Создание..."}
-        </span>
-      ) : (
-        isEdit ? "Сохранить изменения" : "Создать продукт"
-      )}
-    </Button>
+    {!isEdit && (
+      <Button
+        type="submit" 
+        variant="cta" 
+        className="w-full"
+        disabled={isPending}
+      >
+        {isPending ? (
+          <span className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Создание...
+          </span>
+        ) : (
+          "Создать продукт"
+        )}
+      </Button>
+    )}
         </div>
       )}
   </form>
@@ -2634,6 +2636,70 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
   const [isCreating, setIsCreating] = useState(false);
   const [isCroppingMedia, setIsCroppingMedia] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [initialFormSnapshot, setInitialFormSnapshot] = useState<string>("");
+  const [showConfirmSave, setShowConfirmSave] = useState(false);
+
+  const getFormSnapshot = (fd: FormData): string => {
+    return JSON.stringify({
+      categoryId: fd.categoryId || "",
+      subcategoryId: fd.subcategoryId || "",
+      topic: fd.topic || "",
+      lessonFormat: fd.lessonFormat || "",
+      eventStartsAt: fd.eventStartsAt || "",
+      capacity: fd.capacity || "",
+      billingPeriod: fd.billingPeriod || "",
+      title: (fd.title || "").trim(),
+      headline: (fd.headline || "").trim(),
+      description: (fd.description || "").trim(),
+      price: fd.price || "",
+      kaspiLink: fd.kaspiLink || "",
+      telegramLink: fd.telegramLink || "",
+      imageUrl: fd.imageUrl || "",
+      videoUrl: fd.videoUrl || "",
+      isPaid: Boolean(fd.isPaid),
+      kaspiMethods: fd.kaspiMethods || [],
+      kaspiPhone: fd.kaspiPhone || "",
+      kaspiCard: fd.kaspiCard || "",
+      bank: fd.bank || "",
+      bankName: fd.bankName || "",
+      paymentType: fd.paymentType || "",
+      recurringInterval: fd.recurringInterval || "",
+      recurringCustomDays: fd.recurringCustomDays || 0,
+      hasFreeTrial: Boolean(fd.hasFreeTrial),
+      trialPreset: fd.trialPreset || "",
+      trialCustomDays: fd.trialCustomDays || 0,
+      media: (fd.media || []).map((m) => ({
+        type: m.type,
+        url: m.url,
+        fileName: m.file?.name,
+        fileSize: m.file?.size,
+        objectPosition: m.objectPosition,
+      })),
+      faq: (fd.faq || [])
+        .map((f) => ({ question: (f?.question || "").trim(), answer: (f?.answer || "").trim() }))
+        .filter((f) => f.question || f.answer),
+      pricingOptions: (fd.pricingOptions || []).map((po) => ({
+        paymentType: po.paymentType,
+        price: po.price,
+        recurringInterval: po.recurringInterval,
+        recurringCustomDays: po.recurringCustomDays,
+        hasFreeTrial: po.hasFreeTrial,
+        trialPreset: po.trialPreset,
+        trialCustomDays: po.trialCustomDays,
+        kaspiMethods: po.kaspiMethods,
+        kaspiLink: po.kaspiLink,
+        kaspiPhone: po.kaspiPhone,
+        kaspiCard: po.kaspiCard,
+        bank: po.bank,
+        bankName: po.bankName,
+      })),
+    });
+  };
+
+  const isFormDirty = () => {
+    if (!editingProduct) return false;
+    return getFormSnapshot(formData) !== initialFormSnapshot;
+  };
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
   const [visibilityProductId, setVisibilityProductId] = useState<string | null>(null);
@@ -2680,6 +2746,8 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
   });
 
   const resetForm = () => {
+    setInitialFormSnapshot("");
+    setShowConfirmSave(false);
     const defaultOpt = createDefaultPricingOption();
     setFormData({
       categoryId: "",
@@ -2976,7 +3044,7 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
       }
     }
 
-    setFormData({
+    const initialData: FormData = {
       categoryId: product.category_id || "",
       subcategoryId: product.subcategory_id || "",
       topic: (product as any).topic || "",
@@ -3007,16 +3075,18 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
       trialPreset: firstOpt.trialPreset,
       trialCustomDays: firstOpt.trialCustomDays,
       pricingOptions: loadedOptions,
-    });
+    };
+    setFormData(initialData);
+    setInitialFormSnapshot(getFormSnapshot(initialData));
   };
 
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUpdate = async (e?: React.FormEvent): Promise<boolean> => {
+    if (e) e.preventDefault();
 
     const taxonomyError = validateTaxonomyFields(formData, taxonomyCategories);
     if (!editingProduct || !formData.title || taxonomyError) {
       toast.error(taxonomyError || "Заполните обязательные поля");
-      return;
+      return false;
     }
 
     const options = formData.pricingOptions && formData.pricingOptions.length > 0
@@ -3025,7 +3095,7 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
 
     if (formData.isPaid && options.some(o => !o.price || Number(o.price) <= 0)) {
       toast.error("Укажите цену для всех вариантов оплаты");
-      return;
+      return false;
     }
 
     const primaryOpt = options[0];
@@ -3125,9 +3195,12 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
       toast.success("Продукт обновлён!");
       setEditingProduct(null);
       resetForm();
+      setShowConfirmSave(false);
+      return true;
     } catch (error: any) {
       console.error("Failed to update product:", error);
       toast.error(error?.message || "Ошибка при обновлении продукта");
+      return false;
     }
   };
 
@@ -3225,12 +3298,39 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
       </div>
 
       {/* Edit Dialog */}
-      <Dialog open={!!editingProduct} onOpenChange={(open) => { if (!open) { setEditingProduct(null); resetForm(); setIsCroppingMedia(false); } }}>
+      <Dialog
+        open={!!editingProduct}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (isCroppingMedia) return;
+            if (isFormDirty()) {
+              setShowConfirmSave(true);
+              return;
+            }
+            setEditingProduct(null);
+            resetForm();
+            setIsCroppingMedia(false);
+          }
+        }}
+      >
         <DialogContent
+          hideCloseButton
           className="dialog-static w-[calc(100vw-2rem)] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden min-w-0"
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onInteractOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => {
+            if (isCroppingMedia || showConfirmSave) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            if (isCroppingMedia || showConfirmSave) {
+              e.preventDefault();
+            }
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isCroppingMedia || showConfirmSave) {
+              e.preventDefault();
+            }
+          }}
         >
           <DialogHeader>
             <DialogTitle>{isCroppingMedia ? "Настройка обложки" : `${t("edit")} продукт`}</DialogTitle>
@@ -3246,6 +3346,53 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
             editingProductId={editingProduct?.id || null}
             onCroppingChange={setIsCroppingMedia}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Save Changes Dialog */}
+      <Dialog open={showConfirmSave} onOpenChange={setShowConfirmSave}>
+        <DialogContent hideCloseButton className="w-[calc(100vw-2rem)] sm:w-full max-w-sm p-6 text-center">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg font-semibold">
+              Сохранить изменения?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10 min-h-[40px] h-10 px-4"
+              disabled={updateProduct.isPending}
+              onClick={() => {
+                setShowConfirmSave(false);
+                setEditingProduct(null);
+                resetForm();
+                setIsCroppingMedia(false);
+              }}
+            >
+              Не сохранять
+            </Button>
+            <Button
+              type="button"
+              className="bg-[#FF6B00] text-white hover:bg-[#FF6B00]/90 min-h-[40px] h-10 px-4"
+              disabled={updateProduct.isPending}
+              onClick={async () => {
+                const ok = await handleUpdate();
+                if (ok) {
+                  setShowConfirmSave(false);
+                }
+              }}
+            >
+              {updateProduct.isPending ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Сохранение...
+                </span>
+              ) : (
+                "Сохранить"
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

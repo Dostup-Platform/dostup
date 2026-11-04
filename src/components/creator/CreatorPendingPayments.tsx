@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Loader2, Eye, X, Check, ChevronRight, ChevronDown, Download } from "lucide-react";
+import { Clock, Loader2, X, Check, ChevronRight, ChevronDown, Download } from "lucide-react";
 import { formatPriceTenge } from "@/lib/catalog";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { creatorCreds, invokeApi, fetchCreatorReceiptBlob } from "@/lib/sessionApi";
@@ -73,15 +73,21 @@ interface CreatorPendingPaymentsProps {
   /** "actions" — кнопки ✓/✗ (раздел «Пользователи»); "link" — только список, клик ведёт в «Пользователи». */
   mode?: "actions" | "link";
   onOpenUsers?: () => void;
+  selectedProductId?: string;
 }
 
-export default function CreatorPendingPayments({ creatorName, mode = "actions", onOpenUsers }: CreatorPendingPaymentsProps) {
+export default function CreatorPendingPayments({ creatorName, mode = "actions", onOpenUsers, selectedProductId }: CreatorPendingPaymentsProps) {
   const { t, language } = useLanguage();
   const queryClient = useQueryClient();
   const { data: pendingPurchases = [], isLoading } = useCreatorPendingPurchases(creatorName);
   const [receiptView, setReceiptView] = useState<{ url: string; kind: "image" | "pdf"; name: string } | null>(null);
   const [loadingReceipt, setLoadingReceipt] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(true);
+
+  const displayedPurchases = useMemo(() => {
+    if (!selectedProductId) return pendingPurchases;
+    return pendingPurchases.filter((p) => p.product_id === selectedProductId);
+  }, [pendingPurchases, selectedProductId]);
 
   useEffect(() => () => {
     if (receiptView) URL.revokeObjectURL(receiptView.url);
@@ -158,14 +164,14 @@ export default function CreatorPendingPayments({ creatorName, mode = "actions", 
     onError: () => toast.error(language === "ru" ? "Ошибка при отклонении" : "Қабылдамау қатесі"),
   });
 
-  if (isLoading || pendingPurchases.length === 0) return null;
+  if (isLoading || displayedPurchases.length === 0) return null;
 
   return (
     <div className="space-y-3">
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex items-center justify-between w-full py-1 text-left transition-colors"
+        className="flex items-center justify-between w-full py-1 text-left transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-warning" />
@@ -174,7 +180,7 @@ export default function CreatorPendingPayments({ creatorName, mode = "actions", 
           </h2>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">{pendingPurchases.length} {t("total")}</span>
+          <span className="text-sm text-muted-foreground">{displayedPurchases.length} {t("total")}</span>
           <ChevronDown
             className={cn(
               "w-4 h-4 text-muted-foreground transition-transform duration-200",
@@ -186,7 +192,7 @@ export default function CreatorPendingPayments({ creatorName, mode = "actions", 
 
       {isOpen && (
         <>
-          {mode === "link" && pendingPurchases.map((purchase, index) => (
+          {mode === "link" && displayedPurchases.map((purchase, index) => (
             <Card
               key={purchase.id}
               role="button"
@@ -207,10 +213,16 @@ export default function CreatorPendingPayments({ creatorName, mode = "actions", 
                     <h3 className="text-sm font-medium text-foreground truncate">
                       {purchase.user?.name || t("student")}
                     </h3>
-                    <p className="mt-0.5 flex min-w-0 text-xs text-muted-foreground">
-                      <span className="truncate">{purchase.product?.title}</span>
-                      <span className="shrink-0">&nbsp;·&nbsp;</span>
-                      <span className="shrink-0 text-warning">{formatPriceTenge(Number(purchase.amount))}</span>
+                    <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground truncate">
+                      <span className="shrink-0 text-warning font-medium">{formatPriceTenge(Number(purchase.amount))}</span>
+                      <span className="shrink-0">·</span>
+                      {purchase.latest_submission?.id ? (
+                        <span className="text-xs text-muted-foreground">{t("viewReceipt")}</span>
+                      ) : (
+                        <span className="text-xs text-destructive font-medium whitespace-nowrap">
+                          {language === "ru" ? "Чек ещё не прикреплён" : "Чек әлі тіркелмеген"}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <span className="text-xs text-primary inline-flex items-center gap-0.5 flex-shrink-0">
@@ -222,7 +234,7 @@ export default function CreatorPendingPayments({ creatorName, mode = "actions", 
             </Card>
           ))}
 
-          {mode === "actions" && pendingPurchases.map((purchase, index) => (
+          {mode === "actions" && displayedPurchases.map((purchase, index) => (
             <Card
               key={purchase.id}
               className="animate-fade-in border-warning/40 bg-warning/5"
@@ -240,35 +252,32 @@ export default function CreatorPendingPayments({ creatorName, mode = "actions", 
                       {purchase.user?.name || t("student")}
                     </h4>
                     <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground truncate">
-                      <span className="truncate">{purchase.product?.title}</span>
+                      <span className="shrink-0 text-success font-medium">{formatPriceTenge(Number(purchase.amount))}</span>
                       <span className="shrink-0">·</span>
-                      <span className="shrink-0 text-success">{formatPriceTenge(Number(purchase.amount))}</span>
+                      {purchase.latest_submission?.id ? (
+                        <button
+                          type="button"
+                          disabled={loadingReceipt === purchase.latest_submission.id}
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer truncate"
+                          onClick={() => void openReceipt(purchase.latest_submission!.id, purchase.user?.name)}
+                        >
+                          {loadingReceipt === purchase.latest_submission.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : null}
+                          <span>{t("viewReceipt")}</span>
+                        </button>
+                      ) : (
+                        <span className="text-xs text-destructive font-medium whitespace-nowrap">
+                          {language === "ru" ? "Чек ещё не прикреплён" : "Чек әлі тіркелмеген"}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {purchase.latest_submission?.id ? (
-                      <button
-                        type="button"
-                        disabled={loadingReceipt === purchase.latest_submission.id}
-                        className="text-xs text-primary inline-flex items-center gap-1 hover:underline disabled:opacity-50"
-                        onClick={() => void openReceipt(purchase.latest_submission!.id, purchase.user?.name)}
-                      >
-                        {loadingReceipt === purchase.latest_submission.id ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Eye className="w-3.5 h-3.5" />
-                        )}
-                        <span>{t("viewReceipt")}</span>
-                      </button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
-                        {language === "ru" ? "Чек ещё не прикреплён" : "Чек әлі тіркелмеген"}
-                      </span>
-                    )}
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-8 w-8 sm:w-auto sm:px-3 p-0 min-h-0 text-muted-foreground border-border hover:bg-destructive/10 hover:border-destructive/40 hover:text-destructive active:bg-destructive active:text-white transition-colors"
+                      className="h-8 w-8 p-0 min-h-0 border-border bg-background text-muted-foreground hover:bg-destructive hover:border-destructive hover:text-white transition-colors cursor-pointer"
                       title={t("rejectPayment")}
                       aria-label={t("rejectPayment")}
                       onClick={() => {
@@ -281,18 +290,13 @@ export default function CreatorPendingPayments({ creatorName, mode = "actions", 
                       {rejectPayment.isPending && rejectPayment.variables === purchase.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
-                        <>
-                          <X className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline ml-1 text-xs font-medium">
-                            {language === "ru" ? "Отклонить" : "Қабылдамау"}
-                          </span>
-                        </>
+                        <X className="w-3.5 h-3.5" />
                       )}
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-8 w-8 sm:w-auto sm:px-3 p-0 min-h-0 bg-background border-border text-foreground hover:bg-[#FF6B00]/10 hover:border-[#FF6B00]/40 hover:text-[#FF6B00] active:bg-[#FF6B00] active:text-white transition-colors"
+                      className="h-8 w-8 p-0 min-h-0 border-border bg-background text-muted-foreground hover:bg-emerald-600 hover:border-emerald-600 hover:text-white transition-colors cursor-pointer"
                       title={t("confirmPayment")}
                       aria-label={t("confirmPayment")}
                       onClick={() => confirmPayment.mutate(purchase.id)}
@@ -301,12 +305,7 @@ export default function CreatorPendingPayments({ creatorName, mode = "actions", 
                       {confirmPayment.isPending && confirmPayment.variables === purchase.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline ml-1 text-xs font-medium">
-                            {language === "ru" ? "Подтвердить" : "Растау"}
-                          </span>
-                        </>
+                        <Check className="w-3.5 h-3.5" />
                       )}
                     </Button>
                   </div>
