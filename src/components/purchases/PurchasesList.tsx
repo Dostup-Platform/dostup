@@ -62,8 +62,8 @@ const PurchasesList = ({ rows }: PurchasesListProps) => {
           ROW_GRID,
         )}
       >
-        <span>{t("purchasesColProduct")}</span>
-        {/* Titles stand in the middle of their column; the values under them start at its left edge. */}
+        {/* Every title, «Продукт» too, stands in the middle of its column. */}
+        <span className="text-center">{t("purchasesColProduct")}</span>
         {titles.map((key) => (
           <span key={key} className="text-center">
             {t(key)}
@@ -141,10 +141,10 @@ const PurchaseRow = ({ data, product }: { data: PurchaseRowData; product: Catalo
   );
 };
 
+// The label (phone only) and the value stand in the middle of their column, under the centred title.
 // Phone: every value sits in a box as tall as a button, so the fields line up in height.
-// Computer: the value stands in the middle of its column, under the centred title.
 const Cell = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="flex min-w-0 flex-col items-start md:items-center md:text-center">
+  <div className="flex min-w-0 flex-col items-center text-center">
     <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground md:hidden">{label}</p>
     <div className="flex min-h-7 items-center">{children}</div>
   </div>

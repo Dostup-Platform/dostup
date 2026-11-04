@@ -49,7 +49,9 @@ export default function AllReviewsDialog({
       <DialogContent
         hideCloseButton
         overlayClassName="bg-black/40 backdrop-blur-sm"
-        className="max-w-lg max-h-[57vh] overflow-hidden flex flex-col p-0 gap-0 md:max-h-[85vh]"
+        // No zoom on open or close, only the fade: Safari places the list's scrollbar while the window
+        // is still scaled down, a bit to the left, and moves it to the right edge only on the first scroll.
+        className="max-w-lg max-h-[57vh] overflow-hidden flex flex-col p-0 gap-0 md:max-h-[85vh] data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100"
       >
         <div className="border-b border-border p-6">
           <div className="flex flex-col items-center text-center">
