@@ -15,6 +15,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // These main-branch suites use Node test runner, invoked by test:node.
+    exclude: ["src/lib/{announcementHtml,materialStorage,navOrder,paymentEditor,paymentFormat,paymentMethods}.test.ts", "src/components/creator/buyerAccess.test.ts"],
     // The supabase client is constructed at module load and throws without these.
     env: {
       VITE_SUPABASE_URL: "https://test.supabase.co",

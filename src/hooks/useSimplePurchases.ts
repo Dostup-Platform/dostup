@@ -27,6 +27,7 @@ interface SimpleMaterial {
   type: string;
   content: string | null;
   file_url: string | null;
+  cover_url?: string | null;
   order_index: number;
   product_id: string;
   allow_view?: boolean;
@@ -48,6 +49,7 @@ interface SimpleSchedule {
   teacher_id: string | null;
   created_at: string;
   teacher_name: string | null;
+  product_title?: string | null;
 }
 
 interface SimpleTimeSlot {
@@ -57,6 +59,7 @@ interface SimpleTimeSlot {
   start_time: string;
   end_time: string;
   lesson_link?: string | null;
+  max_participants?: number | null;
   [key: string]: unknown;
 }
 
@@ -237,10 +240,14 @@ export const useSimpleSchedules = () => {
         productIds,
       });
 
-      return (data.schedules ?? []).map((schedule) => ({
-        ...schedule,
-        teacher_name: null as string | null,
-      }));
+      return (data.schedules ?? []).map((schedule) => {
+        const purchase = purchases.find((p) => p.product_id === schedule.product_id);
+        return {
+          ...schedule,
+          teacher_name: null as string | null,
+          product_title: purchase?.product?.title || null,
+        };
+      });
     },
     enabled: !!purchases?.length,
   });

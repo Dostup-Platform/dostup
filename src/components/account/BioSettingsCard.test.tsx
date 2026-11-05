@@ -127,3 +127,14 @@ describe("BioSettingsCard", () => {
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 });
+
+it("loads and saves the selected seller profile instead of the first profile", async () => {
+  localStorage.setItem("profile_id", "seller-profile-2");
+  renderCard();
+  await waitFor(() => expect(screen.getByRole("textbox")).toBeEnabled());
+  expect(invokeApi).toHaveBeenCalledWith("manage-profile", expect.objectContaining({action:"get_handle",profileId:"seller-profile-2"}));
+  const user=userEvent.setup();
+  await user.type(screen.getByRole("textbox"), "Описание второго продавца");
+  await user.click(screen.getByRole("button",{name:"Сохранить"}));
+  await waitFor(() => expect(invokeApi).toHaveBeenCalledWith("manage-profile",expect.objectContaining({action:"set_bio",profileId:"seller-profile-2",bio:"Описание второго продавца"})));
+});

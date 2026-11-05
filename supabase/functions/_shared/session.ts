@@ -3,9 +3,41 @@ import { json } from './http.ts'
 import { buyerHasProductAccess } from './subscription.ts'
 
 export function serviceClient(): SupabaseClient {
+  const customFetch: typeof fetch = async (input, init) => {
+    let res = await fetch(input, init)
+    if (res.status === 401) {
+      try {
+        const clone = res.clone()
+        const text = await clone.text()
+        if (text.includes('PGRST303') || text.includes('JWT issued at future')) {
+          console.warn('[serviceClient] PGRST303 clock skew detected, waiting 1.5s and retrying...')
+          await new Promise((r) => setTimeout(r, 1500))
+          res = await fetch(input, init)
+          if (res.status === 401) {
+            const clone2 = res.clone()
+            const text2 = await clone2.text()
+            if (text2.includes('PGRST303') || text2.includes('JWT issued at future')) {
+              console.warn('[serviceClient] PGRST303 retry 2...')
+              await new Promise((r) => setTimeout(r, 1500))
+              res = await fetch(input, init)
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return res
+  }
+
   return createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    {
+      global: {
+        fetch: customFetch,
+      },
+    },
   )
 }
 
@@ -201,3 +233,6 @@ export const CATALOG_COLUMNS =
   'id, created_at, updated_at, creator_id, creator_account_id, title, headline, description, price, image_url, video_url, media, has_schedule, is_active, is_paused, paused_message, slug, telegram_link, group_link_label, faq, access_duration_days, category_id, subcategory_id, lesson_format, event_starts_at, capacity, billing_period, payment_type, recurring_interval, has_free_trial, trial_days, pricing_options, topic'
 
 export const CHECKOUT_COLUMNS = `${CATALOG_COLUMNS}, kaspi_link, kaspi_phone`
+
+// Seller-only view of a product: adds the marketplace visibility flag.
+export const CREATOR_PRODUCT_COLUMNS = `${CHECKOUT_COLUMNS}, is_published`

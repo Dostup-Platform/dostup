@@ -185,6 +185,7 @@ async function fillRequired(user: ReturnType<typeof userEvent.setup>) {
   // The category is filled in by the form itself shortly after a title appears.
   await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
   await user.click(screen.getByRole("button", { name: /^Оплата/ }));
+  await user.click(screen.getByRole("button", { name: "Ссылка" }));
   const linkInput = (await waitFor(() => {
     const el = document.querySelector<HTMLInputElement>("input[id^='kaspi-link-']");
     if (!el) throw new Error("payment link input not shown yet");
@@ -426,7 +427,7 @@ describe("a new product is created only by «Создать»", () => {
       title: "SAT Preparation",
       category_id: CATEGORY_ID,
       subcategory_id: SUBCATEGORY_ID,
-      is_active: false,
+      is_active: true, is_published: false,
     });
     expect(toastFn).toHaveBeenCalledWith(expect.stringMatching(/приватный/));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());

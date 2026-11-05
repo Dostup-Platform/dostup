@@ -15,6 +15,8 @@ export interface Product {
   media?: Array<{ type: "image" | "video"; url: string }> | null;
   has_schedule: boolean;
   is_active: boolean;
+  /** Seller-only: shown in the marketplace catalog. */
+  is_published?: boolean;
   slug: string | null;
   created_at: string;
   updated_at: string;
@@ -55,8 +57,15 @@ export interface ProductPricingOption {
   has_free_trial: boolean;
   trial_preset?: "3" | "7" | "30" | "custom";
   trial_days?: number | null;
+  access_duration_days?: number | null;
   kaspi_link?: string | null;
   kaspi_phone?: string | null;
+  /** Card number, digits grouped in fours. Lives only in pricing_options, no column. */
+  kaspi_card?: string | null;
+  bank?: string | null;
+  bank_name?: string | null;
+  last_payment_method?: "link" | "phone" | "card" | null;
+  billing_period?: string | null;
 }
 
 export interface ProductProgramItem {

@@ -5,6 +5,8 @@ import type {
 import type { Product, ProductPricingOption } from "@/hooks/useProducts";
 import type { CatalogCategory } from "@/lib/catalog";
 
+import { serializeKaspiFields } from "./paymentMethods";
+
 const INTERVAL_DAYS: Record<string, number> = {
   "7d": 7,
   "14d": 14,
@@ -39,8 +41,7 @@ function toPricingOption(opt: PricingOptionFormItem): ProductPricingOption {
     recurring_interval: opt.paymentType === "recurring" ? opt.recurringInterval : null,
     has_free_trial: opt.hasFreeTrial,
     trial_days: trialDays(opt),
-    kaspi_link: opt.kaspiMethod === "link" ? opt.kaspiLink || null : null,
-    kaspi_phone: opt.kaspiMethod === "phone" ? opt.kaspiPhone || null : null,
+    ...serializeKaspiFields(opt),
   };
 }
 
@@ -84,7 +85,7 @@ export function draftToPreviewProduct(
     return placeholders[field];
   };
   const title = text("title", form.title);
-  const headline = text("headline", form.headline);
+  const headline = null;
   const description = text("description", form.description);
 
   const options =
@@ -119,8 +120,8 @@ export function draftToPreviewProduct(
     slug: base?.slug || null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    kaspi_link: paid && primary.kaspiMethod === "link" ? primary.kaspiLink || null : null,
-    kaspi_phone: paid && primary.kaspiMethod === "phone" ? primary.kaspiPhone || null : null,
+    kaspi_link: paid ? serializeKaspiFields(primary).kaspi_link : null,
+    kaspi_phone: paid ? serializeKaspiFields(primary).kaspi_phone : null,
     telegram_link: null,
     faq: (form.faq || [])
       .filter((item) => (item?.question || "").trim() || (item?.answer || "").trim())

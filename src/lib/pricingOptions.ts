@@ -1,33 +1,6 @@
-export interface PricingOptionFormItem {
-  id: string;
-  paymentType: "one_time" | "recurring";
-  price: string;
-  recurringInterval: string;
-  recurringCustomDays: number;
-  hasFreeTrial: boolean;
-  trialPreset: "3" | "7" | "30" | "custom";
-  trialCustomDays: number;
-  kaspiMethod: "link" | "phone";
-  kaspiLink: string;
-  kaspiPhone: string;
-}
-
-export const createDefaultPricingOption = (
-  id?: string,
-  defaultKaspi?: { method?: "link" | "phone"; link?: string; phone?: string },
-): PricingOptionFormItem => ({
-  id: id || Math.random().toString(36).slice(2, 10),
-  paymentType: "recurring",
-  price: "49000",
-  recurringInterval: "1m",
-  recurringCustomDays: 30,
-  hasFreeTrial: false,
-  trialPreset: "7",
-  trialCustomDays: 7,
-  kaspiMethod: defaultKaspi?.method || "link",
-  kaspiLink: defaultKaspi?.link || "",
-  kaspiPhone: defaultKaspi?.phone || "",
-});
+export { createDefaultPricingOption } from "./paymentEditor";
+export type { PricingOptionFormItem } from "./paymentEditor";
+import type { PricingOptionFormItem } from "./paymentEditor";
 
 const INTERVAL_DAYS: Record<string, number> = {
   "7d": 7,

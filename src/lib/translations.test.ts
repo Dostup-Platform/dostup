@@ -23,8 +23,8 @@ test("add-profile button stays visible and both seller modes stay available", ()
   expect(rows).toMatch(/\{newProfileControl\}/);
 
   const dialog = readRepoFile("src/components/layout/AddSellerProfileDialog.tsx");
-  expect(dialog).toMatch(/const SELLER_TYPES: ProfileType\[\] = \["creator", "school"\]/);
-  expect(dialog).toMatch(/types=\{SELLER_TYPES\}/);
+  expect(dialog).toMatch(/const SELLER_TYPES: ProfileType\[\] = \["creator"\]/);
+  expect(dialog).toMatch(/types=\{availableTypes\}/);
 
   const switchProfile = readRepoFile("supabase/functions/switch-profile/index.ts");
   expect(switchProfile).toMatch(/createSellerProfile/);

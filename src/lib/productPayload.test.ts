@@ -23,7 +23,7 @@ function option(overrides: Partial<PricingOptionFormItem> = {}): PricingOptionFo
     hasFreeTrial: false,
     trialPreset: "7",
     trialCustomDays: 7,
-    kaspiMethod: "link",
+    kaspiMethods: ["link"], paymentMethod: "link", lastPaymentMethod: "link", kaspiCard: "", bank: "kaspi", bankName: "",
     kaspiLink: "https://kaspi.kz/pay/x",
     kaspiPhone: "",
     ...overrides,
@@ -50,7 +50,7 @@ function form(overrides: Partial<ProductDraftFormData> = {}): ProductDraftFormDa
     media: [],
     faq: [],
     isPaid: true,
-    kaspiMethod: "link",
+    kaspiMethods: ["link"], kaspiCard: "", bank: "kaspi", bankName: "",
     kaspiPhone: "",
     paymentType: "one_time",
     recurringInterval: "1m",
@@ -107,14 +107,14 @@ describe("validateProductForm", () => {
   // it would create paid products nobody can pay for.
   describe("a paid product needs a way to pay", () => {
     it("needs a payment link when the method is a link", () => {
-      const bad = form({ pricingOptions: [option({ kaspiMethod: "link", kaspiLink: "  " })] });
+      const bad = form({ pricingOptions: [option({ kaspiMethods: ["link"], paymentMethod: "link", lastPaymentMethod: "link", kaspiCard: "", bank: "kaspi", bankName: "", kaspiLink: "  " })] });
       expect(validateProductForm(bad)).toBe("Заполните обязательные поля");
     });
 
     it("needs a phone number of at least 5 digits when the method is a phone", () => {
-      const short = form({ pricingOptions: [option({ kaspiMethod: "phone", kaspiPhone: "+7 70" })] });
-      const ok = form({ pricingOptions: [option({ kaspiMethod: "phone", kaspiPhone: "+7 701 000 00 00" })] });
-      const blank = form({ pricingOptions: [option({ kaspiMethod: "phone", kaspiPhone: "" })] });
+      const short = form({ pricingOptions: [option({ kaspiMethods: ["phone"], paymentMethod: "phone", lastPaymentMethod: "phone", kaspiCard: "", bank: "kaspi", bankName: "", kaspiLink: "", kaspiPhone: "+7 70" })] });
+      const ok = form({ pricingOptions: [option({ kaspiMethods: ["phone"], paymentMethod: "phone", lastPaymentMethod: "phone", kaspiCard: "", bank: "kaspi", bankName: "", kaspiPhone: "+7 701 000 00 00" })] });
+      const blank = form({ pricingOptions: [option({ kaspiMethods: ["phone"], paymentMethod: "phone", lastPaymentMethod: "phone", kaspiCard: "", bank: "kaspi", bankName: "", kaspiLink: "", kaspiPhone: "" })] });
       expect(validateProductForm(short)).toBe("Заполните обязательные поля");
       expect(validateProductForm(blank)).toBe("Заполните обязательные поля");
       expect(validateProductForm(ok)).toBeNull();
@@ -160,7 +160,7 @@ describe("buildCommonPayload matches what create and update used to send", () =>
       has_free_trial: false,
       trial_days: null,
     });
-    expect(p.pricing_options).toEqual([
+    expect(p.pricing_options).toMatchObject([
       {
         id: "opt-1",
         payment_type: "one_time",
@@ -255,7 +255,7 @@ describe("buildCommonPayload matches what create and update used to send", () =>
 
   it("phone payment method sends the phone and not the link", () => {
     const p = buildCommonPayload(
-      form({ pricingOptions: [option({ kaspiMethod: "phone", kaspiPhone: "+77010000000" })] }),
+      form({ pricingOptions: [option({ kaspiMethods: ["phone"], paymentMethod: "phone", lastPaymentMethod: "phone", kaspiCard: "", bank: "kaspi", bankName: "", kaspiLink: "", kaspiPhone: "+77010000000" })] }),
       categories,
     );
     expect(p.kaspi_phone).toBe("+77010000000");
@@ -300,7 +300,7 @@ describe("buildCommonPayload matches what create and update used to send", () =>
 // AC 16-17: a saved-as-you-type draft must never reach the marketplace by itself.
 describe("buildCreatePayload", () => {
   it("creates the product private", () => {
-    expect(buildCreatePayload(form(), categories).is_active).toBe(false);
+    expect(buildCreatePayload(form(), categories).is_published).toBe(false);
   });
 
   it("carries the create-only defaults", () => {

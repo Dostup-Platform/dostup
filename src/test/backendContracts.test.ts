@@ -10,20 +10,20 @@ function readRepoFile(relativePath: string) {
   return readFileSync(resolve(process.cwd(), relativePath), "utf8");
 }
 
-const MIGRATION = "supabase/migrations/20260917120000_private_products_and_seller_metrics.sql";
+const MIGRATION = "supabase/migrations/20261105092358_product_preview_storefront.sql";
 
 describe("new products are private by default", () => {
   // AC 16-17: a new product must not appear on the marketplace on its own.
   // Creation now goes through one shared builder (also used by the autosave), so
   // that is where the private default has to hold.
-  it("the shared create payload sends is_active false", () => {
+  it("the shared create payload sends is_published false", () => {
     const payload = readRepoFile("src/lib/productPayload.ts");
     const start = payload.indexOf("export function buildCreatePayload");
     expect(start).toBeGreaterThan(-1);
     const builder = payload.slice(start, start + 500);
 
-    expect(builder).toMatch(/is_active:\s*false/);
-    expect(builder).not.toMatch(/is_active:\s*true/);
+    expect(builder).toMatch(/is_published:\s*false/);
+    expect(builder).toMatch(/is_active:\s*true/);
   });
 
   it("the editor creates products only through that builder, never with its own payload", () => {
@@ -34,25 +34,25 @@ describe("new products are private by default", () => {
     expect(tab).not.toMatch(/createProduct\.mutateAsync\(\{/);
   });
 
-  it("publishing is what sets is_active back to true", () => {
+  it("publishing sets the catalog flag without deleting availability", () => {
     const tab = readRepoFile("src/components/creator/CreatorProductsTab.tsx");
     const start = tab.indexOf("const handleVisibilityChange");
     expect(start).toBeGreaterThan(-1);
     const handler = tab.slice(start, start + 1200);
 
-    expect(handler).toMatch(/is_active:\s*true,\s*is_paused:\s*false/);
-    expect(handler).toMatch(/is_active:\s*false/);
+    expect(handler).toMatch(/is_published:\s*true,\s*is_paused:\s*false/);
+    expect(handler).toMatch(/is_published:\s*false/);
   });
 
-  it("the edge function defaults a missing is_active to false", () => {
+  it("the edge function always creates products unpublished", () => {
     const fn = readRepoFile("supabase/functions/manage-products/index.ts");
-    expect(fn).toMatch(/is_active:\s*product\.is_active\s*\?\?\s*false/);
+    expect(fn).toMatch(/is_published:\s*false/);
   });
 
-  it("the column default is flipped to false", () => {
+  it("publication is false by default without changing availability", () => {
     const migration = readRepoFile(MIGRATION);
     expect(migration).toMatch(
-      /ALTER TABLE public\.products ALTER COLUMN is_active SET DEFAULT false/,
+      /ALTER TABLE public\.products ALTER COLUMN is_published SET DEFAULT false/,
     );
   });
 });

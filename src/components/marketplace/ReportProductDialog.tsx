@@ -104,8 +104,8 @@ export const ReportProductDialog = ({
           className={className}
           title="Пожаловаться на продукт"
         >
-          <Flag className="w-3.5 h-3.5 text-muted-foreground mr-1.5" />
-          <span className="text-xs text-muted-foreground hover:text-foreground">
+          <Flag className="w-3.5 h-3.5 text-destructive mr-1.5" />
+          <span className="text-sm text-destructive">
             Пожаловаться
           </span>
         </Button>

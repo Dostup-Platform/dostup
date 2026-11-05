@@ -11,6 +11,7 @@ import { useEmailAuth } from "@/hooks/useEmailAuth";
 import { authErrorKeyFromUnknown, authErrorTranslationKey } from "@/lib/authErrors";
 import {
   isSafeInternalPath,
+  ONBOARDING_PATH,
   profileHomePath,
   rememberAuthNext,
 } from "@/lib/creatorAuth";
@@ -23,7 +24,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { status, profileType, sessionToken } = useSimpleAuth();
+  const { status, profileType, sessionToken, needsOnboarding } = useSimpleAuth();
   const { t } = useLanguage();
   const [screen, setScreen] = useState<Screen>("entry");
   const signedIn = status === "authenticated" && Boolean(sessionToken && profileType);
@@ -39,9 +40,9 @@ const LoginPage = () => {
 
   const applyAuthRedirect = useCallback(
     async (path: string) => {
-      navigate(path, { replace: true });
+      window.location.href = path;
     },
-    [navigate],
+    [],
   );
 
   const auth = useEmailAuth({ onAuthRedirect: applyAuthRedirect });
@@ -74,19 +75,23 @@ const LoginPage = () => {
   useEffect(() => {
     if (status === "loading") return;
     if (screen === "code") return;
+    if (needsOnboarding && sessionToken) {
+      navigate(ONBOARDING_PATH, { replace: true });
+      return;
+    }
     if (signedIn) {
       const destination =
         isSafeInternalPath(nextPath) && nextPath !== "/"
           ? nextPath
           : profileHomePath(profileType || "buyer", localStorage.getItem("creator_account_type"));
-      navigate(destination, { replace: true });
+      window.location.href = destination;
     }
-  }, [navigate, nextPath, profileType, screen, signedIn, status]);
+  }, [navigate, needsOnboarding, nextPath, profileType, screen, sessionToken, signedIn, status]);
 
   const handleContinue = async (e: FormEvent) => {
     e.preventDefault();
-    const ok = await auth.sendCode(auth.email);
-    if (ok) setScreen("code");
+    const result = await auth.handleContinue(auth.email);
+    if (result === "code") setScreen("code");
   };
 
   const handleGoogle = async () => {
@@ -115,8 +120,12 @@ const LoginPage = () => {
         onVerify={async (code) => {
           await auth.verifyCode(code);
         }}
-        onResend={() => auth.sendCode(auth.pendingEmail || auth.email)}
-        onRetryExchange={() => auth.retryExchange()}
+        onResend={async () => {
+          await auth.sendCode(auth.pendingEmail || auth.email);
+        }}
+        onRetryExchange={async () => {
+          await auth.retryExchange();
+        }}
       />
     ) : screen === "entry" && !signedIn ? (
       <AuthEntryScreen

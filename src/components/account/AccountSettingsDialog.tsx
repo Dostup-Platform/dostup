@@ -1,8 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimplePurchases } from "@/hooks/useSimplePurchases";
-import AccountSettingsView from "@/components/account/AccountSettingsView";
+import AccountSettingsView, { SettingsSectionKey } from "@/components/account/AccountSettingsView";
+import { cn } from "@/lib/utils";
+
+export function openAccountSettings(section?: SettingsSectionKey) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("open-account-settings", { detail: { section } })
+    );
+  }
+}
 
 interface AccountSettingsDialogProps {
   open: boolean;
@@ -11,6 +20,9 @@ interface AccountSettingsDialogProps {
   displayName: string;
   createdAt?: Date | string | null;
   userId?: string;
+  initialSection?: SettingsSectionKey;
+  /** Section bar pinned to the bottom on phones; tapping an item closes the dialog. */
+  mobileNav?: ReactNode;
 }
 
 export const AccountSettingsDialog = ({
@@ -20,6 +32,8 @@ export const AccountSettingsDialog = ({
   displayName,
   createdAt,
   userId,
+  initialSection,
+  mobileNav,
 }: AccountSettingsDialogProps) => {
   const { t } = useLanguage();
   const { data: purchases, isLoading: purchasesLoading } = useSimplePurchases();
@@ -48,7 +62,7 @@ export const AccountSettingsDialog = ({
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 md:p-6">
+    <div className="fixed inset-0 z-[80] flex items-stretch justify-center sm:items-center sm:p-4 md:p-6">
       {/* Blurred Backdrop — same frosted glass as registration and mode selection */}
       <div
         className="login-modal-backdrop absolute inset-0"
@@ -61,17 +75,26 @@ export const AccountSettingsDialog = ({
         role="dialog"
         aria-modal="true"
         aria-label={t("accountSettings")}
-        className="relative z-10 flex h-[88vh] max-h-[720px] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border/80 bg-background shadow-2xl motion-safe:animate-fade-in sm:h-[85vh]"
+        className="relative z-10 flex h-full w-full flex-col overflow-hidden border-border/80 bg-background shadow-2xl motion-safe:animate-fade-in sm:h-[85vh] sm:max-h-[720px] sm:max-w-4xl sm:rounded-2xl sm:border"
       >
-        <AccountSettingsView
-          role={role}
-          displayName={displayName}
-          createdAt={createdAt}
-          userId={userId}
-          purchases={purchases}
-          purchasesLoading={purchasesLoading}
-          onClose={() => onOpenChange(false)}
-        />
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            mobileNav && "pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0",
+          )}
+        >
+          <AccountSettingsView
+            role={role}
+            displayName={displayName}
+            createdAt={createdAt}
+            userId={userId}
+            purchases={purchases}
+            purchasesLoading={purchasesLoading}
+            onClose={() => onOpenChange(false)}
+            initialSection={initialSection}
+          />
+        </div>
+        {mobileNav && <div className="sm:hidden">{mobileNav}</div>}
       </div>
     </div>,
     document.body,

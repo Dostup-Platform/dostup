@@ -37,7 +37,7 @@ describe("preview viewports", () => {
   });
 
   it("renders the desktop at a real desktop viewport", () => {
-    expect(PREVIEW_VIEWPORT.desktop.width).toBe(1280);
+    expect(PREVIEW_VIEWPORT.desktop.width).toBe(1024);
   });
 
   // The preview route deliberately sits outside /p/ so it bypasses the

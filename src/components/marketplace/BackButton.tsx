@@ -8,7 +8,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
  * key "default", so a page opened directly (a shared link, a new tab) has no
  * in-app page behind it and goes to the marketplace instead of leaving the site.
  */
-const BackButton = () => {
+const BackButton = ({ compactOnMobile = false, disabled = false }: { compactOnMobile?: boolean; disabled?: boolean }) => {
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
@@ -21,11 +21,13 @@ const BackButton = () => {
   return (
     <button
       type="button"
-      onClick={goBack}
-      className="inline-flex items-center gap-2 rounded-md public-meta hover:text-foreground focus-ring"
+      onClick={disabled ? undefined : goBack}
+      aria-label={t("back")}
+      aria-disabled={disabled || undefined}
+      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-md px-2 public-meta hover:bg-primary/10 hover:text-foreground focus-ring"
     >
       <ArrowLeft className="h-4 w-4" />
-      <span>{t("back")}</span>
+      <span className={compactOnMobile ? "hidden sm:inline" : undefined}>{t("back")}</span>
     </button>
   );
 };

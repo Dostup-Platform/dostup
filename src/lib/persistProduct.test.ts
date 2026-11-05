@@ -26,7 +26,7 @@ function form(overrides: Partial<ProductDraftFormData> = {}): ProductDraftFormDa
     media: [],
     faq: [],
     isPaid: true,
-    kaspiMethod: "link",
+    kaspiMethods: ["link"], kaspiCard: "", bank: "kaspi", bankName: "",
     kaspiPhone: "",
     paymentType: "one_time",
     recurringInterval: "1m",
@@ -44,7 +44,7 @@ function form(overrides: Partial<ProductDraftFormData> = {}): ProductDraftFormDa
         hasFreeTrial: false,
         trialPreset: "7",
         trialCustomDays: 7,
-        kaspiMethod: "link",
+        kaspiMethods: ["link"], paymentMethod: "link", lastPaymentMethod: "link", kaspiCard: "", bank: "kaspi", bankName: "",
         kaspiLink: "https://kaspi.kz/pay/x",
         kaspiPhone: "",
       },
@@ -129,7 +129,7 @@ describe("persistProduct: first save creates the product", () => {
     expect(deps.createProduct).toHaveBeenCalledTimes(1);
     expect(vi.mocked(deps.createProduct).mock.calls[0][0]).toMatchObject({
       title: "SAT Preparation",
-      is_active: false,
+      is_active: true, is_published: false,
     });
     expect(deps.updateProduct).not.toHaveBeenCalled();
     expect(result).toMatchObject({ status: "saved", productId: "new-id", created: true });

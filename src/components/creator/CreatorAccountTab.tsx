@@ -21,6 +21,7 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
     let active = true;
     invokeApi<{ createdAt?: string | null }>("manage-profile", {
       action: "get_handle",
+      profileId: activeProfileId,
       token: localStorage.getItem("creator_token") || "",
     })
       .then((data) => {
@@ -30,7 +31,7 @@ const CreatorAccountTab = ({ creatorName }: CreatorAccountTabProps) => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [activeProfileId]);
 
   return (
     <AccountSettingsView

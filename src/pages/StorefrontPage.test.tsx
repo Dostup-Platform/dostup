@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { SellerStorefront } from "@/lib/catalog";
@@ -55,94 +55,48 @@ function renderStorefront(data: SellerStorefront | null, isLoading = false) {
   );
 }
 
-// Round 3: the storefront can be left with the same back button as a product.
-describe("StorefrontPage back button", () => {
-  it("offers the back button in the sticky header bar", () => {
+
+describe("seller storefront",()=>{
+  it("keeps name, one rating star, count and description in this order",()=>{
     renderStorefront(seller());
-
-    const back = screen.getByRole("button", { name: "Назад" });
-    expect(screen.getByTestId("header-below")).toContainElement(back);
+    const name=screen.getByRole("heading",{name:"SAT Academy"});
+    const rating=screen.getByTestId("seller-rating");
+    const bio=screen.getByText("Мы готовим учеников к SAT");
+    expect(name.compareDocumentPosition(rating)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rating.compareDocumentPosition(bio)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rating).toHaveTextContent("4.8");
+    expect(rating).toHaveTextContent("(243 отзыва)");
+    expect(rating.querySelectorAll("svg")).toHaveLength(1);
+    expect(rating.querySelector("svg")).toHaveClass("fill-[#FFB020]");
   });
-
-  it("offers it on the not-found page too, so the user is never stuck", () => {
-    renderStorefront(null);
-
-    expect(screen.getByRole("button", { name: "Назад" })).toBeInTheDocument();
+  it("shows one yellow star and (0 отзывов) without a fictional score",()=>{
+    renderStorefront(seller({review_count:0,avg_rating:0}));
+    const rating=screen.getByTestId("seller-rating");
+    expect(rating).toHaveTextContent("(0 отзывов)");
+    expect(rating).not.toHaveTextContent("0.0");
+    expect(rating.querySelectorAll("svg")).toHaveLength(1);
   });
-});
-
-describe("StorefrontPage", () => {
-  it("shows the seller name and public description", () => {
-    renderStorefront(seller());
-
-    expect(screen.getByRole("heading", { name: "SAT Academy" })).toBeInTheDocument();
-    expect(screen.getByText("Мы готовим учеников к SAT")).toBeInTheDocument();
-  });
-
-  // AC 23: the year is derived from the real account creation date.
-  it("derives the joined year from created_at", () => {
-    renderStorefront(seller());
-
-    expect(screen.getByText("На платформе с 2026 года")).toBeInTheDocument();
-  });
-
-  it("uses the year of the actual timestamp, not the current year", () => {
-    renderStorefront(seller({ created_at: "2023-11-02T00:00:00.000Z" }));
-
-    expect(screen.getByText("На платформе с 2023 года")).toBeInTheDocument();
-  });
-
-  it("shows the rating with a correctly pluralised review count", () => {
-    renderStorefront(seller());
-
-    expect(screen.getByText("4.8")).toBeInTheDocument();
-    expect(screen.getByText("· 243 отзыва")).toBeInTheDocument();
-  });
-
-  it("shows the sales count", () => {
-    renderStorefront(seller());
-
-    expect(screen.getByText("152 продажи")).toBeInTheDocument();
-  });
-
-  // Round 3: the overall rating is always shown, with empty stars and
-  // "нет отзывов" when there are none — never a misleading 0.0.
-  it("always shows the overall rating, even with no reviews", () => {
-    renderStorefront(seller({ avg_rating: 0, review_count: 0 }));
-
-    const rating = screen.getByTestId("seller-rating");
-    expect(rating).toHaveTextContent("Общая оценка");
-    expect(rating).toHaveTextContent("нет отзывов");
-    expect(rating.querySelectorAll("svg")).toHaveLength(5);
-    expect(rating.querySelectorAll("[data-filled]")).toHaveLength(0);
-    expect(screen.queryByText("0.0")).not.toBeInTheDocument();
-  });
-
-  it("fills the stars to the average rating across all the seller's products", () => {
-    renderStorefront(seller({ avg_rating: 4.3, review_count: 12 }));
-
-    const rating = screen.getByTestId("seller-rating");
-    expect(rating).toHaveTextContent("Общая оценка");
-    expect(rating).toHaveTextContent("4.3");
-    expect(rating.querySelectorAll("[data-filled]")).toHaveLength(4);
-  });
-
-  // Round 3: "если нету писать 0 продаж".
-  it("shows 0 sales for a seller with no sales yet", () => {
-    renderStorefront(seller({ sales_count: 0 }));
-
-    expect(screen.getByText("0 продаж")).toBeInTheDocument();
-  });
-
-  it("omits the joined line when the date is missing", () => {
-    renderStorefront(seller({ created_at: null }));
-
+  it("removes automatic role, joined year and sales statistics",()=>{
+    renderStorefront(seller({type:"school"}));
+    expect(screen.queryByText("Онлайн-школа")).not.toBeInTheDocument();
+    expect(screen.queryByText(/продаж/)).not.toBeInTheDocument();
     expect(screen.queryByText(/На платформе с/)).not.toBeInTheDocument();
   });
-
-  it("renders a not-found message for an unknown handle", () => {
+  it("preserves a role written by the seller in their description",()=>{
+    renderStorefront(seller({bio:"Преподаватель"}));
+    expect(screen.getAllByText("Преподаватель")).toHaveLength(1);
+  });
+  it("shares the seller storefront URL",()=>{
+    renderStorefront(seller());
+    fireEvent.click(screen.getByRole("button",{name:"Поделиться"}));
+    expect(screen.getByRole("textbox",{name:"Ссылка"})).toHaveValue(window.location.origin+"/s/sat-academy");
+  });
+  it("has a history-aware back button",()=>{
+    renderStorefront(seller());
+    expect(screen.getByRole("button",{name:"Назад"})).toBeInTheDocument();
+  });
+  it("shows the not-found state",()=>{
     renderStorefront(null);
-
-    expect(screen.queryByRole("heading", { name: "SAT Academy" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading",{name:"SAT Academy"})).not.toBeInTheDocument();
   });
 });

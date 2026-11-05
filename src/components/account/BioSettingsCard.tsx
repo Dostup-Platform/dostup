@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Eye, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { invokeApi } from "@/lib/sessionApi";
@@ -13,7 +13,9 @@ const BIO_MAX_LENGTH = 500;
  * Public seller description. Shared by creator and online-school profiles,
  * which are both rows in `profiles`, so one card serves both.
  */
-const BioSettingsCard = () => {
+const BioSettingsCard = ({ embedded = false }: { embedded?: boolean }) => {
+  const inputId = useId();
+  const profileId = localStorage.getItem("profile_id") || "";
   const { t } = useLanguage();
   const [value, setValue] = useState("");
   const [initial, setInitial] = useState("");
@@ -24,6 +26,7 @@ const BioSettingsCard = () => {
     let active = true;
     invokeApi<{ bio?: string | null }>("manage-profile", {
       action: "get_handle",
+      profileId,
       token: localStorage.getItem("creator_token") || "",
     })
       .then((data) => {
@@ -39,7 +42,7 @@ const BioSettingsCard = () => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [profileId]);
 
   const save = async () => {
     if (saving || value === initial) return;
@@ -47,6 +50,7 @@ const BioSettingsCard = () => {
     try {
       await invokeApi("manage-profile", {
         action: "set_bio",
+        profileId,
         token: localStorage.getItem("creator_token") || "",
         bio: value,
       });
@@ -59,12 +63,9 @@ const BioSettingsCard = () => {
     }
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">{t("sellerDescriptionLabel")}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+  const fields = (
+    <div className="space-y-3">
+        <label htmlFor={inputId} className="text-sm font-medium">{t("sellerDescriptionLabel")}</label>
         {/* Round 3: the customer asked for a clear note, at the top, that all of
             this is public — the earlier small grey hint went unnoticed. */}
         <p
@@ -75,6 +76,7 @@ const BioSettingsCard = () => {
           <span>{t("sellerDescriptionHint")}</span>
         </p>
         <Textarea
+          id={inputId}
           value={value}
           onChange={(event) => setValue(event.target.value.slice(0, BIO_MAX_LENGTH))}
           rows={5}
@@ -91,9 +93,9 @@ const BioSettingsCard = () => {
             {t("save")}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+    </div>
   );
+  return embedded ? <section>{fields}</section> : <Card><CardContent className="pt-6">{fields}</CardContent></Card>;
 };
 
 export default BioSettingsCard;

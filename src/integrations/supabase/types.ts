@@ -504,6 +504,7 @@ export type Database = {
           allow_view: boolean
           available_at: string | null
           content: string | null
+          cover_url: string | null
           created_at: string
           deleted_at: string | null
           file_size: number | null
@@ -523,6 +524,7 @@ export type Database = {
           allow_view?: boolean
           available_at?: string | null
           content?: string | null
+          cover_url?: string | null
           created_at?: string
           deleted_at?: string | null
           file_size?: number | null
@@ -542,6 +544,7 @@ export type Database = {
           allow_view?: boolean
           available_at?: string | null
           content?: string | null
+          cover_url?: string | null
           created_at?: string
           deleted_at?: string | null
           file_size?: number | null
@@ -1582,6 +1585,10 @@ export type Database = {
       call_edge_function: {
         Args: { _name: string; _payload: Json }
         Returns: undefined
+      }
+      claim_moderator_session: {
+        Args: Record<PropertyKey, never>
+        Returns: string
       }
       get_catalog_taxonomy: {
         Args: Record<PropertyKey, never>

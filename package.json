@@ -13,7 +13,10 @@
     "test:watch": "vitest",
     "preview": "vite preview",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "seed:demo:clean": "tsx scripts/seed-demo.ts --clean"
+    "seed:demo:clean": "tsx scripts/seed-demo.ts --clean",
+    "seed:preview": "tsx scripts/manage-preview-data.ts",
+    "clean:preview": "tsx scripts/manage-preview-data.ts --clean",
+    "test:node": "tsx --test src/lib/announcementHtml.test.ts src/lib/materialStorage.test.ts src/lib/navOrder.test.ts src/lib/paymentEditor.test.ts src/lib/paymentFormat.test.ts src/lib/paymentMethods.test.ts src/components/creator/buyerAccess.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

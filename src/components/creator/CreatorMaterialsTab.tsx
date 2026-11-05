@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCreatorProducts } from "@/hooks/useProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/context-menu";
 import ProductMaterialsManager from "./ProductMaterialsManager";
 import ProductSwitcher from "./ProductSwitcher";
+import { useSelectedCreatorProduct } from "@/hooks/useSelectedCreatorProduct";
 import NoProductsEmptyState from "./NoProductsEmptyState";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
@@ -75,13 +76,14 @@ import {
 } from "@/components/ui/dialog";
 import { isS3Path, isOfficeDocument, buildS3RedirectUrl, buildStorageRedirectUrl, parseStoragePath } from "@/lib/fileRedirect";
 import { requestMaterialToken, buildProxyUrl } from "@/lib/materialToken";
+import { calculateMaterialFolderSizes, formatMaterialBytes } from "@/lib/materialStorage";
 
 interface Props { creatorName: string; onGoToProducts?: () => void; }
 
 const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
   const { data: products = [], isLoading } = useCreatorProducts();
   const { language } = useLanguage();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useSelectedCreatorProduct(products);
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [addParentId, setAddParentId] = useState<string | null>(null);
   const [section, setSection] = useState<MaterialsSection>("library");
@@ -94,11 +96,6 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
     setSection("library");
   }, [selectedId]);
 
-  useEffect(() => {
-    if (!selectedId && products.length > 0) {
-      setSelectedId(products[0].id);
-    }
-  }, [products, selectedId]);
 
   const product = products.find((p) => p.id === selectedId);
   const viewer: BookmarkViewer = { userType: "creator", userRef: creatorName };
@@ -161,11 +158,12 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
       <h2 className="text-lg font-semibold text-foreground">
         {language === "kk" ? "Материалдар" : "Материалы"}
       </h2>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-2">
         <ProductSwitcher
           products={products.map((p) => ({ id: p.id, title: p.title }))}
           selectedId={selectedId}
           onChange={(id) => setSelectedId(id)}
+          className="min-w-0 flex-1 justify-start px-2 sm:flex-initial sm:px-3"
         />
         <MaterialsSectionsNav
           value={section}
@@ -466,6 +464,7 @@ interface Mat {
   type: string;
   parent_id?: string | null;
   file_url?: string | null;
+  cover_url?: string | null;
   content?: string | null;
   allow_download?: boolean;
   created_at?: string;
@@ -921,9 +920,15 @@ const CreatorMaterialsReadOnlyList = ({
         </div>
         {!isBookmarksSection && (
         <Select value={sortMode} onValueChange={(value) => setSortMode(value as SortMode)}>
-          <SelectTrigger className="h-9 w-auto min-w-[160px] gap-2 flex-shrink-0" aria-label={language === "kk" ? "Сұрыптау" : "Сортировка"}>
-            <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" />
-            <SelectValue />
+          {/* On phones the trigger shrinks to icon + arrow; the list it opens is unchanged. */}
+          <SelectTrigger
+            className="h-9 w-auto flex-shrink-0 gap-1.5 px-2 sm:min-w-[160px] sm:gap-2 sm:px-3"
+            aria-label={language === "kk" ? "Сұрыптау" : "Сортировка"}
+          >
+            <ArrowUpDown className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+            <div className="hidden min-w-0 truncate sm:block">
+              <SelectValue />
+            </div>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="newest">{language === "kk" ? "Алдымен жаңалары" : "Сначала новые"}</SelectItem>
@@ -1137,6 +1142,14 @@ const MaterialNode = ({
     ? isNoop(draggingId!, material.id, dropPosition)
     : false;
   const showInsideRing = isActiveTarget && dropPosition === "inside" && isFolder && !positionIsNoop;
+  const coverUrl = material.cover_url
+    ? isS3Path(material.cover_url)
+      ? buildS3RedirectUrl(material.cover_url, "creator")
+      : (() => {
+          const path = parseStoragePath(material.cover_url || "");
+          return path ? buildStorageRedirectUrl(path) : null;
+        })()
+    : null;
 
   const handleCardClick = () => {
     if (isRenaming) return;
@@ -1172,7 +1185,7 @@ const MaterialNode = ({
         <ContextMenuTrigger asChild disabled={isRenaming}>
         <Card
         data-material-card="true"
-        className={`${!isRenaming ? "cursor-pointer hover:bg-accent/40 transition-colors" : ""} ${showInsideRing ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
+        className={`${!isRenaming ? "cursor-pointer hover:bg-muted/70 transition-colors" : ""} ${showInsideRing ? "ring-2 ring-primary" : ""} ${draggingId === material.id ? "opacity-50" : ""}`}
         onClick={handleCardClick}
         draggable={!isRenaming && !flat}
         onDragStart={(e) => {
@@ -1233,8 +1246,12 @@ const MaterialNode = ({
           {!flat && (
             <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0 cursor-grab" />
           )}
-          <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
-            {getIcon(material.type)}
+          <div className="w-8 h-8 overflow-hidden rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
+            {coverUrl ? (
+              <img src={coverUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              getIcon(material.type)
+            )}
           </div>
           {isRenaming ? (
             <form
@@ -1257,18 +1274,18 @@ const MaterialNode = ({
             </form>
           ) : (
             <>
-              <div className="flex items-center gap-0.5 min-w-0 flex-1">
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-sm truncate" title={material.title}>{material.title}</p>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 min-h-0 flex-shrink-0 text-muted-foreground"
-                  title={language === "kk" ? "Атын өзгерту" : "Переименовать"}
-                  onClick={(e) => { e.stopPropagation(); startRename(material); }}
-                >
-                  <Pencil className="w-3 h-3" />
-                </Button>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 min-h-0 flex-shrink-0 text-muted-foreground"
+                title={language === "kk" ? "Атын өзгерту" : "Переименовать"}
+                onClick={(e) => { e.stopPropagation(); startRename(material); }}
+              >
+                <Pencil className="w-3 h-3" />
+              </Button>
               <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                 <BookmarkStars
                   viewerType={viewerType}
@@ -1322,7 +1339,7 @@ const MaterialNode = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 min-h-0 text-destructive hover:text-destructive"
+                  className="h-8 w-8 min-h-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   title={language === "kk" ? "Жою" : "Удалить"}
                   onClick={() => onDelete(material)}
                 >
@@ -1789,21 +1806,13 @@ const CreatorTrashList = ({
 
 const STORAGE_QUOTA_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
 
-const formatBytes = (bytes?: number | null) => {
-  if (!bytes || bytes <= 0) return "—";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let v = bytes;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
-  return `${v.toFixed(v >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
-};
-
 const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
   const { language } = useLanguage();
   const { data: files = [], isLoading, refetch } = useAllCreatorMaterials(creatorName);
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [refreshing, setRefreshing] = useState(false);
   const [view, setView] = useState<"files" | "folders">("files");
+  const autoRefreshStarted = useRef(false);
 
   // Split by type
   const fileItems = useMemo(
@@ -1816,28 +1825,7 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
   );
 
   // Compute recursive folder size: sum of all descendant file sizes.
-  const folderSizes = useMemo(() => {
-    const childrenByParent = new Map<string, typeof files>();
-    for (const m of files) {
-      const p = (m as { parent_id?: string | null }).parent_id ?? null;
-      if (!p) continue;
-      const arr = childrenByParent.get(p) ?? [];
-      arr.push(m);
-      childrenByParent.set(p, arr);
-    }
-    const sizeOf = (id: string): number => {
-      const children = childrenByParent.get(id) ?? [];
-      let total = 0;
-      for (const c of children) {
-        if (c.type === "folder") total += sizeOf(c.id);
-        else if (c.type === "file") total += c.file_size ?? 0;
-      }
-      return total;
-    };
-    const map = new Map<string, number>();
-    for (const f of folderItems) map.set(f.id, sizeOf(f.id));
-    return map;
-  }, [files, folderItems]);
+  const folderSizes = useMemo(() => calculateMaterialFolderSizes(files), [files]);
 
   const sortedFiles = useMemo(() => {
     const arr = [...fileItems];
@@ -1864,16 +1852,16 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
     [fileItems],
   );
   const missingCount = useMemo(
-    () => fileItems.filter((f) => f.type === "file" && !f.file_size).length,
+    () => fileItems.filter((f) => f.type === "file" && f.file_size == null).length,
     [fileItems],
   );
   const pct = Math.min(100, Math.round((totalBytes / STORAGE_QUOTA_BYTES) * 100));
 
-  const handleRefreshSizes = async () => {
+  const handleRefreshSizes = useCallback(async (showToast = true) => {
     const token = localStorage.getItem("creator_token") || "";
     const name = localStorage.getItem("creator_name") || creatorName;
     if (!token || !name) {
-      toast.error(language === "kk" ? "Авторизация қажет" : "Требуется вход");
+      if (showToast) toast.error(language === "kk" ? "Авторизация қажет" : "Требуется вход");
       return;
     }
     setRefreshing(true);
@@ -1884,19 +1872,27 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
       );
       if (error) throw error;
       const updated = (data as { updated?: number } | null)?.updated ?? 0;
-      toast.success(
-        language === "kk"
-          ? `Жаңартылды: ${updated}`
-          : `Обновлено: ${updated}`,
-      );
+      if (showToast) {
+        toast.success(
+          language === "kk"
+            ? `Жаңартылды: ${updated}`
+            : `Обновлено: ${updated}`,
+        );
+      }
       await refetch();
     } catch (e) {
       console.error(e);
-      toast.error(language === "kk" ? "Қате" : "Ошибка");
+      if (showToast) toast.error(language === "kk" ? "Қате" : "Ошибка");
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [creatorName, language, refetch]);
+
+  useEffect(() => {
+    if (missingCount === 0 || autoRefreshStarted.current) return;
+    autoRefreshStarted.current = true;
+    void handleRefreshSizes(false);
+  }, [handleRefreshSizes, missingCount]);
 
   if (isLoading) {
     return (
@@ -1918,9 +1914,9 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
               </div>
             </div>
             <div className="text-sm tabular-nums">
-              <span className="font-semibold">{formatBytes(totalBytes)}</span>
+              <span className="font-semibold">{formatMaterialBytes(totalBytes)}</span>
               <span className="text-muted-foreground">
-                {" "}/ {formatBytes(STORAGE_QUOTA_BYTES)} ({pct}%)
+                {" "}/ {formatMaterialBytes(STORAGE_QUOTA_BYTES)} ({pct}%)
               </span>
             </div>
           </div>
@@ -1935,7 +1931,7 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleRefreshSizes}
+                onClick={() => void handleRefreshSizes(true)}
                 disabled={refreshing}
                 className="gap-2"
               >
@@ -2018,7 +2014,7 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
                     <div className="text-sm font-medium truncate">{f.title}</div>
                   </div>
                   <div className="text-sm tabular-nums font-medium text-muted-foreground flex-shrink-0">
-                    {size > 0 ? formatBytes(size) : "—"}
+                    {formatMaterialBytes(size)}
                   </div>
                 </CardContent>
               </Card>
@@ -2049,7 +2045,7 @@ const CreatorStorageList = ({ creatorName }: { creatorName: string }) => {
                   <div className="text-sm font-medium truncate">{f.title}</div>
                 </div>
                 <div className="text-sm tabular-nums font-medium text-muted-foreground flex-shrink-0">
-                  {f.type === "link" ? "—" : formatBytes(f.file_size)}
+                  {f.type === "link" ? formatMaterialBytes(0) : formatMaterialBytes(f.file_size)}
                 </div>
               </CardContent>
             </Card>

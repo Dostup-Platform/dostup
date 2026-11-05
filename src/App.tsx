@@ -16,6 +16,7 @@ import { useSimpleAuth } from '@/contexts/SimpleAuthContext'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { SimpleAuthProvider } from '@/contexts/SimpleAuthContext'
 import { LanguageProvider } from '@/contexts/LanguageContext'
+import { TimezoneProvider } from '@/contexts/TimezoneContext'
 import { InstallPromptProvider } from '@/contexts/InstallPromptContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import MarketplacePage from './pages/MarketplacePage'
@@ -33,17 +34,30 @@ import SchoolDashboard from './pages/SchoolDashboard'
 import ModeratorDashboard from './pages/ModeratorDashboard'
 import InstallPage from './pages/InstallPage'
 import AuthCallback from './pages/AuthCallback'
+import GoogleMeetCallback from './pages/GoogleMeetCallback'
+import WelcomePage from './pages/WelcomePage'
 import NotFound from './pages/NotFound'
 import LegalPage from './pages/LegalPage'
 import RequireProfile from '@/components/auth/RequireProfile'
+import ScrollManager from '@/components/layout/ScrollManager'
 import { MARKETPLACE_LOCATION, readLoginBackground } from '@/lib/loginModal'
+import { isPurchaseIntentPath, ONBOARDING_PATH, rememberAuthNext } from '@/lib/creatorAuth'
+
+// Pages an identity without profiles may still open.
+const ONBOARDING_ALLOWED_PATHS = new Set([
+	ONBOARDING_PATH,
+	'/auth/callback',
+	'/terms',
+	'/privacy',
+	'/moderator',
+])
 
 const queryClient = new QueryClient()
 
 function AppRoutes() {
 	const location = useLocation()
 	const navigate = useNavigate()
-	const { status } = useSimpleAuth()
+	const { status, needsOnboarding } = useSimpleAuth()
 	const isLogin = location.pathname === '/login'
 	const isAuthCallback = location.pathname === '/auth/callback'
 	const background = readLoginBackground(location.state)
@@ -72,6 +86,16 @@ function AppRoutes() {
 		})
 	}, [location.pathname, navigate])
 
+	// Signed in without any profile: the role picker comes first.
+	useEffect(() => {
+		if (!needsOnboarding || status !== 'authenticated') return
+		if (ONBOARDING_ALLOWED_PATHS.has(location.pathname)) return
+		// Opened a product or its checkout: the welcome page makes a buyer profile and comes back here.
+		const here = `${location.pathname}${location.search}`
+		if (isPurchaseIntentPath(here)) rememberAuthNext(here)
+		navigate(ONBOARDING_PATH, { replace: true })
+	}, [location.pathname, location.search, navigate, needsOnboarding, status])
+
 	if (status === 'loading' && !isAuthCallback) {
 		return <AuthSplash />
 	}
@@ -89,13 +113,16 @@ function AppRoutes() {
 			>
 				<Routes location={underlayLocation}>
 					<Route path='/' element={<MarketplacePage />} />
-					<Route path='/new' element={<NewProductsPage />} />
+					<Route path='/new' element={<NewProductsPage sort="newest" />} />
+					<Route path='/top-rated' element={<NewProductsPage sort="rating" />} />
 					<Route path='/terms' element={<LegalPage docId='terms' />} />
 					<Route path='/privacy' element={<LegalPage docId='privacy' />} />
 					<Route path='/s/:handle' element={<StorefrontPage />} />
 					<Route path='/p/:productId' element={<ProductPage />} />
 					<Route path='/preview/product' element={<ProductPreviewRoute />} />
 					<Route path='/auth/callback' element={<AuthCallback />} />
+					<Route path='/auth/google/meet-callback' element={<GoogleMeetCallback />} />
+					<Route path={ONBOARDING_PATH} element={<WelcomePage />} />
 					<Route path='/product/:productId' element={<ProductRedirect />} />
 					<Route
 						path='/checkout/:productId'
@@ -111,6 +138,14 @@ function AppRoutes() {
 					/>
 					<Route
 						path='/dashboard/account'
+						element={
+							<RequireProfile>
+								<Dashboard />
+							</RequireProfile>
+						}
+					/>
+					<Route
+						path='/dashboard/announcements'
 						element={
 							<RequireProfile>
 								<Dashboard />
@@ -176,19 +211,22 @@ const App = () => (
 	<ErrorBoundary>
 		<QueryClientProvider client={queryClient}>
 			<LanguageProvider>
-				<InstallPromptProvider>
-					<SimpleAuthProvider>
-						<AuthProvider>
-							<TooltipProvider>
-								<Toaster />
-								<Sonner />
-								<BrowserRouter>
-									<AppRoutes />
-								</BrowserRouter>
-							</TooltipProvider>
-						</AuthProvider>
-					</SimpleAuthProvider>
-				</InstallPromptProvider>
+				<TimezoneProvider>
+					<InstallPromptProvider>
+						<SimpleAuthProvider>
+							<AuthProvider>
+								<TooltipProvider>
+									<Toaster />
+									<Sonner />
+									<BrowserRouter>
+										<ScrollManager />
+										<AppRoutes />
+									</BrowserRouter>
+								</TooltipProvider>
+							</AuthProvider>
+						</SimpleAuthProvider>
+					</InstallPromptProvider>
+				</TimezoneProvider>
 			</LanguageProvider>
 		</QueryClientProvider>
 	</ErrorBoundary>

@@ -14,7 +14,7 @@ function pricingOption(overrides: Partial<PricingOptionFormItem> = {}): PricingO
     hasFreeTrial: false,
     trialPreset: "7",
     trialCustomDays: 7,
-    kaspiMethod: "link",
+    kaspiMethods: ["link"], paymentMethod: "link", lastPaymentMethod: "link", kaspiCard: "", bank: "kaspi", bankName: "",
     kaspiLink: "https://kaspi.kz/pay/x",
     kaspiPhone: "",
     ...overrides,
@@ -41,7 +41,7 @@ function form(overrides: Partial<ProductDraftFormData> = {}): ProductDraftFormDa
     media: [],
     faq: [],
     isPaid: true,
-    kaspiMethod: "link",
+    kaspiMethods: ["link"], kaspiCard: "", bank: "kaspi", bankName: "",
     kaspiPhone: "",
     paymentType: "one_time",
     recurringInterval: "1m",
@@ -74,7 +74,7 @@ describe("draftToPreviewProduct", () => {
     const result = draftToPreviewProduct(form(), categories, seller);
 
     expect(result.title).toBe("SAT Preparation");
-    expect(result.headline).toBe("Интенсив");
+    expect(result.headline).toBeNull();
     expect(result.description).toBe("Описание курса");
   });
 
@@ -162,7 +162,7 @@ describe("draftToPreviewProduct", () => {
     const result = draftToPreviewProduct(
       form({
         pricingOptions: [
-          pricingOption({ kaspiMethod: "phone", kaspiPhone: "+77010000000" }),
+          pricingOption({ kaspiMethods: ["phone"], paymentMethod: "phone", lastPaymentMethod: "phone", kaspiCard: "", bank: "kaspi", bankName: "", kaspiLink: "", kaspiPhone: "+77010000000" }),
         ],
       }),
       categories,
@@ -294,8 +294,8 @@ describe("draftToPreviewProduct", () => {
 describe("placeholders for an empty draft", () => {
   const placeholders = {
     title: "Название продукта",
-    headline: "Короткое описание продукта",
-    description: "Здесь будет подробное описание продукта",
+    headline: "Описание продукта",
+    description: "Описание продукта",
   };
 
   it("fills every empty text field with its placeholder and records which ones", () => {
@@ -308,9 +308,9 @@ describe("placeholders for an empty draft", () => {
     );
 
     expect(result.title).toBe("Название продукта");
-    expect(result.headline).toBe("Короткое описание продукта");
-    expect(result.description).toBe("Здесь будет подробное описание продукта");
-    expect(result.preview_placeholders).toEqual(["title", "headline", "description"]);
+    expect(result.headline).toBeNull();
+    expect(result.description).toBe("Описание продукта");
+    expect(result.preview_placeholders).toEqual(["title", "description"]);
   });
 
   it("replaces a placeholder as soon as the field has real text", () => {
@@ -323,7 +323,7 @@ describe("placeholders for an empty draft", () => {
     );
 
     expect(result.title).toBe("SAT");
-    expect(result.preview_placeholders).toEqual(["headline", "description"]);
+    expect(result.preview_placeholders).toEqual(["description"]);
   });
 
   it("treats whitespace-only text as empty", () => {
@@ -339,4 +339,10 @@ describe("placeholders for an empty draft", () => {
     expect(result.headline).toBeNull();
     expect(result.preview_placeholders).toEqual([]);
   });
+});
+
+it("does not resurrect a hidden legacy headline when the description is cleared", () => {
+  const result=draftToPreviewProduct(form({description:"",headline:"Старое описание"}),categories,seller,null,{title:"Название продукта",headline:"",description:"Описание продукта"});
+  expect(result.description).toBe("Описание продукта");
+  expect(result.headline).toBeNull();
 });

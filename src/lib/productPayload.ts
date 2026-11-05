@@ -11,6 +11,8 @@ import {
   type PricingOptionFormItem,
 } from "@/lib/pricingOptions";
 
+import { serializeKaspiFields, filledPaymentMethods, isValidCardNumber } from "./paymentMethods";
+
 // The fallback option needs a fixed id: a random one would make every call
 // produce a different payload, so saveKey() would never settle and the
 // autosave would keep saving forever.
@@ -45,9 +47,11 @@ export function buildTaxonomyPayload(form: ProductDraftFormData, categories: Cat
 
 function paymentDetailsMissing(opt: PricingOptionFormItem): boolean {
   if (opt.paymentType === "recurring" && !opt.recurringInterval) return true;
-  if (opt.kaspiMethod === "link") return !opt.kaspiLink?.trim();
-  const digits = opt.kaspiPhone?.replace(/\D/g, "") || "";
-  return !opt.kaspiPhone?.trim() || digits.length < 5;
+  const filled = filledPaymentMethods(opt);
+  if (!filled.length) return true;
+  if (opt.kaspiPhone?.trim() && opt.kaspiPhone.replace(/\D/g, "").length < 5) return true;
+  if (opt.kaspiCard?.trim() && !isValidCardNumber(opt.kaspiCard)) return true;
+  return filled.some(method => method !== "link") && opt.bank === "other" && !opt.bankName?.trim();
 }
 
 /**
@@ -81,8 +85,7 @@ function serializeOption(opt: PricingOptionFormItem) {
     billing_period: billingPeriodFor(opt),
     has_free_trial: opt.hasFreeTrial,
     trial_days: trialDaysFor(opt),
-    kaspi_link: opt.kaspiMethod === "link" ? opt.kaspiLink || null : null,
-    kaspi_phone: opt.kaspiMethod === "phone" ? opt.kaspiPhone || null : null,
+    ...serializeKaspiFields(opt),
   };
 }
 
@@ -97,8 +100,8 @@ export function buildCommonPayload(form: ProductDraftFormData, categories: Catal
     headline: form.headline || null,
     description: form.description || null,
     price: paid ? Number(primary.price) : 0,
-    kaspi_link: paid && primary.kaspiMethod === "link" ? primary.kaspiLink || null : null,
-    kaspi_phone: paid && primary.kaspiMethod === "phone" ? primary.kaspiPhone || null : null,
+    kaspi_link: paid ? serializeKaspiFields(primary).kaspi_link : null,
+    kaspi_phone: paid ? serializeKaspiFields(primary).kaspi_phone : null,
     payment_type: paid ? primary.paymentType : "one_time",
     recurring_interval: paid && primary.paymentType === "recurring" ? primary.recurringInterval : null,
     access_duration_days: paid ? accessDaysFor(primary) : null,
@@ -121,7 +124,8 @@ export function buildCreatePayload(form: ProductDraftFormData, categories: Catal
     ...buildCommonPayload(form, categories),
     telegram_link: null,
     has_schedule: false,
-    is_active: false,
+    is_active: true,
+    is_published: false,
   };
 }
 

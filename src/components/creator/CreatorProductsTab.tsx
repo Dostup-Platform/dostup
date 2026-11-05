@@ -17,6 +17,8 @@ import { predictProductCategory, isTopicMatch, isExactTopicMatch, type CategoryP
 import { getPresetTopics, getPresetTopicsForCategory, TAXONOMY_DEFINITIONS } from "@/lib/taxonomyData";
 import { validateNewTopic, parseTopicsList, serializeTopicsList } from "@/utils/normalizeTopic";
 import ShareProductButton from "@/components/share/ShareProductButton";
+import ProductVisibilityDialog from "./ProductVisibilityDialog";
+import PaymentMethodFields from "./PaymentMethodFields";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +56,14 @@ import { creatorCreds, invokeApi } from "@/lib/sessionApi";
 import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_BANK,
+  isValidCardNumber,
+  filledPaymentMethods,
+  serializeKaspiFields,
+  type KaspiMethod,
+  type PaymentBank,
+} from "@/lib/paymentMethods";
 import { useCoverCrop, type CoverCropResult } from "@/hooks/useCoverCrop";
 import CoverCropEditor from "./CoverCropEditor";
 import { EDITOR_HEADING_CLASS } from "./editorHeading";
@@ -63,18 +73,19 @@ import ProductEditorLayout from "./ProductEditorLayout";
 import ProductVisibilityMenu, { visibilityState, type VisibilityState } from "./ProductVisibilityMenu";
 import { draftToPreviewProduct } from "@/lib/productDraftPreview";
 import { createDefaultPricingOption, type PricingOptionFormItem } from "@/lib/pricingOptions";
+import { kaspiSettingsFromStored, buildPaymentDetailsUpdate } from "@/lib/paymentEditor";
 import { saveKey, validateProductForm } from "@/lib/productPayload";
 import { persistProduct, type PersistDeps } from "@/lib/persistProduct";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 
-export { createDefaultPricingOption };
+export { createDefaultPricingOption, kaspiSettingsFromStored };
 export type { PricingOptionFormItem };
 
 export function getPricingOptionSummary(opt: PricingOptionFormItem) {
   const priceNum = Number(opt.price) || 0;
   const priceStr = formatPriceTenge(priceNum);
   if (opt.paymentType === "one_time") {
-    return `${priceStr} разово`;
+    return `${priceStr} навсегда`;
   }
   let periodStr = "в месяц";
   if (opt.recurringInterval === "7d") periodStr = "каждые 7 дней";
@@ -96,6 +107,7 @@ interface Product {
   telegram_link: string | null;
   has_schedule: boolean;
   is_active: boolean;
+  is_published?: boolean;
   image_url?: string | null;
   video_url?: string | null;
   media?: Array<{ type: "image" | "video"; url: string; objectPosition?: string }> | null;
@@ -147,8 +159,11 @@ interface FormData {
   media: ProductMediaItem[];
   faq: Array<{ question: string; answer: string }>;
   isPaid: boolean;
-  kaspiMethod: "link" | "phone";
+  kaspiMethods: KaspiMethod[];
   kaspiPhone: string;
+  kaspiCard: string;
+  bank: PaymentBank;
+  bankName: string;
   paymentType: "one_time" | "recurring";
   recurringInterval: string;
   recurringCustomDays: number;
@@ -201,6 +216,80 @@ const ReqStar = () => (
     *
   </span>
 );
+
+// No close button: the dialog closes on an outside click or Escape.
+const ProductDialogHeader = ({ title }: { title: string }) => (
+  <DialogHeader className="space-y-0">
+    <DialogTitle className="min-w-0">{title}</DialogTitle>
+  </DialogHeader>
+);
+
+// Declared at module level so the trigger keeps its identity (and focus) across form re-renders.
+const FormSection = ({
+  label,
+  open,
+  onOpenChange,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+}) => {
+  const headerRef = useRef<HTMLButtonElement>(null);
+
+  const collapseFromBottom = () => {
+    onOpenChange(false);
+    // The header may be far above after a long section; bring it back into view.
+    requestAnimationFrame(() => {
+      headerRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  };
+
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <CollapsibleTrigger asChild>
+        <button
+          ref={headerRef}
+          type="button"
+          className="group flex w-full items-center justify-between gap-3 py-4 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
+          <span
+            className={cn(
+              "text-base sm:text-lg transition-colors",
+              open ? "font-semibold text-foreground" : "font-medium text-foreground/80 group-hover:text-foreground",
+            )}
+          >
+            {label}
+          </span>
+          <ChevronRight
+            aria-hidden="true"
+            className={cn(
+              "h-5 w-5 shrink-0 transition-transform duration-200 motion-reduce:transition-none",
+              open ? "rotate-90 text-foreground" : "text-muted-foreground group-hover:text-foreground",
+            )}
+          />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="data-[state=open]:animate-section-open data-[state=closed]:animate-collapsible-up data-[state=closed]:overflow-hidden motion-reduce:animate-none">
+        <div className="space-y-4 pt-1 pb-3 w-full min-w-0 max-w-full">
+          {children}
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={collapseFromBottom}
+              className="h-8 rounded-lg px-2.5 text-xs font-medium text-muted-foreground hover:text-white"
+            >
+              Свернуть
+            </Button>
+          </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
 
 const ProductForm = ({
   onSubmit,
@@ -914,9 +1003,12 @@ const ProductForm = ({
           hasFreeTrial: updated[0].hasFreeTrial,
           trialPreset: updated[0].trialPreset,
           trialCustomDays: updated[0].trialCustomDays,
-          kaspiMethod: updated[0].kaspiMethod,
+          kaspiMethods: updated[0].kaspiMethods,
           kaspiLink: updated[0].kaspiLink,
           kaspiPhone: updated[0].kaspiPhone,
+          kaspiCard: updated[0].kaspiCard,
+          bank: updated[0].bank,
+          bankName: updated[0].bankName,
         } : {}),
       };
     });
@@ -925,9 +1017,13 @@ const ProductForm = ({
   const addOption = () => {
     const last = formData.pricingOptions?.[formData.pricingOptions.length - 1];
     const newOpt = createDefaultPricingOption(undefined, {
-      method: last?.kaspiMethod || formData.kaspiMethod,
+      methods: last?.kaspiMethods?.length ? last.kaspiMethods : formData.kaspiMethods,
       link: last?.kaspiLink || formData.kaspiLink,
       phone: last?.kaspiPhone || formData.kaspiPhone,
+      card: last?.kaspiCard || formData.kaspiCard,
+      bank: last?.bank || formData.bank,
+      bankName: last?.bankName || formData.bankName,
+      lastMethod: last?.lastPaymentMethod || "phone",
     });
     setFormData((prev) => ({
       ...prev,
@@ -950,9 +1046,12 @@ const ProductForm = ({
         hasFreeTrial: fallback[0]?.hasFreeTrial || false,
         trialPreset: fallback[0]?.trialPreset || "7",
         trialCustomDays: fallback[0]?.trialCustomDays || 7,
-        kaspiMethod: fallback[0]?.kaspiMethod || "link",
+        kaspiMethods: fallback[0]?.kaspiMethods?.length ? fallback[0].kaspiMethods : ["phone"],
         kaspiLink: fallback[0]?.kaspiLink || "",
         kaspiPhone: fallback[0]?.kaspiPhone || "",
+        kaspiCard: fallback[0]?.kaspiCard || "",
+        bank: fallback[0]?.bank || DEFAULT_BANK,
+        bankName: fallback[0]?.bankName || "",
       };
     });
     if (expandedOptionId === id) {
@@ -1034,89 +1133,78 @@ const ProductForm = ({
     scrollToField(id);
   };
 
+  /** Первая незаполненная настройка оплаты: id поля, вариант тарифа и (если нужно) свой текст ошибки. */
+  const findPaymentIssue = (): { id: string; optId?: string; message?: string } | null => {
+    if (!formData.isPaid) return null;
+    if (!formData.pricingOptions || formData.pricingOptions.length === 0) {
+      return { id: "field-pricing-options" };
+    }
+    for (const opt of formData.pricingOptions) {
+      if (!opt.price || Number(opt.price) <= 0) {
+        return { id: `price-${opt.id}`, optId: opt.id };
+      }
+      if (opt.paymentType === "recurring" && !opt.recurringInterval) {
+        return { id: `recurring-interval-${opt.id}`, optId: opt.id };
+      }
+      const methods = new Set(filledPaymentMethods(opt));
+      if (methods.size === 0) {
+        return { id: `kaspi-${opt.paymentMethod}-${opt.id}`, optId: opt.id, message: "Укажите хотя бы один способ оплаты" };
+      }
+      if (methods.has("link") && !opt.kaspiLink?.trim()) {
+        return { id: `kaspi-link-${opt.id}`, optId: opt.id };
+      }
+      if (methods.has("phone")) {
+        const digits = opt.kaspiPhone?.replace(/\D/g, "") || "";
+        if (!opt.kaspiPhone?.trim() || digits.length < 5) {
+          return { id: `kaspi-phone-${opt.id}`, optId: opt.id };
+        }
+      }
+      if (methods.has("card") && !isValidCardNumber(opt.kaspiCard)) {
+        return { id: `kaspi-card-${opt.id}`, optId: opt.id, message: "Номер карты должен содержать 16 цифр" };
+      }
+      if ((methods.has("phone") || methods.has("card")) && opt.bank === "other" && !opt.bankName.trim()) {
+        return { id: `bank-name-${opt.id}`, optId: opt.id };
+      }
+    }
+    return null;
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 1. Details -> Title
-    if (!formData.title?.trim()) {
-      notifyMissingField("title", () => setDetailsOpen(true));
-      return;
-    }
+    const detailsIssue = !formData.title?.trim() ? "title" : null;
+    const categoryIssue = !formData.categoryId
+      ? "field-category"
+      : !formData.subcategoryId
+        ? "field-subcategory"
+        : null;
+    const paymentIssue = findPaymentIssue();
 
-    // 2. Category
-    if (!formData.categoryId) {
-      notifyMissingField("field-category", () => {
-        setCategoryOpen(true);
-      });
-      return;
-    }
-
-    // 3. Subcategory
-    if (!formData.subcategoryId) {
-      notifyMissingField("field-subcategory", () => {
-        setCategoryOpen(true);
-      });
-      return;
-    }
-
-    // 4. Payment options (if paid)
-    if (formData.isPaid) {
-      if (!formData.pricingOptions || formData.pricingOptions.length === 0) {
-        notifyMissingField("field-pricing-options", () => setPaymentOpen(true));
-        return;
-      }
-      for (const opt of formData.pricingOptions) {
-        if (!opt.price || Number(opt.price) <= 0) {
-          notifyMissingField(`price-${opt.id}`, () => {
-            setPaymentOpen(true);
-            setExpandedOptionId(opt.id);
-          });
-          return;
-        }
-        if (opt.paymentType === "recurring" && !opt.recurringInterval) {
-          notifyMissingField(`recurring-interval-${opt.id}`, () => {
-            setPaymentOpen(true);
-            setExpandedOptionId(opt.id);
-          });
-          return;
-        }
-        if (opt.kaspiMethod === "link" && !opt.kaspiLink?.trim()) {
-          notifyMissingField(`kaspi-link-${opt.id}`, () => {
-            setPaymentOpen(true);
-            setExpandedOptionId(opt.id);
-          });
-          return;
-        }
-        if (opt.kaspiMethod === "phone") {
-          const digits = opt.kaspiPhone?.replace(/\D/g, "") || "";
-          if (!opt.kaspiPhone?.trim() || digits.length < 5) {
-            notifyMissingField(`kaspi-phone-${opt.id}`, () => {
-              setPaymentOpen(true);
-              setExpandedOptionId(opt.id);
-            });
-            return;
-          }
+    if (detailsIssue || categoryIssue || paymentIssue) {
+      // Раскрываем сразу все разделы, где что-то не заполнено, и ведём к первому полю.
+      if (detailsIssue) setDetailsOpen(true);
+      if (categoryIssue) setCategoryOpen(true);
+      if (paymentIssue) {
+        setPaymentOpen(true);
+        if (paymentIssue.optId) {
+          setExpandedOptionId(paymentIssue.optId);
+          const fieldMethod = paymentIssue.id.startsWith("kaspi-link-") ? "link"
+            : paymentIssue.id.startsWith("kaspi-card-") ? "card" : "phone";
+          updateOption(paymentIssue.optId, { paymentMethod: fieldMethod });
         }
       }
+      const firstId = detailsIssue ?? categoryIssue ?? paymentIssue!.id;
+      if (!detailsIssue && !categoryIssue && paymentIssue?.message) {
+        toast.error(paymentIssue.message);
+        scrollToField(firstId);
+      } else {
+        notifyMissingField(firstId);
+      }
+      return;
     }
 
     onSubmit(e);
   };
-
-  const SectionHeader = ({
-    label,
-    open,
-  }: { label: string; open: boolean }) => (
-    <CollapsibleTrigger asChild>
-      <button
-        type="button"
-        className="flex items-center justify-between w-full px-4 py-3 bg-muted/40 hover:bg-muted/60 rounded-xl border border-border transition-colors"
-      >
-        <span className="font-normal text-base sm:text-lg text-foreground">{label}</span>
-        {open ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-      </button>
-    </CollapsibleTrigger>
-  );
 
   const durationPresets = [
     { label: "7 дней", value: 7 },
@@ -1157,10 +1245,9 @@ const ProductForm = ({
       </Dialog>
 
         <div className="space-y-4 w-full min-w-0 max-w-full">
+          <div className="divide-y divide-border border-y border-border">
           {/* ============ ДЕТАЛИ ============ */}
-    <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
-      <SectionHeader label="Детали" open={detailsOpen} />
-      <CollapsibleContent className="space-y-4 pt-4 w-full min-w-0 max-w-full">
+    <FormSection label="Детали" open={detailsOpen} onOpenChange={setDetailsOpen}>
         {/* Unified Cover (Image & Video) upload */}
         <div className="space-y-2 w-full min-w-0 max-w-full">
           <div className="flex items-center justify-between">
@@ -1549,13 +1636,10 @@ const ProductForm = ({
             )}
           </div>
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+    </FormSection>
 
     {/* ============ КЛАССИФИКАЦИЯ ============ */}
-    <Collapsible open={categoryOpen} onOpenChange={handleCategoryOpenChange}>
-      <SectionHeader label="Классификация" open={categoryOpen} />
-      <CollapsibleContent className="space-y-4 pt-4">
+    <FormSection label="Классификация" open={categoryOpen} onOpenChange={handleCategoryOpenChange}>
         {/* Состояние загрузки AI */}
         {aiLoading && (
           <div className="flex items-center gap-2 text-xs text-primary bg-primary/5 px-3 py-2 rounded-xl border border-primary/20">
@@ -1927,34 +2011,16 @@ const ProductForm = ({
               </div>
             );
           })()}
-
-          {/* Footer с кнопкой "Свернуть" справа снизу */}
-          <div className="flex items-center justify-end pt-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all flex items-center gap-1.5"
-              onClick={(e) => {
-                e.stopPropagation();
-                setCategoryOpen(false);
-              }}
-            >
-              <span>Свернуть</span>
-              <ChevronUp className="w-3.5 h-3.5" />
-            </Button>
-          </div>
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+    </FormSection>
 
     {/* ============ ОПЛАТА ============ */}
-    <Collapsible open={paymentOpen} onOpenChange={setPaymentOpen}>
-      <SectionHeader label="Оплата" open={paymentOpen} />
-      <CollapsibleContent className="space-y-4 pt-4">
+    <FormSection label="Оплата" open={paymentOpen} onOpenChange={setPaymentOpen}>
         {/* Choice between Free access and Paid access (Whop style) */}
         <div className="space-y-2">
-          <Label className="text-sm sm:text-base font-semibold text-foreground">Как люди получат доступ?</Label>
+          <Label className="text-sm sm:text-base font-semibold text-foreground flex items-center">
+            Как люди получат доступ? <ReqStar />
+          </Label>
           <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-1">
             {/* Карточка 1: Бесплатно */}
             <div
@@ -2087,7 +2153,7 @@ const ProductForm = ({
                       {/* Настройки внутри варианта */}
                       {isExpanded && (
                         <div className="p-4 pt-2 space-y-4 border-t border-border/60">
-                          {/* Разово / Регулярно */}
+                          {/* Навсегда / Регулярно */}
                           <div className="space-y-2">
                             <div className="grid grid-cols-2 gap-2">
                               <Button
@@ -2096,7 +2162,7 @@ const ProductForm = ({
                                 className="text-sm sm:text-base h-11"
                                 onClick={() => updateOption(opt.id, { paymentType: "one_time" })}
                               >
-                                Разово
+                                Навсегда
                               </Button>
                               <Button
                                 type="button"
@@ -2259,55 +2325,12 @@ const ProductForm = ({
                             )}
                           </div>
 
-                          {/* Способ оплаты через Kaspi для этого варианта */}
-                          <div className="space-y-2 pt-2 border-t border-border/60">
-                            <Label className="text-sm sm:text-base font-medium text-foreground flex items-center">
-                              Способ оплаты Kaspi <ReqStar />
-                            </Label>
-                            <div className="grid grid-cols-2 gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={opt.kaspiMethod === "link" ? "default" : "toggle"}
-                                onClick={() => updateOption(opt.id, { kaspiMethod: "link" })}
-                                className="text-xs sm:text-sm h-9"
-                              >
-                                Ссылка
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={opt.kaspiMethod === "phone" ? "default" : "toggle"}
-                                onClick={() => updateOption(opt.id, { kaspiMethod: "phone" })}
-                                className="text-xs sm:text-sm h-9"
-                              >
-                                Номер телефона
-                              </Button>
-                            </div>
-                            {opt.kaspiMethod === "link" ? (
-                              <Input
-                                id={`kaspi-link-${opt.id}`}
-                                type="url"
-                                placeholder={t("kaspiLinkPlaceholder")}
-                                className="h-11 text-base"
-                                value={opt.kaspiLink}
-                                onChange={(e) => updateOption(opt.id, { kaspiLink: e.target.value })}
-                              />
-                            ) : (
-                              <Input
-                                id={`kaspi-phone-${opt.id}`}
-                                type="tel"
-                                placeholder="+7 776 475 00-99"
-                                className="h-11 text-base"
-                                value={opt.kaspiPhone}
-                                onChange={(e) => {
-                                  const formatted = formatPhone(e.target.value);
-                                  updateOption(opt.id, { kaspiPhone: formatted });
-                                }}
-                              />
-                            )}
-                          </div>
-
+                          <PaymentMethodFields
+                            value={opt}
+                            onChange={(updates) => updateOption(opt.id, updates)}
+                            formatPhone={formatPhone}
+                            linkPlaceholder={t("kaspiLinkPlaceholder")}
+                          />
                           {/* Footer внутри карточки варианта */}
                           <div className="flex items-center justify-between pt-2 border-t border-border/50">
                             {(formData.pricingOptions || []).length > 1 ? (
@@ -2326,11 +2349,10 @@ const ProductForm = ({
                               type="button"
                               variant="ghost"
                               size="sm"
-                              className="h-7 px-2.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all flex items-center gap-1.5"
+                              className="h-7 px-2.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-white hover:bg-accent transition-all"
                               onClick={() => setExpandedOptionId(null)}
                             >
-                              <span>Свернуть</span>
-                              <ChevronUp className="w-3.5 h-3.5" />
+                              Свернуть
                             </Button>
                           </div>
                         </div>
@@ -2353,8 +2375,8 @@ const ProductForm = ({
             </div>
           </div>
         )}
-      </CollapsibleContent>
-    </Collapsible>
+    </FormSection>
+          </div>
 
         </div>
   </form>
@@ -2363,9 +2385,10 @@ const ProductForm = ({
 
 interface CreatorProductsTabProps {
   creatorName: string;
+  onOpenUsers?: () => void;
 }
 
-const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
+const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProps) => {
   const { t, language } = useLanguage();
   const isMobile = useIsMobile();
   const { data: products = [], isLoading } = useCreatorProducts(creatorName);
@@ -2419,6 +2442,9 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   
   const [isCreating, setIsCreating] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const initialPaymentOptions = useRef<PricingOptionFormItem[]>([]);
+  const closingEdit = useRef(false);
+  const [savingPaymentDetails, setSavingPaymentDetails] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
   const [pausingProduct, setPausingProduct] = useState<Product | null>(null);
@@ -2445,8 +2471,11 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     media: [],
     faq: [{ question: "", answer: "" }],
     isPaid: true,
-    kaspiMethod: "link",
+    kaspiMethods: ["phone"],
     kaspiPhone: "",
+    kaspiCard: "",
+    bank: DEFAULT_BANK,
+    bankName: "",
     paymentType: "recurring",
     recurringInterval: "1m",
     recurringCustomDays: 30,
@@ -2469,6 +2498,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         taxonomyCategories,
         {
           displayName:
+            activeProfile?.displayName ||
             (typeof window !== "undefined" && localStorage.getItem("profile_display_name")) ||
             creatorName,
           handle: sellerHandle,
@@ -2477,11 +2507,11 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         editingProduct,
         {
           title: t("previewPlaceholderTitle"),
-          headline: t("previewPlaceholderHeadline"),
+          headline: "",
           description: t("previewPlaceholderDescription"),
         },
       ),
-    [debouncedForm, taxonomyCategories, creatorName, sellerHandle, activeProfile?.avatarUrl, editingProduct, t],
+    [debouncedForm, taxonomyCategories, creatorName, sellerHandle, activeProfile?.avatarUrl, activeProfile?.displayName, editingProduct, t],
   );
 
   const resetForm = () => {
@@ -2505,8 +2535,11 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       media: [],
       faq: [{ question: "", answer: "" }],
       isPaid: true,
-      kaspiMethod: "link",
+      kaspiMethods: ["phone"],
       kaspiPhone: "",
+      kaspiCard: "",
+      bank: DEFAULT_BANK,
+      bankName: "",
       paymentType: defaultOpt.paymentType,
       recurringInterval: defaultOpt.recurringInterval,
       recurringCustomDays: defaultOpt.recurringCustomDays,
@@ -2575,7 +2608,24 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
   }, [dialogOpen, baselineKey, formSaveKey]);
   const dirty = dialogOpen && baselineKey !== null && formSaveKey !== baselineKey;
 
-  const closeEditor = () => {
+  const closeEditor = async (savePaymentDetails = true) => {
+    if (closingEdit.current) return;
+    closingEdit.current = true;
+    try {
+      if (savePaymentDetails && editingProduct) {
+        const updates = buildPaymentDetailsUpdate(editingProduct, initialPaymentOptions.current, formData.pricingOptions);
+        if (updates) {
+          setSavingPaymentDetails(true);
+          await updateProduct.mutateAsync({ id: editingProduct.id, ...updates });
+        }
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить реквизиты");
+      return;
+    } finally {
+      closingEdit.current = false;
+      setSavingPaymentDetails(false);
+    }
     sessionRef.current += 1;
     setDialogOpen(false);
     setIsCreating(false);
@@ -2585,7 +2635,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     setBaselineKey(null);
   };
 
-  const exit = useConfirmClose({ dirty, onClose: closeEditor });
+  const exit = useConfirmClose({ dirty, onClose: () => void closeEditor() });
   const { disarm: disarmExit } = exit;
   // Going back to editing means the seller decided to stay.
   useEffect(() => {
@@ -2635,7 +2685,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
       if (result.created) toast(t("productCreatedPrivate"));
       else toast.success(t("productSaved"));
-      closeEditor();
+      await closeEditor(false);
     } catch (error: any) {
       console.error("Save product error:", error);
       toast.error(error?.message || t("productSaveError"));
@@ -2658,8 +2708,8 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
     }
     const payload =
       next === "private"
-        ? { id: product.id, is_active: false }
-        : { id: product.id, is_active: true, is_paused: false };
+        ? { id: product.id, is_published: false }
+        : { id: product.id, is_active: true, is_published: true, is_paused: false };
     updateProduct.mutate(payload as any, {
       onSuccess: () => toast.success(t("visibilityChanged")),
       onError: () => toast.error(language === "ru" ? "Ошибка" : "Қате"),
@@ -2687,7 +2737,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         else if (po.trial_days === 30) tPreset = "30";
         else if (po.trial_days) tPreset = "custom";
 
-        const kMethod = po.kaspi_phone ? "phone" : (po.kaspi_link ? "link" : (product.kaspi_phone ? "phone" : "link"));
+        const kaspi = kaspiSettingsFromStored(po, product);
 
         return {
           id: po.id || Math.random().toString(36).slice(2, 10),
@@ -2698,9 +2748,14 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
           hasFreeTrial: Boolean(po.has_free_trial),
           trialPreset: tPreset,
           trialCustomDays: po.trial_days || 7,
-          kaspiMethod: kMethod,
-          kaspiLink: po.kaspi_link || product.kaspi_link || "",
-          kaspiPhone: po.kaspi_phone || product.kaspi_phone || "",
+          kaspiMethods: kaspi.methods,
+          paymentMethod: kaspi.lastMethod,
+          lastPaymentMethod: kaspi.lastMethod,
+          kaspiLink: kaspi.link,
+          kaspiPhone: kaspi.phone,
+          kaspiCard: kaspi.card,
+          bank: kaspi.bank,
+          bankName: kaspi.bankName,
         };
       });
     } else {
@@ -2726,13 +2781,24 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
         hasFreeTrial: Boolean(product.has_free_trial),
         trialPreset: trialPreset as any,
         trialCustomDays: trialDays || 7,
-        kaspiMethod: product.kaspi_phone ? "phone" : "link",
-        kaspiLink: product.kaspi_link || "",
-        kaspiPhone: product.kaspi_phone || "",
+        ...(() => {
+          const kaspi = kaspiSettingsFromStored(product);
+          return {
+            kaspiMethods: kaspi.methods,
+            paymentMethod: kaspi.lastMethod,
+            lastPaymentMethod: kaspi.lastMethod,
+            kaspiLink: kaspi.link,
+            kaspiPhone: kaspi.phone,
+            kaspiCard: kaspi.card,
+            bank: kaspi.bank,
+            bankName: kaspi.bankName,
+          };
+        })(),
       }];
     }
 
     const firstOpt = loadedOptions[0];
+    initialPaymentOptions.current = loadedOptions;
 
     let loadedMedia: ProductMediaItem[] = [];
     if (Array.isArray(product.media) && product.media.length > 0) {
@@ -2760,8 +2826,8 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       capacity: product.capacity != null ? String(product.capacity) : "",
       billingPeriod: (product.billing_period as BillingPeriod) || "",
       title: product.title,
-      headline: product.headline || "",
-      description: product.description || "",
+      headline: "",
+      description: product.description || product.headline || "",
       price: String(product.price ?? firstOpt.price),
       kaspiLink: firstOpt.kaspiLink,
       telegramLink: product.telegram_link || "",
@@ -2770,8 +2836,11 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
       media: loadedMedia,
       faq: Array.isArray(product.faq) && product.faq.length > 0 ? product.faq : [{ question: "", answer: "" }],
       isPaid: Number(product.price) > 0,
-      kaspiMethod: firstOpt.kaspiMethod,
+      kaspiMethods: firstOpt.kaspiMethods,
       kaspiPhone: firstOpt.kaspiPhone,
+      kaspiCard: firstOpt.kaspiCard,
+      bank: firstOpt.bank,
+      bankName: firstOpt.bankName,
       paymentType: firstOpt.paymentType,
       recurringInterval: firstOpt.recurringInterval,
       recurringCustomDays: firstOpt.recurringCustomDays,
@@ -2806,8 +2875,6 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
 
   return (
     <div className="space-y-6">
-      <CreatorPendingPayments creatorName={creatorName} />
-
       {subscriptionRows.length > 0 && (
         <Card>
           <CardContent className="p-4 space-y-3">
@@ -2990,11 +3057,7 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                         {language === "ru" ? "Расписание" : "Кесте"}
                       </span>
                     )}
-                    {product.kaspi_link && (
-                      <span className={`bg-success/10 text-success px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
-                        Kaspi
-                      </span>
-                    )}
+
                   </div>
                 </div>
               </div>
@@ -3007,6 +3070,11 @@ const CreatorProductsTab = ({ creatorName }: CreatorProductsTabProps) => {
                   slug={product.slug}
                   sellerHandle={sellerHandle}
                   className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
+                  warning={
+                    language === "ru"
+                      ? "Перед отправкой добавьте необходимые материалы и/или расписание. Иначе после оплаты покупатель может получить доступ к продукту, в котором пока нет содержимого."
+                      : "Жібермес бұрын қажетті материалдарды және/немесе кестені қосыңыз. Әйтпесе төлемнен кейін сатып алушы әлі мазмұны жоқ өнімге қол жеткізуі мүмкін."
+                  }
                 />
                 <Button
                   variant="outline"

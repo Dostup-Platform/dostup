@@ -18,9 +18,10 @@ export type VisibilityState = "private" | "published" | "paused";
  */
 export function visibilityState(product: {
   is_active?: boolean;
+  is_published?: boolean;
   is_paused?: boolean;
 }): VisibilityState {
-  if (product.is_active === false) return "private";
+  if (product.is_published === false || product.is_active === false) return "private";
   return product.is_paused ? "paused" : "published";
 }
 

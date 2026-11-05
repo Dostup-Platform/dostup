@@ -34,7 +34,7 @@ export const PREVIEW_VIEWPORT: Record<
   }
 > = {
   phone: { width: 390, fallbackHeight: 844, stageFraction: 0.5, maxScale: 1.5, atLeastLifeSize: true },
-  desktop: { width: 1280, fallbackHeight: 800, stageFraction: 0.94, maxScale: 1, atLeastLifeSize: false },
+  desktop: { width: 1024, fallbackHeight: 800, stageFraction: 0.94, maxScale: 1, atLeastLifeSize: false },
 };
 
 export type PreviewFrameMetrics = {
