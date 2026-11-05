@@ -13,7 +13,7 @@ type CoverCropEditorProps = {
   onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerUp: () => void;
   saving?: boolean;
-  onCancel: () => void;
+  onCancel?: () => void;
   onSave: () => void;
 };
 
@@ -111,7 +111,7 @@ const CoverCropEditor = ({
 
         {/* Action Buttons on right */}
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
-          <Button
+{onCancel && (          <Button
             type="button"
             variant="outline"
             onClick={onCancel}
@@ -119,7 +119,7 @@ const CoverCropEditor = ({
             className="rounded-xl hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-colors"
           >
             Отмена
-          </Button>
+          </Button>)}
           <Button
             type="button"
             onClick={onSave}

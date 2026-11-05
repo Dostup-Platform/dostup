@@ -12,7 +12,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { formatPriceTenge, categoryLabel, subcategoryLabel, type BillingPeriod, type CatalogCategory, type LessonFormat } from "@/lib/catalog";
 import { useCatalogTaxonomy } from "@/hooks/useCatalogTaxonomy";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Plus, Package, Loader2, Edit, Trash2, ChevronDown, ChevronRight, ChevronLeft, Check, Globe, Lock, DollarSign, PauseCircle, PlayCircle, Sparkles, Wand2, ArrowRight } from "lucide-react";
+import { Plus, Minus, Package, Loader2, Edit, Trash2, ChevronDown, ChevronRight, ChevronLeft, ChevronUp, Globe, DollarSign, Sparkles, Wand2, ArrowRight } from "lucide-react";
 import { predictProductCategory, isTopicMatch, isExactTopicMatch, type CategoryPrediction, suggestCustomTopicWithEmoji } from "@/lib/aiCategory";
 import { getPresetTopics, getPresetTopicsForCategory, TAXONOMY_DEFINITIONS } from "@/lib/taxonomyData";
 import { validateNewTopic, parseTopicsList, serializeTopicsList } from "@/utils/normalizeTopic";
@@ -66,23 +66,26 @@ import {
 } from "@/lib/paymentMethods";
 import { useCoverCrop, type CoverCropResult } from "@/hooks/useCoverCrop";
 import CoverCropEditor from "./CoverCropEditor";
+import { EDITOR_HEADING_CLASS } from "./editorHeading";
+import EditorCloseButton, { useConfirmClose } from "./EditorCloseButton";
 import ProductVideoPlayer, { videoBlobCache } from "@/components/media/ProductVideoPlayer";
+import ProductEditorLayout from "./ProductEditorLayout";
+import ProductVisibilityMenu, { visibilityState, type VisibilityState } from "./ProductVisibilityMenu";
+import { draftToPreviewProduct } from "@/lib/productDraftPreview";
+import { createDefaultPricingOption, type PricingOptionFormItem } from "@/lib/pricingOptions";
+import { kaspiSettingsFromStored, buildPaymentDetailsUpdate } from "@/lib/paymentEditor";
+import { saveKey, validateProductForm } from "@/lib/productPayload";
+import { persistProduct, type PersistDeps } from "@/lib/persistProduct";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 
-export { createDefaultPricingOption, kaspiSettingsFromStored } from "@/lib/paymentEditor";
-export type { PricingOptionFormItem, DefaultKaspiSettings } from "@/lib/paymentEditor";
-import {
-  buildPaymentDetailsUpdate,
-  createDefaultPricingOption,
-  kaspiSettingsFromStored,
-  serializePricingOption,
-  type PricingOptionFormItem,
-} from "@/lib/paymentEditor";
+export { createDefaultPricingOption, kaspiSettingsFromStored };
+export type { PricingOptionFormItem };
 
 export function getPricingOptionSummary(opt: PricingOptionFormItem) {
   const priceNum = Number(opt.price) || 0;
   const priceStr = formatPriceTenge(priceNum);
   if (opt.paymentType === "one_time") {
-    return `${priceStr} разово`;
+    return `${priceStr} навсегда`;
   }
   let periodStr = "в месяц";
   if (opt.recurringInterval === "7d") periodStr = "каждые 7 дней";
@@ -170,12 +173,26 @@ interface FormData {
   pricingOptions: PricingOptionFormItem[];
 }
 
+export type ProductDraftFormData = FormData;
+
+/** The id tying the pinned Save button to the product form. */
+export const PRODUCT_FORM_ID = "product-editor-form";
+
+/**
+ * The editor window fills the whole screen at every size, so there is no area
+ * outside it to click by accident. The panes inside get a definite height to
+ * divide between their scroll areas.
+ */
+export const EDITOR_DIALOG_CLASS =
+  "left-0 top-0 flex h-[100dvh] w-screen max-w-none min-w-0 translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:rounded-none data-[state=open]:slide-in-from-left-0 data-[state=open]:slide-in-from-top-0 data-[state=closed]:slide-out-to-left-0 data-[state=closed]:slide-out-to-top-0";
+
 interface ProductFormProps {
   onSubmit: (e: React.FormEvent) => void;
+  /** Lets the pinned Save button submit this form from outside its scroll area. */
+  formId?: string;
   isEdit?: boolean;
   formData: FormData;
   setFormData: React.Dispatch<React.SetStateAction<FormData>>;
-  isPending: boolean;
   t: (key: string) => string;
   editingProductId?: string | null;
   pendingImageFile?: File | null;
@@ -183,37 +200,10 @@ interface ProductFormProps {
   setPendingImageFile?: (f: File | null) => void;
   setPendingVideoFile?: (f: File | null) => void;
   taxonomyCategories?: CatalogCategory[];
-  onCroppingChange?: (isCropping: boolean) => void;
 }
 
 function categorySlugById(categories: CatalogCategory[], categoryId: string) {
   return categories.find((category) => category.id === categoryId)?.slug ?? "";
-}
-
-function buildTaxonomyPayload(
-  formData: FormData,
-  categories: CatalogCategory[],
-) {
-  const currentCategory = categories.find((c) => c.id === formData.categoryId);
-  const currentSubcategory = currentCategory?.subcategories.find((s) => s.id === formData.subcategoryId);
-  const isLessons = currentCategory?.slug === "online-lessons";
-
-  return {
-    category_id: formData.categoryId,
-    subcategory_id: formData.subcategoryId,
-    lesson_format: isLessons ? (currentSubcategory?.slug === "group" ? "group" : "individual") : null,
-    event_starts_at: null,
-    capacity: null,
-    billing_period: null,
-    topic: formData.topic || null,
-  };
-}
-
-function validateTaxonomyFields(formData: FormData, _categories: CatalogCategory[]) {
-  if (!formData.categoryId || !formData.subcategoryId) {
-    return "Выберите категорию и подкатегорию";
-  }
-  return null;
 }
 
 function stripHtml(html: string): string {
@@ -303,10 +293,10 @@ const FormSection = ({
 
 const ProductForm = ({
   onSubmit,
+  formId,
   isEdit = false,
   formData,
   setFormData,
-  isPending,
   t,
   editingProductId,
   pendingImageFile,
@@ -314,13 +304,13 @@ const ProductForm = ({
   setPendingImageFile,
   setPendingVideoFile,
   taxonomyCategories = [],
-  onCroppingChange,
 }: ProductFormProps) => {
   const { language } = useLanguage();
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [removeImageOpen, setRemoveImageOpen] = useState(false);
   const [removeVideoOpen, setRemoveVideoOpen] = useState(false);
+  // A new product starts with its first section open, ready to fill in.
   const [detailsOpen, setDetailsOpen] = useState(!isEdit);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -748,9 +738,10 @@ const ProductForm = ({
   const [cropQueue, setCropQueue] = useState<File[]>([]);
   const [cropSaving, setCropSaving] = useState(false);
 
-  useEffect(() => {
-    onCroppingChange?.(Boolean(coverCrop.source));
-  }, [coverCrop.source, onCroppingChange]);
+  const cancelCrop = () => {
+    coverCrop.resetCrop();
+    setCropQueue([]);
+  };
 
   const startCoverCropProcess = async (files: File[]) => {
     const imagesToCrop: File[] = [];
@@ -1222,27 +1213,37 @@ const ProductForm = ({
   ];
 
   return (
-    <form onSubmit={handleFormSubmit} noValidate className="space-y-4 mt-4 w-full min-w-0 max-w-full overflow-x-clip">
-      {Boolean(coverCrop.source) ? (
-        <div className="space-y-4 py-1 animate-in fade-in-50 duration-200">
-          <CoverCropEditor
-            source={coverCrop.source!}
-            mediaType={coverCrop.mediaType}
-            previewStyle={coverCrop.previewStyle}
-            zoom={coverCrop.zoom}
-            onZoom={coverCrop.setZoom}
-            onPointerDown={coverCrop.onPointerDown}
-            onPointerMove={coverCrop.onPointerMove}
-            onPointerUp={coverCrop.onPointerUp}
-            saving={cropSaving}
-            onCancel={() => {
-              coverCrop.resetCrop();
-              setCropQueue([]);
-            }}
-            onSave={() => void handleSaveCrop()}
-          />
-        </div>
-      ) : (
+    <form id={formId} onSubmit={handleFormSubmit} noValidate className="space-y-4 w-full min-w-0 max-w-full overflow-x-hidden">
+      {/* The cover cropper is its own window on top of the editor. It is rendered
+          from inside the form so the picked photo and the form's state stay put;
+          a click outside it or Escape only drops the photo being cropped. */}
+      <Dialog
+        open={Boolean(coverCrop.source)}
+        onOpenChange={(open) => {
+          if (!open && !cropSaving) cancelCrop();
+        }}
+      >
+        <DialogContent hideCloseButton className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Настройка обложки</DialogTitle>
+          </DialogHeader>
+          {coverCrop.source ? (
+            <CoverCropEditor
+              source={coverCrop.source}
+              mediaType={coverCrop.mediaType}
+              previewStyle={coverCrop.previewStyle}
+              zoom={coverCrop.zoom}
+              onZoom={coverCrop.setZoom}
+              onPointerDown={coverCrop.onPointerDown}
+              onPointerMove={coverCrop.onPointerMove}
+              onPointerUp={coverCrop.onPointerUp}
+              saving={cropSaving}
+              onSave={() => void handleSaveCrop()}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
         <div className="space-y-4 w-full min-w-0 max-w-full">
           <div className="divide-y divide-border border-y border-border">
           {/* ============ ДЕТАЛИ ============ */}
@@ -2152,7 +2153,7 @@ const ProductForm = ({
                       {/* Настройки внутри варианта */}
                       {isExpanded && (
                         <div className="p-4 pt-2 space-y-4 border-t border-border/60">
-                          {/* Разово / Регулярно */}
+                          {/* Навсегда / Регулярно */}
                           <div className="space-y-2">
                             <div className="grid grid-cols-2 gap-2">
                               <Button
@@ -2161,7 +2162,7 @@ const ProductForm = ({
                                 className="text-sm sm:text-base h-11"
                                 onClick={() => updateOption(opt.id, { paymentType: "one_time" })}
                               >
-                                Разово
+                                Навсегда
                               </Button>
                               <Button
                                 type="button"
@@ -2377,23 +2378,7 @@ const ProductForm = ({
     </FormSection>
           </div>
 
-    <Button
-      type="submit" 
-      variant="cta" 
-      className="w-full"
-      disabled={isPending}
-    >
-      {isPending ? (
-        <span className="flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          {isEdit ? "Сохранение..." : "Создание..."}
-        </span>
-      ) : (
-        isEdit ? "Сохранить изменения" : "Создать продукт"
-      )}
-    </Button>
         </div>
-      )}
   </form>
   );
 };
@@ -2446,25 +2431,23 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
       });
   }, [taxonomyRaw]);
   const sellerHandle = typeof window !== "undefined" ? localStorage.getItem("profile_handle") : null;
+  const { profiles } = useSimpleAuth();
+  const activeProfile = profiles.find(
+    (profile) =>
+      profile.id === (typeof window !== "undefined" ? localStorage.getItem("profile_id") : null),
+  );
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   
   const [isCreating, setIsCreating] = useState(false);
-  const [isCroppingMedia, setIsCroppingMedia] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const initialPaymentOptions = useRef<PricingOptionFormItem[]>([]);
-  const newProductDraft = useRef<FormData | null>(null);
   const closingEdit = useRef(false);
   const [savingPaymentDetails, setSavingPaymentDetails] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
-  const [visibilityProductId, setVisibilityProductId] = useState<string | null>(null);
   const [pausingProduct, setPausingProduct] = useState<Product | null>(null);
-  // Read from the live list so the dialog reflects the saved value after refetch.
-  const visibilityProduct = visibilityProductId
-    ? (products.find((p) => p.id === visibilityProductId) as Product | undefined) ?? null
-    : null;
   const [pauseMessage, setPauseMessage] = useState<string>("");
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
@@ -2501,6 +2484,35 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
     trialCustomDays: 7,
     pricingOptions: [createDefaultPricingOption()],
   });
+
+  const [debouncedForm, setDebouncedForm] = useState(formData);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedForm(formData), 200);
+    return () => clearTimeout(timer);
+  }, [formData]);
+
+  const draftPreview = useMemo(
+    () =>
+      draftToPreviewProduct(
+        debouncedForm,
+        taxonomyCategories,
+        {
+          displayName:
+            activeProfile?.displayName ||
+            (typeof window !== "undefined" && localStorage.getItem("profile_display_name")) ||
+            creatorName,
+          handle: sellerHandle,
+          avatarUrl: activeProfile?.avatarUrl ?? null,
+        },
+        editingProduct,
+        {
+          title: t("previewPlaceholderTitle"),
+          headline: "",
+          description: t("previewPlaceholderDescription"),
+        },
+      ),
+    [debouncedForm, taxonomyCategories, creatorName, sellerHandle, activeProfile?.avatarUrl, activeProfile?.displayName, editingProduct, t],
+  );
 
   const resetForm = () => {
     const defaultOpt = createDefaultPricingOption();
@@ -2542,135 +2554,174 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
 
   // copyLink function removed - now using ShareLinkDialog for all link copying
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ---- Editor window: nothing is written until «Создать» / «Сохранить» ----------------
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const sessionRef = useRef(0);
+  // Set once a new product exists, so retrying after a failed media upload
+  // updates that product instead of creating a second one.
+  const createdProductRef = useRef<Product | null>(null);
 
-    const taxonomyError = validateTaxonomyFields(formData, taxonomyCategories);
-    if (!formData.title || taxonomyError) {
-      toast.error(taxonomyError || "Заполните обязательные поля");
-      return;
-    }
-
-    const options = formData.pricingOptions && formData.pricingOptions.length > 0
-      ? formData.pricingOptions
-      : [createDefaultPricingOption()];
-
-    if (formData.isPaid && options.some(o => !o.price || Number(o.price) <= 0)) {
-      toast.error("Укажите цену для всех вариантов оплаты");
-      return;
-    }
-
-    const primaryOpt = options[0];
-    let primaryAccessDays: number | null = null;
-    let primaryBillingPeriod: string | null = null;
-    if (formData.isPaid && primaryOpt.paymentType === "recurring") {
-      primaryBillingPeriod =
-        primaryOpt.recurringInterval === "1m"
-          ? "month"
-          : primaryOpt.recurringInterval === "3m"
-          ? "quarter"
-          : primaryOpt.recurringInterval === "1y"
-          ? "year"
-          : primaryOpt.recurringInterval;
-
-      if (primaryOpt.recurringInterval === "7d") primaryAccessDays = 7;
-      else if (primaryOpt.recurringInterval === "14d") primaryAccessDays = 14;
-      else if (primaryOpt.recurringInterval === "1m") primaryAccessDays = 30;
-      else if (primaryOpt.recurringInterval === "3m") primaryAccessDays = 90;
-      else if (primaryOpt.recurringInterval === "1y") primaryAccessDays = 365;
-      else if (primaryOpt.recurringInterval === "custom") primaryAccessDays = primaryOpt.recurringCustomDays || 30;
-    }
-
-    let primaryTrialDays: number | null = null;
-    if (formData.isPaid && primaryOpt.hasFreeTrial) {
-      if (primaryOpt.trialPreset === "3") primaryTrialDays = 3;
-      else if (primaryOpt.trialPreset === "7") primaryTrialDays = 7;
-      else if (primaryOpt.trialPreset === "30") primaryTrialDays = 30;
-      else if (primaryOpt.trialPreset === "custom") primaryTrialDays = primaryOpt.trialCustomDays || 7;
-    }
-
-    const serializedOptions = formData.isPaid ? options.map(serializePricingOption) : [];
-
-    try {
-      const created = await createProduct.mutateAsync({
-        title: formData.title,
-        headline: formData.headline || null,
-        description: formData.description || null,
-        price: formData.isPaid ? Number(primaryOpt.price) : 0,
-        kaspi_link: formData.isPaid ? serializeKaspiFields(primaryOpt).kaspi_link : null,
-        kaspi_phone: formData.isPaid ? serializeKaspiFields(primaryOpt).kaspi_phone : null,
-        telegram_link: null,
-        payment_type: formData.isPaid ? primaryOpt.paymentType : "one_time",
-        recurring_interval: formData.isPaid && primaryOpt.paymentType === "recurring" ? primaryOpt.recurringInterval : null,
-        access_duration_days: primaryAccessDays,
-        has_free_trial: formData.isPaid ? primaryOpt.hasFreeTrial : false,
-        trial_days: primaryTrialDays,
-        pricing_options: serializedOptions,
-        has_schedule: false,
-        is_active: true,
-        faq: (formData.faq || [])
-          .filter(it => (it?.question || "").trim() || (it?.answer || "").trim())
-          .map(it => ({ question: (it?.question || "").trim(), answer: (it?.answer || "").trim() })),
-        ...buildTaxonomyPayload(formData, taxonomyCategories),
-      });
-
-      // Upload pending media (if any)
-      const finalMedia: Array<{ type: "image" | "video"; url: string; objectPosition?: string }> = [];
-      for (const item of (formData.media || [])) {
-        if (item.file && created?.id) {
-          const toastId = toast.loading(`Загрузка ${item.type === "video" ? "видео (0%)..." : "фото..."}`);
-          try {
-            let fileToUpload = item.file;
-            if (item.type === "video" && item.file.size > COMPRESSION_THRESHOLD) {
-              toast.loading("Оптимизация видео...", { id: toastId });
-              fileToUpload = await compressVideoIfNeeded(item.file, (pct) => {
-                toast.loading(`Оптимизация видео (${pct}%)...`, { id: toastId });
-              });
-            }
-            const uploadedUrl = await uploadProductMedia(fileToUpload, created.id, item.type, (pct) => {
-              if (item.type === "video") {
-                toast.loading(`Загрузка видео (${pct}%)...`, { id: toastId });
-              }
-            });
-            toast.dismiss(toastId);
-            finalMedia.push({ type: item.type, url: uploadedUrl, objectPosition: item.objectPosition });
-          } catch (err: any) {
-            toast.dismiss(toastId);
-            toast.error(err?.message || `Ошибка загрузки ${item.type === "video" ? "видео" : "фото"}`);
-          }
-        } else if (item.url && !item.url.startsWith("blob:")) {
-          finalMedia.push({ type: item.type, url: item.url, objectPosition: item.objectPosition });
-        }
-      }
-
-      if (created?.id && finalMedia.length > 0) {
-        const firstImg = finalMedia.find((m) => m.type === "image");
-        const firstVid = finalMedia.find((m) => m.type === "video");
-        try {
-          await updateProduct.mutateAsync({
-            id: created.id,
-            media: finalMedia,
-            image_url: firstImg?.url || null,
-            video_url: firstVid?.url || null,
+  const persistDeps: PersistDeps = {
+    createProduct: async (payload) => {
+      const created = await createProduct.mutateAsync(
+        payload as Parameters<typeof createProduct.mutateAsync>[0],
+      );
+      // Remembered right away: a save that runs before React re-renders must
+      // update this product, not create a second one.
+      createdProductRef.current = created as unknown as Product;
+      return created;
+    },
+    updateProduct: (payload) =>
+      updateProduct.mutateAsync(payload as Parameters<typeof updateProduct.mutateAsync>[0]),
+    uploadMedia: async (item, productId) => {
+      const toastId = toast.loading(`Загрузка ${item.type === "video" ? "видео (0%)..." : "фото..."}`);
+      try {
+        let fileToUpload = item.file as File;
+        if (item.type === "video" && fileToUpload.size > COMPRESSION_THRESHOLD) {
+          toast.loading("Оптимизация видео...", { id: toastId });
+          fileToUpload = await compressVideoIfNeeded(fileToUpload, (pct) => {
+            toast.loading(`Оптимизация видео (${pct}%)...`, { id: toastId });
           });
-        } catch {
-          // already toasted above
+        }
+        const url = await uploadProductMedia(fileToUpload, productId, item.type, (pct) => {
+          if (item.type === "video") {
+            toast.loading(`Загрузка видео (${pct}%)...`, { id: toastId });
+          }
+        });
+        toast.dismiss(toastId);
+        return url;
+      } catch (err: any) {
+        toast.dismiss(toastId);
+        toast.error(err?.message || `Ошибка загрузки ${item.type === "video" ? "видео" : "фото"}`);
+        throw err;
+      }
+    },
+  };
+
+  // "Unsaved" means the form differs from what the window opened with.
+  const formSaveKey = useMemo(() => saveKey(formData, taxonomyCategories), [formData, taxonomyCategories]);
+  const [baselineKey, setBaselineKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (dialogOpen && baselineKey === null) setBaselineKey(formSaveKey);
+  }, [dialogOpen, baselineKey, formSaveKey]);
+  const dirty = dialogOpen && baselineKey !== null && formSaveKey !== baselineKey;
+
+  const closeEditor = async (savePaymentDetails = true) => {
+    if (closingEdit.current) return;
+    closingEdit.current = true;
+    try {
+      if (savePaymentDetails && editingProduct) {
+        const updates = buildPaymentDetailsUpdate(editingProduct, initialPaymentOptions.current, formData.pricingOptions);
+        if (updates) {
+          setSavingPaymentDetails(true);
+          await updateProduct.mutateAsync({ id: editingProduct.id, ...updates });
         }
       }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить реквизиты");
+      return;
+    } finally {
+      closingEdit.current = false;
+      setSavingPaymentDetails(false);
+    }
+    sessionRef.current += 1;
+    setDialogOpen(false);
+    setIsCreating(false);
+    setEditingProduct(null);
+    resetForm();
+    createdProductRef.current = null;
+    setBaselineKey(null);
+  };
 
-      toast.success("Продукт создан!", {
-        description: "Добавьте материалы и расписание, а затем поделитесь ссылкой или выставьте продукт.",
-      });
-      newProductDraft.current = null;
-      setIsCreating(false);
-      resetForm();
+  const exit = useConfirmClose({ dirty, onClose: () => void closeEditor() });
+  const { disarm: disarmExit } = exit;
+  // Going back to editing means the seller decided to stay.
+  useEffect(() => {
+    disarmExit();
+  }, [formSaveKey, disarmExit]);
+
+  const openCreate = () => {
+    sessionRef.current += 1;
+    createdProductRef.current = null;
+    resetForm();
+    setEditingProduct(null);
+    setBaselineKey(null);
+    setIsCreating(true);
+    setDialogOpen(true);
+  };
+
+  // Runs after the form's own check, which opens and highlights the first
+  // missing field. A failed save keeps the window open with everything typed.
+  const submitEditor = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    const session = sessionRef.current;
+    try {
+      const result = await persistProduct(
+        {
+          form: formData,
+          categories: taxonomyCategories,
+          productId: editingProduct?.id ?? createdProductRef.current?.id ?? null,
+        },
+        persistDeps,
+      );
+      if (result.status !== "saved" || sessionRef.current !== session) return;
+
+      if (Object.keys(result.uploaded).length > 0) {
+        setFormData((prev) => ({
+          ...prev,
+          media: (prev.media || []).map((m) =>
+            result.uploaded[m.id]
+              ? { ...m, url: result.uploaded[m.id], previewUrl: m.previewUrl ?? m.url, file: undefined }
+              : m,
+          ),
+        }));
+      }
+      // A media upload failed and was reported; stay open so it can be retried.
+      if (result.failedMediaIds.length > 0) return;
+
+      if (result.created) toast(t("productCreatedPrivate"));
+      else toast.success(t("productSaved"));
+      await closeEditor(false);
     } catch (error: any) {
-      console.error("Create product error:", error);
-      toast.error(error?.message || "Ошибка при создании продукта");
+      console.error("Save product error:", error);
+      toast.error(error?.message || t("productSaveError"));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
+  const handleVisibilityChange = (product: Product, next: VisibilityState) => {
+    if (next === "paused") {
+      setPauseMessage(
+        (product as any).paused_message ||
+          (language === "ru"
+            ? "Автор отключил ссылку. Мы набрали достаточное количество учеников — ждите новый поток."
+            : "Автор сілтемені өшірді. Жаңа ағымды күтіңіз.")
+      );
+      setPausingProduct(product);
+      return;
+    }
+    const payload =
+      next === "private"
+        ? { id: product.id, is_published: false }
+        : { id: product.id, is_active: true, is_published: true, is_paused: false };
+    updateProduct.mutate(payload as any, {
+      onSuccess: () => toast.success(t("visibilityChanged")),
+      onError: () => toast.error(language === "ru" ? "Ошибка" : "Қате"),
+    });
+  };
+
   const handleEdit = (product: Product) => {
+    sessionRef.current += 1;
+    createdProductRef.current = null;
+    setBaselineKey(null);
+    setIsCreating(false);
+    setDialogOpen(true);
     setEditingProduct(product);
     const eventLocal =
       product.event_starts_at && !Number.isNaN(Date.parse(product.event_starts_at))
@@ -2775,8 +2826,8 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
       capacity: product.capacity != null ? String(product.capacity) : "",
       billingPeriod: (product.billing_period as BillingPeriod) || "",
       title: product.title,
-      headline: product.headline || "",
-      description: product.description || "",
+      headline: "",
+      description: product.description || product.headline || "",
       price: String(product.price ?? firstOpt.price),
       kaspiLink: firstOpt.kaspiLink,
       telegramLink: product.telegram_link || "",
@@ -2798,109 +2849,6 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
       trialCustomDays: firstOpt.trialCustomDays,
       pricingOptions: loadedOptions,
     });
-  };
-
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (closingEdit.current || updateProduct.isPending) return;
-
-    const taxonomyError = validateTaxonomyFields(formData, taxonomyCategories);
-    if (!editingProduct || !formData.title || taxonomyError) {
-      toast.error(taxonomyError || "Заполните обязательные поля");
-      return;
-    }
-
-    const options = formData.pricingOptions && formData.pricingOptions.length > 0
-      ? formData.pricingOptions
-      : [createDefaultPricingOption()];
-
-    if (formData.isPaid && options.some(o => !o.price || Number(o.price) <= 0)) {
-      toast.error("Укажите цену для всех вариантов оплаты");
-      return;
-    }
-
-    const primaryOpt = options[0];
-    let primaryAccessDays: number | null = null;
-    let primaryBillingPeriod: string | null = null;
-    if (formData.isPaid && primaryOpt.paymentType === "recurring") {
-      primaryBillingPeriod =
-        primaryOpt.recurringInterval === "1m"
-          ? "month"
-          : primaryOpt.recurringInterval === "3m"
-          ? "quarter"
-          : primaryOpt.recurringInterval === "1y"
-          ? "year"
-          : primaryOpt.recurringInterval;
-
-      if (primaryOpt.recurringInterval === "7d") primaryAccessDays = 7;
-      else if (primaryOpt.recurringInterval === "14d") primaryAccessDays = 14;
-      else if (primaryOpt.recurringInterval === "1m") primaryAccessDays = 30;
-      else if (primaryOpt.recurringInterval === "3m") primaryAccessDays = 90;
-      else if (primaryOpt.recurringInterval === "1y") primaryAccessDays = 365;
-      else if (primaryOpt.recurringInterval === "custom") primaryAccessDays = primaryOpt.recurringCustomDays || 30;
-    }
-
-    let primaryTrialDays: number | null = null;
-    if (formData.isPaid && primaryOpt.hasFreeTrial) {
-      if (primaryOpt.trialPreset === "3") primaryTrialDays = 3;
-      else if (primaryOpt.trialPreset === "7") primaryTrialDays = 7;
-      else if (primaryOpt.trialPreset === "30") primaryTrialDays = 30;
-      else if (primaryOpt.trialPreset === "custom") primaryTrialDays = primaryOpt.trialCustomDays || 7;
-    }
-
-    const serializedOptions = formData.isPaid ? options.map(serializePricingOption) : [];
-
-    try {
-      await updateProduct.mutateAsync({
-        id: editingProduct.id,
-        title: formData.title,
-        headline: formData.headline || null,
-        description: formData.description || null,
-        price: formData.isPaid ? Number(primaryOpt.price) : 0,
-        kaspi_link: formData.isPaid ? serializeKaspiFields(primaryOpt).kaspi_link : null,
-        kaspi_phone: formData.isPaid ? serializeKaspiFields(primaryOpt).kaspi_phone : null,
-        payment_type: formData.isPaid ? primaryOpt.paymentType : "one_time",
-        recurring_interval: formData.isPaid && primaryOpt.paymentType === "recurring" ? primaryOpt.recurringInterval : null,
-        access_duration_days: primaryAccessDays,
-        has_free_trial: formData.isPaid ? primaryOpt.hasFreeTrial : false,
-        trial_days: primaryTrialDays,
-        pricing_options: serializedOptions,
-        image_url: (formData.media || []).find((m) => m.type === "image")?.url || null,
-        video_url: (formData.media || []).find((m) => m.type === "video")?.url || null,
-        media: (formData.media || []).map((m) => ({ type: m.type, url: m.url, objectPosition: m.objectPosition })),
-        faq: (formData.faq || [])
-          .filter(it => (it?.question || "").trim() || (it?.answer || "").trim())
-          .map(it => ({ question: (it?.question || "").trim(), answer: (it?.answer || "").trim() })),
-        ...buildTaxonomyPayload(formData, taxonomyCategories),
-      });
-      
-      toast.success("Продукт обновлён!");
-      setEditingProduct(null);
-      resetForm();
-    } catch (error: any) {
-      console.error("Failed to update product:", error);
-      toast.error(error?.message || "Ошибка при обновлении продукта");
-    }
-  };
-
-  const handleCloseEdit = async () => {
-    if (!editingProduct || closingEdit.current || updateProduct.isPending) return;
-    closingEdit.current = true;
-    try {
-      const updates = buildPaymentDetailsUpdate(editingProduct, initialPaymentOptions.current, formData.pricingOptions);
-      if (updates) {
-        setSavingPaymentDetails(true);
-        await updateProduct.mutateAsync({ id: editingProduct.id, ...updates });
-      }
-      setEditingProduct(null);
-      resetForm();
-      setIsCroppingMedia(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить реквизиты. Попробуйте ещё раз.");
-    } finally {
-      closingEdit.current = false;
-      setSavingPaymentDetails(false);
-    }
   };
 
   const handleDelete = async () => {
@@ -2963,72 +2911,62 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">{t("products")}</h2>
-        <Dialog open={isCreating} onOpenChange={(open) => {
-          if (open) {
-            if (newProductDraft.current) setFormData(newProductDraft.current);
-            else resetForm();
-          } else {
-            newProductDraft.current = formData;
-            setIsCroppingMedia(false);
-          }
-          setIsCreating(open);
-        }}>
-          <DialogTrigger asChild>
-            <Button variant="default" size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              {t("create")}
-            </Button>
-          </DialogTrigger>
-          <DialogContent
-          className="dialog-static w-[calc(100vw-2rem)] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden min-w-0"
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onInteractOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
+        <Button variant="default" size="sm" onClick={openCreate}>
+          <Plus className="w-4 h-4 mr-2" />
+          {t("create")}
+        </Button>
+      </div>
+
+      {/* Create / edit window: sections on the left, live preview on the right. */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) exit.request(); }}>
+        <DialogContent
+          hideCloseButton
+          className={EDITOR_DIALOG_CLASS}
+          // Escape goes through the same two-step close as the cross.
+          onEscapeKeyDown={(event) => {
+            event.preventDefault();
+            exit.request();
+          }}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+          onPointerDownCapture={(event) => {
+            if (!(event.target as HTMLElement).closest("[data-editor-close]")) exit.disarm();
+          }}
         >
-            <DialogHeader>
-              <DialogTitle>{isCroppingMedia ? "Настройка обложки" : "Создать продукт"}</DialogTitle>
-            </DialogHeader>
-            <ProductForm 
-              onSubmit={handleCreate} 
+          {/* Pinned to the window's corner, so it is reachable in every mode,
+              including the phone's editor tab where the preview bar is hidden. */}
+          <div className="absolute right-3 top-2.5 z-30">
+            <EditorCloseButton armed={exit.armed} onClick={exit.request} />
+          </div>
+          <ProductEditorLayout
+            previewProduct={draftPreview}
+            title={
+              <DialogTitle className={EDITOR_HEADING_CLASS}>
+                {isCreating ? t("editorTitleCreate") : t("editorTitleEdit")}
+              </DialogTitle>
+            }
+            footer={
+              <Button type="submit" form={PRODUCT_FORM_ID} disabled={saving}>
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isCreating ? t("create") : t("save")}
+              </Button>
+            }
+          >
+            <ProductForm
+              formId={PRODUCT_FORM_ID}
+              onSubmit={() => void submitEditor()}
+              isEdit={!!editingProduct}
               formData={formData}
               setFormData={setFormData}
-              isPending={createProduct.isPending}
               t={t}
               taxonomyCategories={taxonomyCategories}
               pendingImageFile={pendingImageFile}
               pendingVideoFile={pendingVideoFile}
               setPendingImageFile={setPendingImageFile}
               setPendingVideoFile={setPendingVideoFile}
-              onCroppingChange={setIsCroppingMedia}
-            />
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Edit Dialog */}
-      <Dialog open={!!editingProduct} onOpenChange={(open) => { if (!open) void handleCloseEdit(); }}>
-        <DialogContent
-          className="dialog-static w-[calc(100vw-2rem)] sm:w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden min-w-0"
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onInteractOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>{isCroppingMedia ? "Настройка обложки" : `${t("edit")} продукт`}</DialogTitle>
-          </DialogHeader>
-          <fieldset disabled={savingPaymentDetails} className="contents">
-            <ProductForm
-              onSubmit={handleUpdate}
-              isEdit
-              formData={formData}
-              setFormData={setFormData}
-              isPending={updateProduct.isPending || savingPaymentDetails}
-              t={t}
-              taxonomyCategories={taxonomyCategories}
               editingProductId={editingProduct?.id || null}
-              onCroppingChange={setIsCroppingMedia}
             />
-          </fieldset>
+          </ProductEditorLayout>
         </DialogContent>
       </Dialog>
 
@@ -3102,15 +3040,11 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
 
                   {/* Badges */}
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                    {(product as Product).is_published ? (
-                      <span className={`inline-flex items-center gap-1 bg-success/10 text-success px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
-                        <Check className="w-3 h-3 shrink-0" aria-hidden="true" />
-                        {language === "ru" ? "Опубликован" : "Жарияланған"}
-                      </span>
-                    ) : (
-                      <span className={`inline-flex items-center gap-1 bg-muted text-muted-foreground px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
-                        <Lock className="w-3 h-3 shrink-0" aria-hidden="true" />
-                        {language === "ru" ? "Приватный" : "Жабық"}
+                    {visibilityState(product) !== "published" && (
+                      <span className={`bg-muted text-muted-foreground px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
+                        {visibilityState(product) === "private"
+                          ? t("visibilityPrivate")
+                          : t("visibilityPaused")}
                       </span>
                     )}
                     {product.billing_period && (
@@ -3145,52 +3079,17 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setVisibilityProductId(product.id)}
-                  className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
-                >
-                  <Globe className="w-3.5 h-3.5" />
-                  <span className="ml-1">{language === "ru" ? "Выставить" : "Жариялау"}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => handleEdit(product)}
                   className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
                 >
                   <Edit className="w-3.5 h-3.5" />
                   <span className="ml-1">{t("edit")}</span>
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if ((product as any).is_paused) {
-                      updateProduct.mutate(
-                        { id: product.id, is_paused: false } as any,
-                        {
-                          onSuccess: () => toast.success(language === "ru" ? "Продукт возобновлён" : "Өнім қайта іске қосылды"),
-                          onError: () => toast.error(language === "ru" ? "Ошибка" : "Қате"),
-                        }
-                      );
-                    } else {
-                      setPauseMessage(
-                        (product as any).paused_message ||
-                          (language === "ru"
-                            ? "Автор отключил ссылку. Мы набрали достаточное количество учеников — ждите новый поток."
-                            : "Автор сілтемені өшірді. Жаңа ағымды күтіңіз.")
-                      );
-                      setPausingProduct(product as Product);
-                    }
-                  }}
-                  className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
-                >
-                  {(product as any).is_paused ? <PlayCircle className="w-3.5 h-3.5" /> : <PauseCircle className="w-3.5 h-3.5" />}
-                  <span className="ml-1">
-                    {(product as any).is_paused
-                      ? (language === "ru" ? "Возобновить" : "Қайта қосу")
-                      : (language === "ru" ? "Приостановить" : "Тоқтату")}
-                  </span>
-                </Button>
+                <ProductVisibilityMenu
+                  state={visibilityState(product)}
+                  isMobile={isMobile}
+                  onSelect={(next) => handleVisibilityChange(product as Product, next)}
+                />
                 <Button
                   variant="outline"
                   size="sm"
@@ -3222,12 +3121,6 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
         onClose={() => setMaterialsProduct(null)}
       />
     )}
-
-    {/* Visibility Dialog */}
-    <ProductVisibilityDialog
-      product={visibilityProduct}
-      onOpenChange={(open) => { if (!open) setVisibilityProductId(null); }}
-    />
 
     {/* Pause Dialog */}
     <Dialog open={!!pausingProduct} onOpenChange={(open) => { if (!open) setPausingProduct(null); }}>

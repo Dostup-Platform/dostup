@@ -23,7 +23,7 @@ import { resolvePaymentMethods, formatCardNumber } from "@/lib/paymentMethods";
 function getOptionDisplay(opt: any) {
   const priceStr = formatPriceTenge(Number(opt.price));
   if (opt.payment_type === "one_time") {
-    return `${priceStr} (разово)`;
+    return `${priceStr} (навсегда)`;
   }
   let periodStr = "в месяц";
   if (opt.recurring_interval === "7d") periodStr = "каждые 7 дней";

@@ -29,6 +29,7 @@ import AvatarSettings from "@/components/account/AvatarSettings";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import TimezoneSelector from "@/components/account/TimezoneSelector";
 import NotificationPreferences from "@/components/NotificationPreferences";
+import BioSettingsCard from "@/components/account/BioSettingsCard";
 import { formatPriceTenge } from "@/lib/catalog";
 import { invokeApi } from "@/lib/sessionApi";
 import { profileHomePath, type AppProfile, type SessionPayload } from "@/lib/creatorAuth";
@@ -317,6 +318,8 @@ export const AccountSettingsView = ({
                     )}
                   </div>
 
+                  {isSeller && <BioSettingsCard key={activeProfileId || role} embedded />}
+
                   {formattedDate && (
                     <p className="text-xs text-muted-foreground pt-1">
                       {t("memberSince")} {formattedDate}
@@ -324,6 +327,7 @@ export const AccountSettingsView = ({
                   )}
                 </CardContent>
               </Card>
+
 
               {/* Buyer Purchases */}
               {role === "buyer" && (

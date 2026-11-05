@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import AppHeader from "@/components/layout/AppHeader";
 import { HeaderAccountControl, HeaderNotificationsButton, HeaderSupportButton } from "@/components/layout/HeaderControls";
@@ -11,6 +12,8 @@ type MarketplaceHeaderProps = {
   notificationCount?: number;
   notificationsActive?: boolean;
   onNotificationsClick?: () => void;
+  /** Passed to the header's sticky `below` bar (e.g. a back button). */
+  below?: ReactNode;
 };
 
 /** Chats live in the Messages section of the rail, so the header only carries alerts. */
@@ -18,6 +21,7 @@ const MarketplaceHeader = ({
   notificationCount = 0,
   notificationsActive,
   onNotificationsClick,
+  below,
 }: MarketplaceHeaderProps) => {
   const { t } = useLanguage();
   const location = useLocation();
@@ -36,7 +40,7 @@ const MarketplaceHeader = ({
   };
 
   return (
-    <AppHeader>
+    <AppHeader below={below}>
       {status === "loading" ? null : signedIn ? (
         <>
           <HeaderSupportButton />

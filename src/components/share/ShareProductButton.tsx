@@ -17,14 +17,16 @@ type ShareProductButtonProps = {
   variant?: "default" | "outline" | "ghost";
   /** Предупреждение продавцу перед отправкой ссылки на продукт. */
   warning?: string;
+  url?: string;
+  iconOnly?: boolean;
 };
 
-const ShareProductButton = ({ title, id, slug, sellerHandle, className, size = "sm", variant = "outline", warning }: ShareProductButtonProps) => {
+const ShareProductButton = ({ title, id, slug, sellerHandle, className, size = "sm", variant = "outline", warning, url, iconOnly = false }: ShareProductButtonProps) => {
   const { t, language } = useLanguage();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const shareUrl = buildProductShareUrl({ id, slug }, sellerHandle);
+  const shareUrl = url || buildProductShareUrl({ id, slug }, sellerHandle);
   const canNativeShare = typeof navigator !== "undefined" && Boolean(navigator.share);
 
   const handleCopy = async (message?: string) => {
@@ -60,9 +62,9 @@ const ShareProductButton = ({ title, id, slug, sellerHandle, className, size = "
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { setOpen(nextOpen); setCopied(false); }}>
       <DialogTrigger asChild>
-        <Button type="button" variant={variant} size={size} className={className}>
+        <Button type="button" variant={variant} size={size} className={className} aria-label={t("shareProduct")}>
           <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>{t("shareProduct")}</span>
+          <span className={iconOnly ? "sr-only" : undefined}>{t("shareProduct")}</span>
         </Button>
       </DialogTrigger>
       <DialogContent hideCloseButton
@@ -75,7 +77,7 @@ const ShareProductButton = ({ title, id, slug, sellerHandle, className, size = "
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-w-0 items-center gap-2 rounded-full border border-border bg-muted/20 p-1.5 shadow-sm">
-          <Input readOnly value={shareUrl} aria-label={language === "ru" ? "Ссылка на продукт" : "Өнімге сілтеме"}
+          <Input readOnly value={shareUrl} aria-label={language === "ru" ? "Ссылка" : "Сілтеме"}
             onFocus={(event) => event.currentTarget.select()} className="min-w-0 rounded-full border-0 bg-transparent shadow-none focus-visible:ring-1" />
           <Button type="button" variant="outline" className="shrink-0 rounded-full px-3 shadow-sm hover:bg-primary/10 hover:text-foreground" onClick={() => void handleCopy()}>
             {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}

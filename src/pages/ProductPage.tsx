@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ShareProductButton from "@/components/share/ShareProductButton";
 import { ReportProductDialog } from "@/components/marketplace/ReportProductDialog";
+import BackButton from "@/components/marketplace/BackButton";
 import { isUuid } from "@/lib/productShare";
 import MarketplaceHeader from "@/components/marketplace/MarketplaceHeader";
 import ProductCover from "@/components/marketplace/ProductCover";
@@ -23,16 +24,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useProduct, useProductProgram, type ProductProgramItem } from "@/hooks/useProducts";
+import { useProduct, useProductProgram, type Product, type ProductProgramItem, type ProductPricingOption } from "@/hooks/useProducts";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { formatPriceTenge, formatCatalogPrice, isBillingPeriod } from "@/lib/catalog";
 import { touchRecentProduct } from "@/lib/buyerActivity";
 import { sellerInitial } from "@/lib/productCover";
+import { PRODUCT_TITLE_CLASS, productTitleSize } from "@/lib/productTitle";
 import { invokeApi } from "@/lib/sessionApi";
 import { rememberAuthNext } from "@/lib/creatorAuth";
 import { loginPath, loginState } from "@/lib/loginModal";
-import { ArrowLeft, ChevronLeft, ChevronRight, FileText, Folder, Loader2, Play, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Folder, ImageIcon, Loader2, Play, Star } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import DOMPurify from "dompurify";
@@ -81,10 +83,10 @@ function renderSafeFormattedContent(text: string | null | undefined) {
   );
 }
 
-function getOptionDisplay(opt: any) {
+function getOptionDisplay(opt: ProductPricingOption) {
   const priceStr = formatPriceTenge(Number(opt.price));
   if (opt.payment_type === "one_time") {
-    return `${priceStr} (разово)`;
+    return `${priceStr} (навсегда)`;
   }
   let periodStr = "в месяц";
   if (opt.recurring_interval === "7d") periodStr = "каждые 7 дней";
@@ -157,25 +159,44 @@ const BuyButton = ({
   );
 };
 
-const ProductPage = () => {
+type ProductPageProps = {
+  isPreview?: boolean;
+  previewProduct?: Product | null;
+};
+
+const ProductPage = ({ isPreview = false, previewProduct = null }: ProductPageProps) => {
   const { productId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const { user, profileType, profiles, switchProfile } = useSimpleAuth();
-  const { data: product, isLoading } = useProduct(productId);
-  const { data: program = [] } = useProductProgram(product?.id);
+  const { data: fetchedProduct, isLoading: fetchedLoading } = useProduct(isPreview ? undefined : productId);
+  const product = isPreview ? previewProduct : fetchedProduct;
+  const isLoading = isPreview ? false : fetchedLoading;
+  const { data: program = [] } = useProductProgram(isPreview ? undefined : product?.id);
   const [switchBuyerOpen, setSwitchBuyerOpen] = useState(false);
   const [switchingBuyer, setSwitchingBuyer] = useState(false);
 
   const isSellerProfile = profileType === "creator" || profileType === "school";
+
+  const purchaseBarRef = useRef<HTMLDivElement | null>(null);
+  const [purchaseBarHeight, setPurchaseBarHeight] = useState(112);
+  useEffect(() => {
+    const bar = purchaseBarRef.current;
+    if (!bar) return;
+    const measure = () => setPurchaseBarHeight(bar.getBoundingClientRect().height);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [product?.id]);
 
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
 
   const activeOption = useMemo(() => {
     if (!product?.pricing_options || product.pricing_options.length === 0) return null;
     if (selectedOptionId) {
-      const found = product.pricing_options.find((o: any) => o.id === selectedOptionId);
+      const found = product.pricing_options.find((o) => o.id === selectedOptionId);
       if (found) return found;
     }
     return product.pricing_options[0];
@@ -198,6 +219,7 @@ const ProductPage = () => {
   }, [product?.id, searchParams, activeOption?.id]);
 
   const handleBuy = () => {
+    if (isPreview) return;
     if (isSellerProfile) {
       setSwitchBuyerOpen(true);
       return;
@@ -240,10 +262,11 @@ const ProductPage = () => {
         sessionToken: localStorage.getItem("creator_token") || "",
       });
     },
-    enabled: Boolean(user && product?.id && (effectiveHasTrial || product?.has_free_trial)),
+    enabled: Boolean(!isPreview && user && product?.id && (effectiveHasTrial || product?.has_free_trial)),
   });
 
   const handleActivateTrial = async () => {
+    if (isPreview) return;
     if (!user) {
       toast.error(t("loginRequiredCheckout") || "Для активации необходимо войти");
       const next = `/p/${product?.slug || product?.id}`;
@@ -269,28 +292,30 @@ const ProductPage = () => {
         queryClient.invalidateQueries({ queryKey: ["check-trial", product?.id] });
         navigate("/dashboard");
       }
-    } catch (err: any) {
-      toast.error(err?.message || "Пробный период уже был использован");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Пробный период уже был использован");
     } finally {
       setActivatingTrial(false);
     }
   };
 
   useEffect(() => {
+    if (isPreview) return;
     if (!product?.slug || !productId) return;
     if (isUuid(productId) && product.slug !== productId) {
       navigate(`/p/${encodeURIComponent(product.slug)}${window.location.search}`, { replace: true });
     }
-  }, [product?.slug, productId, navigate]);
+  }, [product?.slug, productId, navigate, isPreview]);
 
   useEffect(() => {
+    if (isPreview) return;
     if (!user?.id || !product?.id) return;
     touchRecentProduct(user.id, product.id);
-  }, [user?.id, product?.id]);
+  }, [user?.id, product?.id, isPreview]);
 
   const productMedia: Array<{ type: "image" | "video"; url: string }> = useMemo(() => {
-    if (Array.isArray((product as any)?.media) && (product as any).media.length > 0) {
-      return (product as any).media;
+    if (Array.isArray(product?.media) && product.media.length > 0) {
+      return product.media;
     }
     const list: Array<{ type: "image" | "video"; url: string }> = [];
     if (product?.image_url) list.push({ type: "image", url: product.image_url });
@@ -329,7 +354,7 @@ const ProductPage = () => {
         myReview: { rating: number; comment: string | null } | null;
         canReview: boolean;
       }>("manage-reviews", { action: "list", productId: product?.id ?? "", sessionToken: buyerSessionToken }),
-    enabled: Boolean(product?.id),
+    enabled: Boolean(!isPreview && product?.id),
   });
 
   const [reviewRating, setReviewRating] = useState(0);
@@ -344,32 +369,35 @@ const ProductPage = () => {
   }, [reviewsQuery.data?.myReview, reviewFormTouched]);
 
   const submitReview = useMutation({
-    mutationFn: () =>
-      invokeApi("manage-reviews", {
+    mutationFn: async () => {
+      if (isPreview) return null;
+      return invokeApi("manage-reviews", {
         action: "upsert",
         productId: product?.id ?? "",
         rating: reviewRating,
         comment: reviewComment,
         sessionToken: buyerSessionToken,
-      }),
+      });
+    },
     onSuccess: () => {
+      if (isPreview) return;
       toast.success(t("reviewsThanks"));
       setReviewFormTouched(false);
       queryClient.invalidateQueries({ queryKey: ["product-reviews", product?.id] });
     },
-    onError: (err: any) => {
-      toast.error(err?.message || t("reviewsError"));
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : t("reviewsError"));
     },
   });
 
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <MarketplaceHeader />
+        {!isPreview && <MarketplaceHeader />}
         <div className="flex flex-1 justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-        <PublicFooter />
+        {!isPreview && <PublicFooter />}
       </div>
     );
   }
@@ -377,18 +405,13 @@ const ProductPage = () => {
   if (!product) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <MarketplaceHeader />
+        {!isPreview && <MarketplaceHeader below={<BackButton />} />}
         <PublicContainer className="flex-1 py-6">
-          <Link
-            to="/"
-            className="mb-8 inline-flex items-center gap-2 public-meta hover:text-foreground focus-ring rounded-md"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>{t("back")}</span>
-          </Link>
-          <p className="public-body text-[#6B7280]">{t("productNotFound")}</p>
+          <p className="public-body text-[#6B7280]">
+            {isPreview ? t("previewEmpty") : t("productNotFound")}
+          </p>
         </PublicContainer>
-        <PublicFooter />
+        {!isPreview && <PublicFooter />}
       </div>
     );
   }
@@ -418,154 +441,67 @@ const ProductPage = () => {
   const pausedMessage: string =
     (product.paused_message && String(product.paused_message).trim()) || t("productPausedDefault");
   const sellerName = product.author_name || t("author");
-  const isEffectiveSubscription = activeOption
-    ? activeOption.payment_type === "recurring"
-    : (product.category_slug === "subscriptions" || product.payment_type === "recurring");
-  const effectiveAccessLabel = isEffectiveSubscription
-    ? t("subscriptionAccessNote")
-    : (activeOption?.access_duration_days || product.access_duration_days)
-      ? t("accessDays", { days: activeOption?.access_duration_days || product.access_duration_days })
-      : t("accessLifetime");
-  const firstChargeDate = new Intl.DateTimeFormat(language === "kk" ? "kk-KZ" : "ru-RU", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date());
   const priceLabel = formatPriceTenge(effectivePrice);
+  const description = product.description || product.headline;
+  // Editor preview of an unfilled product: placeholder labels are shown muted.
+  const placeheld = new Set(isPreview ? product.preview_placeholders ?? [] : []);
+  const placeholderClass = (field: "title" | "headline" | "description", normal: string) =>
+    placeheld.has(field) ? "text-muted-foreground" : normal;
 
-  const sellerBlock = product.seller_handle ? (
-    <Link
-      to={`/s/${encodeURIComponent(product.seller_handle)}`}
-      className="flex items-center gap-3 rounded-md focus-ring"
-    >
-      <Avatar className="h-10 w-10">
+  const sellerIdentity = (
+    <>
+      <Avatar className="h-10 w-10 shrink-0">
         {product.seller_avatar_url && (
           <AvatarImage src={product.seller_avatar_url} alt="" />
         )}
         <AvatarFallback>{sellerInitial(sellerName)}</AvatarFallback>
       </Avatar>
-      <span className="min-w-0">
-        <span className="block text-sm font-medium text-foreground">{sellerName}</span>
-        <span className="public-meta">/s/{product.seller_handle}</span>
-      </span>
-    </Link>
-  ) : (
-    <div className="flex items-center gap-3">
-      <Avatar className="h-10 w-10">
-        <AvatarFallback>{sellerInitial(sellerName)}</AvatarFallback>
-      </Avatar>
-      <span className="text-sm font-medium text-foreground">{sellerName}</span>
-    </div>
-  );
-
-  const purchaseBody = (
-    <>
-      {product.pricing_options && product.pricing_options.length > 1 && (
-        <div className="space-y-2 mb-4">
-          <p className="text-xs font-semibold text-muted-foreground">Вариант доступа:</p>
-          <div className="space-y-2">
-            {product.pricing_options.map((opt: any) => {
-              const isSelected = (activeOption?.id === opt.id);
-              const summary = getOptionDisplay(opt);
-              return (
-                <div
-                  key={opt.id}
-                  onClick={() => setSelectedOptionId(opt.id)}
-                  className={cn(
-                    "flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all",
-                    isSelected
-                      ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-xs"
-                      : "border-border bg-card/60 hover:bg-muted/30"
-                  )}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-semibold text-foreground truncate">{summary}</span>
-                    {opt.has_free_trial && (
-                      <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium shrink-0">
-                        {opt.trial_days} дн. триал
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    className={cn(
-                      "w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ml-2 transition-colors",
-                      isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
-                    )}
-                  >
-                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      <p className="text-3xl font-bold tracking-tight text-foreground">
-        {priceLabel}
-      </p>
-      {isEffectiveSubscription && (
-        <p className="public-meta mt-2">
-          {t("subscriptionFirstCharge")}: {firstChargeDate}
-        </p>
-      )}
-      <p className="public-meta mt-2">{effectiveAccessLabel}</p>
-      <div className="mt-6 border-t border-border pt-6">{sellerBlock}</div>
-      <div className="mt-6">
-        {effectiveHasTrial && effectiveTrialDays && (
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="w-full mb-3 rounded-2xl border-primary/40 text-primary hover:bg-primary/10 font-semibold h-12 text-sm"
-            disabled={isPaused || activatingTrial || trialInfo?.hasUsedTrial}
-            onClick={handleActivateTrial}
-          >
-            {activatingTrial ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : trialInfo?.hasUsedTrial ? (
-              "Пробный период уже использован"
-            ) : (
-              `Попробовать бесплатно (${effectiveTrialDays} ${effectiveTrialDays === 3 ? "дня" : "дней"})`
-            )}
-          </Button>
-        )}
-        <BuyButton
-          disabled={isPaused}
-          pausedMessage={pausedMessage}
-          onClick={handleBuy}
-          label={t("buy")}
-        />
-      </div>
+      <span className="min-w-0 truncate text-base font-medium text-foreground">{sellerName}</span>
     </>
   );
 
-  return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <MarketplaceHeader />
-      <PublicContainer className="flex-1 pb-28 pt-4 lg:pb-16 lg:pt-6">
-        <Link
-          to="/"
-          onClick={(e) => {
-            if (window.history.state && window.history.state.idx > 0) {
-              e.preventDefault();
-              window.history.back();
-            }
-          }}
-          className="mb-4 inline-flex items-center gap-2 public-meta hover:text-foreground focus-ring rounded-md"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>{t("back")}</span>
-        </Link>
+  const sellerBlock = product.seller_handle && !isPreview ? (
+    <Link
+      to={`/s/${encodeURIComponent(product.seller_handle)}`}
+      className="flex min-w-0 items-center gap-2 rounded-md focus-ring"
+    >
+      {sellerIdentity}
+    </Link>
+  ) : (
+    <div className="flex min-w-0 items-center gap-2">{sellerIdentity}</div>
+  );
 
-        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-10">
+
+  const productNavigation = (
+    <div data-testid="product-navigation" className="mx-auto flex w-full max-w-4xl items-center gap-2 py-2 sm:gap-4">
+      <BackButton compactOnMobile disabled={isPreview} />
+      {sellerBlock}
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background" style={{ paddingBottom: purchaseBarHeight }}>
+      {isPreview ? <div className="sticky top-0 z-20 border-b border-border bg-background"><PublicContainer>{productNavigation}</PublicContainer></div> : <MarketplaceHeader below={productNavigation} />}
+      <PublicContainer as="main" className="flex-1 pb-10 pt-4 sm:pt-6">
+
+        <div className="mx-auto grid w-full max-w-3xl grid-cols-1 items-start">
           <div>
             <div className="space-y-3">
               <div
-                className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-black/5"
+                className="relative aspect-[16/9] max-h-[360px] w-full overflow-hidden rounded-2xl bg-black/5"
                 onTouchStart={productMedia.length > 1 ? handleMediaTouchStart : undefined}
                 onTouchEnd={productMedia.length > 1 ? handleMediaTouchEnd : undefined}
               >
-                {productMedia.length === 0 ? (
+                {productMedia.length === 0 && isPreview && !product.image_url ? (
+                  // Editor preview of a product with no cover yet: an image icon
+                  // marks where the cover will go.
+                  <div
+                    data-testid="preview-cover-placeholder"
+                    className="flex h-full w-full items-center justify-center bg-muted"
+                  >
+                    <ImageIcon className="h-16 w-16 text-muted-foreground/60" aria-hidden />
+                  </div>
+                ) : productMedia.length === 0 ? (
                   <ProductCover
                     productId={product.id}
                     title={product.title}
@@ -635,37 +571,21 @@ const ProductPage = () => {
               )}
             </div>
 
-            <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
-              <h1 className="public-display text-foreground text-balance min-w-0 flex-1 whitespace-pre-wrap break-words">
+            <div className="mt-6">
+              <h1
+                className={cn(
+                  PRODUCT_TITLE_CLASS[productTitleSize(product.title)],
+                  "text-balance min-w-0 whitespace-pre-wrap break-words",
+                  placeholderClass("title", "text-foreground"),
+                )}
+              >
                 {renderSafeFormattedContent(product.title)}
               </h1>
-              <div className="flex items-center gap-2 shrink-0">
-                <ShareProductButton
-                  title={product.title}
-                  id={product.id}
-                  slug={product.slug}
-                  sellerHandle={product.seller_handle}
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                />
-                <ReportProductDialog
-                  productId={product.id}
-                  productTitle={product.title}
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                />
-              </div>
             </div>
-            {product.headline && (
-              <div className="public-body mt-3 text-foreground whitespace-pre-wrap break-words">
-                {renderSafeFormattedContent(product.headline)}
-              </div>
-            )}
-            {product.description && (
+            {description && (
               <div
-                className="prose prose-sm sm:prose-base max-w-none text-foreground/90 break-words mt-4
+                data-placeholder={placeheld.has("description") || undefined}
+                className="prose prose-base sm:prose-lg max-w-none text-foreground/90 break-words mt-4 data-[placeholder]:text-muted-foreground
                   [&_strong]:text-foreground [&_strong]:font-bold
                   [&_h1]:text-foreground [&_h1]:font-bold [&_h1]:text-2xl [&_h1]:mt-6 [&_h1]:mb-3
                   [&_h2]:text-foreground [&_h2]:font-bold [&_h2]:text-xl [&_h2]:mt-5 [&_h2]:mb-2.5
@@ -675,7 +595,7 @@ const ProductPage = () => {
                   [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-3 [&_ol]:space-y-1
                   [&_li]:leading-relaxed
                   [&_a]:text-primary [&_a]:underline"
-                dangerouslySetInnerHTML={{ __html: sanitizeRichText(product.description) }}
+                dangerouslySetInnerHTML={{ __html: sanitizeRichText(description) }}
               />
             )}
 
@@ -780,7 +700,7 @@ const ProductPage = () => {
                 <p className="mb-6 public-meta">{t("reviewsPurchaseRequired")}</p>
               )}
 
-              {reviewsQuery.data && reviewsQuery.data.reviews.length === 0 ? (
+              {(reviewsQuery.data?.reviews?.length ?? 0) === 0 ? (
                 <p className="public-meta">{t("reviewsEmpty")}</p>
               ) : (
                 <div className="space-y-4">
@@ -819,57 +739,55 @@ const ProductPage = () => {
               )}
             </div>
 
-            <div className="mt-8 lg:hidden">{sellerBlock}</div>
+
           </div>
 
-          <aside className="hidden lg:block">
-            <div className="sticky top-24 rounded-2xl border border-border bg-card p-6">
-              {purchaseBody}
-            </div>
-          </aside>
+
+        </div>
+
+        <div className="mx-auto mt-10 flex w-full max-w-3xl flex-wrap items-center justify-end gap-2">
+          <ReportProductDialog
+            productId={product.id}
+            productTitle={product.title}
+            variant="ghost"
+            size="sm"
+            className="border-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          />
+          <ShareProductButton title={product.title} id={product.id} slug={product.slug} sellerHandle={product.seller_handle} variant="ghost" size="sm" />
         </div>
       </PublicContainer>
 
-      <PublicFooter className="pb-28 lg:pb-0" />
+      {!isPreview && <PublicFooter />}
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/90 p-3 backdrop-blur-lg safe-area-inset lg:hidden">
-        <PublicContainer className="flex flex-col gap-2">
-          {isPaused ? (
-            <div className="w-full rounded-2xl border border-border bg-muted/60 px-4 py-3 text-center text-sm text-foreground whitespace-pre-wrap">
-              {pausedMessage}
-            </div>
-          ) : (
-            <>
-              {product.has_free_trial && product.trial_days && !trialInfo?.hasUsedTrial && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full rounded-xl border-primary/40 text-primary font-medium"
-                  disabled={activatingTrial}
-                  onClick={handleActivateTrial}
-                >
-                  {activatingTrial ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    `Попробовать бесплатно (${product.trial_days} ${product.trial_days === 3 ? "дня" : "дней"})`
-                  )}
-                </Button>
-              )}
-              <div className="flex items-center gap-4">
-                <p className="shrink-0 text-lg font-bold tabular-nums text-foreground">
-                  {formatPriceTenge(Number(product.price))}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleBuy}
-                  className="h-12 min-w-0 flex-1 rounded-2xl bg-[#FF6B00] px-6 text-base font-semibold text-white focus-ring hover:bg-[#E86000]"
-                >
-                  {t("buy")}
-                </button>
-              </div>
-            </>
-          )}
+
+      <div ref={purchaseBarRef} data-testid="purchase-bar" className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background px-0 pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
+        <PublicContainer>
+          <div className="mx-auto w-full max-w-3xl space-y-3">
+            {product.pricing_options && product.pricing_options.length > 1 && (
+              <label className="flex min-w-0 items-center gap-3 text-sm">
+                <span className="sr-only sm:not-sr-only sm:shrink-0">Вариант доступа</span>
+                <select aria-label="Вариант доступа" value={activeOption?.id || ""} onChange={event => setSelectedOptionId(event.target.value)} className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-background px-3 text-base focus-ring">
+                  {product.pricing_options.map(option => <option key={option.id} value={option.id}>{getOptionDisplay(option)}</option>)}
+                </select>
+              </label>
+            )}
+            {isPaused ? (
+              <BuyButton disabled pausedMessage={pausedMessage} onClick={handleBuy} label={t("buy")} />
+            ) : (
+              <>
+                {effectiveHasTrial && effectiveTrialDays && !trialInfo?.hasUsedTrial && (
+                  <Button type="button" variant="outline" className="min-h-11 w-full" disabled={activatingTrial} onClick={handleActivateTrial}>
+                    {activatingTrial && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {"Попробовать бесплатно (" + effectiveTrialDays + " дн.)"}
+                  </Button>
+                )}
+                <div className="flex items-center gap-4">
+                  <p className="shrink-0 text-xl font-bold tabular-nums text-foreground sm:text-2xl">{priceLabel}</p>
+                  <div className="min-w-0 flex-1"><BuyButton disabled={false} pausedMessage={pausedMessage} onClick={handleBuy} label={t("buy")} /></div>
+                </div>
+              </>
+            )}
+          </div>
         </PublicContainer>
       </div>
 
