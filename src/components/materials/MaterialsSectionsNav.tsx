@@ -20,6 +20,7 @@ interface Props {
   showTrash?: boolean;
   trashCount?: number;
   showStorage?: boolean;
+  fitContent?: boolean;
 }
 
 export const MaterialsSectionsNav = ({
@@ -30,12 +31,14 @@ export const MaterialsSectionsNav = ({
   showTrash = false,
   trashCount = 0,
   showStorage = false,
+  fitContent = false,
 }: Props) => {
   const { language } = useLanguage();
   const isMobile = useIsMobile();
   const containerRef = useRef<HTMLDivElement>(null);
   const phantomRef = useRef<HTMLDivElement>(null);
   const [iconsOnly, setIconsOnly] = useState(isMobile);
+  const [intrinsicWidth, setIntrinsicWidth] = useState(0);
 
   const items: { key: MaterialsSection; label: string; icon: typeof Library }[] = [
     { key: "library", label: language === "kk" ? "Кітапхана" : "Библиотека", icon: Library },
@@ -59,6 +62,7 @@ export const MaterialsSectionsNav = ({
     const check = () => {
       const available = container.clientWidth;
       const needed = phantom.scrollWidth;
+      if (fitContent) setIntrinsicWidth(needed);
       setIconsOnly(needed > available + 1);
     };
     const ro = new ResizeObserver(check);
@@ -66,7 +70,7 @@ export const MaterialsSectionsNav = ({
     ro.observe(phantom);
     check();
     return () => ro.disconnect();
-  }, [items.length, language, trashCount, showAdd, isMobile]);
+  }, [items.length, language, trashCount, showAdd, isMobile, fitContent]);
 
   const renderItemButton = (it: typeof items[number], compact: boolean) => {
     const Icon = it.icon;
@@ -154,6 +158,7 @@ export const MaterialsSectionsNav = ({
     <div
       ref={containerRef}
       className="relative flex items-center justify-end gap-2 w-full min-w-0 overflow-hidden"
+      style={fitContent && intrinsicWidth ? { width: `min(${intrinsicWidth}px, 75%)`, flexShrink: 0 } : undefined}
     >
       {/* Phantom: measures full-label width to decide when to collapse to icons */}
       <div

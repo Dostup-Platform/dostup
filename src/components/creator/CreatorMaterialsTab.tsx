@@ -163,16 +163,17 @@ const CreatorMaterialsTab = ({ creatorName, onGoToProducts }: Props) => {
           products={products.map((p) => ({ id: p.id, title: p.title }))}
           selectedId={selectedId}
           onChange={(id) => setSelectedId(id)}
-          className="min-w-0 flex-1 justify-start px-2 sm:flex-initial sm:px-3"
+          className="min-w-0 flex-1 justify-start px-2 sm:px-3"
         />
-        <MaterialsSectionsNav
-          value={section}
-          onChange={setSection}
-          addButton={addButton}
-          showTrash
-          trashCount={trashBadgeCount}
-          showStorage
-        />
+          <MaterialsSectionsNav
+            value={section}
+            onChange={setSection}
+            addButton={addButton}
+            showTrash
+            trashCount={trashBadgeCount}
+            showStorage
+            fitContent
+          />
       </div>
 
       {product && section !== "storage" && (
@@ -941,6 +942,12 @@ const CreatorMaterialsReadOnlyList = ({
 
       {!isBookmarksSection && !q && (
         <nav className="flex items-center gap-1 text-sm flex-wrap" aria-label="breadcrumb">
+          {folderPath.length === 0 ? (
+            <span className="inline-flex items-center gap-1 px-2 py-1 text-muted-foreground">
+              <Home className="w-3.5 h-3.5" />
+              {language === "kk" ? "Үй" : "Главная"}
+            </span>
+          ) : (
           <button
             type="button"
             onClick={() => goToPathIndex(-1)}
@@ -950,6 +957,7 @@ const CreatorMaterialsReadOnlyList = ({
             <Home className="w-3.5 h-3.5" />
             {language === "kk" ? "Үй" : "Главная"}
           </button>
+          )}
           {folderPath.length > 0 && folderPath.map((f, i) => (
             <div key={f.id} className="flex items-center gap-1">
               <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
@@ -1313,18 +1321,18 @@ const MaterialNode = ({
                     <Download className="w-4 h-4" />
                   </a>
                 )}
-                {material.type === "link" && material.file_url && (
+                {(material.type === "link" && material.file_url || material.type === "text") && (
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 min-h-0"
-                    title={language === "kk" ? "Сілтемені көшіру" : "Скопировать ссылку"}
-                    onClick={(e) => { e.stopPropagation(); copyToClipboard(material.file_url || ""); }}
+                    title={material.type === "text" ? (language === "kk" ? "Мәтінді көшіру" : "Скопировать текст") : (language === "kk" ? "Сілтемені көшіру" : "Скопировать ссылку")}
+                    onClick={(e) => { e.stopPropagation(); copyToClipboard((material.type === "text" ? material.content : material.file_url) || ""); }}
                   >
                     <Copy className="w-4 h-4" />
                   </Button>
                 )}
-                {!isFolder && !downloadUrl && material.type !== "link" && <span className="sm:hidden" />}
+                {!isFolder && !downloadUrl && material.type !== "link" && material.type !== "text" && <span className="sm:hidden" />}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1415,7 +1423,7 @@ const MaterialNode = ({
       </ContextMenu>
       {material.type === "text" && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent hideCloseButton className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="break-words">{material.title}</DialogTitle>
             </DialogHeader>

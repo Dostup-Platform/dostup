@@ -5,7 +5,7 @@ import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSimpleMaterials, useSimplePurchases } from "@/hooks/useSimplePurchases";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder, User, Lock, ChevronDown, ChevronRight } from "lucide-react";
+import { FileText, Video, Type, Download, ExternalLink, Link as LinkIcon, Loader2, Play, X, Folder, User, Lock, ChevronDown, ChevronRight, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -435,6 +435,18 @@ const MaterialsTab = () => {
               )}
             </div>
             
+            {material.type === "text" && !isLocked && (
+              <Button type="button" variant="ghost" size="icon" className="shrink-0"
+                aria-label={language === "kk" ? "Мәтінді көшіру" : "Скопировать текст"}
+                title={language === "kk" ? "Мәтінді көшіру" : "Скопировать текст"}
+                onClick={async event => {
+                  event.stopPropagation();
+                  try {
+                    await navigator.clipboard.writeText(material.content || "");
+                    toast.success(language === "kk" ? "Көшірілді" : "Скопировано");
+                  } catch { toast.error(language === "kk" ? "Қате" : "Не удалось скопировать текст"); }
+                }}><Copy className="h-4 w-4" /></Button>
+            )}
             {material.type === "file" && material.file_url && !isLocked && (
              <div className="flex gap-1 flex-shrink-0">
                {material.allow_download !== false && downloadUrl && (
@@ -632,7 +644,7 @@ const MaterialsTab = () => {
       })()}
 
       <Dialog open={!!openedText} onOpenChange={open => {if(!open)setOpenedText(null);}}>
-        <DialogContent className="max-w-2xl"><DialogHeader><DialogTitle>{openedText?.title}</DialogTitle></DialogHeader>
+        <DialogContent hideCloseButton className="max-w-2xl"><DialogHeader><DialogTitle>{openedText?.title}</DialogTitle></DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto whitespace-pre-wrap break-words text-sm">{openedText?.content}</div>
         </DialogContent>
       </Dialog>
