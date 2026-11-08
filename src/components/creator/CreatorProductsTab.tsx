@@ -257,7 +257,7 @@ const FormSection = ({
       <CollapsibleTrigger asChild>
         <button
           type="button"
-          className="group flex w-full items-center justify-between gap-3 py-4 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          className="group flex w-full items-center justify-between gap-3 py-6 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
           <span
             className={cn(
@@ -277,7 +277,7 @@ const FormSection = ({
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent className="data-[state=open]:animate-section-open data-[state=closed]:animate-collapsible-up data-[state=closed]:overflow-hidden motion-reduce:animate-none">
-        <div className="space-y-4 pt-1 pb-3 w-full min-w-0 max-w-full">
+        <div className="space-y-4 pt-2 pb-6 w-full min-w-0 max-w-full">
           {children}
         </div>
       </CollapsibleContent>
@@ -1129,7 +1129,7 @@ const ProductForm = ({
   /** Первая незаполненная настройка оплаты: id поля, вариант тарифа и (если нужно) свой текст ошибки. */
   const findPaymentIssue = (): { id: string; optId?: string; message?: string } | null => {
     if (formData.afterAccessEnabled && !normalizeGroupLink(formData.afterAccessUrl)) {
-      return { id: "after-access-url", message: "Добавьте корректную ссылку на группу, начинающуюся с https://" };
+      return { id: "after-access-url", message: "Добавьте ссылку на группу" };
     }
     if (!formData.isPaid) return null;
     if (!formData.pricingOptions || formData.pricingOptions.length === 0) {

@@ -207,11 +207,11 @@ const MessengerLayout = ({
                     title={filter.label}
                     className={cn(
                       // About as wide as the word "Продукты"; longer product names are cut short.
-                      "shrink-0 truncate rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                      "shrink-0 truncate rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                       !filter.full && "max-w-[5.5rem]",
                       isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                        ? "border-primary/30 bg-primary/15 text-primary"
+                        : "border-transparent bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                     )}
                   >
                     {filter.label}
@@ -236,6 +236,7 @@ const MessengerLayout = ({
               {items.map((item) => {
                 const ItemIcon = item.icon;
                 const isOpen = item.id === selectedId;
+                const selectedDirect = isOpen && active?.key === "direct";
                 return (
                   <li key={item.id}>
                     <button
@@ -246,14 +247,14 @@ const MessengerLayout = ({
                       }}
                       className={cn(
                         "flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors",
-                        isOpen ? "bg-primary/10" : "hover:bg-muted/60",
+                        isOpen ? (selectedDirect ? "bg-muted" : "bg-primary/10") : "hover:bg-muted/60",
                       )}
                     >
                       {item.avatar ?? (
                         <span
                           className={cn(
                             "flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold",
-                            isOpen ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground",
+                            isOpen && !selectedDirect ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground",
                           )}
                         >
                           {item.avatarUrl ? (
@@ -270,7 +271,7 @@ const MessengerLayout = ({
                           <span
                             className={cn(
                               "min-w-0 truncate text-sm font-medium",
-                              isOpen ? "text-primary" : "text-foreground",
+                              isOpen && !selectedDirect ? "text-primary" : "text-foreground",
                             )}
                           >
                             {item.title}
