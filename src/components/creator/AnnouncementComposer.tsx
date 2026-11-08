@@ -9,14 +9,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { uploadAnnouncementMedia } from "@/hooks/useAnnouncements";
+import { isVideoFileName } from "@/lib/chatUpload";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { buildAnnouncementHtml, formatFileSize, type AnnouncementAttachment } from "@/lib/announcementHtml";
 import { parseAnnouncement } from "@/components/announcements/parseAnnouncement";
+
 import { FileDropZone } from "@/components/messages/FileDropZone";
 import { chatFileError, MAX_CHAT_ATTACHMENTS } from "@/lib/chatFiles";
 
 const MAX_ATTACHMENTS = MAX_CHAT_ATTACHMENTS;
+const MAX_FIELD_HEIGHT = 200;
 
 type LocalAttachment = AnnouncementAttachment & { id: string };
 
@@ -40,7 +43,6 @@ interface Props {
   /** Resolves true when the post was saved, so the field can be cleared. */
   onSubmit: (html: string) => Promise<boolean>;
   saving?: boolean;
-  /** Allows an isolated preview to use local files without contacting storage. */
   uploadMedia?: typeof uploadAnnouncementMedia;
 }
 
@@ -70,6 +72,7 @@ const AnnouncementComposer = ({ productId, editing, onCancelEdit, onSubmit, savi
   const current = useRef({ text, attachments });
   current.current = { text, attachments };
   const draft = useRef<{ text: string; attachments: LocalAttachment[] } | null>(null);
+
   const submittingRef = useRef(false);
 
   const editingId = editing?.id ?? null;
@@ -89,11 +92,15 @@ const AnnouncementComposer = ({ productId, editing, onCancelEdit, onSubmit, savi
     }
   }, [editingId, editingHtml]);
 
+  // Grows with the text. scrollHeight leaves out the border, so without it the field ends up
+  // 2px short and shows a scrollbar on every line; it only scrolls past the height cap.
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    const full = el.scrollHeight + el.offsetHeight - el.clientHeight;
+    el.style.height = `${Math.min(full, MAX_FIELD_HEIGHT)}px`;
+    el.style.overflowY = full > MAX_FIELD_HEIGHT ? "auto" : "hidden";
   }, [text]);
 
   const pendingRef = useRef(pending);
@@ -109,7 +116,7 @@ const AnnouncementComposer = ({ productId, editing, onCancelEdit, onSubmit, savi
   );
 
   const dropPending = (id: string) => {
-    pendingRef.current = pendingRef.current.filter((p) => p.id !== id);
+    pendingRef.current = pendingRef.current.filter(p => p.id !== id);
     setPending((prev) => {
       const gone = prev.find((p) => p.id === id);
       if (gone?.previewUrl) URL.revokeObjectURL(gone.previewUrl);
@@ -132,7 +139,7 @@ const AnnouncementComposer = ({ productId, editing, onCancelEdit, onSubmit, savi
             ? "file"
             : file.type.startsWith("image/")
               ? "image"
-              : file.type.startsWith("video/")
+              : file.type.startsWith("video/") || (!file.type && isVideoFileName(file.name))
                 ? "video"
                 : "file";
         const entry: PendingUpload = {
@@ -155,7 +162,9 @@ const AnnouncementComposer = ({ productId, editing, onCancelEdit, onSubmit, savi
           // Cancelling is not a failure — the tile simply disappears.
           if (!entry.controller.signal.aborted) {
             console.error(e);
-            toast.error(t("announcementUploadError", { name: file.name }));
+            toast.error(t("announcementUploadError", { name: file.name }), {
+              description: e instanceof Error ? e.message.slice(0, 160) : undefined,
+            });
           }
         } finally {
           dropPending(entry.id);
@@ -191,7 +200,7 @@ const AnnouncementComposer = ({ productId, editing, onCancelEdit, onSubmit, savi
 
   return (
     // Same look as the support chat's input row: "+" on the left, a plain field, a round send button.
-    <FileDropZone enabled={!saving} onFiles={(files) => void handleFiles(files, "media")} className="bg-background">
+    <FileDropZone enabled={!saving} onFiles={files => void handleFiles(files, "media")} className="bg-background">
       {editing && (
         <div className="flex items-center gap-3 px-1 pb-2">
           <Pencil className="h-4 w-4 shrink-0 text-primary" />
@@ -261,7 +270,7 @@ const AnnouncementComposer = ({ productId, editing, onCancelEdit, onSubmit, savi
                   <img src={p.previewUrl} alt="" className="h-full w-full object-cover" />
                 )}
                 {p.previewUrl && p.kind === "video" && (
-                  <video src={p.previewUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                  <video src={`${p.previewUrl}#t=0.1`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                 )}
                 {p.kind === "file" && (
                   <span className="flex h-full w-full items-center justify-center">
@@ -274,6 +283,7 @@ const AnnouncementComposer = ({ productId, editing, onCancelEdit, onSubmit, savi
                     p.previewUrl && "bg-black/40",
                   )}
                 >
+                  {/* Only a spinner while it uploads, video or photo; the play mark comes once it is sent. */}
                   <Loader2
                     className={cn("h-5 w-5 animate-spin", p.previewUrl ? "text-white" : "text-muted-foreground")}
                   />

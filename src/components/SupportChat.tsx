@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import ChatThread, { type ChatMessage } from "@/components/messages/ChatThread";
+import { supportUnreadKey } from "@/hooks/useSupportUnread";
 import { uploadChatVideo, type ChatAttachment, type ChatAttachmentKind } from "@/lib/chatUpload";
+
 import MessengerInstallHint from "@/components/messages/MessengerInstallHint";
 import { useConversationVisible } from "@/components/messages/ConversationVisibility";
 
@@ -24,7 +26,11 @@ interface Props {
   variant?: "card" | "embedded";
 }
 
+/** Signed links live an hour; reusing one for 45 minutes leaves plenty of margin. */
+const LINK_REUSE_MS = 45 * 60 * 1000;
+
 const SupportChat = ({ userType, userRef, displayName, asModerator, threadId: initialThreadId, moderatorToken, variant = "card" }: Props) => {
+  const queryClient = useQueryClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [threadId, setThreadId] = useState<string | undefined>(initialThreadId);
   const [loading, setLoading] = useState(true);
@@ -32,6 +38,22 @@ const SupportChat = ({ userType, userRef, displayName, asModerator, threadId: in
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
   const wasVisible = useRef(visible);
+  // Each refresh signs the files again; keeping the first link stops photos and videos re-downloading.
+  const links = useRef(new Map<string, { url: string; at: number }>());
+
+  const withStableLinks = useCallback((rows: Message[]) => {
+    const now = Date.now();
+    return rows.map((m) => ({
+      ...m,
+      attachments: m.attachments?.map((a) => {
+        if (!a.url) return a;
+        const known = links.current.get(a.path);
+        if (known && now - known.at < LINK_REUSE_MS) return { ...a, url: known.url };
+        links.current.set(a.path, { url: a.url, at: now });
+        return a;
+      }),
+    }));
+  }, []);
 
   const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
   const baseUrl = import.meta.env.VITE_SUPABASE_URL as string;
@@ -39,14 +61,14 @@ const SupportChat = ({ userType, userRef, displayName, asModerator, threadId: in
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
-    if (asModerator && threadId) {
+    if (asModerator && initialThreadId) {
       const resp = await fetch(`${baseUrl}/functions/v1/moderator-api`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ action: "support_get_messages", token: moderatorToken, thread_id: threadId, mark_read: visibleRef.current }),
+        body: JSON.stringify({ action: "support_get_messages", token: moderatorToken, thread_id: initialThreadId, mark_read: visibleRef.current }),
       });
       const data = await resp.json();
-      if (data?.success) setMessages(data.messages);
+      if (data?.success) setMessages(withStableLinks(data.messages));
     } else {
       const resp = await fetch(`${baseUrl}/functions/v1/support-api`, {
         method: "POST",
@@ -56,36 +78,32 @@ const SupportChat = ({ userType, userRef, displayName, asModerator, threadId: in
       const data = await resp.json();
       if (data?.success) {
         setThreadId(data.thread.id);
-        setMessages(data.messages);
+        setMessages(withStableLinks(data.messages));
+        // Opening the thread marks the replies as read: the header badge goes out right away.
+        if (visibleRef.current) {
+          queryClient.setQueryData(supportUnreadKey(userType, userRef), 0);
+          queryClient.invalidateQueries({ queryKey: ["messenger-unread"] });
+        }
       }
     }
     if (!quiet) setLoading(false);
-  }, [asModerator, threadId, moderatorToken, userType, userRef, displayName, baseUrl, headers]);
+  }, [asModerator, initialThreadId, moderatorToken, userType, userRef, displayName, baseUrl, headers, withStableLinks, queryClient]);
 
-  useEffect(() => { load(); }, [load]);
+  // The support tables send no realtime events to the browser, so new replies are picked up every few seconds.
+  useEffect(() => {
+    void load().catch(() => setLoading(false));
+    const timer = window.setInterval(() => {
+      // A missed refresh is simply retried on the next tick.
+      if (visibleRef.current) void load(true).catch(() => undefined);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [load]);
+
   useEffect(() => {
     const becameVisible = visible && !wasVisible.current;
     wasVisible.current = visible;
-    if (becameVisible) void load(true);
+    if (becameVisible) void load(true).catch(() => undefined);
   }, [visible, load]);
-
-  useEffect(() => {
-    if (!threadId) return;
-    const channel = supabase
-      .channel(`support-${threadId}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages", filter: `thread_id=eq.${threadId}` },
-        (payload) => {
-          const row = payload.new as Message;
-          // Realtime carries raw storage paths, so a message with files needs a signed reload.
-          if (row.attachments?.length) {
-            void load(true);
-            return;
-          }
-          setMessages((prev) => prev.some((m) => m.id === row.id) ? prev : [...prev, row]);
-        })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [threadId, load]);
 
   const who = { user_type: userType, user_ref: userRef, display_name: displayName };
 

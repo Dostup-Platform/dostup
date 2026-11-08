@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ChatThread, { type ChatMessage } from "@/components/messages/ChatThread";
 import { creatorCreds, invokeApi, studentCreds } from "@/lib/sessionApi";
 import { uploadChatVideo, type ChatAttachment, type ChatAttachmentKind } from "@/lib/chatUpload";
+
 import { toast } from "sonner";
 import { useConversationVisible } from "./ConversationVisibility";
 import { directUnreadIds } from "@/lib/directRead";
@@ -44,9 +45,13 @@ interface StoredMessage {
   sender: "creator" | "buyer";
   text: string;
   created_at: string;
-  attachments?: ChatAttachment[];
+  edited_at?: string | null;
   read_at?: string | null;
+  attachments?: ChatAttachment[];
 }
+
+/** Signed links live an hour; reusing one for 45 minutes leaves plenty of margin. */
+const LINK_REUSE_MS = 45 * 60 * 1000;
 
 /** One personal chat between a seller and a buyer; new messages are picked up every few seconds. */
 const DirectChat = ({ side, peerId }: { side: DirectSide; peerId: string }) => {
@@ -58,13 +63,28 @@ const DirectChat = ({ side, peerId }: { side: DirectSide; peerId: string }) => {
   visibleRef.current = visible;
   const acknowledged = useRef(new Set<string>());
   const wasVisible = useRef(visible);
+  // Every refresh comes back with freshly signed links. Swapping them in would make the browser
+  // fetch each photo and video again every few seconds, so a file keeps the link it first got.
+  const links = useRef(new Map<string, { url: string; at: number }>());
 
   const load = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
       try {
         const data = await directApi<{ messages: StoredMessage[] }>(side, { action: "get_thread", peerId, markRead: false });
-        setMessages(data.messages ?? []);
+        const now = Date.now();
+        const withStableLinks = (data.messages ?? []).map((m) => ({
+          ...m,
+          attachments: m.attachments?.map((a) => {
+            if (!a.url) return a;
+            const known = links.current.get(a.path);
+            if (known && now - known.at < LINK_REUSE_MS) return { ...a, url: known.url };
+            links.current.set(a.path, { url: a.url, at: now });
+            return a;
+          }),
+        }));
+        setMessages(withStableLinks);
+        // Refresh counts without acknowledging messages in a hidden pane.
         queryClient.invalidateQueries({ queryKey: ["direct-contacts", side] });
         queryClient.invalidateQueries({ queryKey: ["messenger-unread"] });
       } catch (error) {
@@ -78,6 +98,8 @@ const DirectChat = ({ side, peerId }: { side: DirectSide; peerId: string }) => {
 
   useEffect(() => {
     setMessages([]);
+    acknowledged.current.clear();
+    links.current.clear();
     void load();
     const timer = window.setInterval(() => {
       if (visibleRef.current) void load(true);
@@ -96,7 +118,7 @@ const DirectChat = ({ side, peerId }: { side: DirectSide; peerId: string }) => {
     const messageIds = directUnreadIds(messages, side, visible, acknowledged.current);
     if (!messageIds.length) return;
     void directApi(side, { action: "mark_read", peerId, messageIds }).then(() => {
-      messageIds.forEach((id) => acknowledged.current.add(id));
+      messageIds.forEach(id => acknowledged.current.add(id));
       queryClient.invalidateQueries({ queryKey: ["direct-contacts", side] });
       queryClient.invalidateQueries({ queryKey: ["messenger-unread"] });
     }).catch(() => { /* Retry after the next successful poll. */ });
@@ -126,12 +148,23 @@ const DirectChat = ({ side, peerId }: { side: DirectSide; peerId: string }) => {
     await load(true);
   };
 
+  const edit = async (messageId: string, text: string) => {
+    await directApi(side, { action: "edit_message", peerId, messageId, text });
+    await load(true);
+  };
+
+  const remove = async (messageId: string) => {
+    await directApi(side, { action: "delete_message", peerId, messageId });
+    await load(true);
+  };
+
   const chatMessages: ChatMessage[] = messages.map((m) => ({
     id: m.id,
     mine: m.sender === side,
     text: m.text,
     created_at: m.created_at,
     attachments: m.attachments,
+    edited: !!m.edited_at,
   }));
 
   return (
@@ -142,6 +175,8 @@ const DirectChat = ({ side, peerId }: { side: DirectSide; peerId: string }) => {
       canAttach
       uploadFile={uploadFile}
       send={send}
+      onEdit={edit}
+      onDelete={remove}
     />
   );
 };
