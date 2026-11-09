@@ -1,3 +1,5 @@
+import { useModerationStatus } from "@/hooks/useModerationStatus";
+import ModerationStatusNotice from "./ModerationStatusNotice";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -105,6 +107,8 @@ interface Product {
   has_schedule: boolean;
   is_active: boolean;
   is_published?: boolean;
+  moderation_locked?: boolean;
+  moderation_flagged?: boolean;
   image_url?: string | null;
   video_url?: string | null;
   media?: Array<{ type: "image" | "video"; url: string; objectPosition?: string }> | null;
@@ -2459,6 +2463,8 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
   const [savingPaymentDetails, setSavingPaymentDetails] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [materialsProduct, setMaterialsProduct] = useState<{ id: string; title: string } | null>(null);
+  const { data: moderationStatus } = useModerationStatus();
+  const restricted = moderationStatus?.restricted || products.some(p => p.moderation_locked);
   const [visibilityProductId, setVisibilityProductId] = useState<string | null>(null);
   const [pausingProduct, setPausingProduct] = useState<Product | null>(null);
   // Read from the live list so the dialog reflects the saved value after refetch.
@@ -2927,6 +2933,7 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
 
   return (
     <div className="space-y-6">
+      <ModerationStatusNotice />
       {subscriptionRows.length > 0 && (
         <Card>
           <CardContent className="p-4 space-y-3">
@@ -2974,7 +2981,7 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
           setIsCreating(open);
         }}>
           <DialogTrigger asChild>
-            <Button variant="default" size="sm">
+            <Button variant="default" size="sm" disabled={restricted}>
               <Plus className="w-4 h-4 mr-2" />
               {t("create")}
             </Button>
@@ -3065,7 +3072,7 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
           const coverVid = (firstMedia && firstMedia.type === "video" ? firstMedia.url : null) || product.video_url;
 
           return (
-          <Card key={product.id} className="overflow-hidden">
+          <Card key={product.id} className={product.moderation_flagged ? "overflow-hidden border-amber-400 bg-amber-500/10" : "overflow-hidden"}>
             <CardContent className={isMobile ? "p-3" : "p-4"}>
               <div className="flex items-start gap-3 mb-2">
                 {/* Thumbnail */}
@@ -3102,6 +3109,7 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
 
                   {/* Badges */}
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    {product.moderation_flagged && <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs text-amber-900">Поступила жалоба</span>}
                     {(product as Product).is_published ? (
                       <span className={`inline-flex items-center gap-1 bg-success/10 text-success px-2 py-0.5 rounded-full ${isMobile ? "text-[10px]" : "text-xs"}`}>
                         <Check className="w-3 h-3 shrink-0" aria-hidden="true" />
@@ -3145,6 +3153,7 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={restricted || product.moderation_locked}
                   onClick={() => setVisibilityProductId(product.id)}
                   className={isMobile ? "h-8 px-2 text-xs" : "h-9"}
                 >
@@ -3163,7 +3172,9 @@ const CreatorProductsTab = ({ creatorName, onOpenUsers }: CreatorProductsTabProp
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={restricted || product.moderation_locked}
                   onClick={() => {
+                    if (restricted) return;
                     if ((product as any).is_paused) {
                       updateProduct.mutate(
                         { id: product.id, is_paused: false } as any,

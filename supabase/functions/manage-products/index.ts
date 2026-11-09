@@ -1,3 +1,4 @@
+import { checkSignals } from '../_shared/moderation.ts'
 import { json, optionsResponse } from '../_shared/http.ts'
 import {
   CHECKOUT_COLUMNS,
@@ -11,7 +12,7 @@ import {
   forbidden,
 } from '../_shared/session.ts'
 import { latestSubmissionsForPurchases, recordVerificationEvent } from '../_shared/purchase.ts'
-import { subscriptionGrantsAccess } from '../_shared/subscription.ts'
+import { subscriptionGrantsAccess, type SubscriptionStatus } from '../_shared/subscription.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return optionsResponse()
@@ -20,12 +21,19 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}))
     const action = String(body.action || '')
     const supabase = serviceClient()
+    if (!(await checkSignals(supabase, req, body))) return json({ error: 'Аккаунт заблокирован' }, 403)
     const caller = await resolveCaller(supabase, body)
     if (!caller) return unauthorized()
 
-    const requireCreator = () => {
+    if (action === 'moderation_status') {
       if (caller.kind !== 'creator') return forbidden()
-      return null
+      const [account, reports, notices] = await Promise.all([
+        supabase.from('creator_accounts').select('moderation_restricted').eq('id',caller.accountId).single(),
+        supabase.from('product_reports').select('id,reason,status,correction_text,correction_deadline').eq('creator_account_id',caller.accountId).in('status',['pending','correction_requested']),
+        supabase.from('moderation_notifications').select('id,body,event,created_at').eq('creator_account_id',caller.accountId).order('created_at',{ascending:false}).limit(100),
+      ])
+      if (account.error || reports.error || notices.error) return json({ error: 'Не удалось получить статус проверки' },500)
+      return json({ restricted: account.data.moderation_restricted, reports: reports.data, notifications: notices.data })
     }
 
     if (action === 'list') {
@@ -36,7 +44,10 @@ Deno.serve(async (req) => {
           .eq('creator_account_id', caller.accountId)
           .order('created_at', { ascending: false })
         if (error) return json({ error: error.message }, 500)
-        return json({ products: data ?? [] })
+        const { data: account } = await supabase.from('creator_accounts').select('moderation_restricted').eq('id', caller.accountId).single()
+        const { data: openReports, error: reportError } = await supabase.from('product_reports').select('product_id,target_type').eq('creator_account_id',caller.accountId).in('status',['pending','correction_requested'])
+        if (reportError) return json({ error: reportError.message }, 500)
+        return json({ products: (data ?? []).map(p => ({ ...p, moderation_flagged: (openReports ?? []).some(r => r.target_type === 'account' || r.product_id === p.id) })), moderation_restricted: account?.moderation_restricted === true })
       }
       if (caller.role === 'teacher') {
         const { data: rows } = await supabase
@@ -58,8 +69,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'create') {
-      const denied = requireCreator()
-      if (denied) return denied
+      if (caller.kind !== 'creator') return forbidden()
       const product = body.product && typeof body.product === 'object' ? body.product as Record<string, unknown> : null
       if (!product?.title) return json({ error: 'Missing title' }, 400)
       if (!product.category_id || !product.subcategory_id) {
@@ -107,23 +117,20 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'update') {
-      const denied = requireCreator()
-      if (denied) return denied
+      if (caller.kind !== 'creator') return forbidden()
       const id = String(body.id || '')
       const updates = body.updates && typeof body.updates === 'object' ? body.updates as Record<string, unknown> : null
       if (!id || !updates) return json({ error: 'Bad input' }, 400)
       if (!(await creatorOwnsProduct(supabase, caller.accountId, id))) return forbidden()
-      delete updates.id
-      delete updates.creator_account_id
-      delete updates.creator_id
+      const editable = new Set(CREATOR_PRODUCT_COLUMNS.split(',').map(k => k.trim()).filter(k => !['id','creator_account_id','creator_id','created_at','updated_at','moderation_locked'].includes(k)))
+      for (const key of Object.keys(updates)) if (!editable.has(key)) delete updates[key]
       const { data, error } = await supabase.from('products').update(updates).eq('id', id).select().single()
       if (error) return json({ error: error.message }, 500)
       return json({ product: data })
     }
 
     if (action === 'delete') {
-      const denied = requireCreator()
-      if (denied) return denied
+      if (caller.kind !== 'creator') return forbidden()
       const id = String(body.id || body.productId || '')
       if (!id) return json({ error: 'Missing id' }, 400)
       if (!(await creatorOwnsProduct(supabase, caller.accountId, id))) return forbidden()
@@ -148,8 +155,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'list_creator_teachers') {
-      const denied = requireCreator()
-      if (denied) return denied
+      if (caller.kind !== 'creator') return forbidden()
       const ids = await creatorProductIds(supabase, caller.accountId)
       if (!ids.length) return json({ teachers: [] })
       const { data, error } = await supabase
@@ -162,8 +168,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'add_teacher') {
-      const denied = requireCreator()
-      if (denied) return denied
+      if (caller.kind !== 'creator') return forbidden()
       const productId = String(body.productId || '')
       const teacherName = String(body.teacherName || '').trim()
       if (!productId || !teacherName) return json({ error: 'Bad input' }, 400)
@@ -181,8 +186,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'remove_teacher') {
-      const denied = requireCreator()
-      if (denied) return denied
+      if (caller.kind !== 'creator') return forbidden()
       const teacherId = String(body.teacherId || '')
       if (!teacherId) return json({ error: 'Missing teacherId' }, 400)
       const { data: row } = await supabase.from('product_teachers').select('product_id').eq('id', teacherId).maybeSingle()
@@ -194,8 +198,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'list_purchases') {
-      const denied = requireCreator()
-      if (denied) return denied
+      if (caller.kind !== 'creator') return forbidden()
       const ids = await creatorProductIds(supabase, caller.accountId)
       if (!ids.length) return json({ purchases: [] })
       const { data, error } = await supabase
@@ -270,8 +273,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'update_purchase') {
-      const denied = requireCreator()
-      if (denied) return denied
+      if (caller.kind !== 'creator') return forbidden()
       const purchaseId = String(body.purchaseId || '')
       const updates = body.updates && typeof body.updates === 'object' ? body.updates as Record<string, unknown> : null
       if (!purchaseId || !updates) return json({ error: 'Bad input' }, 400)
@@ -333,8 +335,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'set_purchase_access') {
-      const denied = requireCreator()
-      if (denied) return denied
+      if (caller.kind !== 'creator') return forbidden()
       const purchaseId = String(body.purchaseId || '')
       const mode = String(body.mode || '')
       if (!purchaseId || !['forever', 'until', 'revoke'].includes(mode)) return json({ error: 'Bad input' }, 400)
@@ -396,8 +397,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'list_subscriptions') {
-      const denied = requireCreator()
-      if (denied) return denied
+      if (caller.kind !== 'creator') return forbidden()
       const ids = await creatorProductIds(supabase, caller.accountId)
       if (!ids.length) return json({ subscriptions: [], counts: {} })
 
@@ -431,7 +431,7 @@ Deno.serve(async (req) => {
         billing_period: string
         price: number
       }) => {
-        if (subscriptionGrantsAccess(sub as { status: string; current_period_end: string })) {
+        if (subscriptionGrantsAccess(sub as { status: SubscriptionStatus; current_period_end: string })) {
           counts[sub.product_id] = (counts[sub.product_id] ?? 0) + 1
         }
         const profile = profileMap.get(sub.buyer_profile_id)

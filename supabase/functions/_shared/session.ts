@@ -80,10 +80,10 @@ export async function resolveCreator(
 
   const { data: account } = await supabase
     .from('creator_accounts')
-    .select('id, login')
+    .select('id, login, is_blocked')
     .ilike('login', creatorName)
     .maybeSingle()
-  if (!account) return null
+  if (!account || account.is_blocked) return null
 
   return { kind: 'creator', accountId: account.id, login: account.login }
 }
@@ -235,4 +235,4 @@ export const CATALOG_COLUMNS =
 export const CHECKOUT_COLUMNS = `${CATALOG_COLUMNS}, kaspi_link, kaspi_phone`
 
 // Seller-only view of a product: adds the marketplace visibility flag.
-export const CREATOR_PRODUCT_COLUMNS = `${CHECKOUT_COLUMNS}, is_published`
+export const CREATOR_PRODUCT_COLUMNS = `${CHECKOUT_COLUMNS}, is_published, moderation_locked`

@@ -1,3 +1,4 @@
+import { sessionCreds } from "./sessionApi";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -21,8 +22,9 @@ export async function getS3DownloadUrl(
       path,
       role,
       userId,
+      ...sessionCreds(),
       download: download || false,
-      sessionToken: localStorage.getItem("simple_session_token") || "",
+      sessionToken: localStorage.getItem("creator_token") || localStorage.getItem("simple_session_token") || "",
       creatorToken: localStorage.getItem("creator_token") || "",
       creatorName: localStorage.getItem("creator_name") || "",
     },
@@ -50,7 +52,7 @@ export async function getS3FileBlob(
       'Authorization': `Bearer ${supabaseKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ path, role, userId }),
+    body: JSON.stringify({ path, role, userId, ...sessionCreds() }),
   });
 
   if (!response.ok) {

@@ -1,3 +1,4 @@
+import { browserDeviceId } from './deviceId';
 import { supabase } from "@/integrations/supabase/client";
 
 export function creatorCreds() {
@@ -44,6 +45,7 @@ export async function invokeApi<T = Record<string, unknown>>(
 
   const enrichedBody: Record<string, unknown> = {
     token: body.token || creatorToken,
+    deviceId: browserDeviceId(),
     ...body,
   };
 

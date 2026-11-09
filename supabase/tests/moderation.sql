@@ -1,0 +1,92 @@
+\set ON_ERROR_STOP on
+BEGIN;
+CREATE FUNCTION pg_temp.assert_true(value boolean, message text) RETURNS void LANGUAGE plpgsql AS $$ BEGIN IF value IS DISTINCT FROM true THEN RAISE EXCEPTION 'FAIL: %',message; END IF; END $$;
+CREATE FUNCTION pg_temp.denied(statement text) RETURNS boolean LANGUAGE plpgsql AS $$ BEGIN EXECUTE statement; RETURN false; EXCEPTION WHEN OTHERS THEN RETURN true; END $$;
+INSERT INTO auth.users(id,email) VALUES('10000000-0000-0000-0000-000000000001','seller@example.com'),('10000000-0000-0000-0000-000000000002','buyer@example.com');
+INSERT INTO profiles(id,auth_user_id,type,display_name) VALUES
+ ('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','creator','Seller'),
+ ('20000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000002','buyer','Buyer'),
+ ('20000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000001','buyer','Seller as buyer');
+INSERT INTO creator_accounts(id,auth_user_id,profile_id,login,display_name,email) VALUES('30000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','seller','Seller','seller@example.com');
+INSERT INTO products(id,creator_account_id,title,is_published,is_paused,paused_message) VALUES
+ ('40000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','Public',true,false,null),
+ ('40000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000001','Already private paused',false,true,'Original pause');
+INSERT INTO creator_sessions(token,creator_name,profile_id) VALUES('seller-session','seller','20000000-0000-0000-0000-000000000001'),('buyer-session','buyer:20000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000003');
+SELECT check_moderation_signals('seller-session','test-device','test-ip');
+INSERT INTO auth.identities(user_id,provider,provider_id,identity_data) VALUES('10000000-0000-0000-0000-000000000001','google','google-sub','{"sub":"google-sub"}');
+INSERT INTO auth.sessions(user_id) VALUES('10000000-0000-0000-0000-000000000001');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO product_reports(product_id,reporter_profile_id,reason,description) VALUES('40000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000002','Другое','   ')$q$),'Other requires a nonblank comment');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO product_reports(product_id,reporter_profile_id,reason) VALUES('40000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000003','Неприемлемый контент')$q$),'Own identity cannot report itself');
+SET LOCAL ROLE service_role;
+INSERT INTO product_reports(id,product_id,reporter_profile_id,reporter_user_type,reporter_user_ref,reason) VALUES('50000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000002','student','20000000-0000-0000-0000-000000000002','Неприемлемый контент');
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT bool_and(moderation_locked AND is_paused AND NOT is_published) FROM products),'Every product locked, paused, private');
+SELECT pg_temp.assert_true((SELECT moderation_restricted FROM creator_accounts LIMIT 1),'Seller restricted');
+SELECT pg_temp.assert_true((SELECT count(*)=1 FROM support_messages),'Restriction delivered to support chat');
+SELECT pg_temp.assert_true((SELECT count(*)=1 FROM moderation_notifications),'Restriction delivered to notification feed');
+SELECT pg_temp.assert_true(pg_temp.denied($q$UPDATE products SET is_published=true$q$),'Publishing bypass prevented');
+SELECT pg_temp.assert_true(pg_temp.denied($q$UPDATE products SET is_paused=false$q$),'Unpausing bypass prevented');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO products(creator_account_id,title) VALUES('30000000-0000-0000-0000-000000000001','New')$q$),'New product prevented');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO profiles(auth_user_id,type) VALUES('10000000-0000-0000-0000-000000000001','creator')$q$),'New seller profile bypass prevented');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO simple_purchases(product_id,buyer_profile_id,status) VALUES('40000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000002','completed')$q$),'Purchase bypass prevented');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO product_trials(product_id,buyer_profile_id,status) VALUES('40000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000002','completed')$q$),'Free trial bypass prevented');
+UPDATE products SET title='Edited safely' WHERE id='40000000-0000-0000-0000-000000000001';
+INSERT INTO product_reports(id,creator_account_id,target_type,reporter_profile_id,reason,description) VALUES('50000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000001','account','20000000-0000-0000-0000-000000000002','Другое','Проверьте профиль');
+SET LOCAL ROLE service_role;
+SELECT moderate_report('50000000-0000-0000-0000-000000000001','dismissed');
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT moderation_restricted FROM creator_accounts LIMIT 1),'Second complaint retains restriction');
+SELECT pg_temp.assert_true((SELECT count(*)=2 FROM moderation.product_state),'Original visibility snapshot preserved');
+SET LOCAL ROLE service_role;
+SELECT moderate_report('50000000-0000-0000-0000-000000000002','correction_requested','Замените описание');
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT correction_deadline=now()+interval '72 hours' FROM product_reports WHERE id='50000000-0000-0000-0000-000000000002'),'72 hour deadline stored');
+SELECT pg_temp.assert_true(pg_temp.denied($q$SELECT moderate_report('50000000-0000-0000-0000-000000000002','correction_requested','Продлить')$q$),'Cannot silently reset correction timer');
+UPDATE product_reports SET correction_deadline=now()+interval '23 hours' WHERE id='50000000-0000-0000-0000-000000000002';
+SET LOCAL ROLE service_role;
+SELECT process_moderation_deadlines();
+SELECT process_moderation_deadlines();
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT count(*)=1 FROM moderation_notifications WHERE event='reminder'),'24h reminder delivered once');
+UPDATE product_reports SET correction_deadline=now()-interval '1 minute' WHERE id='50000000-0000-0000-0000-000000000002';
+SET LOCAL ROLE service_role;
+SELECT process_moderation_deadlines();
+SELECT process_moderation_deadlines();
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT count(*)=1 FROM moderation_notifications WHERE event='overdue' AND creator_account_id IS NULL),'Moderator notified once after deadline');
+SELECT pg_temp.assert_true((SELECT NOT is_blocked FROM creator_accounts LIMIT 1),'Deadline does not automatically ban');
+SET LOCAL ROLE service_role;
+SELECT moderate_report('50000000-0000-0000-0000-000000000002','dismissed');
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT NOT moderation_restricted FROM creator_accounts LIMIT 1),'Last dismissal lifts restriction');
+SELECT pg_temp.assert_true((SELECT is_published AND NOT is_paused AND NOT moderation_locked FROM products WHERE id='40000000-0000-0000-0000-000000000001'),'Published product restored');
+SELECT pg_temp.assert_true((SELECT NOT is_published AND is_paused AND paused_message='Original pause' AND NOT moderation_locked FROM products WHERE id='40000000-0000-0000-0000-000000000002'),'Original private and paused state restored');
+INSERT INTO product_reports(id,product_id,reporter_profile_id,reason) VALUES('50000000-0000-0000-0000-000000000003','40000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000002','Продукт не соответствует описанию');
+SELECT pg_temp.assert_true((SELECT count(*)=3 FROM product_reports),'Repeated complaint preserved alongside resolved history');
+DELETE FROM products WHERE id='40000000-0000-0000-0000-000000000002';
+SELECT pg_temp.assert_true((SELECT count(*)=1 FROM products),'Existing products can be deleted under restriction');
+SET LOCAL ROLE service_role;
+SELECT moderate_report('50000000-0000-0000-0000-000000000003','blocked');
+RESET ROLE;
+SELECT pg_temp.assert_true((SELECT is_blocked FROM creator_accounts LIMIT 1),'Block persists');
+SELECT pg_temp.assert_true((SELECT count(*)=0 FROM creator_sessions),'All seller and buyer app sessions revoked');
+SELECT pg_temp.assert_true((SELECT count(*)=0 FROM auth.sessions),'Auth sessions revoked');
+SELECT pg_temp.assert_true((SELECT banned_until>now() FROM auth.users WHERE email='seller@example.com'),'Supabase Auth identity banned');
+SELECT pg_temp.assert_true((SELECT count(*)=6 FROM moderation.banned_identifiers),'Email, auth, Google, login, device and IP blocked');
+SELECT pg_temp.assert_true(NOT check_moderation_signals('','test-device',NULL),'Banned device rejected');
+SELECT pg_temp.assert_true(NOT check_moderation_signals('',NULL,'test-ip'),'Banned IP rejected');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO auth.users(email) VALUES('SELLER@example.com')$q$),'Email signup blocked case insensitively');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO creator_sessions(token,creator_name,profile_id) VALUES('new-session','buyer:20000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000003')$q$),'Buyer session recreation blocked');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO creator_sessions(token,creator_name) VALUES('new-session','onboarding:10000000-0000-0000-0000-000000000001')$q$),'Onboarding session recreation blocked');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO auth.identities(user_id,provider,provider_id,identity_data) VALUES('10000000-0000-0000-0000-000000000002','google','google-sub','{"sub":"google-sub"}')$q$),'Google subject cannot be attached to another identity');
+SELECT pg_temp.assert_true(pg_temp.denied($q$INSERT INTO profiles(auth_user_id,type) VALUES('10000000-0000-0000-0000-000000000001','buyer')$q$),'Banned user cannot create profiles');
+SELECT pg_temp.assert_true(NOT has_function_privilege('anon','public.moderate_report(uuid,text,text)','EXECUTE'),'Anonymous cannot moderate');
+SELECT pg_temp.assert_true(NOT has_function_privilege('authenticated','public.check_moderation_signals(text,text,text)','EXECUTE'),'Signal RPC inaccessible to browser');
+SELECT pg_temp.assert_true(NOT has_schema_privilege('authenticated','moderation','USAGE'),'Private moderation schema hidden');
+SELECT pg_temp.assert_true(NOT has_table_privilege('anon','product_reports','SELECT'),'Complaints hidden from public');
+SELECT pg_temp.assert_true(NOT has_table_privilege('authenticated','moderation_notifications','SELECT'),'Other users notifications hidden');
+-- Deleting the reported product must retain the title, seller and report decision.
+DELETE FROM products WHERE id='40000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert_true((SELECT product_id IS NULL AND product_title='Edited safely' AND status='blocked' FROM product_reports WHERE id='50000000-0000-0000-0000-000000000003'),'Deleted product evidence retained');
+ROLLBACK;
+\echo 'Moderation regression checks passed'

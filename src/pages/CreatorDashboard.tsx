@@ -1,3 +1,4 @@
+import { useModerationStatus } from "@/hooks/useModerationStatus";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
@@ -38,6 +39,7 @@ import { needsDisplayNamePrompt } from "@/lib/displayName";
 import { cn } from "@/lib/utils";
 
 const CreatorDashboard = () => {
+  const {data: moderation} = useModerationStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = creatorTabFromPath("/creator", `?${searchParams.toString()}`);
   const activeTab = urlTab;
@@ -151,8 +153,8 @@ const CreatorDashboard = () => {
       return createdAt > compareDate;
     }).length || 0;
     
-    return newBookingsCount + newPurchasesCount + newCancellationsCount + newRescheduleCount;
-  }, [bookings, pendingPurchases, cancellations, rescheduleRequests, lastViewedAt]);
+    return newBookingsCount + newPurchasesCount + newCancellationsCount + newRescheduleCount + (moderation?.notifications.filter(n => new Date(n.created_at) > compareDate).length || 0);
+  }, [bookings, pendingPurchases, cancellations, rescheduleRequests, lastViewedAt, moderation]);
 
   // Set initial app badge based on notification count
   useEffect(() => {

@@ -1,3 +1,4 @@
+import { sessionCreds } from '@/lib/sessionApi';
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import ChatThread, { type ChatMessage } from "@/components/messages/ChatThread";
@@ -66,7 +67,7 @@ const SupportChat = ({ userType, userRef, displayName, asModerator, threadId: in
       const resp = await fetch(`${baseUrl}/functions/v1/support-api`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ action: "get_thread", user_type: userType, user_ref: userRef, display_name: displayName }),
+        body: JSON.stringify({ action: "get_thread", ...sessionCreds(), user_type: userType, user_ref: userRef, display_name: displayName }),
       });
       const data = await resp.json();
       if (data?.success) {
@@ -89,7 +90,7 @@ const SupportChat = ({ userType, userRef, displayName, asModerator, threadId: in
     return () => window.clearInterval(timer);
   }, [load]);
 
-  const who = { user_type: userType, user_ref: userRef, display_name: displayName };
+  const who = { ...sessionCreds(), user_type: userType, user_ref: userRef, display_name: displayName };
 
   const uploadFile = async (file: File, kind: ChatAttachmentKind, signal: AbortSignal): Promise<ChatAttachment> => {
     if (kind === "video") {
@@ -111,6 +112,7 @@ const SupportChat = ({ userType, userRef, displayName, asModerator, threadId: in
     }
     const form = new FormData();
     form.append("file", file);
+    for (const [key, value] of Object.entries(sessionCreds())) if (value) form.append(key, value);
     form.append("user_type", userType);
     form.append("user_ref", userRef);
     form.append("display_name", displayName);

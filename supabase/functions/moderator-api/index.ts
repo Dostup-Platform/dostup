@@ -1,3 +1,4 @@
+import { moderatorReports } from '../_shared/moderatorReports.ts'
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { withSignedAttachmentUrls } from '../_shared/chatAttachments.ts'
@@ -36,6 +37,9 @@ serve(async (req) => {
     const { data: session } = await supabase.from('moderator_sessions').select('*').eq('token', token).maybeSingle()
     if (!session || new Date(session.expires_at) < new Date()) return json({ error: 'Invalid session' }, 401)
 
+    const reportResponse = await moderatorReports(supabase, body)
+    if (reportResponse) return reportResponse
+
     if (action === 'validate') {
       return json({ success: true })
     }
@@ -48,7 +52,7 @@ serve(async (req) => {
         supabase.from('simple_users').select('id, name, role'),
         supabase.from('product_teachers').select('id, product_id, teacher_name'),
         supabase.from('topics').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('product_reports').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('product_reports').select('id', { count: 'exact', head: true }).in('status', ['pending','correction_requested']),
       ])
       const productById = new Map((products.data ?? []).map((p: any) => [p.id, p]))
       const perCreator: Record<string, { revenue: number; students: Set<string>; products: number; teachers: Set<string> }> = {}
@@ -118,6 +122,11 @@ serve(async (req) => {
 
     if (action === 'block_creator') {
       const { creator_id, blocked } = body as any
+      if (!blocked) {
+        const { count, error: historyError } = await supabase.from('product_reports').select('id',{count:'exact',head:true}).eq('creator_account_id',creator_id).eq('status','blocked')
+        if (historyError) return json({error:historyError.message},500)
+        if (count) return json({error:'Аккаунт заблокирован по жалобе вместе со связанными идентификаторами. Простая разблокировка профиля недоступна.'},400)
+      }
       const { error } = await supabase.from('creator_accounts').update({ is_blocked: !!blocked }).eq('id', creator_id)
       if (error) return json({ error: error.message }, 500)
       return json({ success: true })
@@ -301,50 +310,6 @@ serve(async (req) => {
           reviewed_by: 'moderator',
         })
         .eq('id', topic_id)
-      if (error) return json({ error: error.message }, 500)
-      return json({ success: true })
-    }
-
-    // PRODUCT REPORTS
-    if (action === 'list_reports') {
-      const { status } = body as any
-      let query = supabase
-        .from('product_reports')
-        .select(`
-          id,
-          product_id,
-          user_id,
-          reporter_name,
-          reporter_contact,
-          reason,
-          description,
-          status,
-          created_at,
-          reviewed_at,
-          reviewed_by,
-          products:product_id (id, title, creator_id)
-        `)
-        .order('created_at', { ascending: false })
-
-      if (status && status !== 'all') {
-        query = query.eq('status', status)
-      }
-      const { data, error } = await query
-      if (error) return json({ error: error.message }, 500)
-      return json({ success: true, reports: data ?? [] })
-    }
-
-    if (action === 'update_report_status') {
-      const { report_id, status } = body as any
-      if (!report_id || !status) return json({ error: 'report_id and status required' }, 400)
-      const { error } = await supabase
-        .from('product_reports')
-        .update({
-          status,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: 'moderator'
-        })
-        .eq('id', report_id)
       if (error) return json({ error: error.message }, 500)
       return json({ success: true })
     }

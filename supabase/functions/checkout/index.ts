@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
         .select(CHECKOUT_COLUMNS)
         .eq('slug', idOrSlug)
         .eq('is_active', true)
+        .eq('moderation_locked', false)
         .maybeSingle()
 
       if (!data) {
@@ -38,6 +39,7 @@ Deno.serve(async (req) => {
           .select(CHECKOUT_COLUMNS)
           .eq('id', idOrSlug)
           .eq('is_active', true)
+        .eq('moderation_locked', false)
           .maybeSingle()
         data = result.data
       }

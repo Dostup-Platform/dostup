@@ -168,6 +168,7 @@ const ProductPage = () => {
   const [switchBuyerOpen, setSwitchBuyerOpen] = useState(false);
   const [switchingBuyer, setSwitchingBuyer] = useState(false);
 
+  const moderatorPreview = searchParams.get("moderatorPreview") === "1";
   const isSellerProfile = profileType === "creator" || profileType === "school";
 
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
@@ -198,6 +199,7 @@ const ProductPage = () => {
   }, [product?.id, searchParams, activeOption?.id]);
 
   const handleBuy = () => {
+    if (moderatorPreview) return;
     if (isSellerProfile) {
       setSwitchBuyerOpen(true);
       return;
@@ -244,6 +246,7 @@ const ProductPage = () => {
   });
 
   const handleActivateTrial = async () => {
+    if (moderatorPreview) return;
     if (!user) {
       toast.error(t("loginRequiredCheckout") || "Для активации необходимо войти");
       const next = `/p/${product?.slug || product?.id}`;
@@ -277,11 +280,11 @@ const ProductPage = () => {
   };
 
   useEffect(() => {
-    if (!product?.slug || !productId) return;
+    if (moderatorPreview || !product?.slug || !productId) return;
     if (isUuid(productId) && product.slug !== productId) {
       navigate(`/p/${encodeURIComponent(product.slug)}${window.location.search}`, { replace: true });
     }
-  }, [product?.slug, productId, navigate]);
+  }, [product?.slug, productId, navigate, moderatorPreview]);
 
   useEffect(() => {
     if (!user?.id || !product?.id) return;
@@ -365,11 +368,11 @@ const ProductPage = () => {
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <MarketplaceHeader />
+        {!moderatorPreview && <MarketplaceHeader />}
         <div className="flex flex-1 justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-        <PublicFooter />
+        {!moderatorPreview && <PublicFooter />}
       </div>
     );
   }
@@ -377,7 +380,7 @@ const ProductPage = () => {
   if (!product) {
     return (
       <div className="flex min-h-screen flex-col bg-background">
-        <MarketplaceHeader />
+        {!moderatorPreview && <MarketplaceHeader />}
         <PublicContainer className="flex-1 py-6">
           <Link
             to="/"
@@ -388,7 +391,7 @@ const ProductPage = () => {
           </Link>
           <p className="public-body text-[#6B7280]">{t("productNotFound")}</p>
         </PublicContainer>
-        <PublicFooter />
+        {!moderatorPreview && <PublicFooter />}
       </div>
     );
   }
@@ -436,6 +439,7 @@ const ProductPage = () => {
   const sellerBlock = product.seller_handle ? (
     <Link
       to={`/s/${encodeURIComponent(product.seller_handle)}`}
+      onClick={e => { if (moderatorPreview) e.preventDefault(); }}
       className="flex items-center gap-3 rounded-md focus-ring"
     >
       <Avatar className="h-10 w-10">
@@ -541,11 +545,12 @@ const ProductPage = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <MarketplaceHeader />
+      {!moderatorPreview && <MarketplaceHeader />}
       <PublicContainer className="flex-1 pb-28 pt-4 lg:pb-16 lg:pt-6">
         <Link
           to="/"
           onClick={(e) => {
+            if (moderatorPreview) { e.preventDefault(); return; }
             if (window.history.state && window.history.state.idx > 0) {
               e.preventDefault();
               window.history.back();
@@ -639,7 +644,7 @@ const ProductPage = () => {
               <h1 className="public-display text-foreground text-balance min-w-0 flex-1 whitespace-pre-wrap break-words">
                 {renderSafeFormattedContent(product.title)}
               </h1>
-              <div className="flex items-center gap-2 shrink-0">
+              {!moderatorPreview && <div className="flex items-center gap-2 shrink-0">
                 <ShareProductButton
                   title={product.title}
                   id={product.id}
@@ -656,7 +661,7 @@ const ProductPage = () => {
                   size="sm"
                   className="shrink-0"
                 />
-              </div>
+              </div>}
             </div>
             {product.headline && (
               <div className="public-body mt-3 text-foreground whitespace-pre-wrap break-words">
@@ -830,7 +835,7 @@ const ProductPage = () => {
         </div>
       </PublicContainer>
 
-      <PublicFooter className="pb-28 lg:pb-0" />
+      {!moderatorPreview && <PublicFooter className="pb-28 lg:pb-0" />}
 
       <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/90 p-3 backdrop-blur-lg safe-area-inset lg:hidden">
         <PublicContainer className="flex flex-col gap-2">

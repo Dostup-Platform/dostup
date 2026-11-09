@@ -17,6 +17,7 @@ export type VisibilityProduct = {
   id: string;
   title: string;
   is_published?: boolean;
+  moderation_locked?: boolean;
 };
 
 const TEXT = {
@@ -63,7 +64,7 @@ const ProductVisibilityDialog = ({ product, onOpenChange }: ProductVisibilityDia
   const busy = updateProduct.isPending;
 
   const handleToggle = async (next: boolean) => {
-    if (!product || busy) return;
+    if (!product || busy || product.moderation_locked) return;
     const previous = published;
     setPublished(next);
     try {
@@ -93,7 +94,7 @@ const ProductVisibilityDialog = ({ product, onOpenChange }: ProductVisibilityDia
               <Switch
                 id="product-visibility-switch"
                 checked={published}
-                disabled={busy}
+                disabled={busy || product?.moderation_locked}
                 onCheckedChange={(checked) => void handleToggle(checked)}
               />
             </div>

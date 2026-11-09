@@ -1,3 +1,4 @@
+import { supportIdentity } from '../_shared/moderation.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { presignChatVideo } from '../_shared/chatAttachments.ts'
 
@@ -46,9 +47,9 @@ Deno.serve(async (req) => {
     const form = isJson ? null : await req.formData()
     const field = (key: string) => String((body ? body[key] : form!.get(key)) || '')
     const file = form ? form.get('file') as File | null : null
-    const userType = field('user_type')
-    const userRef = field('user_ref').trim()
-    const displayName = field('display_name')
+    const who = await supportIdentity(supabase, body || { token: field('token'), creatorToken: field('creatorToken'), creatorName: field('creatorName') })
+    if (!who) return json({ error: 'Unauthorized' }, 401)
+    const { userType, userRef, displayName } = who
     const presignVideo = body?.action === 'presign_video'
 
     if (!['creator', 'teacher', 'student'].includes(userType)) return json({ error: 'Bad user_type' }, 400)
