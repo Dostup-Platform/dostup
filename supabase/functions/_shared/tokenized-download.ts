@@ -1,7 +1,6 @@
 import { corsHeaders, json, optionsResponse } from './http.ts'
 import { authorizeDownload, mimeForKey, parseS3Path, presignGet } from './s3.ts'
 import { serviceClient } from './session.ts'
-import { buyerHasProductAccess } from './subscription.ts'
 
 async function consumeAccessToken(token: string): Promise<string | null> {
   const supabase = serviceClient()
@@ -83,38 +82,9 @@ export async function handleTokenizedDownload(req: Request): Promise<Response> {
       const creatorToken = url.searchParams.get('creatorToken') || ''
       const creatorName = url.searchParams.get('creatorName') || ''
       const download = url.searchParams.get('download')
-      const isPublicMedia = path.includes('/product-media/') || path.includes('product-media')
+      const isPublicMedia = parseS3Path(path)?.key.startsWith('product-media/') === true
       const ok = isPublicMedia || (await authorizeDownload({ path, sessionToken, creatorToken, creatorName }))
-      if (!ok) {
-        const role = url.searchParams.get('role')
-        const userId = url.searchParams.get('userId')
-        if (role === 'student' && userId && path.startsWith('s3://')) {
-          const parsed = parseS3Path(path)!
-          const parts = parsed.key.split('/')
-          const productId = parts[0]?.startsWith('teacher-') ? parts[1] : parts[0]
-          const supabase = serviceClient()
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', userId)
-            .maybeSingle()
-          const hasAccess = profile
-            ? await buyerHasProductAccess(supabase, profile.id, productId)
-            : false
-          if (!hasAccess) {
-            const { data: purchase } = await supabase
-              .from('simple_purchases')
-              .select('id')
-              .eq('simple_user_id', userId)
-              .eq('product_id', productId)
-              .eq('status', 'completed')
-              .maybeSingle()
-            if (!purchase) return new Response('Access denied', { status: 403 })
-          }
-        } else if (role !== 'creator' && role !== 'teacher') {
-          return new Response('Access denied', { status: 403 })
-        }
-      }
+      if (!ok) return json({ error: 'Access denied' }, 403)
       if (isPublicMedia || url.searchParams.get('proxy') === '1') {
         return proxyPath(path, false, req)
       }
@@ -136,38 +106,14 @@ export async function handleTokenizedDownload(req: Request): Promise<Response> {
     const path = String(body.path || '')
     const defaultProxy = url.pathname.includes('s3-download-proxy')
     const mode = body.mode === 'proxy' || (body.mode !== 'url' && defaultProxy) ? 'proxy' : 'url'
-    const isPublicMedia = path.includes('/product-media/') || path.includes('product-media')
+    const isPublicMedia = parseS3Path(path)?.key.startsWith('product-media/') === true
     const ok = isPublicMedia || (await authorizeDownload({
       path,
       sessionToken: String(body.sessionToken || ''),
       creatorToken: String(body.creatorToken || ''),
       creatorName: String(body.creatorName || ''),
     }))
-    if (!ok) {
-      if (body.role === 'student' && body.userId) {
-        const parsed = parseS3Path(path)
-        if (!parsed) return json({ error: 'Not an S3 path' }, 400)
-        const parts = parsed.key.split('/')
-        const productId = parts[0]?.startsWith('teacher-') ? parts[1] : parts[0]
-        const supabase = serviceClient()
-        const profileId = typeof body.userId === 'string' ? body.userId : ''
-        const hasAccess = profileId
-          ? await buyerHasProductAccess(supabase, profileId, productId)
-          : false
-        if (!hasAccess) {
-          const { data: purchase } = await supabase
-            .from('simple_purchases')
-            .select('id')
-            .eq('simple_user_id', body.userId)
-            .eq('product_id', productId)
-            .eq('status', 'completed')
-            .maybeSingle()
-          if (!purchase) return json({ error: 'Access denied' }, 403)
-        }
-      } else if (body.role !== 'creator' && body.role !== 'teacher') {
-        return json({ error: 'Access denied' }, 403)
-      }
-    }
+    if (!ok) return json({ error: 'Access denied' }, 403)
 
     const parsed = parseS3Path(path)
     if (!parsed) return json({ error: 'Not an S3 path' }, 400)

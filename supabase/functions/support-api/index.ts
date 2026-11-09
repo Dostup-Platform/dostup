@@ -1,3 +1,4 @@
+import { supportIdentity, REPORT_REASONS, checkSignals } from '../_shared/moderation.ts'
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { ATTACHMENT_LABEL, sanitizeChatAttachments, withSignedAttachmentUrls } from '../_shared/chatAttachments.ts'
@@ -40,32 +41,34 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}))
     const { action } = body as any
 
-    // Handle product reporting
-    if (action === 'report_product') {
-      const { product_id, reason, description, reporter_name, reporter_contact, user_id } = body as any
-      if (!product_id || !reason) return json({ error: 'product_id and reason required' }, 400)
-
-      const { data: prod } = await supabase.from('products').select('id, title').eq('id', product_id).maybeSingle()
-
+    if (!(await checkSignals(supabase, req, body))) return json({ error: 'Аккаунт заблокирован' }, 403)
+    if (action === 'report_product' || action === 'report_account') {
+      const who = await supportIdentity(supabase, body)
+      if (!who) return json({ error: 'Войдите в аккаунт, чтобы подать жалобу' }, 401)
+      const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
+      const description = typeof body.description === 'string' ? body.description.trim() : ''
+      if (!REPORT_REASONS.includes(reason as typeof REPORT_REASONS[number]) || description.length > 4000 || (reason === 'Другое' && !description)) {
+        return json({ error: 'Выберите причину. Для «Другое» обязателен комментарий (до 4000 символов).' }, 400)
+      }
+      let sellerId = null
+      if (action === 'report_account') {
+        const { data: profile } = await supabase.from('profiles').select('id').eq('handle', String(body.seller_handle || '')).maybeSingle()
+        const { data: seller } = profile ? await supabase.from('creator_accounts').select('id').eq('profile_id', profile.id).maybeSingle() : { data: null }
+        if (!seller) return json({ error: 'Продавец не найден' }, 404)
+        sellerId = seller.id
+      }
       const { data: report, error } = await supabase.from('product_reports').insert({
-        product_id,
-        user_id: user_id || null,
-        reason: String(reason).trim(),
-        description: description ? String(description).trim() : null,
-        reporter_name: reporter_name ? String(reporter_name).trim() : null,
-        reporter_contact: reporter_contact ? String(reporter_contact).trim() : null,
-        status: 'pending',
-      }).select().single()
-
-      if (error) return json({ error: error.message }, 500)
-
-      const prodTitle = prod?.title ? ` «${prod.title}»` : ''
-      await notifyModerators(
-        'Новая жалоба на продукт',
-        `Причина: ${reason}${prodTitle}`,
-        { type: 'moderator_report', reportId: report.id, productId: product_id }
-      )
-
+        product_id: action === 'report_product' ? body.product_id : null,
+        creator_account_id: sellerId,
+        target_type: action === 'report_product' ? 'product' : 'account',
+        reporter_profile_id: who.profileId,
+        reporter_user_type: who.userType,
+        reporter_user_ref: who.userRef,
+        reporter_name: who.displayName,
+        reason, description: description || null,
+      }).select('id').single()
+      if (error) return json({ error: error.message }, 400)
+      await notifyModerators('Новая жалоба', `Причина: ${reason}`, { type: 'moderator_report', reportId: report.id })
       return json({ success: true, report_id: report.id })
     }
 
@@ -83,7 +86,9 @@ serve(async (req) => {
     }
 
     // Support chat handling
-    const { user_type, user_ref, display_name } = body as any
+    const identity = await supportIdentity(supabase, body)
+    if (!identity) return json({ error: 'Unauthorized' }, 401)
+    const { userType: user_type, userRef: user_ref, displayName: display_name } = identity
     if (!['creator', 'teacher', 'student'].includes(user_type)) return json({ error: 'Bad user_type' }, 400)
     if (typeof user_ref !== 'string' || !user_ref.trim()) return json({ error: 'Bad user_ref' }, 400)
 

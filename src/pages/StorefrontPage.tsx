@@ -1,3 +1,4 @@
+import ReportProductDialog from "@/components/marketplace/ReportProductDialog";
 import { Loader2 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import CatalogGrid from "@/components/marketplace/CatalogGrid";
@@ -49,6 +50,7 @@ const StorefrontPage = () => {
                 )}
               </div>
             </section>
+            <ReportProductDialog sellerHandle={seller.handle} productTitle={seller.display_name || seller.handle} className="mt-4" />
             <section className="mt-10 w-full">
               <div className="mb-6">
                 <h2 className="text-[26px] font-bold tracking-tight text-[#1F2328]">

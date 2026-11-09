@@ -1,3 +1,4 @@
+import { checkSignals } from '../_shared/moderation.ts'
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { hashPassword } from '../_shared/password.ts'
@@ -22,7 +23,8 @@ serve(async (req) => {
   }
 
   try {
-    const { login, password, accountType, recoveryPhone } = await req.json()
+    const body = await req.json()
+    const { login, password, accountType, recoveryPhone } = body
 
     if (typeof login !== 'string' || login.trim().length < 2 || login.length > 100) {
       return new Response(JSON.stringify({ error: 'Invalid login' }), {
@@ -52,6 +54,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
+    if (!(await checkSignals(supabase, req, body))) return new Response(JSON.stringify({ error: 'Аккаунт заблокирован' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     const trimmedLogin = login.trim()
 
     const { data: existing } = await supabase
@@ -100,6 +103,7 @@ serve(async (req) => {
       expires_at: expiresAt.toISOString(),
     })
 
+    await checkSignals(supabase, req, body, sessionToken)
     return new Response(JSON.stringify({
       success: true,
       token: sessionToken,

@@ -1,3 +1,4 @@
+import { checkSignals } from '../_shared/moderation.ts'
 import { json, optionsResponse } from '../_shared/http.ts'
 import {
   displayNameFrom,
@@ -36,6 +37,7 @@ Deno.serve(async (req) => {
     }
 
     const supabase = serviceClient()
+    if (!(await checkSignals(supabase, req, body))) return json({ error: 'Аккаунт заблокирован' }, 403)
     const { data: userData, error: userError } = await supabase.auth.getUser(accessToken)
     const user = userData?.user
     if (userError || !user) {
@@ -62,6 +64,7 @@ Deno.serve(async (req) => {
     if (profiles.length === 0) {
       const onboarding = await issueOnboardingSession(supabase, user.id)
       if (!onboarding.ok) return onboarding.response
+      await checkSignals(supabase, req, body, onboarding.token)
       return json({
         success: true,
         needsOnboarding: true,
@@ -80,6 +83,7 @@ Deno.serve(async (req) => {
 
     const issued = await issueAppSession(supabase, picked)
     if (!issued.ok) return issued.response
+    await checkSignals(supabase, req, body, issued.session.token)
 
     return json({
       success: true,

@@ -1,3 +1,4 @@
+import { checkSignals } from '../_shared/moderation.ts'
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { constantTimeCompare, verifyPassword } from '../_shared/password.ts'
@@ -34,7 +35,8 @@ serve(async (req) => {
   )
 
   try {
-    const { password, creatorName } = await req.json()
+    const body = await req.json()
+    const { password, creatorName } = body
 
     if (!password || !creatorName) {
       return fail()
@@ -52,6 +54,8 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+
+    if (!(await checkSignals(supabase, req, body))) return fail()
 
     const trimmedName = creatorName.trim()
     const identifier = trimmedName.toLowerCase()
@@ -115,6 +119,7 @@ serve(async (req) => {
       const profiles = profile.auth_user_id
         ? publicProfiles(await listProfiles(supabase, profile.auth_user_id))
         : publicProfiles([profile])
+      await checkSignals(supabase, req, body, issued.session.token)
       return new Response(
         JSON.stringify({ success: true, ...issued.session, profiles }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -146,6 +151,7 @@ serve(async (req) => {
       )
     }
 
+    await checkSignals(supabase, req, body, sessionToken)
     return new Response(
       JSON.stringify({
         success: true,

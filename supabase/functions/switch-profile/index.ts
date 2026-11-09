@@ -1,3 +1,4 @@
+import { checkSignals } from '../_shared/moderation.ts'
 import { json, optionsResponse } from '../_shared/http.ts'
 import {
   accountTypeFor,
@@ -27,6 +28,7 @@ Deno.serve(async (req) => {
     if (!token) return json({ success: false, error: 'Missing token' }, 401)
 
     const supabase = serviceClient()
+    if (!(await checkSignals(supabase, req, body))) return json({ error: 'Аккаунт заблокирован' }, 403)
     const { data: session } = await supabase
       .from('creator_sessions')
       .select('token, creator_name, profile_id, expires_at')

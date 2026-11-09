@@ -1,3 +1,5 @@
+import ModeratorReportsPanel from "@/components/moderator/ModeratorReportsPanel";
+import { incomingReport, type ProductReport } from "@/lib/moderationTypes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -106,25 +108,6 @@ interface TopicSuggestion {
   created_by?: string;
 }
 
-interface ProductReport {
-  id: string;
-  product_id: string;
-  user_id?: string;
-  reporter_name?: string;
-  reporter_contact?: string;
-  reason: string;
-  description?: string;
-  status: "pending" | "resolved" | "dismissed";
-  created_at: string;
-  reviewed_at?: string;
-  reviewed_by?: string;
-  products?: {
-    id: string;
-    title: string;
-    creator_id: string;
-  };
-}
-
 interface Thread {
   id: string;
   user_type: string;
@@ -161,7 +144,7 @@ const MODERATOR_NAV_ITEMS: ModeratorNavItem[] = [
   },
   {
     key: "reports",
-    label: "Жалобы на продукты",
+    label: "Жалобы",
     shortLabel: "Жалобы",
     icon: AlertTriangle,
   },
@@ -201,8 +184,8 @@ const ModeratorDashboard = () => {
 
   const [reports, setReports] = useState<ProductReport[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
-  const [actionBusyReportId, setActionBusyReportId] = useState<string | null>(null);
-  const [reportsFilter, setReportsFilter] = useState<"all" | "pending" | "resolved" | "dismissed">("pending");
+  const [moderationNotices, setModerationNotices] = useState<{id:string;body:string;created_at:string}[]>([]);
+  const [reportsLoaded, setReportsLoaded] = useState(false);
 
   const [pushEnabled, setPushEnabled] = useState(() =>
     typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted"
@@ -234,8 +217,8 @@ const ModeratorDashboard = () => {
   }, [topicSuggestions, totals.pending_topics]);
 
   const pendingReportsCount = useMemo(() => {
-    return reports.filter((r) => r.status === "pending").length || totals.pending_reports || 0;
-  }, [reports, totals.pending_reports]);
+    return reportsLoaded ? reports.filter(incomingReport).length : totals.pending_reports || 0;
+  }, [reports, reportsLoaded, totals.pending_reports]);
 
   // Число чатов, в которых есть непрочитанные сообщения (если несколько сообщений в 1 чате, счетчик равен 1)
   const unreadChatsCount = useMemo(() => {
@@ -309,6 +292,7 @@ const ModeratorDashboard = () => {
         const data = await call({ action: "list_reports" }, overrideToken);
         if (data?.success) {
           setReports(data.reports || []);
+          setReportsLoaded(true);
         }
       } catch (err) {
         console.error("Failed to load reports:", err);
@@ -319,29 +303,17 @@ const ModeratorDashboard = () => {
     [call]
   );
 
-  const handleUpdateReportStatus = async (reportId: string, newStatus: "resolved" | "dismissed") => {
-    setActionBusyReportId(reportId);
-    try {
-      const data = await call({
-        action: "update_report_status",
-        report_id: reportId,
-        status: newStatus,
-      });
-      if (data?.success) {
-        setReports((prev) =>
-          prev.map((r) => (r.id === reportId ? { ...r, status: newStatus } : r))
-        );
-        toast.success(newStatus === "resolved" ? "Жалоба решена" : "Жалоба отклонена");
-        void loadStats();
-      } else {
-        toast.error(data?.error || "Не удалось обновить статус жалобы");
-      }
-    } catch (err) {
-      toast.error("Ошибка при обновлении статуса");
-    } finally {
-      setActionBusyReportId(null);
-    }
-  };
+  useEffect(() => {
+    if (!token) return;
+    const refresh = async () => {
+      await loadReports();
+      const r = await call({ action: 'moderation_notifications' });
+      if (r.success) setModerationNotices(r.notifications || []);
+    };
+    void refresh().catch(console.error);
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh().catch(console.error); }, 15000);
+    return () => window.clearInterval(timer);
+  }, [token, call, loadReports]);
 
   const handleEnablePushNotifications = async () => {
     if (!("Notification" in window)) {
@@ -766,6 +738,8 @@ const ModeratorDashboard = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              <HeaderNotificationsButton active={notificationsOpen} count={pendingReportsCount + pendingTopicsCount + moderationNotices.length} onClick={() => setNotificationsOpen(true)} />
+              <HeaderChatsButton active={activeSection === "support"} unread={unreadChatsCount} onClick={() => setActiveSection("support")} />
               <Button
                 type="button"
                 variant="ghost"
@@ -1187,205 +1161,7 @@ const ModeratorDashboard = () => {
             </div>
           )}
 
-          {activeSection === "reports" && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-bold text-foreground">Жалобы на продукты</h2>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    Жалобы пользователей на нарушения, подозрительный или некачественный контент
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1.5 bg-muted/60 p-1 rounded-xl border border-border/60">
-                  <Button
-                    type="button"
-                    variant={reportsFilter === "pending" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setReportsFilter("pending")}
-                    className={cn(
-                      "h-8 px-3 text-xs rounded-lg font-medium",
-                      reportsFilter === "pending" ? "bg-[#FF6B00] hover:bg-[#E86000] text-white shadow-xs" : ""
-                    )}
-                  >
-                    На рассмотрении
-                    {pendingReportsCount > 0 && (
-                      <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white font-bold">
-                        {pendingReportsCount}
-                      </span>
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={reportsFilter === "all" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setReportsFilter("all")}
-                    className={cn(
-                      "h-8 px-3 text-xs rounded-lg font-medium",
-                      reportsFilter === "all" ? "bg-[#FF6B00] hover:bg-[#E86000] text-white shadow-xs" : ""
-                    )}
-                  >
-                    Все ({reports.length})
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={reportsFilter === "resolved" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setReportsFilter("resolved")}
-                    className={cn(
-                      "h-8 px-3 text-xs rounded-lg font-medium",
-                      reportsFilter === "resolved" ? "bg-[#FF6B00] hover:bg-[#E86000] text-white shadow-xs" : ""
-                    )}
-                  >
-                    Решенные
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={reportsFilter === "dismissed" ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setReportsFilter("dismissed")}
-                    className={cn(
-                      "h-8 px-3 text-xs rounded-lg font-medium",
-                      reportsFilter === "dismissed" ? "bg-[#FF6B00] hover:bg-[#E86000] text-white shadow-xs" : ""
-                    )}
-                  >
-                    Отклоненные
-                  </Button>
-                </div>
-              </div>
-
-              {loadingReports ? (
-                <div className="flex justify-center py-16">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                </div>
-              ) : reports.filter((r) => reportsFilter === "all" || r.status === reportsFilter).length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-4">
-                      <Flag className="w-6 h-6" />
-                    </div>
-                    <h3 className="font-semibold text-lg">
-                      {reportsFilter === "pending" ? "Нет новых жалоб" : "В этом разделе пусто"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground max-w-md mt-1.5">
-                      {reportsFilter === "pending"
-                        ? "На данный момент все поступившие жалобы рассмотрены."
-                        : "Здесь будут отображаться жалобы пользователей по выбранному фильтру."}
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {reports
-                    .filter((r) => reportsFilter === "all" || r.status === reportsFilter)
-                    .map((item) => (
-                      <Card
-                        key={item.id}
-                        className={cn(
-                          "transition-shadow hover:shadow-md border",
-                          item.status === "pending" ? "border-amber-200 dark:border-amber-900/40 bg-card" : "bg-card/70 opacity-90"
-                        )}
-                      >
-                        <CardContent className="p-5 space-y-3.5">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <span className="text-xs text-muted-foreground block mb-0.5">
-                                {new Date(item.created_at).toLocaleDateString("ru-RU", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                              <h3 className="font-semibold text-base text-foreground line-clamp-2">
-                                {item.products?.title || `Продукт ${item.product_id.slice(0, 8)}`}
-                              </h3>
-                            </div>
-                            <div className="shrink-0">
-                              {item.status === "pending" && (
-                                <Badge className="bg-[#FF6B00] text-white border-none text-[11px]">
-                                  На рассмотрении
-                                </Badge>
-                              )}
-                              {item.status === "resolved" && (
-                                <Badge className="bg-emerald-600 text-white border-none text-[11px]">
-                                  Решено
-                                </Badge>
-                              )}
-                              {item.status === "dismissed" && (
-                                <Badge variant="outline" className="text-muted-foreground text-[11px]">
-                                  Отклонено
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                            <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 block mb-1">
-                              Причина: {item.reason}
-                            </span>
-                            {item.description ? (
-                              <p className="text-xs text-foreground/90 whitespace-pre-wrap">
-                                {item.description}
-                              </p>
-                            ) : (
-                              <p className="text-xs text-muted-foreground italic">
-                                Подробное описание не указано
-                              </p>
-                            )}
-                          </div>
-
-                          {(item.reporter_name || item.reporter_contact) && (
-                            <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
-                              {item.reporter_name && <span>От: {item.reporter_name}</span>}
-                              {item.reporter_contact && <span>Связь: {item.reporter_contact}</span>}
-                            </div>
-                          )}
-
-                          <div className="flex items-center gap-2 pt-2 border-t">
-                            <a
-                              href={`/p/${item.product_id}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center justify-center h-8 px-3 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted/60 transition-colors"
-                            >
-                              К продукту
-                              <ExternalLink className="w-3 h-3 ml-1" />
-                            </a>
-
-                            {item.status === "pending" && (
-                              <>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  disabled={actionBusyReportId === item.id}
-                                  onClick={() => handleUpdateReportStatus(item.id, "resolved")}
-                                  className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg ml-auto"
-                                >
-                                  <Check className="w-3.5 h-3.5 mr-1" />
-                                  Решено
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={actionBusyReportId === item.id}
-                                  onClick={() => handleUpdateReportStatus(item.id, "dismissed")}
-                                  className="h-8 text-xs text-muted-foreground hover:text-destructive hover:border-destructive/40 font-medium rounded-lg"
-                                >
-                                  <X className="w-3.5 h-3.5 mr-1" />
-                                  Отклонить
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                </div>
-              )}
-            </div>
-          )}
+          {activeSection === "reports" && <ModeratorReportsPanel reports={reports} loading={loadingReports} call={call} onChange={async () => { await Promise.all([loadReports(),loadStats(),loadThreads()]); }} onThread={thread => { setSelectedThread(thread); setActiveSection('support'); }} />}
 
           {activeSection === "improvements" && (
             <div className="space-y-6">
@@ -1619,6 +1395,7 @@ const ModeratorDashboard = () => {
               </button>
             )}
 
+            {moderationNotices.map(n => <div key={n.id} className="rounded-xl border border-amber-300 p-3 text-sm"><p>{n.body}</p><p className="text-xs text-muted-foreground">{new Date(n.created_at).toLocaleString("ru-RU")}</p><Button variant="link" onClick={() => {setActiveSection("reports");setNotificationsOpen(false);}}>Открыть жалобы</Button></div>)}
             {pendingReportsCount > 0 && (
               <button
                 type="button"
@@ -1685,7 +1462,7 @@ const ModeratorDashboard = () => {
               </button>
             )}
 
-            {pendingTopicsCount === 0 && pendingReportsCount === 0 && unreadChatsCount === 0 && (
+            {pendingTopicsCount === 0 && pendingReportsCount === 0 && unreadChatsCount === 0 && moderationNotices.length === 0 && (
               <div className="py-8 text-center text-sm text-muted-foreground">
                 Новых системных уведомлений нет
               </div>

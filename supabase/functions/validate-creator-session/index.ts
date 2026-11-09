@@ -1,3 +1,4 @@
+import { checkSignals } from '../_shared/moderation.ts'
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
@@ -26,7 +27,8 @@ serve(async (req) => {
   }
 
   try {
-    const { token } = await req.json()
+    const body = await req.json()
+    const { token } = body
 
     if (!token) {
       return new Response(
@@ -40,6 +42,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
+    if (!(await checkSignals(supabase, req, body))) return new Response(JSON.stringify({ valid: false }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     const { data: session, error } = await supabase
       .from('creator_sessions')
       .select('*')

@@ -1,3 +1,5 @@
+import ModerationStatusNotice from "./ModerationStatusNotice";
+import { useModerationStatus } from "@/hooks/useModerationStatus";
 import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +61,7 @@ interface CreatorNotificationsTabProps {
 
 const CreatorNotificationsTab = ({ creatorName, lastViewedAt, onOpenUsers }: CreatorNotificationsTabProps) => {
   const { t, language } = useLanguage();
+  const {data: moderation} = useModerationStatus();
   const queryClient = useQueryClient();
   const { data: products } = useCreatorProducts(creatorName);
   const productIds = useMemo(() => products?.map(p => p.id) || [], [products]);
@@ -389,10 +392,11 @@ const CreatorNotificationsTab = ({ creatorName, lastViewedAt, onOpenUsers }: Cre
     );
   }
 
-  const hasNotifications = sortedBookings.length > 0 || pendingPurchases.length > 0 || cancellations.length > 0 || rescheduleRequests.length > 0;
+  const hasNotifications = !!moderation?.notifications.length || sortedBookings.length > 0 || pendingPurchases.length > 0 || cancellations.length > 0 || rescheduleRequests.length > 0;
 
   return (
     <div className="space-y-4">
+      <ModerationStatusNotice notifications />
       {/* Reschedule Requests Section */}
       {rescheduleRequests.length > 0 && (
         <Card className="border-primary/30">

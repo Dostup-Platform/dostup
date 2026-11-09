@@ -85,6 +85,7 @@ Deno.serve(async (req) => {
         .from('products')
         .select(CATALOG_COLUMNS)
         .eq('is_active', true)
+        .eq('moderation_locked', false)
         .eq('is_paused', false)
         .eq('is_published', true)
         .order('created_at', { ascending: false })
@@ -120,6 +121,7 @@ Deno.serve(async (req) => {
           .select(CATALOG_COLUMNS)
           .eq('id', catalogId)
           .eq('is_active', true)
+        .eq('moderation_locked', false)
           .maybeSingle()
         data = result.data as CatalogRow | null
       }
@@ -130,6 +132,7 @@ Deno.serve(async (req) => {
           .select(CATALOG_COLUMNS)
           .eq('slug', idOrSlug)
           .eq('is_active', true)
+        .eq('moderation_locked', false)
           .maybeSingle()
         data = bySlug.data as CatalogRow | null
       }
@@ -140,6 +143,7 @@ Deno.serve(async (req) => {
           .select(CATALOG_COLUMNS)
           .eq('id', idOrSlug)
           .eq('is_active', true)
+        .eq('moderation_locked', false)
           .maybeSingle()
         data = byId.data as CatalogRow | null
       }
@@ -159,6 +163,7 @@ Deno.serve(async (req) => {
         .select('id')
         .eq('id', productId)
         .eq('is_active', true)
+        .eq('moderation_locked', false)
         .maybeSingle()
       if (!product) return json({ items: [] })
 
@@ -182,6 +187,7 @@ Deno.serve(async (req) => {
         .select('id')
         .eq('id', productId)
         .eq('is_active', true)
+        .eq('moderation_locked', false)
         .maybeSingle()
       if (!product) return json({ teachers: [] })
       const { data } = await supabase

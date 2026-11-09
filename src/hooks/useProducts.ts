@@ -17,6 +17,8 @@ export interface Product {
   is_active: boolean;
   /** Seller-only: shown in the marketplace catalog. */
   is_published?: boolean;
+  moderation_locked?: boolean;
+  moderation_flagged?: boolean;
   slug: string | null;
   created_at: string;
   updated_at: string;
@@ -87,14 +89,12 @@ export const useCatalogProducts = () => {
 };
 
 export const useProduct = (productId: string | undefined) => {
+  const preview = new URLSearchParams(window.location.search).get("moderatorPreview") === "1";
   return useQuery({
-    queryKey: ["product", productId],
+    queryKey: ["product", productId, preview ? "moderator" : "public"],
     queryFn: async () => {
       if (!productId) return null;
-      const data = await invokeApi<{ product: Product | null }>("catalog", {
-        action: "get_product",
-        idOrSlug: productId,
-      });
+      const data = await invokeApi<{ product: Product | null }>(preview ? "moderator-api" : "catalog", preview ? { action: "preview_public", product_id: productId, token: localStorage.getItem("moderator_token") } : { action: "get_product", idOrSlug: productId });
       return data.product;
     },
     enabled: !!productId,
@@ -102,14 +102,12 @@ export const useProduct = (productId: string | undefined) => {
 };
 
 export const useProductProgram = (productId: string | undefined) => {
+  const preview = new URLSearchParams(window.location.search).get("moderatorPreview") === "1";
   return useQuery({
-    queryKey: ["product-program", productId],
+    queryKey: ["product-program", productId, preview ? "moderator" : "public"],
     queryFn: async () => {
       if (!productId) return [];
-      const data = await invokeApi<{ items: ProductProgramItem[] }>("catalog", {
-        action: "list_program",
-        productId,
-      });
+      const data = await invokeApi<{ items: ProductProgramItem[] }>(preview ? "moderator-api" : "catalog", preview ? { action: "preview_program", product_id: productId, token: localStorage.getItem("moderator_token") } : { action: "list_program", productId });
       return data.items ?? [];
     },
     enabled: !!productId,
@@ -159,6 +157,7 @@ export const useCreatorProducts = (passedCreatorName?: string | null) => {
     enabled: !!creatorId,
     staleTime: 0,
     refetchOnMount: "always",
+    refetchInterval: 15000,
   });
 };
 

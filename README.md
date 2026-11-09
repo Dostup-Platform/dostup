@@ -28,6 +28,7 @@ npm run preview      # локальный просмотр собранной в
 
 ## Документация
 
+- [Кабинет модератора](./docs/moderation-cabinet.md) — жалобы, ограничения, блокировки и порядок развёртывания
 - [MIGRATE.md](./MIGRATE.md) — подключение фронтенда и Supabase-проекта, деплой edge-функций
 - [CONNECTIONS_AUDIT.md](./CONNECTIONS_AUDIT.md) — сравнение подключений старой и новой версии проекта
 - [VERCEL_SETUP.md](./VERCEL_SETUP.md) — деплой на Vercel

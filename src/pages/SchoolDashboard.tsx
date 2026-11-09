@@ -1,3 +1,6 @@
+import ModerationStatusNotice from "@/components/creator/ModerationStatusNotice";
+import { useModerationStatus } from "@/hooks/useModerationStatus";
+import NotificationsDialog from "@/components/dashboard/NotificationsDialog";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +25,8 @@ import {
 
 const SchoolDashboard = () => {
   const navigate = useNavigate();
+  const [notificationsOpen,setNotificationsOpen] = useState(false);
+  const {data: moderation} = useModerationStatus();
   const { t } = useLanguage();
   const [profileDisplayName, setProfileDisplayName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -103,13 +108,15 @@ const SchoolDashboard = () => {
       <AppHeader>
         <HeaderSupportButton />
         <HeaderNotificationsButton
-          active={false}
-          count={0}
-          onClick={() => navigate("/school")}
+          active={notificationsOpen}
+          count={moderation?.notifications.length || 0}
+          onClick={() => setNotificationsOpen(true)}
         />
         <HeaderAccountControl />
       </AppHeader>
+      <NotificationsDialog open={notificationsOpen} onOpenChange={setNotificationsOpen}><ModerationStatusNotice notifications /></NotificationsDialog>
       <div className="max-w-5xl mx-auto space-y-6 px-4 py-8">
+        <ModerationStatusNotice />
         <Card>
           <CardHeader className="text-center">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">

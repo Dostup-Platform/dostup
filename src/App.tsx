@@ -70,6 +70,8 @@ function AppRoutes() {
 			location.pathname === '/auth/callback'
 		)
 			return
+		const isModeratorPreview = /^\/p\/[^/]+$/.test(location.pathname) && new URLSearchParams(location.search).get('moderatorPreview') === '1'
+		if (isModeratorPreview) return
 		const modToken = localStorage.getItem('moderator_token')
 		if (modToken) {
 			navigate('/moderator', { replace: true })
@@ -83,7 +85,7 @@ function AppRoutes() {
 				navigate('/moderator', { replace: true })
 			}
 		})
-	}, [location.pathname, navigate])
+	}, [location.pathname, location.search, navigate])
 
 	// Signed in without any profile: the role picker comes first.
 	useEffect(() => {
